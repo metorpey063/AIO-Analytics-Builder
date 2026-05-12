@@ -1,0 +1,19 @@
+{
+  "_instructions": "Copy this file to config.json and fill in your values. Never commit config.json.",
+  "tableau": {
+    "server_url": "https://us-east-1.online.tableau.com/",
+    "site_name": "<your-site-name>",
+    "pat_name": "Claude Code",
+    "pat_secret": "<your-PAT-secret>"
+  },
+  "salesforce": {
+    "sf_login_url": "https://login.salesforce.com",
+    "client_id": "<Connected App Consumer Key>",
+    "client_secret": "<Connected App Consumer Secret>",
+    "refresh_token": "<OAuth Refresh Token>",
+    "data_cloud_domain": "<your-dc-domain.c360a.salesforce.com>",
+    "ingestion_connector_name": "analytics_builder_demo",
+    "connector_sf_id": "",
+    "connector_uuid_name": ""
+  }
+}

@@ -1,0 +1,161 @@
+# Analytics Builder
+
+A Claude Code skill for Tableau and Salesforce Solutions Engineers to rapidly build compelling demo assets across three platforms: Tableau Pulse, Tableau Next, and Salesforce Data Cloud.
+
+## What this does
+
+- **/setup** — Guided one-time setup: connects to Tableau Cloud (PAT) and Salesforce (OAuth), discovers or creates Data Cloud ingest connector
+- **/build-demo** — Story-driven demo builder: generates synthetic data with engineered signals, then offers three outputs:
+  1. **Tableau Pulse** — publishes a .hyper datasource and creates Pulse metric definitions + group subscriptions
+  2. **Tableau Next** — pushes data to Data Cloud, builds a Semantic Data Model, metrics, visualizations, and dashboard
+  3. **CSV export** — exports the generated dataset for manual use in any viz tool
+
+## Project structure
+
+- `connections.py` — all auth logic; import this everywhere, never inline credentials
+- `oauth_flow.py` — Salesforce OAuth browser flow (port 8080 callback)
+- `setup.py` — setup wizard logic called by /setup
+- `config.json` — per-SE credentials (gitignored, never commit)
+- `config.json.template` — safe to commit, shows required fields
+- `demos/` — generated demo scripts and exports land here
+
+## Credentials & config
+
+All credentials live in `config.json`. Never hardcode credentials in demo scripts. Always call `connections.load_config()` to read them.
+
+The config has two top-level sections:
+- `tableau` — server_url, site_name, pat_name, pat_secret
+- `salesforce` — sf_login_url, client_id, client_secret, refresh_token, data_cloud_domain, ingestion_connector_name, connector_sf_id, connector_uuid_name
+
+## Auth patterns
+
+**Tableau Cloud (Pulse):**
+```python
+from connections import get_tableau_token, tableau_headers, tableau_pulse_headers
+server, auth_token, site_id = get_tableau_token()
+# Always sign out when done: server.auth.sign_out()
+```
+
+**Salesforce + Data Cloud (Tableau Next):**
+```python
+from connections import get_all_tokens, sf_headers, dc_headers
+sf_token, sf_instance, dc_token, dc_domain = get_all_tokens()
+# SF token for all Semantics/Workspace/Visualization API calls
+# DC token only for Bulk Ingest API calls
+```
+
+## Key API endpoints
+
+**Tableau Pulse:**
+- `POST /api/-/pulse/definitions` — create metric (use `tableau_pulse_headers`)
+- `GET /api/-/pulse/definitions/{id}/metrics` — get metric ID (use this for subscriptions, NOT definition ID)
+- `POST /api/-/pulse/subscriptions:batchCreate` — subscribe group to metric
+- `POST /api/{version}/sites/{site_id}/groups` (XML content-type) — create group
+
+**Data Cloud (v62.0, SF token):**
+- `GET/PUT /services/data/v62.0/ssot/connections/{id}/schema`
+- `POST /services/data/v62.0/ssot/data-streams`
+- `GET /services/data/v62.0/ssot/data-streams/{name}` — poll for `status == "ACTIVE"`
+
+**Semantics (v65.0, SF token):**
+- `POST /services/data/v65.0/tableau/workspaces`
+- `POST /services/data/v65.0/ssot/semantic/models` — use `"dataspace": "default"` (not `dataspaceName`); SDM ignores `name` field, `apiName` is auto-generated from `label` (e.g. `Engine_Member_CSAT_4213`)
+- `POST /services/data/v65.0/ssot/semantic/models/{sdm}/data-objects` — add DLOs with `dataObjectType: "dlo"` (lowercase); DO gets its own `apiName` (e.g. `Member_CSAT_Activity2`)
+- `GET /services/data/v65.0/ssot/semantic/models/{sdm}/data-objects/{do}` — returns `semanticMeasurements` (auto-detected) and `semanticDimensions`; DC field names get `__c` suffix
+- `PUT /services/data/v65.0/ssot/semantic/models/{sdm}/data-objects/{do}/measurements/{api}` — update aggregation; requires `apiName` + `dataObjectFieldName` in body; use `aggregationType: "Average"/"Sum"` (not `AGGREGATION_AVERAGE`)
+- `POST /services/data/v65.0/ssot/semantic/models/{sdm}/relationships` — use `leftSemanticDefinitionApiName`/`leftFieldApiName` (DO apiName, field with `__c` suffix)
+- `POST /services/data/v65.0/tableau/workspaces/{name}/assets`
+
+**Visualizations + Dashboards (v66.0 + ?minorVersion=12, SF token):**
+- `POST /services/data/v66.0/tableau/visualizations?minorVersion=12` — create viz; name/label/dataSource/workspace/fields/visualSpecification/view required
+- `GET /services/data/v66.0/tableau/visualizations/{name}?minorVersion=12`
+- `DELETE /services/data/v66.0/tableau/visualizations/{name}?minorVersion=12`
+- `POST /services/data/v66.0/tableau/dashboards?minorVersion=12` — create dashboard
+- `DELETE /services/data/v66.0/tableau/dashboards/{name}`
+- Viz `objectName` = DO apiName (e.g. `Member_CSAT_Activity5`), `fieldName` = field without `__c` suffix? No — use `fieldName` as the bare field name; `objectName` from DO apiName
+- Dashboard `widgets` must be a dict; `source` must have only `"name"` key (no label/type)
+
+**Bulk Ingest (DC token, dc_domain):**
+- `POST https://{dc_domain}/api/v1/ingest/jobs`
+- Response key is `"data"` not `"jobs"`. States: Open → UploadComplete → InProgress → JobComplete / Failed
+- New schemas take 15-30s to become available to Bulk API after DLO ACTIVE — retry with backoff on 404
+
+## Brand colors (Tableau Next demos)
+
+For real companies, look up brand guidelines and apply brand colors to dashboards and visualizations:
+
+```python
+BRAND = {
+    "primary":   "#XXXXXX",   # dominant brand color
+    "secondary": "#XXXXXX",   # accent
+    "chart_bg":  "#FFFFFF",
+    "text":      "#2E2E2E",
+}
+```
+
+- **Dashboard `style.backgroundColor` / `gutterColor`**: use a light tint of the primary. For dark primaries, blend each channel 90% toward 255: `tint_channel = round(channel + (255 - channel) * 0.90)`.
+- **Viz `style.shading.backgroundColor`**: `BRAND["chart_bg"]` (usually white)
+- **Viz `FONTS` color fields**: `BRAND["text"]`
+- If brand colors can't be found, fall back to `#F3F3F3` background and `#2E2E2E` text.
+
+## Data generation rules
+
+- **Grain**: one row per entity (person/account/product) per month
+- **History**: 24 months back from today
+- **Signal ramp**: engineered trend decline over last 6 months to create a demo story
+  ```python
+  def signal_ramp(d, onset=-6, duration=6):
+      months_from_today = (d.year - TODAY.year) * 12 + (d.month - TODAY.month)
+      if months_from_today <= onset: return 0.0
+      return min(1.0, (months_from_today - onset) / duration)
+  ```
+- **Percentages**: always store as decimals (0.35 not 35)
+- **Column names**: business-friendly with spaces and proper caps ("Approval Rate" not "approval_rate")
+- **Date shifting**: always add a `display_date` calc field so demos stay current after build
+
+## Metric classification (always classify before writing code)
+
+| Type | Aggregation | Time default | Example |
+|------|-------------|--------------|---------|
+| Flow | AGGREGATION_SUM | Year to Date | Volume, Revenue, Originations |
+| Rate/Average | AGGREGATION_AVERAGE | Last Month | Approval Rate, Retention % |
+| Snapped | AGGREGATION_SUM (on snapshot rows) | Last Month | AUM, Pipeline, Headcount |
+
+## Known pitfalls
+
+- Pulse: Use metric ID (from `GET /definitions/{id}/metrics`) for subscriptions — NOT definition ID
+- Pulse: Granularities must include MONTH + QUARTER + YEAR minimum or slicers won't load
+- Pulse: `name` must be top-level in the definition payload, not inside `metadata`
+- Data Cloud: DLO status is nested under `dataLakeObjectInfo.status`, not at the top level of the data-stream response — always read `body.get("dataLakeObjectInfo", {}).get("status") or body.get("status", "UNKNOWN")` to handle both shapes. After reaching ACTIVE, wait an additional 30s before submitting bulk ingest jobs — schema propagation lag can cause 404s even after ACTIVE is reported.
+- Data Cloud: Dashboard `widgets` must be a dict, not a list
+- Data Cloud: Dashboard page `name` must be a UUID string (`str(uuid.uuid4())`)
+- Data Cloud: `"headers": {}` in visualization style causes 400 — omit entirely
+- Salesforce External Client App requires scopes: api, sfap_api, cdp_query_api, cdp_ingest_api, refresh_token; must check "Enable Authorization Code and Credentials Flow"; must UNCHECK "Require PKCE" (it defaults to on)
+- Semantics: SDM `name` field is ignored — `apiName` is auto-generated from `label`; capture `apiName` from POST response
+- Semantics: `dataObjectType` in data-objects POST must be lowercase `"dlo"` (not `"DLO"`)
+- Semantics: Relationship payload uses `leftSemanticDefinitionApiName`/`rightSemanticDefinitionApiName` (DO apiName) + `leftFieldApiName`/`rightFieldApiName` (field name with `__c` suffix)
+- Semantics: Measurement PUT requires `aggregationType: "Average"` or `"Sum"` (title case, not `AGGREGATION_AVERAGE`); also requires `apiName` + `dataObjectFieldName` in body
+- Semantics: `/calculated-measurements` POST at SDM level requires DO-qualified field references in expressions: `AVG([DO_apiName].[measurement_apiName])` e.g. `AVG([Member_CSAT_Activity7].[csat_score8])` — bare field names, `__c`-suffixed names, and label names all fail with "Missing reference"
+- Semantics: Metrics (`_mtc`) require a `_clc` calculated measurement as the `measurementReference.calculatedFieldApiName` — they cannot reference auto-detected measurement apiNames directly; create the `_clc` at SDM level first, then create the metric
+- Semantics: SDM-level list endpoints use `items` key (not `semanticModels` or `calculatedMeasurements`) — always read `r.json().get('items', [])`
+- Semantics: Relationship join criteria (`leftFieldApiName`/`rightFieldApiName`) are silently dropped for IngestAPI DLO relationships — `criteria` always comes back `[]`; SDM will throw "No join criteria found" at query time. Workaround: denormalize dimension fields into the fact table and only add the fact DLO to the SDM (no relationship needed)
+- Bulk Ingest: `sourceName` must be the short connector name (e.g. `analytics_builder_demo`), not the UUID name (`analytics_builder_demo_d964ca78_...`)
+- Visualizations: `fieldName` in fields uses the bare field name (no `__c`); `objectName` is the DO apiName (auto-generated, e.g. `Member_CSAT_Activity5`) — get it from Phase 7 response and pass it through
+- Visualizations: `visualSpecification.style` must omit `"headers": {}` — an empty headers object causes 400; only include `headers` if it has actual content
+- Calculated measurements/metrics at v66.0: `POST /services/data/v66.0/ssot/semantic/models/{sdm}/calculated-measurements` still returns 500 for IngestAPI DLOs; stick with PUT on auto-detected measurements (v65.0 pattern)
+- Dashboard pattern: use `widgets` dict + `layouts` array (not `pages` at top level); metric widgets need `source: {name: mtc_api}` (no `type`) + `parameters.metricOption.sdmApiName`; viz widgets need `source: {name: viz_api}` (no `type`); `workspaceIdOrApiName` is the correct field (not `workspace`); adding `type` or `label` inside `source` causes `JSON_PARSER_ERROR`
+- Pulse group creation: parse group ID with explicit `if grp is None` checks — never use `element or fallback` on an XML Element (evaluates element truthiness, returns None silently). Pattern: `grp = root.find(".//{http://tableau.com/api}group"); if grp is None: grp = root.find(".//group")`. Fail loudly if group ID is still None after creation.
+- Pulse subscriptions: check and log each `batchCreate` response individually — a 201 with `group_id: null` silently succeeds but does nothing. Always verify group_id is non-null before posting subscriptions.
+- Pulse definitions pagination: use `next_page_token` not `page=N` — the Pulse definitions API returns a `next_page_token` field; the `page=N` parameter returns empty results after the first page. Pattern: loop with `params={'page_size': 100, 'page_token': npt}` until `next_page_token` is empty.
+- Pulse group cleanup: before creating a new group, delete all existing groups whose name starts with `{Company} |` — same as project/definition cleanup. Use `GET /api/{version}/sites/{site_id}/groups?pageSize=100` (XML), parse with namespace-aware `find`, then `DELETE /groups/{id}` for each match.
+- Business preferences (Concierge nouns): after creating all metrics, PUT each one back with `insightsSettings.singularNoun` and `insightsSettings.pluralNoun` filled in. Pattern: GET the metric, update the fields, strip read-only fields (`id`, `createdBy`, `createdDate`, `lastModifiedBy`, `lastModifiedDate`), PUT back to `PUT /services/data/v66.0/ssot/semantic/models/{sdm}/metrics/{api}?minorVersion=12`. Define noun pairs in `METRIC_CONFIG` alongside the other metric fields.
+- Checkpoint/resume: write a `{slug}_checkpoint.json` file in the demo folder after each major phase (CSV, Pulse, Next) completes. On script start, load the checkpoint and skip phases already marked done. This prevents re-ingesting data or re-creating assets when a run is interrupted mid-way.
+- Visualizations (VizQL format): `visualSpecification` must use `"layout": "Vizql"` with `columns`/`rows` as field-key arrays (e.g. `["F1"]`, `["F2"]`), NOT an `"encodings"` dict. Required top-level keys: `columns`, `rows`, `forecasts`, `legends`, `measureValues`, `referenceLines`, `marks`, `style`.
+- Visualizations `style` required keys: `axis`, `encodings`, `fieldLabels`, `fit`, `fonts`, `headers`, `lines`, `marks`, `referenceLines`, `shading`, `showDataPlaceholder`, `title`. Missing any one causes a 400 "Value required for [key]".
+- Visualizations `style.headers`: requires `columns`, `rows` (both `{"mergeRepeatedCells": True, "showIndex": False}`), and `fields` (map of field key → `{"hiddenValues": [], "isVisible": True, "showMissingValues": False}`).
+- Visualizations `style.marks.headers`: use `_marks_headers_style()` pattern: `{"color": {"color": ""}, "isAutomaticSize": True, "label": {"canOverlapLabels": False, "marksToLabel": {"type": "All"}, "showMarkLabels": False}, "range": {"reverse": False}, "size": {"isAutomatic": True, "type": "Pixel", "value": 13}}`.
+- Visualizations `marks.panes` (top-level, not in style): `{"encodings": [], "isAutomatic": True, "stack": {"isAutomatic": True, "isStacked": False}, "type": "Line"|"Bar"}`. The `style.marks.panes` is a separate object with color/label/range/size — not the chart type.
+- Visualizations `style.lines`: must use explicit keys (e.g. `axisLine`, `fieldLabelDividerLine`, etc.) — `{"referenceLines": {}}` is not valid here; use `{}` or the `LINES` dict pattern.
+- Visualizations `legends`: required at top level of `visualSpecification`; use `{}` when no color dimension, or `{"F3": {"isVisible": True, "position": "Right", "title": {"isVisible": True}}}` when a color field is present.
+- Retry cleanup: track every viz and dashboard created (including from failed runs) in `cp["all_viz_apis"]` and `cp["all_dash_apis"]`. At the start of the viz/dashboard phase, DELETE everything in those lists, reset them to `[]`, then append each new asset immediately after creation and save checkpoint. Never clear these lists when resetting phase6 — they must survive across retries.
+- Asset ownership: only DELETE assets whose names appear in `all_viz_apis` / `all_dash_apis` in the checkpoint. If asked to delete something not in those lists, always confirm with the user first.
