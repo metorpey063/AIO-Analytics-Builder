@@ -8,6 +8,18 @@ All notable changes to Analytics Builder are documented here.
 
 ---
 
+## 2026-05-14 — Retry Cleanup Extended to Workspace + SDM
+
+### Fixed
+
+**Stale SDMs and workspaces from failed runs**
+- Extended the retry cleanup pattern (previously applied only to vizzes/dashboards in phase 6) to the workspace and SDM creation phase (phase 4)
+- `all_ws_apis` and `all_sdm_apis` are now tracked in the checkpoint alongside `all_viz_apis` and `all_dash_apis`
+- At the start of each phase 4 run, all previously created workspaces and SDMs in those lists are deleted before new ones are created, preventing accumulation of stale assets across retries
+- Derived checkpoint keys (`ws_api`, `sdm_api`, `do_api`) are cleared before recreation so the phase always starts clean
+
+---
+
 ## 2026-05-14 — Business Preferences, Brand Colors, Retry Cleanup, Advanced Mode
 
 ### Added
