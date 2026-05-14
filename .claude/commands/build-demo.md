@@ -98,6 +98,110 @@ Remove the `allow` block from `.claude/settings.local.json`, leaving only the `e
 
 Tell the user: "Permissions restored to default — the next session will ask for confirmation again unless you choose autonomous mode."
 
+### 0b. Advanced mode
+
+Ask immediately after the autonomous mode question:
+
+> "Would you like to use **Advanced Mode**? This unlocks extra configuration options — data history length, time grain, and fine-grained signal tuning. Recommended if you have a specific use case or audience in mind. (yes / no)"
+
+- If **no**: skip to Step 1. Use defaults: 24 months history, monthly grain, standard signal ramp.
+- If **yes**: ask the following questions one at a time before proceeding to Step 1.
+
+Advanced mode is asked fresh each session — never saved to config.
+
+---
+
+**A. Data history length**
+
+> "How much historical data should the demo show?
+> 1. **6 months** — tight, recent story; good for fast-moving metrics like pipeline or NPS
+> 2. **12 months** — one full year; shows seasonality and a clean year-over-year comparison
+> 3. **24 months** — default; enough history to make the signal look like a real emerging trend
+> 4. **36 months** — long view; good for strategic/executive audiences who think in multi-year cycles"
+
+Store as `HISTORY_MONTHS` (6 / 12 / 24 / 36). Default if not asked: 24.
+
+---
+
+**B. Time grain**
+
+> "What time grain should the data use?
+> 1. **Daily** — granular; good for operational metrics (support tickets, transactions, outreach response time). Warning: generates a lot of rows — works best with 6–12 months of history.
+> 2. **Weekly** — balanced; good for sales pipeline, engagement metrics, or anything reviewed in weekly standups
+> 3. **Monthly** — default; cleanest sparklines in Tableau Pulse and Next; recommended for executive and strategic demos"
+
+Store as `GRAIN` (daily / weekly / monthly). Use `freq='D'`, `'W'`, or `'MS'` in `pd.date_range` accordingly. Default if not asked: monthly.
+
+If the user picks **daily + 36 months**, warn them:
+> "That combination will generate a very large dataset (~1,000+ rows per entity). I'd recommend 12 months for daily grain, or switching to weekly if you need the longer history. Would you like to adjust?"
+
+---
+
+**C. Signal design — per primary metric**
+
+Run through C1, C2, C3 for each primary metric in turn.
+
+**C1 — Severity**
+> "How dramatic should the decline in **[metric name]** appear in the sparkline?
+> 1. **Subtle** (~15% drop) — early warning signs; good for 'we caught it early' stories
+> 2. **Moderate** (~25% drop) — clear downward trend; unmissable but not alarming
+> 3. **Severe** (~40% drop) — crisis-level signal; maximises urgency and the 'uh oh' reaction
+> 4. **Custom** — I'll tell you the exact percentage"
+
+Store as `signal_magnitude` (0.15 / 0.25 / 0.40 / custom float). Default if not asked: 0.37.
+
+**C2 — Onset**
+> "When should the decline start?
+> 1. **6 months ago** — default; decline is clearly visible in the most recent sparkline period
+> 2. **3 months ago** — very recent; makes the story feel urgent and unresolved
+> 3. **9 months ago** — longer trend; good for 'this has been building for a while' narratives"
+
+Store as `signal_onset` (-6 / -3 / -9). Default if not asked: -6.
+
+**C3 — Shape**
+> "How should the decline unfold?
+> 1. **Gradual ramp** — default; smooth linear decline that looks like a real emerging problem
+> 2. **Slow then accelerating** — flat for a while, then drops sharply at the end; good for 'tipping point' stories
+> 3. **Step change** — one visible drop then levels off; good for 'something changed in the business' narratives (e.g. a product launch, a policy change)"
+
+Store as `signal_shape` (ramp / accelerating / step). Default if not asked: ramp.
+
+Implement the shapes in the `signal_ramp` function:
+- **ramp**: `min(1.0, (months_from_onset) / duration)` — current default
+- **accelerating**: `min(1.0, ((months_from_onset) / duration) ** 2)` — quadratic curve
+- **step**: `1.0 if months_from_onset >= duration * 0.3 else 0.0` — drop at 30% through the window then flat
+
+---
+
+**D. Supporting metric signal strength**
+
+> "How clearly should the supporting metrics move in the data?
+> 1. **Subtle** (~8% movement) — barely perceptible; lets the primary signal dominate completely
+> 2. **Moderate** (~12% movement) — default; visible on closer inspection, tells a causal story
+> 3. **Strong** (~18% movement) — clearly correlated; good if you want the audience to connect the dots quickly"
+
+Store as `supporting_magnitude` (0.08 / 0.12 / 0.18). Default if not asked: 0.12.
+
+---
+
+**Applying advanced settings in the script:**
+
+Define all advanced parameters near the top of the script, clearly grouped:
+
+```python
+# ── Advanced settings ────────────────────────────────────────────────────────
+HISTORY_MONTHS        = 24       # 6 / 12 / 24 / 36
+GRAIN                 = "monthly"  # daily / weekly / monthly
+SIGNAL_MAGNITUDE      = 0.37    # primary metric decline (fraction)
+SIGNAL_ONSET          = -6      # months before today when decline starts
+SIGNAL_SHAPE          = "ramp"  # ramp / accelerating / step
+SUPPORTING_MAGNITUDE  = 0.12    # supporting metric movement (fraction)
+```
+
+Update the `signal_ramp` function to accept `onset`, `shape`, and `duration` parameters. Update date range generation to use `HISTORY_MONTHS` and `GRAIN`. Print a summary of all advanced settings at the start of each script run.
+
+---
+
 ### 1. Company name
 Ask the user for the company name, and include this note when asking:
 
