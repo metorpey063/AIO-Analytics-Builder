@@ -400,19 +400,28 @@ After all metrics are created, PUT each metric back with natural-language nouns 
 - `widgets` must be a dict, not a list
 - Omit `"headers": {}` from visualization style
 
-**Retry cleanup — always do this at the start of the viz/dashboard phase:**
+**Retry cleanup — apply to EVERY phase that creates assets:**
 
-Track every viz and dashboard created across all runs (including failed ones) in the checkpoint under `all_viz_apis` and `all_dash_apis`. These lists are **never cleared when resetting phase6** — they accumulate so that a retry always knows what to clean up.
+This pattern must be applied to the workspace/SDM phase (phase 4) and the viz/dashboard phase (phase 6). Track every asset created across all runs (including failed ones) in the checkpoint:
 
-At the start of the viz/dashboard phase, before creating anything new:
-1. DELETE every entry in `cp["all_dash_apis"]` and `cp["all_viz_apis"]`
-2. Reset both lists to `[]` in the checkpoint
-3. After each successful creation, immediately append the new name to the list and save the checkpoint
+- `all_ws_apis` — workspace names created by this script
+- `all_sdm_apis` — SDM apiNames created by this script
+- `all_viz_apis` — viz apiNames created by this script
+- `all_dash_apis` — dashboard apiNames created by this script
+
+These lists are **never cleared when resetting a phase** — they accumulate across retries so a retry always knows what to clean up.
+
+At the start of each phase (workspace/SDM or viz/dashboard), before creating anything new:
+1. DELETE every entry in the relevant lists
+2. Reset those lists to `[]` in the checkpoint
+3. Clear derived checkpoint keys that depend on the deleted assets (e.g. `ws_api`, `sdm_api`, `do_api` when re-running phase 4)
+4. Save the checkpoint
+5. After each successful creation, immediately append the new name to the list and save checkpoint
 
 This ensures only one complete, working set of assets survives each run.
 
 **Asset ownership rule (critical):**
-- Only ever delete assets whose names are in `all_dash_apis` / `all_viz_apis` in the checkpoint — i.e. assets this script created
+- Only ever delete assets whose names are in the checkpoint tracking lists — i.e. assets this script created
 - Never delete assets created outside this script (manually, by another build, etc.)
 - If a user asks you to delete assets during a session, confirm the asset name appears in the checkpoint before proceeding. If it doesn't, say: "I don't have a record of creating that asset — please confirm you want me to delete it before I proceed."
 
