@@ -420,11 +420,21 @@ This ensures only one complete, working set of assets survives each run.
 - Create a dedicated subfolder for this demo: `demos/{company_slug}_{use_case_slug}/`
 - Write the demo guide markdown file there (`{slug}_guide.md`)
 - Generate a Concierge walkthrough `.docx` file there using python-docx (`{slug}_demo_walkthrough.docx`)
+  - The `.docx` must include a **"Business Preferences (SDM)"** section at the end containing the full business preferences text (see below) with copy-paste instructions pointing to: Data 360 → Semantic Model → [SDM name] → AI Optimization → Manage Business Preferences
+- Generate business preferences text tailored to the company/use case and save it to the checkpoint as `"business_preferences"`. Structure as `#`-prefixed instruction lines covering:
+  - What the data represents (company context, what entities are tracked)
+  - Which metrics are leading vs. lagging indicators
+  - Which dimensions are most diagnostic for root-cause analysis
+  - Any terminology clarifications (e.g. what "at-risk" means in this org)
+  - Default time comparison preference (e.g. last 6 months vs. prior 6 months)
+  - Any metric hierarchy notes (which to prioritize when similar metrics exist)
 - Print a final summary block with:
   - All created asset names (metric names, viz names, dashboard name)
   - Direct URL to the Tableau Next workspace/dashboard
   - Direct URL to Tableau Pulse
   - Absolute file paths to the guide and walkthrough (so the user can click them)
+  - The full business preferences text (reprinted inline for easy access)
+  - A clear callout: "Open the walkthrough .docx for the Business Preferences text to paste into your SDM"
 - Remind user: enable Analytics Agent Readiness toggle in Data 360 → Semantic Model → Settings
 
 ### For CSV output:
@@ -461,10 +471,11 @@ For Pulse:
 For Tableau Next:
 - Visit your Tableau Next workspace
 - Enable Analytics Agent Readiness: Data 360 → Semantic Model → Settings → Analytics Agent Readiness → toggle ON
+- **Add Business Preferences to the SDM:** Data 360 → Semantic Model → [your SDM] → AI Optimization → Manage Business Preferences → paste the text from the "Business Preferences (SDM)" section of the walkthrough `.docx`
 - The Concierge panel is now ready for Q&A demos
 - Open the walkthrough `.docx` — it contains the exact Concierge prompts to use during the demo
 
-Note: the Tableau Next Concierge does not have a public REST API — it is UI-only. Automated testing of Concierge responses is not currently possible programmatically.
+Note: the Tableau Next Concierge does not have a public REST API — it is UI-only. Automated testing of Concierge responses is not currently possible programmatically. Business Preferences are also UI-only — the build generates the text for you, but you must paste it in manually.
 
 For CSV:
 - Open the file in Tableau Desktop, Excel, or any viz tool
