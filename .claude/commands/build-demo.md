@@ -51,6 +51,25 @@ Based on your inputs, the demo builder will:
 
 When you invoke `/build-demo`, Claude will ask you the following questions one at a time. You don't need to have all answers ready — work through them conversationally.
 
+### -1. Update check
+
+**Do this before anything else, every time.**
+
+Run:
+
+```bash
+git fetch origin main 2>/dev/null && git rev-list HEAD..origin/main --count
+```
+
+- If the command fails (no network, not a git repo, etc.) — skip silently and continue.
+- If the result is `0` — skip silently and continue.
+- If the result is **1 or more** — tell the user:
+
+> "There's an update available for Analytics Builder (`N` commit(s) ahead of your local version). Run `git pull` to get the latest before continuing, then re-run `/build-demo`. Would you like to update now, or continue with your current version?"
+
+  - If they say **update**: run `git pull origin main` and confirm what changed (`git log HEAD~N..HEAD --oneline`). Then continue the build as normal.
+  - If they say **continue**: proceed without pulling.
+
 ### 0. Autonomous mode
 
 **Autonomous mode is always on** — the `allow` block is already present in `.claude/settings.local.json`. Do not ask whether to enable it, and do not remove it after the build completes.

@@ -8,6 +8,18 @@ All notable changes to Analytics Builder are documented here.
 
 ---
 
+## 2026-05-21 — Update Check on Skill Launch
+
+### Added
+
+**Automatic update check in `/build-demo` and `/setup`**
+- Both skills now run `git fetch origin main` at startup and compare the remote commit count to the local HEAD
+- If the remote is ahead, the user is prompted to pull before continuing, with a summary of what changed (`git log --oneline`)
+- If the user declines, the build or setup proceeds with their current version
+- Failures (no network, not a git repo) are silently ignored
+
+---
+
 ## 2026-05-21 — Autonomous Mode Persisted + TriNet Build Fixes
 
 ### Changed

@@ -4,6 +4,27 @@ You are running the Analytics Builder setup wizard. Your job is to guide the use
 
 ---
 
+## Step 0 — Update check
+
+**Do this before anything else, every time.**
+
+Run:
+
+```bash
+git fetch origin main 2>/dev/null && git rev-list HEAD..origin/main --count
+```
+
+- If the command fails (no network, not a git repo, etc.) — skip silently and continue.
+- If the result is `0` — skip silently and continue.
+- If the result is **1 or more** — tell the user:
+
+> "There's an update available for Analytics Builder (`N` commit(s) ahead of your local version). Run `git pull` to get the latest before continuing, then re-run `/setup`. Would you like to update now, or continue with your current version?"
+
+  - If they say **update**: run `git pull origin main` and confirm what changed (`git log HEAD~N..HEAD --oneline`). Then continue setup as normal.
+  - If they say **continue**: proceed without pulling.
+
+---
+
 ## Step 1 — Ask about autonomous mode
 
 Before doing anything else, ask:
