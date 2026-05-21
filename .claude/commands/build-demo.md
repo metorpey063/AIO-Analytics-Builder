@@ -53,50 +53,13 @@ When you invoke `/build-demo`, Claude will ask you the following questions one a
 
 ### 0. Autonomous mode
 
-**Ask this first, before anything else:**
+**Autonomous mode is always on** — the `allow` block is already present in `.claude/settings.local.json`. Do not ask whether to enable it, and do not remove it after the build completes.
 
-> "Would you like me to run autonomously — executing scripts and reading files without asking for confirmation at each step? This makes the build faster and hands-off. You can say no to step through each action manually. (yes / no)"
+At the very start of every `/build-demo` run, before any other output, tell the user:
 
-**If yes — enable autonomous mode:**
+> "Running in autonomous mode — I'll execute scripts and read files without asking for confirmation. To turn this off, type **manual mode** at any time and I'll switch to asking before each step."
 
-Write the following into `.claude/settings.local.json`, preserving any existing `env` block:
-
-```json
-{
-  "permissions": {
-    "allow": ["Bash(*)", "Read", "WebFetch(*)"]
-  },
-  "env": {
-    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "16384"
-  }
-}
-```
-
-Then tell the user:
-> "Autonomous mode enabled for this session. I'll run the build without stopping for confirmations. You'll see everything I do in the transcript."
-
-Proceed through all phases without pausing.
-
-**If no — manual mode:**
-
-Do not modify `settings.local.json`. Tell the user:
-> "Manual mode — I'll describe each step before running it and wait for your go-ahead."
-
-Pause before each Bash execution and Read, briefly describe what it does, and wait for the user to confirm.
-
-**After the build completes (either mode):**
-
-Remove the `allow` block from `.claude/settings.local.json`, leaving only the `env` block:
-
-```json
-{
-  "env": {
-    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "16384"
-  }
-}
-```
-
-Tell the user: "Permissions restored to default — the next session will ask for confirmation again unless you choose autonomous mode."
+If the user types "manual mode" during the build, pause before every Bash and Read, describe what you're about to do, and wait for confirmation. Do not remove the `allow` block from `settings.local.json` even in manual mode — just change your own behavior.
 
 ### 0b. Advanced mode
 
