@@ -8,6 +8,20 @@ All notable changes to Analytics Builder are documented here.
 
 ---
 
+## 2026-05-21 — Field Descriptions for AI Optimization
+
+### Added
+
+**Automatic field descriptions on every SDM measurement and dimension**
+- `METRIC_CONFIG` entries now carry a `description` field; it is included in the measurement PUT payload (same call as `aggregationType` — no extra round-trip)
+- A `DIM_DESCRIPTIONS` dict at the top of each demo script maps dimension field names to plain-language descriptions written for Concierge to read ("Use this field to..." style)
+- After DO creation, a loop PUTs descriptions on every filterable dimension via `PUT /services/data/v65.0/ssot/semantic/models/{sdm}/data-objects/{do}/dimensions/{api}`
+- Descriptions are generated during the company research phase so they reflect the actual use case and terminology
+
+These descriptions appear in the Tableau Next UI and are the primary signal the Analytics AI Agent uses to understand what each field means. Without them, Concierge cannot accurately answer questions about the data.
+
+---
+
 ## 2026-05-21 — Conversational Analytics Principle + TriNet Dimension Expansion
 
 ### Added

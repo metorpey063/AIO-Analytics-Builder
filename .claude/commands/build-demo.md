@@ -393,6 +393,83 @@ Always sanity-check: print the min/max/mean of derived metrics (e.g. quota attai
 - Add calculated measurements (KPIs) and calculated dimensions (date shift)
 - Add semantic metrics at creation time with `singularNoun` / `pluralNoun` filled in
 
+**Phase 4c — Field descriptions (AI optimization)**
+
+After the DO is created and field apiNames are known, PUT a `description` on every measurement and dimension. These descriptions are displayed in the Tableau Next UI and used by the Concierge AI to understand what each field means — without them, Concierge cannot answer questions accurately.
+
+**Measurements** — include `description` in the same PUT already made for `aggregationType`. No extra round-trip needed:
+
+```python
+requests.put(
+    f'{sf_instance}/services/data/v65.0/ssot/semantic/models/{sdm}/data-objects/{do}/measurements/{m_api}',
+    headers=h,
+    json={
+        'apiName': m_api,
+        'label': mc['label'],
+        'dataObjectFieldName': m_field,
+        'aggregationType': mc['agg'],
+        'description': mc['description'],   # ← add this
+    }
+)
+```
+
+**Dimensions** — PUT each one after the measurement loop. Endpoint: `PUT /services/data/v65.0/ssot/semantic/models/{sdm}/data-objects/{do}/dimensions/{dim_api}`
+
+Required body fields: `apiName`, `label`, `dataObjectFieldName`, `description`. Example loop:
+
+```python
+for field_name, dim_api in dim_field_map.items():
+    desc = DIM_DESCRIPTIONS.get(field_name)
+    if not desc:
+        continue
+    requests.put(
+        f'{sf_instance}/services/data/v65.0/ssot/semantic/models/{sdm}/data-objects/{do}/dimensions/{dim_api}',
+        headers=h,
+        json={
+            'apiName': dim_api,
+            'label': dim_api.replace('_', ' ').title(),
+            'dataObjectFieldName': dim_api + '__c',
+            'description': desc,
+        }
+    )
+```
+
+**Where to define descriptions in the script:**
+
+Add a `description` key to every `METRIC_CONFIG` entry:
+
+```python
+METRIC_CONFIG = [
+    {
+        'label':       'Benefits Enrollment Rate',
+        'field':       'benefits_enrollment_rate',
+        'agg':         'Average',
+        'is_rate':     True,
+        'description': 'Percentage of eligible employees actively enrolled in at least one core benefits plan. Primary KPI — a sustained decline signals client health risk.',
+        'singular':    'benefits enrollment rate',
+        'plural':      'benefits enrollment rates',
+    },
+    ...
+]
+```
+
+Add a separate `DIM_DESCRIPTIONS` dict at the top of the script (near `METRIC_CONFIG`) with a description for every dimension the audience might filter by:
+
+```python
+DIM_DESCRIPTIONS = {
+    'vertical':       'Industry vertical of the client (e.g. Technology, Life Sciences, Nonprofit). Use to identify which industries are experiencing the largest enrollment declines.',
+    'region':         'US geographic region of the client headquarters. Use to spot regional patterns in enrollment trends.',
+    'size_band':      'Employee count band of the client. Micro clients (3–25) tend to show the earliest and sharpest enrollment drops.',
+    'state':          'US state of the client headquarters. Use for granular geographic filtering within a region.',
+    'plan_cost_tier': 'Whether the client is enrolled in a Low, Mid, or High cost benefits plan tier. High-cost tier clients show the strongest signal — cost sensitivity drives voluntary plan drop-off first.',
+    'workforce_type': 'Primary workforce composition of the client (Technical, Administrative, Sales, Mixed). Technical workforces tend to have higher voluntary plan adoption and show sharper drops when enrollment declines.',
+    'date':           'Date of the benefits activity record. Use to analyze trends over time.',
+    'client_id':      'Unique identifier for the TriNet client (employer). Use to drill into a specific client\'s enrollment history.',
+}
+```
+
+Generate descriptions using company/use-case context from the research step — they should be written for the Concierge AI to read, so phrase them as instructions: *"Use this field to..."* or *"This metric represents..."*
+
 **Phase 4b — Business preferences (Concierge language)**
 After all metrics are created, PUT each metric back with natural-language nouns that Concierge uses to generate responses. Pattern: GET the metric, update `insightsSettings.singularNoun` / `pluralNoun` / `sentiment`, strip read-only fields, PUT back.
 - Endpoint: `PUT /services/data/v66.0/ssot/semantic/models/{sdm}/metrics/{metric_api}?minorVersion=12`
