@@ -2,6 +2,31 @@
 
 Build a complete demo for a prospect or use case. This command generates synthetic data with an engineered story signal, then lets you choose which outputs to create.
 
+---
+
+## Core design principle — conversational analytics
+
+**The goal is never just a chart. The goal is a problem the audience can solve.**
+
+Every demo must be designed so the presenter can walk through a sequence of questions with the audience:
+
+1. **What is wrong?** — The primary metric drops visibly. The audience sees it in 10 seconds.
+2. **Where is it worst?** — Filtering by Vertical, Region, or Size Band reveals which segment is driving the decline.
+3. **Why is it happening?** — Category breakdowns (e.g. Voluntary plan enrollment drops before overall enrollment) and supporting metrics explain the cause.
+4. **Who is most at risk?** — Dimensions like Plan Cost Tier, Workforce Type, or State identify specific clients or groups to act on.
+
+When designing data for a demo, always ask: *"Can the audience answer all four questions using only the filters and metrics I've built?"* If not, add dimensions until they can.
+
+**Dimension rules:**
+- Denormalize all categorical dimensions into the fact table — IngestAPI DLO joins silently drop criteria (see CLAUDE.md Known Pitfalls). Every filterable field must be a column on the fact row.
+- Include at least one *cost/effort* dimension (Plan Cost Tier, Deal Size, Spend Bucket) — this is almost always the root cause the audience cares most about.
+- Include at least one *who/where* dimension set (Region, Vertical, Size Band, State).
+- Include category breakdowns that decompose the primary metric — e.g. Medical vs Dental vs Voluntary enrollment, or New Logo vs Expansion vs Renewal revenue.
+
+**Signal rules:**
+- Amplify the primary signal differently by segment so filtering *reveals the story*: e.g. High-cost clients drop hardest, Micro clients harder than Mid-Market, specific verticals or regions lead the trend. This makes filtering feel like discovery.
+- Supporting metrics should lag the primary signal slightly — they answer *why* after the audience has already seen *what*.
+
 ## Prerequisites
 
 ### For Tableau Pulse builds

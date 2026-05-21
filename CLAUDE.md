@@ -2,6 +2,25 @@
 
 A Claude Code skill for Tableau and Salesforce Solutions Engineers to rapidly build compelling demo assets across three platforms: Tableau Pulse, Tableau Next, and Salesforce Data Cloud.
 
+## Demo design principle — conversational analytics
+
+Every demo should let the audience *solve a problem*, not just see a chart. Design data and dimensions so the demo can answer a sequence of questions:
+
+1. **What is wrong?** — The primary metric signal makes the problem unmissable within 10 seconds
+2. **Where is it worst?** — Dimensions like Vertical, Region, Size Band let the presenter filter to the segment driving the decline
+3. **Why is it happening?** — Supporting metrics and category breakdowns explain the cause (e.g. voluntary plan enrollment drops before overall enrollment — cost sensitivity)
+4. **Who is most at risk?** — Fine-grained dimensions (Plan Cost Tier, Workforce Type, State) let the audience identify specific clients or groups to act on
+
+**Dimension design rules:**
+- Always denormalize categorical dimensions into the fact table (IngestAPI DLO joins silently drop criteria — see Known Pitfalls). Every field the audience might filter by must be a column on the fact row.
+- Add at least one dimension that explains *cost or effort* (e.g. Plan Cost Tier, Deal Size Band) — this is almost always the root cause the audience cares most about
+- Add at least one dimension that explains *who/where* (Region, Vertical, Size Band) — segmentation is the first move in any analytical conversation
+- Category breakdowns (e.g. Medical vs Dental vs Voluntary enrollment) are more valuable than aggregate totals — they reveal *which* component is driving the change
+
+**Signal design rules for drillable stories:**
+- Amplify the primary signal differently by segment so filters reveal the story. High-cost plan clients drop harder than low-cost; Micro clients harder than Mid-Market; specific regions or verticals lead the trend. This makes filtering feel like discovery, not just decoration.
+- Supporting metrics should lag the primary signal slightly — they answer "why" after the audience has already seen "what"
+
 ## What this does
 
 - **/setup** — Guided one-time setup: connects to Tableau Cloud (PAT) and Salesforce (OAuth), discovers or creates Data Cloud ingest connector

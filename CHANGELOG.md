@@ -8,6 +8,26 @@ All notable changes to Analytics Builder are documented here.
 
 ---
 
+## 2026-05-21 — Conversational Analytics Principle + TriNet Dimension Expansion
+
+### Added
+
+**Conversational analytics design principle**
+- Added a core design principle to both `build-demo.md` and `CLAUDE.md`: every demo must let the audience answer four questions — What is wrong? Where is it worst? Why is it happening? Who is most at risk?
+- Dimensions must be designed to support each layer of that conversation, not just produce a chart
+- Signal amplification by segment (high-cost plans hit harder, micro clients harder than mid-market, specific regions lead) so filtering feels like discovery, not decoration
+
+**TriNet demo — drillable dimensions**
+- Added `plan_cost_tier` (Low/Mid/High) and `workforce_type` (Technical/Administrative/Sales/Mixed) to client generation — with realistic distributions by vertical (Tech/Life Sciences skew High cost; Nonprofits skew Low)
+- Added three benefit category metrics: `medical_enrollment_rate`, `dental_enrollment_rate`, `voluntary_plan_enrollment_rate` — with differentiated signal decay (voluntary drops at 1.8× the primary signal, medical at 0.2×) to show cost-sensitive benefits drop first
+- All new dimensions denormalized into the fact table so the SDM can filter by them (IngestAPI DLO join workaround)
+- Signal now amplified by segment: High-cost tier × 1.5, Micro size × 1.3, Northeast/West regions × 1.2–1.3 — creating a real investigative story
+- Dashboard expanded to 3 rows of vizzes (6 total): overall trend, voluntary opt-in, voluntary plan breakdown, medical trend, utilization, satisfaction
+- Metric tiles updated to show Benefits Enrollment Rate, Voluntary Opt-in Rate, Voluntary Plan Rate as the three opening KPIs
+- `additionalDimensions` on metrics now includes vertical, size_band, region, state, plan_cost_tier, workforce_type
+
+---
+
 ## 2026-05-21 — Update Check on Skill Launch
 
 ### Added
