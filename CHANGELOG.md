@@ -8,6 +8,46 @@ All notable changes to Analytics Builder are documented here.
 
 ---
 
+## 2026-05-21 — Autonomous Mode Persisted + TriNet Build Fixes
+
+### Changed
+
+**Autonomous mode is now always on**
+- The `allow` block in `.claude/settings.local.json` is no longer removed after each build — autonomous mode persists across sessions
+- `/build-demo` no longer asks "would you like to run autonomously?" at the start of each session
+- Instead, it notifies the user at build start that autonomous mode is active and explains how to switch to manual mode by typing "manual mode"
+
+### Fixed
+
+**Bulk ingest: daily-grain fact tables were losing all but the last day**
+- Root cause: fact stream was created with `client_id` as the sole primary key; `upsert` with a non-unique PK overwrites previous rows, leaving only the final day's data
+- Fix: added a `record_id` surrogate key (`date_clientid`, e.g. `2025-05-21_TN-10051`) as the stream PK so each client×day row is unique
+- Note: the Bulk Ingest API only supports `upsert` and `delete` — `insert` returns 400
+
+**Rate metrics displayed as decimals instead of percentages**
+- CLCs for rate metrics (stored as decimals 0–1) now multiply by 100: `AVG([DO].[field]) * 100`
+- Viz format suffix and axis format updated to `%` with 1 decimal place for rate fields
+- Non-rate metrics (e.g. satisfaction scores) use a separate format with no suffix
+- `METRIC_CONFIG` entries now carry an `is_rate` flag to control CLC expression and viz formatting
+
+**Dashboard container widgets missing from widgets dict**
+- Container widgets referenced in the layout's `page_widgets` were not included in the top-level `widgets` dict, causing 500 "Cannot invoke EntityObject.getId()"
+- Fix: every widget name in the layout must have a corresponding entry in `widgets` with `type`, `name`, `actions: []`, and `parameters`
+
+**Schema registration always updates existing schemas**
+- Phase 1 previously skipped schema registration if the schema name already existed on the connector
+- Fix: always PUT the current `FACT_FIELDS`/`DIM_FIELDS` definitions, replacing stale schemas — ensures new fields (e.g. `record_id`) are picked up without manual cleanup
+
+### Added (CLAUDE.md pitfalls)
+
+- Bulk Ingest: only `upsert` and `delete` are valid operations; `insert` returns 400
+- Bulk Ingest: daily-grain fact tables need a surrogate `record_id` PK (`date_clientid`)
+- Schema registration: PUT always replaces — don't skip if schema already exists when fields have changed
+- Dashboard: all widget names in the layout must have entries in the `widgets` dict, including containers
+- Dashboard widget entries need `actions: []`, `name`, `type`, `source`, and `parameters`
+
+---
+
 ## 2026-05-14 — Retry Cleanup Extended to Workspace + SDM
 
 ### Fixed
