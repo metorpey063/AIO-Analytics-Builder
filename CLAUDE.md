@@ -18,7 +18,10 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
 - Category breakdowns (e.g. Medical vs Dental vs Voluntary enrollment) are more valuable than aggregate totals — they reveal *which* component is driving the change
 
 **Signal design rules for drillable stories:**
-- Amplify the primary signal differently by segment so filters reveal the story. High-cost plan clients drop harder than low-cost; Micro clients harder than Mid-Market; specific regions or verticals lead the trend. This makes filtering feel like discovery, not just decoration.
+- **Differentiate signal magnitude by segment** — never apply the same signal multiplier to all rows. Assign per-segment multipliers so that filtering reveals a story rather than confirming the overall average. One or two segments should be the clear culprit (multiplier 1.5–2.5×), one or two should be moderate (0.8–1.2×), and at least one should be flat or slightly improving (0.0–0.3×). Example for a participation decline: President's Club drops 30%, Mid-Market drops 15%, SMB is flat, Enterprise actually ticks up slightly — the average hides this until you filter.
+- **Cross segment combinations for compound stories** — the most compelling drill paths combine two dimensions. Example: "down 20% overall → down 30% in East region → down 45% in East + Mid-Market". Implement with a 2D multiplier table: `SIGNAL_MULTIPLIERS = {("East", "Mid-Market"): 2.2, ("East", "Enterprise"): 1.1, ("West", "Mid-Market"): 0.4, ...}`. Apply as `signal * SIGNAL_MULTIPLIERS.get((region, size_band), 1.0)`.
+- **At least one counter-trend segment** — include one segment that bucks the trend (flat or improving). This makes the overall decline feel like a concentration problem, not a systemic one — which is a more actionable story. "It's not everyone, it's specifically President's Club in the East."
+- **Vary noise by segment** — lower-volume segments should have more noise (`np.random.uniform(-0.04, 0.04)`) to look realistic; high-volume segments should be smoother (`-0.01, 0.01`).
 - Supporting metrics should lag the primary signal slightly — they answer "why" after the audience has already seen "what"
 
 ## What this does
