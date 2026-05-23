@@ -2,6 +2,8 @@
 
 A Claude Code tool for Salesforce/Tableau Solutions Engineers to rapidly build compelling demo assets across three platforms: **Tableau Pulse**, **Tableau Next**, and **Salesforce Data Cloud**.
 
+> For a full feature overview, see [OVERVIEW.md](OVERVIEW.md).
+
 ---
 
 ## What it does

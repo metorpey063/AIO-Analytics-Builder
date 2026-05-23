@@ -18,11 +18,69 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
 - Category breakdowns (e.g. Medical vs Dental vs Voluntary enrollment) are more valuable than aggregate totals — they reveal *which* component is driving the change
 
 **Signal design rules for drillable stories:**
+
 - **Differentiate signal magnitude by segment** — never apply the same signal multiplier to all rows. Assign per-segment multipliers so that filtering reveals a story rather than confirming the overall average. One or two segments should be the clear culprit (multiplier 1.5–2.5×), one or two should be moderate (0.8–1.2×), and at least one should be flat or slightly improving (0.0–0.3×). Example for a participation decline: President's Club drops 30%, Mid-Market drops 15%, SMB is flat, Enterprise actually ticks up slightly — the average hides this until you filter.
-- **Cross segment combinations for compound stories** — the most compelling drill paths combine two dimensions. Example: "down 20% overall → down 30% in East region → down 45% in East + Mid-Market". Implement with a 2D multiplier table: `SIGNAL_MULTIPLIERS = {("East", "Mid-Market"): 2.2, ("East", "Enterprise"): 1.1, ("West", "Mid-Market"): 0.4, ...}`. Apply as `signal * SIGNAL_MULTIPLIERS.get((region, size_band), 1.0)`.
-- **At least one counter-trend segment** — include one segment that bucks the trend (flat or improving). This makes the overall decline feel like a concentration problem, not a systemic one — which is a more actionable story. "It's not everyone, it's specifically President's Club in the East."
-- **Vary noise by segment** — lower-volume segments should have more noise (`np.random.uniform(-0.04, 0.04)`) to look realistic; high-volume segments should be smoother (`-0.01, 0.01`).
-- Supporting metrics should lag the primary signal slightly — they answer "why" after the audience has already seen "what"
+
+- **2D compound multiplier tables for the deepest drill path** — the most compelling demos have a "compound story": overall down 20% → filtered to Program Type X down 35% → filtered to Program Type X + Region Y down 45%. Implement by assigning 2D multipliers keyed on `(dim1_value, dim2_value)` tuples for the primary culprit segment only; all other program types get flat scalar multipliers. Pattern:
+  ```python
+  # President's Club uses 2D: region × size band
+  PC_COMPOUND = {
+      ("Northeast", "Mid-Market"):       2.2,   # steepest — the reveal
+      ("Northeast", "Small Enterprise"): 1.9,
+      ("West",      "Mid-Market"):       1.8,
+      ("West",      "Small Enterprise"): 1.6,
+      ("Midwest",   "Mid-Market"):       1.0,   # moderate
+      ("South",     "Mid-Market"):       0.6,   # barely moves
+      ("South",     "Global"):           0.3,
+  }
+  # Other program types: flat scalar (not 2D)
+  if prog == "Sales Contest":      combined_mult = 0.55
+  elif prog == "Quota Attainment": combined_mult = 0.35
+  elif prog == "Channel Partner":  combined_mult = -0.10  # counter-trend
+  else:  # President's Club
+      combined_mult = PC_COMPOUND.get((client["region"], client["size_band"]), 1.0)
+  ```
+  The resulting demo narrative: "Overall down 25% → President's Club down 38% → Northeast President's Club down 45% → Northeast Mid-Market President's Club down 50%."
+
+- **Counter-trend segment** — assign a small negative multiplier (e.g. `-0.10`) to one segment so it trends slightly upward while everything else declines. This makes the overall average misleading on purpose — the counter-trend segment props up the average and masks the severity in the culprit segment. The "aha" moment is when the audience sees Channel Partner is actually *improving* while President's Club is cratering. Never set counter-trend multiplier below -0.15 or the upward trend becomes implausibly obvious.
+
+- **Signal ramp shape** — use `"accelerating"` (quadratic) as the default signal shape, not linear. Accelerating = slow at first, steeper toward the present, which mirrors how real problems manifest. The ramp function:
+  ```python
+  def signal_ramp(d, onset=SIGNAL_ONSET, shape="accelerating", duration=3):
+      months_from_today = (d.year - TODAY.year) * 12 + (d.month - TODAY.month)
+      months_from_onset = months_from_today - onset
+      if months_from_onset <= 0:
+          return 0.0
+      progress = min(1.0, months_from_onset / duration)
+      if shape == "accelerating": return progress ** 2
+      if shape == "ramp":         return progress
+      if shape == "step":         return 1.0 if progress >= 0.3 else 0.0
+      return progress
+  ```
+  `onset` is a negative integer (months before today when the signal starts). `duration` is how many months until the signal reaches full magnitude. Set `SIGNAL_MAGNITUDE` higher than you think you need (0.45–0.55) — the accelerating shape keeps early months nearly flat, so the effective visible decline is smaller than the magnitude parameter.
+
+- **Noise scale by size band** — smaller/lower-volume segments need more noise to look realistic; larger segments should be smoother:
+  ```python
+  NOISE_SCALE = {
+      "Small Enterprise": 0.022,
+      "Mid-Market":       0.016,
+      "Large Enterprise": 0.011,
+      "Global":           0.007,
+  }
+  ns = NOISE_SCALE[client["size_band"]]
+  participation = max(0.05, base * (1 - SIGNAL_MAGNITUDE * p_ramp) + np.random.normal(0, ns))
+  ```
+
+- **Supporting metrics lag the primary** — multiply supporting metrics by `0.7×` the primary ramp and use `SUPPORTING_MAGNITUDE` (typically 0.65–0.75× of `SIGNAL_MAGNITUDE`). This creates the story sequence: Redemption Rate drops first → Points Per Rep follows → Participation Rate declines → Goal Achievement Rate confirms. Never have all metrics move simultaneously at full magnitude.
+  ```python
+  p_ramp = ramp * combined_mult          # primary metrics (Participation, Goal Achievement)
+  s_ramp = ramp * combined_mult * 0.7   # supporting metrics (Redemption, Points Per Rep)
+  active_reps uses s_ramp * 0.5         # headcount lags even more
+  ```
+
+- **Base value variation per client** — assign each client a randomized base value (e.g. `base_participation = random.uniform(0.62, 0.82)`) so the starting levels vary realistically. Without this, all clients start at the same value and the data looks synthetic at a row level.
+
+- **Client roster construction** — build a full cross-product of all dimension combinations (vertical × region × size × N clients per cell) with N=2. This ensures every filter combination has data. Use `random.choice(PROGRAM_TYPES)` to assign program type so distribution is approximately even but not perfectly balanced.
 
 ## What this does
 
@@ -122,18 +180,20 @@ BRAND = {
 
 ## Data generation rules
 
-- **Grain**: one row per entity (person/account/product) per month
+- **Grain**: one row per entity (person/account/product) per time period (weekly default, monthly for slower-moving metrics)
 - **History**: 24 months back from today
-- **Signal ramp**: engineered trend decline over last 6 months to create a demo story
+- **Signal ramp**: use the full ramp function with configurable shape — `"accelerating"` is the default (see Signal design rules above for full implementation). The stub below is the minimal version; use the full version in all demos:
   ```python
-  def signal_ramp(d, onset=-6, duration=6):
+  def signal_ramp(d, onset=-3, shape="accelerating", duration=3):
       months_from_today = (d.year - TODAY.year) * 12 + (d.month - TODAY.month)
-      if months_from_today <= onset: return 0.0
-      return min(1.0, (months_from_today - onset) / duration)
+      progress = min(1.0, max(0.0, (months_from_today - onset) / duration))
+      return progress ** 2 if shape == "accelerating" else progress
   ```
 - **Percentages**: always store as decimals (0.35 not 35)
 - **Column names**: business-friendly with spaces and proper caps ("Approval Rate" not "approval_rate")
 - **Date shifting**: always add a `display_date` calc field so demos stay current after build
+- **`METRIC_CONFIG`**: define all metrics in a single list of dicts with at minimum: `label`, `field`, `agg`, `description`, `why_it_matters`, `singular`, `plural`, `sentiment`, `pulse_agg`. The `description` is the technical definition (what it counts); `why_it_matters` is the customer-facing business reason (what decision it informs, what it signals when it moves). Both fields are used in the docx walkthrough.
+- **Surrogate `Record ID`**: for upsert-based bulk ingest, always add a `Record ID` column formatted as `{entity_id}_{date_YYYYMMDD}`. This is the primary key for the ingest stream — without it, daily/weekly rows for the same entity overwrite each other on upsert.
 
 ## Metric classification (always classify before writing code)
 
@@ -201,3 +261,12 @@ BRAND = {
 - Retry cleanup: apply the same pattern to ALL phases that create assets (workspace/SDM in phase4, vizzes/dashboard in phase6). Track every created asset in `cp["all_ws_apis"]`, `cp["all_sdm_apis"]`, `cp["all_viz_apis"]`, `cp["all_dash_apis"]`. At the start of each phase (when not skipped), DELETE everything in those lists, reset to `[]`, clear related `cp` keys (ws_api, sdm_api, do_api, etc.), save checkpoint, then create fresh. Append each new asset immediately after creation and save checkpoint. Never clear these lists when resetting a phase — they must survive across retries.
 - Asset ownership: only DELETE assets whose names appear in the checkpoint tracking lists. If asked to delete something not in those lists, always confirm with the user first.
 - Dashboard filters: every Tableau Next dashboard must include filter widgets in the first row — (1) a Date filter and (2) a segmentation filter (Region, State, Vertical, Segment, or whichever categorical dimension fits the use case). Place them at the top of the layout before metric tiles and vizzes, spanning roughly half the grid width each at `rowspan: 5`.
+- Pulse Insights API (BAN + Brief): every Pulse demo should include a post-build phase that calls the Pulse Insights API to capture live AI summaries and append them to the `.docx` walkthrough as a "Live Insights" section. Key patterns:
+  - **Endpoint**: `POST /api/-/pulse/insights/ban` (Big Ass Number) and `POST /api/-/pulse/insights/brief` (AI conversational)
+  - **Content-Type**: MUST use the vendor MIME type — `application/vnd.tableau.pulse.insightsservice.v1.GenerateInsightBundleBANRequest+json` for BAN, `application/vnd.tableau.pulse.embeddingsservice.v1.GenerateInsightBriefRequest+json` for brief. Using `application/json` returns `validation_code: 400952 / Bad Request`.
+  - **`now` field**: MUST be date-only `YYYY-MM-DD` (e.g. `date.today().isoformat()`). A full ISO timestamp with time component (e.g. `2026-05-23T10:00:00Z`) causes `validation_code: 400952 / Bad Request`.
+  - **brief action_type**: Use `"ACTION_TYPE_SUMMARIZE"` with `"role": "ROLE_USER"`. `ACTION_TYPE_QUESTION` returns "Invalid request".
+  - **Payload structure**: BAN uses `{"bundle_request": {"version": 1, "options": {...}, "input": {"metadata": ..., "metric": {...}}}}`. Brief uses `{"language": ..., "locale": ..., "now": ..., "messages": [{"content": ..., "action_type": "ACTION_TYPE_SUMMARIZE", "role": "ROLE_USER", "metric_group_context": [ctx], "metric_group_context_resolved": false}]}`.
+  - **metric context**: Build from the live definition GET (`/api/-/pulse/definitions/{def_id}`) and metric GET (`/api/-/pulse/definitions/{def_id}/metrics`) — use `d.get("specification")` for `definition`, `d.get("extension_options")` for `extension_options`, `m.get("specification")` for `metric_specification`, `d.get("representation_options")` for `representation_options`.
+  - **Save def_ids**: During Pulse metric creation, save both `pulse_metric_ids` AND `pulse_def_ids` to the checkpoint so the insights phase can look them up.
+  - **generativeAiPulse**: The REST API GET on the site may incorrectly return `False` for this flag even when it's enabled via the Tableau Cloud UI. If all insight endpoints return 400 "Bad Request" with `validation_code: 400952`, ask the user to enable Pulse AI in Tableau Cloud Settings → AI Features. The `pulsePremiumInsightsEnabled: true` and `pulsePremiumGAIEnabled: true` flags in `siteSettings` are the authoritative indicator.
