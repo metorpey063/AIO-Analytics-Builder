@@ -115,7 +115,14 @@ def _build_requests(title: str, sections: list) -> list:
         if heading:
             lines.append((heading, "HEADING_1"))
 
-        if "body" in section:
+        if "subsections" in section:
+            for sub in section["subsections"]:
+                if sub.get("subheading"):
+                    lines.append((sub["subheading"], "HEADING_2"))
+                if sub.get("body"):
+                    lines.append((sub["body"], "NORMAL_TEXT"))
+
+        elif "body" in section:
             lines.append((section["body"], "NORMAL_TEXT"))
 
         elif "steps" in section:
