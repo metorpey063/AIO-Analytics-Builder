@@ -28,6 +28,11 @@ _EMPTY_PROFILE = {
         "connector_sf_id": "",
         "connector_uuid_name": "",
     },
+    "google": {
+        "client_id": "",
+        "client_secret": "",
+        "refresh_token": "",
+    },
 }
 
 
@@ -224,6 +229,45 @@ def dc_headers(dc_token):
     return {"Authorization": f"Bearer {dc_token}", "Content-Type": "application/json"}
 
 
+# ── Google Docs / Drive ───────────────────────────────────────────────────────
+
+def get_google_token(config=None) -> str:
+    """
+    Exchange the stored Google refresh token for a fresh access token.
+    Returns the access_token string.
+    Raises RuntimeError if the google section is missing or unconfigured.
+    """
+    if config is None:
+        config = load_config()
+    g = config.get("google", {})
+    if not g.get("refresh_token"):
+        raise RuntimeError(
+            "Google credentials not configured. Run /setup and choose 'Add Google Drive output'."
+        )
+    r = requests.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "grant_type": "refresh_token",
+            "refresh_token": g["refresh_token"],
+            "client_id": g["client_id"],
+            "client_secret": g["client_secret"],
+        },
+    )
+    r.raise_for_status()
+    return r.json()["access_token"]
+
+
+def has_google_config(config=None) -> bool:
+    """Returns True if Google credentials are present and non-empty."""
+    if config is None:
+        try:
+            config = load_config()
+        except RuntimeError:
+            return False
+    g = config.get("google", {})
+    return bool(g.get("client_id") and g.get("client_secret") and g.get("refresh_token"))
+
+
 # ── Validation ────────────────────────────────────────────────────────────────
 
 def validate_all():
@@ -272,6 +316,23 @@ def validate_all():
     except Exception as e:
         print(f"  Data Cloud:            FAIL — {e}")
         results["data_cloud"] = False
+
+    if has_google_config(config):
+        try:
+            access_token = get_google_token(config)
+            r = requests.get(
+                "https://www.googleapis.com/drive/v3/about?fields=user",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            r.raise_for_status()
+            email = r.json().get("user", {}).get("emailAddress", "?")
+            print(f"  Google Drive:          OK  — {email}")
+            results["google"] = True
+        except Exception as e:
+            print(f"  Google Drive:          FAIL — {e}")
+            results["google"] = False
+    else:
+        print(f"  Google Drive:          not configured (optional)")
 
     print("=" * 50)
     all_ok = all(results.values())

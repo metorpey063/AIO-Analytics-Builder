@@ -15,5 +15,11 @@
     "ingestion_connector_name": "analytics_builder_demo",
     "connector_sf_id": "",
     "connector_uuid_name": ""
+  },
+  "google": {
+    "_instructions": "Optional. Run /setup → 'Add Google Drive output' to fill this in via browser OAuth.",
+    "client_id": "",
+    "client_secret": "",
+    "refresh_token": ""
   }
 }

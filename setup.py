@@ -32,6 +32,8 @@ def is_section_configured(section: str, profile: dict) -> bool:
         return bool(s.get("server_url") and s.get("site_name") and s.get("pat_secret"))
     if section == "salesforce":
         return bool(s.get("client_id") and s.get("refresh_token") and s.get("data_cloud_domain"))
+    if section == "google":
+        return bool(s.get("client_id") and s.get("client_secret") and s.get("refresh_token"))
     return False
 
 
@@ -371,6 +373,82 @@ def setup_connector(profile: dict) -> dict:
         return profile
 
 
+def setup_google(profile: dict) -> dict:
+    print("\n" + "=" * 60)
+    print("  Google Drive / Docs Connection  (optional)")
+    print("=" * 60)
+    print("""
+  This lets /build-demo output walkthrough documents directly
+  as Google Docs in your Drive, instead of (or in addition to)
+  a local .docx file.
+
+  You need a Google Cloud project with the Google Docs API and
+  Google Drive API enabled, and an OAuth 2.0 Desktop Client ID.
+
+  ── Quick setup ────────────────────────────────────────────
+  1. Go to console.cloud.google.com
+  2. Create a project (or use an existing one)
+  3. Enable "Google Docs API" and "Google Drive API"
+  4. Go to APIs & Services → Credentials
+  5. Click "Create Credentials" → OAuth client ID
+  6. Application type: Desktop app
+  7. Download the JSON — you need the client_id and client_secret
+  8. Under "OAuth consent screen", add your Google account as a
+     Test User (if the app is in Testing mode)
+""")
+
+    client_id = input("  Google OAuth Client ID: ").strip()
+    client_secret = input("  Google OAuth Client Secret: ").strip()
+
+    if not client_id or not client_secret:
+        print("  Skipping Google setup — no credentials entered.")
+        return profile
+
+    if "google" not in profile:
+        profile["google"] = {}
+    profile["google"].update({"client_id": client_id, "client_secret": client_secret, "refresh_token": ""})
+
+    print("\n  Opening browser for Google authorization...")
+    print("  Sign in and click Allow, then return to this terminal.\n")
+
+    from google_auth import get_google_refresh_token
+    try:
+        tokens = get_google_refresh_token(client_id, client_secret)
+    except RuntimeError as e:
+        print(f"\n  Authorization failed: {e}")
+        return profile
+
+    profile["google"]["refresh_token"] = tokens["refresh_token"]
+    print("  Google Drive authorized.")
+    return profile
+
+
+def test_google(profile: dict) -> bool:
+    try:
+        import requests as _req
+        g = profile.get("google", {})
+        r = _req.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": g["refresh_token"],
+                "client_id": g["client_id"],
+                "client_secret": g["client_secret"],
+            },
+        )
+        if r.status_code != 200:
+            return False
+        access_token = r.json()["access_token"]
+        r2 = _req.get(
+            "https://www.googleapis.com/drive/v3/about?fields=user",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        return r2.status_code == 200
+    except Exception as e:
+        print(f"    Error: {e}")
+        return False
+
+
 # ── Mode selection ─────────────────────────────────────────────────────────────
 
 MODES = {
@@ -402,6 +480,12 @@ def select_mode() -> list[str]:
         return select_mode()
     _, label, steps = MODES[choice]
     print(f"\n  Got it — configuring: {label}\n")
+
+    # Always offer Google Drive as an optional add-on
+    google = input("  Also configure Google Drive output? (optional) [y/N]: ").strip().lower()
+    if google in ("y", "yes"):
+        steps = steps + ["google"]
+
     return steps
 
 
@@ -436,6 +520,13 @@ def validate_profile(profile: dict, steps: list[str]):
         if not connector_id:
             all_ok = False
             missing.append("DC Ingest Connector")
+
+    if "google" in steps:
+        ok_g = test_google(profile)
+        print(f"  Google Drive:               {'OK' if ok_g else 'FAIL'}")
+        if not ok_g:
+            all_ok = False
+            missing.append("Google Drive")
 
     print("=" * 60)
     if all_ok:
@@ -492,6 +583,14 @@ def run_setup():
                 profile = setup_connector(profile)
         else:
             profile = setup_connector(profile)
+
+    if "google" in steps:
+        if is_section_configured("google", profile):
+            reconfig = input("\n  Google Drive already configured. Reconfigure? [y/N]: ").strip().lower()
+            if reconfig in ("y", "yes"):
+                profile = setup_google(profile)
+        else:
+            profile = setup_google(profile)
 
     # Save and activate
     save_profile(full_config, profile_key, profile)
