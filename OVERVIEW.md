@@ -9,6 +9,7 @@ A Claude Code tool for Salesforce/Tableau Solutions Engineers to rapidly build c
 1. Run `/setup` once to connect your Tableau Cloud PAT and Salesforce OAuth credentials
 2. Run `/build-demo` to describe your customer scenario
 3. Walk away — Claude generates the data, builds all the assets, and hands you a ready-to-run walkthrough document
+4. Run `/refresh-demo` before every demo session to keep the dates and signal current
 
 ---
 
@@ -50,6 +51,9 @@ Runs the entire build end-to-end without confirmation prompts. Always on — no 
 
 **Automatic update check**
 Both `/setup` and `/build-demo` check for updates at launch via `git fetch`. If the remote is ahead, Claude shows a summary of what changed and offers to pull before continuing.
+
+**Date refresh (/refresh-demo)**
+Demo data is generated up to today's date. Run `/refresh-demo` before any demo session to shift all dates forward so the signal always looks current — no data re-ingestion needed. One API call updates a calculated dimension on the Semantic Data Model and the demo is live again.
 
 **Checkpoint / resume**
 Every build writes a checkpoint file after each phase. If a run is interrupted, re-running `/build-demo` skips completed phases and picks up where it left off — no re-ingesting data, no duplicate assets.

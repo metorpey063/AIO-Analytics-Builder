@@ -73,6 +73,16 @@ Once setup passes, type:
 
 Claude will ask for the company name, use case, persona, and story signal — then generate the data, publish to Tableau Cloud and/or Salesforce Data Cloud, and hand you a walkthrough document (`.docx`) when it's done.
 
+### Step 5 — Keep the demo current
+
+Demo data is generated up to today's date. Before showing a demo that was built more than a few weeks ago, run:
+
+```
+/refresh-demo
+```
+
+This updates the date offset on the Tableau Next Semantic Data Model so the signal always appears current — no data re-ingestion needed. Make it a habit to run this before every demo session.
+
 ---
 
 ## Project structure
@@ -88,8 +98,9 @@ analytics-builder/
 ├── CLAUDE.md               # Project instructions for Claude
 ├── .claude/
 │   ├── commands/
-│   │   ├── build-demo.md   # /build-demo slash command
-│   │   └── setup.md        # /setup slash command
+│   │   ├── build-demo.md     # /build-demo slash command
+│   │   ├── refresh-demo.md   # /refresh-demo slash command
+│   │   └── setup.md          # /setup slash command
 │   └── settings.local.json # Local Claude permissions (gitignored)
 └── demos/                  # Generated demo scripts and outputs (gitignored)
 ```

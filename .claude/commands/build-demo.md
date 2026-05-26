@@ -528,6 +528,7 @@ This ensures only one complete, working set of assets survives each run.
   - Absolute file paths to the guide and walkthrough (so the user can click them)
   - The full business preferences text (reprinted inline for easy access)
   - A clear callout: "Open the walkthrough .docx for the Business Preferences text to paste into your SDM"
+  - A reminder: "Before your next demo session, run `/refresh-demo` to keep the dates and signal current."
 - Remind user: enable Analytics Agent Readiness toggle in Data 360 → Semantic Model → Settings
 
 ### For CSV output:
@@ -567,6 +568,7 @@ For Tableau Next:
 - **Add Business Preferences to the SDM:** Data 360 → Semantic Model → [your SDM] → AI Optimization → Manage Business Preferences → paste the text from the "Business Preferences (SDM)" section of the walkthrough `.docx`
 - The Concierge panel is now ready for Q&A demos
 - Open the walkthrough `.docx` — it contains the exact Concierge prompts to use during the demo
+- **Before every demo session:** run `/refresh-demo` to shift the dates forward so the signal always appears current
 
 Note: the Tableau Next Concierge does not have a public REST API — it is UI-only. Automated testing of Concierge responses is not currently possible programmatically. Business Preferences are also UI-only — the build generates the text for you, but you must paste it in manually.
 
