@@ -4,6 +4,37 @@ All notable changes to Analytics Builder are documented here.
 
 ---
 
+## 2026-05-28 — Self-Healing Dates (Tableau Next + Pulse)
+
+### Changed
+
+**Both platforms now use self-healing Display Date formulas — no `/refresh-demo` needed**
+
+The same logic applies to both Tableau Next and Pulse:
+```
+DATEADD("day", DATEDIFF("day", #<build_date>#, [date_field]), TODAY())
+```
+Each row's date is shifted forward by the number of days elapsed since the build. `TODAY()` evaluates at query time on both platforms, so the most recent data always appears as "today" automatically.
+
+**Tableau Next**: Self-healing calculated dimension on the SDM. Metrics reference it via `{"calculatedFieldApiName": "Display_Date"}`.
+
+**Pulse**: Self-healing calculated field embedded in a `.tdsx` package (ZIP of `.tds` XML + `.hyper`). Pulse evaluates `TODAY()` fresh on every query because "unstable functions" are excluded from extract materialization.
+
+### Key findings
+- SDM calculated dimensions use `#YYYY-MM-DD#` hash-delimited date literals (not `DATE(y,m,d)`)
+- Metric `timeDimensionReference` for calc dims must use `calculatedFieldApiName` (not `tableFieldReference`)
+- Pulse `.tdsx` calc fields use single quotes: `DATEADD('day', ...)`; SDM uses double quotes
+- Tableau Cloud evaluates `TODAY()` at query time for both published extracts and SDM expressions
+
+### Updated files
+- `CLAUDE.md` — unified date-shifting rule, new Known Pitfall for `calculatedFieldApiName`
+- `.claude/commands/build-demo.md` — Phase 2 documents `.tdsx` packaging; Phase 4 documents self-healing calc dim
+- `.claude/commands/refresh-demo.md` — reframed as legacy upgrade tool only
+- `OVERVIEW.md` — both platforms documented as self-healing
+- `README.md` — Step 5 now says "no action needed"
+
+---
+
 ## [Unreleased]
 
 ---

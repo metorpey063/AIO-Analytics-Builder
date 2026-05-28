@@ -350,16 +350,25 @@ Always sanity-check: print the min/max/mean of derived metrics (e.g. quota attai
 - All percentages stored as decimals (0.35 not 35)
 - Column names business-friendly with spaces and proper caps
 
-**Phase 2 — Publish to Tableau Cloud**
+**Phase 2 — Publish to Tableau Cloud (self-healing .tdsx)**
 - Connect via PAT (from config.json)
 - Clean up any existing project/datasource with the same company name
 - Create a timestamped project: `{Company} | {YYYY-MM-DD HH:MM}`
-- Write a .hyper file and publish as a datasource
-- Inject `display_date` calculated field so the demo stays current
+- Write a `.hyper` file with the physical data
+- Create a `.tds` XML that defines a `Display Date` calculated field:
+  ```xml
+  <column caption='Display Date' datatype='date' name='[Calculation_DisplayDate]' role='dimension' type='ordinal'>
+    <calculation class='tableau' formula="DATEADD(&apos;day&apos;, DATEDIFF(&apos;day&apos;, #<build_date>#, [Date]), TODAY())" />
+  </column>
+  ```
+- Package the `.hyper` + `.tds` into a `.tdsx` (ZIP: `{slug}.tds` at root + `Data/Extracts/{slug}.hyper`)
+- Publish the `.tdsx` — TSC handles it identically to a `.hyper`
+- `TODAY()` evaluates at query time (not extract refresh) — Pulse reads fresh dates daily
 
 **Phase 3 — Create Pulse metrics**
 - POST each metric to `/api/-/pulse/definitions`
 - GET `/definitions/{id}/metrics` to retrieve metric ID (NOT definition ID)
+- Use `"time_dimension": {"field": "Display Date"}` (the calculated field, not the raw `Date` column)
 - Classify each metric before creating it:
   - Flow (sum, YTD): volume, revenue, originations
   - Rate/Average (average, last month): percentages, ratios, scores
@@ -390,8 +399,14 @@ Always sanity-check: print the min/max/mean of derived metrics (e.g. quota attai
 - Create workspace via `/services/data/v65.0/tableau/workspaces`
 - Create SDM with `agentEnabled: true`
 - Add relationships between fact and dimension tables
-- Add calculated measurements (KPIs) and calculated dimensions (date shift)
-- Add semantic metrics at creation time with `singularNoun` / `pluralNoun` filled in
+- Add calculated measurements (KPIs) and calculated dimensions (self-healing date shift)
+- Create a `Display Date` calculated dimension using the **self-healing formula**:
+  ```
+  DATEADD("day", DATEDIFF("day", #<build_date>#, [DO_apiName].[date_field_apiName]), TODAY())
+  ```
+  where `<build_date>` is today's date in `YYYY-MM-DD` format (hash-delimited date literal). This shifts every row by the distance between the build date and the current query date — the most recent data always appears as "today" with no manual refresh needed. Use `#YYYY-MM-DD#` syntax for date literals (NOT `DATE(y, m, d)` which fails with "Arguments mismatch").
+- Save to checkpoint: `display_date_api`, `date_field_api`, `build_date` (today's ISO date)
+- Add semantic metrics with `timeDimensionReference: {"calculatedFieldApiName": "Display_Date"}` (not `tableFieldReference`) and `singularNoun` / `pluralNoun` filled in
 
 **Phase 4c — Field descriptions (AI optimization)**
 
@@ -528,7 +543,7 @@ This ensures only one complete, working set of assets survives each run.
   - Absolute file paths to the guide and walkthrough (so the user can click them)
   - The full business preferences text (reprinted inline for easy access)
   - A clear callout: "Open the walkthrough .docx for the Business Preferences text to paste into your SDM"
-  - A reminder: "Before your next demo session, run `/refresh-demo` to keep the dates and signal current."
+  - A note: "The Display Date dimension is self-healing — data always appears current with no manual refresh needed."
 - Remind user: enable Analytics Agent Readiness toggle in Data 360 → Semantic Model → Settings
 
 ### For CSV output:
@@ -560,7 +575,8 @@ This ensures only one complete, working set of assets survives each run.
 For Pulse:
 - Visit your Tableau Cloud site → Pulse
 - The group will already be subscribed to all metrics
-- Metrics will show the engineered signal in the default time range
+- Metrics use the self-healing `Display Date` calculated field — the signal always appears current with no refresh needed
+- Tableau Cloud evaluates `TODAY()` at query time, so dates shift forward automatically every day
 
 For Tableau Next:
 - Visit your Tableau Next workspace
@@ -568,7 +584,9 @@ For Tableau Next:
 - **Add Business Preferences to the SDM:** Data 360 → Semantic Model → [your SDM] → AI Optimization → Manage Business Preferences → paste the text from the "Business Preferences (SDM)" section of the walkthrough `.docx`
 - The Concierge panel is now ready for Q&A demos
 - Open the walkthrough `.docx` — it contains the exact Concierge prompts to use during the demo
-- **Before every demo session:** run `/refresh-demo` to shift the dates forward so the signal always appears current
+- The Display Date dimension is **self-healing** — data always appears current automatically
+
+Both platforms are self-healing. No `/refresh-demo` needed for either Pulse or Tableau Next.
 
 Note: the Tableau Next Concierge does not have a public REST API — it is UI-only. Automated testing of Concierge responses is not currently possible programmatically. Business Preferences are also UI-only — the build generates the text for you, but you must paste it in manually.
 

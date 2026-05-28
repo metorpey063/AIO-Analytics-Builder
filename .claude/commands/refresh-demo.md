@@ -1,20 +1,21 @@
-# /refresh-demo — Keep Demo Data Current
+# /refresh-demo — Upgrade Legacy Demos to Self-Healing
 
-Updates the date offset on an existing Tableau Next demo so the signal always appears to be happening "right now", regardless of when the demo was originally built.
+Upgrades legacy demos to the self-healing Display Date formula. **New demos built after May 2026 never need this** — both Tableau Next and Pulse are self-healing out of the box.
 
 ---
 
-## How it works
+## Background
 
-When a demo is built, all dates are generated up to today. Three months later, the most recent data point is three months in the past — the signal looks stale. This skill fixes that by updating a single calculated dimension (`Display Date`) on the Semantic Data Model:
+**All new demos are self-healing** — both platforms use `DATEDIFF`/`TODAY()` formulas that evaluate at query time:
 
-```
-DATEADD("day", <offset>, [FactTable].[date])
-```
+- **Tableau Next**: SDM calculated dimension — `DATEADD("day", DATEDIFF("day", #<build_date>#, [DO].[date_field]), TODAY())`
+- **Tableau Pulse**: `.tdsx` calculated field — `DATEADD('day', DATEDIFF('day', #<build_date>#, [Date]), TODAY())`
 
-The offset is the number of days between the original build date and today. Updating it takes one API call and requires no data re-ingestion.
+The most recent data always appears as "today" with no manual intervention.
 
-**Result:** The signal always looks like it started declining in the last few weeks, no matter when the demo is shown.
+**This skill is only needed for legacy demos** that used the old static-offset approach:
+1. **Tableau Next** — old formula: `DATEADD("day", <N>, [DO].[date_field])` with a hardcoded integer
+2. **Tableau Pulse** — raw `.hyper` published without a Display Date calculated field
 
 ---
 
@@ -31,7 +32,7 @@ git fetch origin main 2>/dev/null && git rev-list HEAD..origin/main --count
 
 ## Step 1 — Select a demo to refresh
 
-List all demos that have a checkpoint file with a `display_date_api` key (meaning they were built with date-offset support):
+List all demos that have a checkpoint file with a `display_date_api` key:
 
 ```bash
 python3 -c "
@@ -47,55 +48,23 @@ for cp_path in glob.glob(f'{demos_dir}/*/*.json'):
     if cp.get('display_date_api') and cp.get('sdm_api'):
         slug = os.path.basename(os.path.dirname(cp_path))
         build_date = cp.get('build_date', 'unknown')
-        offset = cp.get('display_date_offset_days', 0)
-        print(f'  [{slug}]  built: {build_date}  current offset: +{offset}d  sdm: {cp[\"sdm_api\"]}')
-        found.append(slug)
+        is_self_healing = cp.get('self_healing_date', False)
+        status = 'self-healing ✓' if is_self_healing else 'legacy (static offset)'
+        print(f'  [{slug}]  built: {build_date}  status: {status}  sdm: {cp[\"sdm_api\"]}')
+        found.append((slug, is_self_healing))
 if not found:
     print('  No refreshable demos found.')
     print('  Demos must be built with display_date support to use /refresh-demo.')
 "
 ```
 
-- If no demos are found, tell the user: *"No refreshable demos found. Demos need to be built (or rebuilt) after this feature is added to gain date-offset support."*
-- If one demo is found, proceed with it automatically.
-- If multiple are found, ask the user which one to refresh.
+- If no demos are found, tell the user: *"No refreshable demos found. Demos need to be built (or rebuilt) to gain date support."*
+- If the selected demo is already self-healing, tell the user: *"This demo is already self-healing — the Display Date dimension automatically stays current. No action needed for Tableau Next. Would you like to refresh the Pulse datasource instead?"*
+- If the selected demo uses the legacy static-offset formula, proceed to Step 2 to upgrade it.
 
 ---
 
-## Step 2 — Compute the new offset
-
-```bash
-python3 -c "
-import json, os, glob
-from datetime import date
-
-slug = 'SLUG_HERE'
-cp_path = f'demos/{slug}/{slug}_checkpoint.json'
-with open(cp_path) as f:
-    cp = json.load(f)
-
-build_date_str = cp.get('build_date')
-if not build_date_str:
-    print('ERROR: no build_date in checkpoint')
-else:
-    build_date = date.fromisoformat(build_date_str)
-    today = date.today()
-    new_offset = (today - build_date).days
-    old_offset = cp.get('display_date_offset_days', 0)
-    print(f'Build date:   {build_date_str}')
-    print(f'Today:        {today}')
-    print(f'Old offset:   {old_offset} days')
-    print(f'New offset:   {new_offset} days')
-    print(f'OFFSET:{new_offset}')
-"
-```
-
-Parse `OFFSET:<n>` from the output. Tell the user:
-> "The demo was built on [build_date]. Today's offset is [n] days — I'll update the Display Date dimension to shift all dates forward by [n] days."
-
----
-
-## Step 3 — Update the calculated dimension
+## Step 2 — Upgrade to self-healing formula (legacy demos only)
 
 ```bash
 python3 -c "
@@ -111,11 +80,11 @@ slug = 'SLUG_HERE'
 with open(f'demos/{slug}/{slug}_checkpoint.json') as f:
     cp = json.load(f)
 
-sdm_api         = cp['sdm_api']
-do_api          = cp['do_api']
+sdm_api          = cp['sdm_api']
+do_api           = cp['do_api']
 display_date_api = cp['display_date_api']
-date_field_api  = cp['date_field_api']
-new_offset      = OFFSET_HERE
+date_field_api   = cp['date_field_api']
+build_date       = cp['build_date']
 
 BASE = f'{sf_instance}/services/data/v65.0'
 
@@ -126,8 +95,8 @@ if r.status_code != 200:
     print(f'ERROR: calculated dimension not found: {r.status_code} {r.text[:200]}')
     sys.exit(1)
 
-# PUT updated expression
-new_expr = f'DATEADD(\"day\", {new_offset}, [{do_api}].[{date_field_api}])'
+# PUT self-healing expression
+new_expr = f'DATEADD(\"day\", DATEDIFF(\"day\", #{build_date}#, [{do_api}].[{date_field_api}]), TODAY())'
 payload = {
     'apiName': display_date_api,
     'label': 'Display Date',
@@ -137,40 +106,58 @@ payload = {
 r = requests.put(f'{BASE}/ssot/semantic/models/{sdm_api}/calculated-dimensions/{display_date_api}',
                  headers=sf_h, json=payload)
 if r.status_code in (200, 201):
-    print(f'OK: Display Date updated — offset is now +{new_offset} days')
+    print(f'OK: Display Date upgraded to self-healing formula')
     print(f'Expression: {new_expr}')
 else:
     print(f'ERROR: {r.status_code} {r.text[:300]}')
     sys.exit(1)
 
-# Save new offset to checkpoint
-cp['display_date_offset_days'] = new_offset
+# Mark as self-healing in checkpoint
+cp['self_healing_date'] = True
+cp.pop('display_date_offset_days', None)  # no longer needed
 with open(f'demos/{slug}/{slug}_checkpoint.json', 'w') as f:
     json.dump(cp, f, indent=2)
-print('Checkpoint updated.')
+print('Checkpoint updated — demo is now self-healing.')
 "
 ```
 
-- If successful: tell the user *"Done — the Display Date dimension now shifts all dates forward by [n] days. Your demo will show the signal as current for today."*
-- If the calculated dimension is missing (e.g. it was deleted in the UI): offer to recreate it — POST a new one with the same `display_date_api` name, same expression, then update checkpoint.
+- If successful: tell the user *"Done — the Display Date dimension is now self-healing. The demo will always show the signal as current, no further refreshes needed for Tableau Next."*
+- If the calculated dimension is missing: offer to recreate it with POST, then re-point metrics at it using `{"calculatedFieldApiName": "Display_Date"}`.
 
 ---
 
-## Step 4 — Verify
-
-Ask the user to open the demo dashboard in Tableau Next and confirm the most recent data point is showing today (or within the last week, depending on data grain).
+## Step 3 — Verify
 
 > "Open the demo in Tableau Next and check the most recent date on the trend line — it should now show data up to around today. Does it look right?"
 
 If they say no, diagnose:
-- Check whether the metric's time dimension is pointing at `Display Date` (the calculated dim) vs the raw `date` field. If it's pointing at the raw field, the update won't be visible in metrics — only in vizzes that explicitly use `Display Date`.
-- Offer to re-run Phase 7 (metrics) to re-point the time dimension, but warn this will regenerate metric definitions.
+- Check whether the metric's time dimension is pointing at `Display Date` (the calculated dim) vs the raw `date` field. If it's pointing at the raw field, the update won't be visible in metrics.
+- Offer to update each metric's `timeDimensionReference` to `{"calculatedFieldApiName": "Display_Date"}`.
+
+---
+
+## Step 4 — Pulse upgrade (legacy demos only)
+
+If the demo also has Pulse output (`pulse_done: true` in checkpoint) AND was built before the `.tdsx` self-healing pattern was introduced (no `Display Date` calculated field in the published datasource):
+
+> "This demo has a legacy Pulse datasource (raw .hyper without a Display Date calculated field). Would you like me to re-package it as a .tdsx with the self-healing formula and re-publish?"
+
+If yes:
+1. Write a `.tds` XML with the Display Date calc field: `DATEADD('day', DATEDIFF('day', #<build_date>#, [Date]), TODAY())`
+2. Package the existing `.hyper` + new `.tds` into a `.tdsx`
+3. Re-publish the `.tdsx` (overwrite the existing datasource)
+4. Update Pulse metric definitions to use `"time_dimension": {"field": "Display Date"}` instead of `"Date"`
+
+If no: skip and finish.
+
+**Note:** Demos built after this update already publish as `.tdsx` with the self-healing formula — they never need this step.
 
 ---
 
 ## Notes
 
-- This skill only updates the **date offset** — it does not re-ingest data, rebuild the SDM, or change metric definitions.
-- If the underlying data is genuinely too old (e.g. more than 24 months since build and the demo uses 24-month history), the signal will still be visible but the history will appear truncated. In that case, a full rebuild is needed.
-- If the Tableau Pulse datasource also needs refreshing (new .hyper with shifted dates), that requires re-running the Pulse phase. The date offset approach only applies to Tableau Next calculated dimensions.
-- Demos built before this feature was added will not have `display_date_api` in their checkpoint — they need to be fully rebuilt to gain refresh support.
+- **New demos are self-healing by default** — both Tableau Next and Pulse use `DATEDIFF`/`TODAY()` formulas that evaluate at query time. No refresh is ever needed.
+- This skill's primary purpose is now **upgrading legacy demos** that used the old `DATEADD("day", <N>, ...)` static-offset pattern (Tableau Next) or raw `.hyper` without a Display Date calc field (Pulse).
+- **Pulse self-healing works via .tdsx**: the `.tdsx` contains a `.tds` XML with the calculated field. Tableau Cloud evaluates `TODAY()` at query time because "unstable functions" are excluded from extract materialization.
+- If the underlying data is genuinely too old (e.g. more than 24 months since build and the demo uses 24-month history), the signal will still appear but history will look truncated. A full rebuild is needed in that case.
+- Date literal syntax uses `#YYYY-MM-DD#` (hash-delimited) in both Tableau calc fields and SDM expressions. The `DATE(year, month, day)` function does NOT accept 3 arguments in SDM expressions.

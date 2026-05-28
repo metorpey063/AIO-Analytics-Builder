@@ -73,15 +73,11 @@ Once setup passes, type:
 
 Claude will ask for the company name, use case, persona, and story signal — then generate the data, publish to Tableau Cloud and/or Salesforce Data Cloud, and hand you a walkthrough document (`.docx`) when it's done.
 
-### Step 5 — Keep the demo current
+### Step 5 — Self-healing dates (no action needed)
 
-Demo data is generated up to today's date. Before showing a demo that was built more than a few weeks ago, run:
+Both Tableau Next and Pulse demos are **self-healing** — a `Display Date` formula using `TODAY()` ensures data always appears current automatically. The most recent data point floats forward to today on every query, with no manual refresh or re-publish needed.
 
-```
-/refresh-demo
-```
-
-This updates the date offset on the Tableau Next Semantic Data Model so the signal always appears current — no data re-ingestion needed. Make it a habit to run this before every demo session.
+For legacy demos built before this feature, run `/refresh-demo` to upgrade them to the self-healing formula.
 
 ---
 
