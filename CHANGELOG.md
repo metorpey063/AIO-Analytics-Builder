@@ -4,6 +4,29 @@ All notable changes to Analytics Builder are documented here.
 
 ---
 
+## 2026-05-29 — Pulse Goals/Thresholds + HCHSP Demo
+
+### Added
+
+**Pulse goals/thresholds support (data-side + documented manual setup)**
+- `METRIC_CONFIG` now supports an optional `goal` dict with `value`, `field`, `name`, `direction`
+- Data generation adds constant target columns to the datasource (e.g. `Attendance Target = 0.85`)
+- Walkthrough `.docx` includes a "Setting Up Goal Lines" section with field-to-metric mapping table
+- Company research step now explicitly calls out finding regulatory thresholds and compliance targets
+
+**Known Pitfall: Pulse `datasource_goals` API is non-functional**
+- Tested all payload variations: `basic_specification`, `threshold_basic_specification`, minimal — all return 400 "Invalid request"
+- PATCH/PUT on existing definitions also fails
+- Workaround: include target columns in datasource + document 2-minute UI setup
+
+**HCHSP (Hidalgo County Head Start Program) demo built**
+- 27 campuses across 8 ISDs in Hidalgo County, TX
+- Metrics: Attendance Rate (85% federal threshold), Dental Completion, Screening Compliance, Family Referral Rate
+- Signal: rural ISDs (Monte Alto, Mercedes, La Joya) declining below federal floor; urban campuses masking the problem
+- Full walkthrough `.docx` with federal compliance context (45 CFR citations)
+
+---
+
 ## 2026-05-28 — Self-Healing Dates (Tableau Next + Pulse)
 
 ### Changed

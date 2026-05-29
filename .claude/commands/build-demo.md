@@ -293,12 +293,14 @@ Before generating numbers, spend 3–4 web searches to ground the demo in realit
 1. **The company itself** — industry, primary product lines, go-to-market model (direct/channel/PLG), typical customer segments, notable regions or markets
 2. **Industry benchmarks for the use case** — e.g. for sales: average win rates by segment (Enterprise ~20–25%, SMB ~30–40%), typical sales cycle lengths, realistic quota sizes and attainment distributions (median attainment ~80–100%, top quartile ~120–140%, rarely >150%)
 3. **Any use-case-specific context** — e.g. for a hotel chain: actual property categories they operate (full-service, select-service, extended-stay), real regions/markets they operate in, realistic ADR and occupancy ranges
-4. **Brand guidelines** — search `{Company} brand guidelines color palette` to find official hex codes for primary and secondary brand colors. Most large companies publish these on their communications or marketing sites.
+4. **Goals, thresholds, and compliance targets** — search for regulatory requirements, SLA commitments, or industry-standard targets that define "good" vs "bad" for this company's metrics. Examples: federal 85% attendance (Head Start), 99.9% uptime SLA, 30-day close rate target, NPS > 40, 95% screening compliance. These become goal lines on Pulse sparklines and make the demo viscerally urgent.
+5. **Brand guidelines** — search `{Company} brand guidelines color palette` to find official hex codes for primary and secondary brand colors. Most large companies publish these on their communications or marketing sites.
 
 Use these findings to:
 - Name dimensions with real values (real regions, real product lines, real customer segments) not generic placeholders like "Region A"
 - Set base metric values and noise ranges that match industry norms
 - Write story talking points that reference the company's actual business context
+- **Define goal/threshold values** for each metric and include constant target columns in the datasource (e.g. `Attendance Target = 0.85`) — these enable one-click goal setup in the Pulse UI
 - Apply brand colors in the Tableau Next dashboard (see Brand colors section below)
 
 ### Brand colors (Tableau Next only — only if user said yes in step 5b)
@@ -374,6 +376,38 @@ Always sanity-check: print the min/max/mean of derived metrics (e.g. quota attai
   - Rate/Average (average, last month): percentages, ratios, scores
   - Snapped (sum, last month): balances, headcount, pipeline
 - Include at minimum GRANULARITY_BY_MONTH, GRANULARITY_BY_QUARTER, GRANULARITY_BY_YEAR
+
+**Phase 3b — Goals / Thresholds (manual setup, auto-documented)**
+
+Pulse goals cannot be set programmatically via the REST API (`datasource_goals` field always returns 400 "Invalid request" regardless of payload format). However, the datasource CAN include pre-computed target columns that make goal setup trivial in the UI.
+
+**During data generation:**
+- Add a constant target column for each metric that has a known threshold (e.g. `Attendance Target = 0.85`, `Dental Target = 0.90`)
+- Include these columns in the `.hyper` file so they appear as fields in Pulse
+
+**During company research:**
+- Look for industry-standard thresholds, regulatory requirements, or internal goals mentioned in the call/brief
+- Examples: federal 85% attendance (Head Start), 95% SLA uptime, 30-day close target, NPS > 40
+- Store found thresholds in `METRIC_CONFIG` under a `goal` key:
+  ```python
+  METRIC_CONFIG = [
+      {
+          'label': 'Attendance Rate',
+          'field': 'attendance_rate',
+          ...
+          'goal': {'value': 0.85, 'field': 'Attendance Target', 'name': 'Federal 85% Threshold', 'direction': 'above'},
+      },
+  ]
+  ```
+
+**In the walkthrough .docx and demo summary:**
+- Include a "Setting Up Goal Lines" section with a table mapping each metric to its goal field
+- Print clear instructions: open metric → Goals → select field from data → set direction
+- This takes under 2 minutes in the UI and creates the visual goal line on sparklines
+
+**Why this matters for the demo:**
+- A goal line transforms a sparkline from "interesting" to "urgent" — the audience sees exactly when the metric crosses the threshold
+- For compliance-driven organizations (Head Start, healthcare, finance), the threshold IS the story — being 2 points above it is not "fine," it's "dangerously close"
 
 **Phase 4 — Create group and subscribe**
 - POST XML to create a group named `{Company} | {YYYY-MM-DD HH:MM}`
