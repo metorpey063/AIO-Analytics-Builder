@@ -4,6 +4,22 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-06-03 — Viz Field Role Exclusivity + Summary Clarity
+
+### Fixed
+
+**Visualizations: field role exclusivity rule**
+- Added a guard to prevent placing the same semantic field in both a grouping slot (dimension/columns) and an aggregation slot (measure/rows) in the same visualization
+- This caused charts to silently fail to render — reported by a user whose build needed manual correction
+- Rule added to both `build-demo.md` Phase 5 instructions and `CLAUDE.md` Known Pitfalls
+
+### Improved
+
+**Final summary: business preferences callout**
+- The post-build summary now explicitly tells the user that Business Preferences are at the end of the walkthrough `.docx` file, includes the full file path, and reminds them where to paste it in the SDM UI
+
+---
+
 ## 2026-05-29 — Pulse Goals/Thresholds + HCHSP Demo
 
 ### Added
