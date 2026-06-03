@@ -1,4 +1,4 @@
-# Analytics Builder — Feature Overview
+# AIO Analytics Builder — Feature Overview
 
 A Claude Code tool for Salesforce/Tableau Solutions Engineers to rapidly build compelling, story-driven demo assets — without writing a line of code.
 

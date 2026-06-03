@@ -1,5 +1,5 @@
 """
-Salesforce OAuth browser flow for Analytics Builder.
+Salesforce OAuth browser flow for AIO Analytics Builder.
 Opens a browser, catches the auth code on localhost:8080/callback,
 exchanges it for tokens, and returns the refresh token.
 """
@@ -41,10 +41,10 @@ class _CallbackHandler(http.server.BaseHTTPRequestHandler):
             message = "Unexpected callback. Return to terminal."
 
         body = f"""<!DOCTYPE html>
-<html><head><title>Analytics Builder</title>
+<html><head><title>AIO Analytics Builder</title>
 <style>body{{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f4f6f8}}
 .box{{text-align:center;padding:40px;background:white;border-radius:12px;box-shadow:0 2px 16px rgba(0,0,0,.1);max-width:400px}}</style>
-</head><body><div class="box"><h2>Analytics Builder</h2><p>{message}</p></div></body></html>""".encode()
+</head><body><div class="box"><h2>AIO Analytics Builder</h2><p>{message}</p></div></body></html>""".encode()
 
         self.send_response(200)
         self.send_header("Content-Type", "text/html")

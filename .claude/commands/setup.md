@@ -1,6 +1,6 @@
-# /setup — Analytics Builder Setup Wizard
+# /setup — AIO Analytics Builder Setup Wizard
 
-You are running the Analytics Builder setup wizard. Your job is to guide the user through configuring their connections conversationally — asking one question at a time, testing each connection before moving on, and writing credentials to config.json. Do not dump all questions at once.
+You are running the AIO Analytics Builder setup wizard. Your job is to guide the user through configuring their connections conversationally — asking one question at a time, testing each connection before moving on, and writing credentials to config.json. Do not dump all questions at once.
 
 ---
 
@@ -18,7 +18,7 @@ git fetch origin main 2>/dev/null && git rev-list HEAD..origin/main --count
 - If the result is `0` — skip silently and continue.
 - If the result is **1 or more** — tell the user:
 
-> "There's an update available for Analytics Builder (`N` commit(s) ahead of your local version). Run `git pull` to get the latest before continuing, then re-run `/setup`. Would you like to update now, or continue with your current version?"
+> "There's an update available for AIO Analytics Builder (`N` commit(s) ahead of your local version). Run `git pull` to get the latest before continuing, then re-run `/setup`. Would you like to update now, or continue with your current version?"
 
   - If they say **update**: run `git pull origin main` and confirm what changed (`git log HEAD~N..HEAD --oneline`). Then continue setup as normal.
   - If they say **continue**: proceed without pulling.
@@ -142,7 +142,7 @@ except Exception as e:
 ### Step 4a — External Client App
 
 Ask the user:
-> "Do you already have a Salesforce External Client App set up for Analytics Builder, or do you need to create one?"
+> "Do you already have a Salesforce External Client App set up for AIO Analytics Builder, or do you need to create one?"
 
 **If they already have one**, skip ahead and ask:
 1. "Is this a sandbox org?" (yes → use `https://test.salesforce.com`, no → use `https://login.salesforce.com`)
@@ -159,7 +159,7 @@ Ask the user:
 
 - **External Client App Name:**
 ```
-Analytics Builder
+AIO Analytics Builder
 ```
 - **Contact Email:** your email
 - **Distribution State:** Local
@@ -226,7 +226,7 @@ Require Proof Key for Code Exchange (PKCE) extension for Supported Authorization
 
 **Step 7 — Get Consumer Key and Secret**
 
-> "Now go to Setup → search **'App Manager'** → click **'External Client App Manager'** → click the app name **'Analytics Builder'** (blue link) → click the **'Settings'** tab → scroll to **'OAuth Settings'** → click **'Consumer Key and Secret'** (may ask you to verify your identity). Copy the Consumer Key and paste it here."
+> "Now go to Setup → search **'App Manager'** → click **'External Client App Manager'** → click the app name **'AIO Analytics Builder'** (blue link) → click the **'Settings'** tab → scroll to **'OAuth Settings'** → click **'Consumer Key and Secret'** (may ask you to verify your identity). Copy the Consumer Key and paste it here."
 
 After they paste the Consumer Key, ask for the Consumer Secret.
 
@@ -293,7 +293,7 @@ except Exception as e:
   2. Log back in to the *target* org — the one where you created the External Client App
   3. Come back here and say **go** to re-open the authorization window
 
-  > "It looks like your browser was logged into a different Salesforce org. Please sign out of all Salesforce sessions in your browser, log back into the org where you created the Analytics Builder app, then come back here and say **go** to try again."
+  > "It looks like your browser was logged into a different Salesforce org. Please sign out of all Salesforce sessions in your browser, log back into the org where you created the AIO Analytics Builder app, then come back here and say **go** to try again."
 
 ### Step 4c — Ingest Connector
 

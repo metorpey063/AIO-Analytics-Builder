@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Analytics Builder are documented here.
+All notable changes to AIO Analytics Builder are documented here.
 
 ---
 

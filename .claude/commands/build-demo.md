@@ -1,4 +1,4 @@
-# /build-demo — Analytics Builder Demo Generator
+# /build-demo — AIO Analytics Builder Demo Generator
 
 Build a complete demo for a prospect or use case. This command generates synthetic data with an engineered story signal, then lets you choose which outputs to create.
 
@@ -90,7 +90,7 @@ git fetch origin main 2>/dev/null && git rev-list HEAD..origin/main --count
 - If the result is `0` — skip silently and continue.
 - If the result is **1 or more** — tell the user:
 
-> "There's an update available for Analytics Builder (`N` commit(s) ahead of your local version). Run `git pull` to get the latest before continuing, then re-run `/build-demo`. Would you like to update now, or continue with your current version?"
+> "There's an update available for AIO Analytics Builder (`N` commit(s) ahead of your local version). Run `git pull` to get the latest before continuing, then re-run `/build-demo`. Would you like to update now, or continue with your current version?"
 
   - If they say **update**: run `git pull origin main` and confirm what changed (`git log HEAD~N..HEAD --oneline`). Then continue the build as normal.
   - If they say **continue**: proceed without pulling.

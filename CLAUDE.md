@@ -1,4 +1,4 @@
-# Analytics Builder
+# AIO Analytics Builder
 
 A Claude Code skill for Tableau and Salesforce Solutions Engineers to rapidly build compelling demo assets across three platforms: Tableau Pulse, Tableau Next, and Salesforce Data Cloud.
 

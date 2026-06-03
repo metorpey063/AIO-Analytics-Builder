@@ -1,5 +1,5 @@
 """
-Google OAuth2 browser flow for Analytics Builder.
+Google OAuth2 browser flow for AIO Analytics Builder.
 Obtains a refresh token for the Google Docs + Drive APIs.
 Called from setup.py when the user chooses to add Google Drive output.
 

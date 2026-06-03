@@ -1,5 +1,5 @@
 """
-Core connection module for Analytics Builder.
+Core connection module for AIO Analytics Builder.
 Handles both Tableau Cloud (PAT) and Salesforce/Data Cloud (OAuth) auth.
 Supports multiple named profiles so SEs can switch between orgs.
 """
@@ -276,7 +276,7 @@ def validate_all():
     tc = config["tableau"]
     results = {}
 
-    print("\nAnalytics Builder — Connection Validation")
+    print("\nAIO Analytics Builder — Connection Validation")
     print("=" * 50)
 
     try:

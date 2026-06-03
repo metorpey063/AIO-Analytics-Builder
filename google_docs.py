@@ -1,5 +1,5 @@
 """
-Google Docs output writer for Analytics Builder.
+Google Docs output writer for AIO Analytics Builder.
 Creates a Google Doc with the same structure as the .docx walkthrough.
 Called from demo scripts when the user selects Google Doc output format.
 

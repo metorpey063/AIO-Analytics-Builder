@@ -1,4 +1,4 @@
-# Analytics Builder
+# AIO Analytics Builder
 
 A Claude Code tool for Salesforce/Tableau Solutions Engineers to rapidly build compelling demo assets across three platforms: **Tableau Pulse**, **Tableau Next**, and **Salesforce Data Cloud**.
 
@@ -30,9 +30,9 @@ A Claude Code tool for Salesforce/Tableau Solutions Engineers to rapidly build c
 
 ### Step 1 — Unzip and open the folder
 
-Unzip `Analytics Builder.zip` wherever you want to keep it. Then open the folder in VS Code:
+Unzip `AIO Analytics Builder.zip` wherever you want to keep it. Then open the folder in VS Code:
 
-- **File → Open Folder…** → select the `Analytics Builder` folder → click **Open**
+- **File → Open Folder…** → select the `AIO Analytics Builder` folder → click **Open**
 
 ### Step 2 — Open a terminal and install dependencies
 
@@ -53,7 +53,7 @@ You only need to do this once. The install takes about 30–60 seconds.
 
 ### Step 3 — Open Claude Code and run setup
 
-Open the Claude Code panel in VS Code (click the Claude icon in the sidebar, or use the Command Palette: `Cmd+Shift+P` → "Claude Code"). Make sure the workspace is set to the `Analytics Builder` folder.
+Open the Claude Code panel in VS Code (click the Claude icon in the sidebar, or use the Command Palette: `Cmd+Shift+P` → "Claude Code"). Make sure the workspace is set to the `AIO Analytics Builder` folder.
 
 In the Claude Code chat, type:
 

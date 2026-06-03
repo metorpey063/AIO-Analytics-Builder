@@ -1,5 +1,5 @@
 """
-Analytics Builder setup wizard.
+AIO Analytics Builder setup wizard.
 Called by the /setup slash command — Claude reads this file and follows the steps.
 Can also be run directly: python3 setup.py
 """
@@ -53,7 +53,7 @@ def select_profile(full_config: dict) -> tuple[str, dict]:
     profiles = list_profiles(full_config)
 
     print("\n" + "=" * 60)
-    print("  Analytics Builder — Connection Manager")
+    print("  AIO Analytics Builder — Connection Manager")
     print("=" * 60)
 
     if not profiles:
@@ -230,8 +230,8 @@ def setup_salesforce(profile: dict) -> dict:
   1. In Salesforce Setup, search for "App Manager"
   2. Click "New Connected App" (top right)
   3. Fill in:
-       Connected App Name:  Analytics Builder
-       API Name:            Analytics_Builder  (auto-fills)
+       Connected App Name:  AIO Analytics Builder
+       API Name:            AIO_Analytics_Builder  (auto-fills)
        Contact Email:       your email
   4. Check "Enable OAuth Settings"
   5. Callback URL:  http://localhost:8080/callback
@@ -540,7 +540,7 @@ def validate_profile(profile: dict, steps: list[str]):
 
 def run_setup():
     print("\n" + "=" * 60)
-    print("  Analytics Builder — Setup Wizard")
+    print("  AIO Analytics Builder — Setup Wizard")
     print("=" * 60)
 
     full_config = load_full_config()
