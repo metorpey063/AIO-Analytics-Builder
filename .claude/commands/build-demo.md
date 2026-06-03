@@ -532,6 +532,7 @@ After all metrics are created, PUT each metric back with natural-language nouns 
 - Dashboard page `name` must be a UUID string
 - `widgets` must be a dict, not a list
 - Omit `"headers": {}` from visualization style
+- **Field role exclusivity**: a field must be EITHER a dimension (grouping) OR a measure (aggregation) — never both. Each `fieldName` in the viz `fields` list must appear in exactly one role. Dimensions go in `columns` (for grouping/x-axis), measures go in `rows` (for y-axis aggregation). If you need to group by a field AND show its aggregated value, create two separate field entries pointing to different semantic fields. Placing the same field in both a grouping slot and an aggregation slot causes the chart to fail to render with no useful error message.
 
 **Retry cleanup — apply to EVERY phase that creates assets:**
 
@@ -576,7 +577,7 @@ This ensures only one complete, working set of assets survives each run.
   - Direct URL to Tableau Pulse
   - Absolute file paths to the guide and walkthrough (so the user can click them)
   - The full business preferences text (reprinted inline for easy access)
-  - A clear callout: "Open the walkthrough .docx for the Business Preferences text to paste into your SDM"
+  - A clear callout: "📋 Business Preferences are documented at the end of the walkthrough file: `demos/{company_slug}_{use_case_slug}/{slug}_demo_walkthrough.docx` — open it and scroll to the final section for the text to paste into your SDM (Data 360 → Semantic Model → AI Optimization → Manage Business Preferences)."
   - A note: "The Display Date dimension is self-healing — data always appears current with no manual refresh needed."
 - Remind user: enable Analytics Agent Readiness toggle in Data 360 → Semantic Model → Settings
 
