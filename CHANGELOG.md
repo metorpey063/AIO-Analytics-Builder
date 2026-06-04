@@ -4,6 +4,27 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-06-04 — Pulse .hyper Direct Publish Fix + Dashboard Builder Prototype
+
+### Fixed
+
+**Pulse datasource indexing: publish .hyper directly, never .tdsx**
+- Publishing `.tdsx` packages causes Pulse to take 2+ hours (or indefinitely) to index the datasource — metric creation fails with 404 "Not Found" during that window
+- Publishing `.hyper` directly allows Pulse to index in seconds and metric creation succeeds immediately
+- Root cause: Pulse's internal discovery system processes raw `.hyper` files on a fast path but queues `.tdsx` packages for deferred processing
+- Updated all Pulse publish calls to use `server.datasources.publish(ds_item, hyper_path, "Overwrite")` instead of `.tdsx`
+- Pulse metric `time_dimension` now references raw `Date` column (not calculated `Display Date`)
+
+### Added
+
+**Dashboard builder prototype (`dashboard_builder.py`)**
+- Generates a `.twbx` file with BAN tiles, horizontal bar chart, treemap, scatter plot, and detail table
+- Opens in Tableau Desktop for one-click publish to Cloud
+- Produces valid Tableau workbook XML (XSD-compliant element ordering verified against Desktop)
+- Note: Tableau Cloud REST API does not allow creating new dashboards via workbook publish with PAT — the `.twbx` must be published from Desktop
+
+---
+
 ## 2026-06-03 — Viz Field Role Exclusivity + Summary Clarity
 
 ### Fixed
