@@ -352,25 +352,18 @@ Always sanity-check: print the min/max/mean of derived metrics (e.g. quota attai
 - All percentages stored as decimals (0.35 not 35)
 - Column names business-friendly with spaces and proper caps
 
-**Phase 2 — Publish to Tableau Cloud (self-healing .tdsx)**
+**Phase 2 — Publish to Tableau Cloud**
 - Connect via PAT (from config.json)
 - Clean up any existing project/datasource with the same company name
 - Create a timestamped project: `{Company} | {YYYY-MM-DD HH:MM}`
 - Write a `.hyper` file with the physical data
-- Create a `.tds` XML that defines a `Display Date` calculated field:
-  ```xml
-  <column caption='Display Date' datatype='date' name='[Calculation_DisplayDate]' role='dimension' type='ordinal'>
-    <calculation class='tableau' formula="DATEADD(&apos;day&apos;, DATEDIFF(&apos;day&apos;, #<build_date>#, [Date]), TODAY())" />
-  </column>
-  ```
-- Package the `.hyper` + `.tds` into a `.tdsx` (ZIP: `{slug}.tds` at root + `Data/Extracts/{slug}.hyper`)
-- Publish the `.tdsx` — TSC handles it identically to a `.hyper`
-- `TODAY()` evaluates at query time (not extract refresh) — Pulse reads fresh dates daily
+- **Publish the `.hyper` directly** — `server.datasources.publish(ds_item, hyper_path, "Overwrite")`
+- IMPORTANT: Do NOT publish a `.tdsx` for Pulse. Pulse indexes `.hyper` in seconds but takes 2+ hours to index `.tdsx` packages, causing metric creation to fail with 404.
 
 **Phase 3 — Create Pulse metrics**
 - POST each metric to `/api/-/pulse/definitions`
 - GET `/definitions/{id}/metrics` to retrieve metric ID (NOT definition ID)
-- Use `"time_dimension": {"field": "Display Date"}` (the calculated field, not the raw `Date` column)
+- Use `"time_dimension": {"field": "Date"}` (the raw Date column — Pulse handles time display natively)
 - Classify each metric before creating it:
   - Flow (sum, YTD): volume, revenue, originations
   - Rate/Average (average, last month): percentages, ratios, scores

@@ -4,6 +4,34 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-06-04 — Pulse .hyper Direct Publish Fix
+
+### Fixed
+
+**Pulse datasource indexing: publish .hyper directly, never .tdsx**
+- Publishing `.tdsx` packages causes Pulse to take 2+ hours (or indefinitely) to index the datasource — metric creation fails with 404 "Not Found" during that window
+- Publishing `.hyper` directly allows Pulse to index in seconds and metric creation succeeds immediately
+- Root cause: Pulse's internal discovery system processes raw `.hyper` files on a fast path but queues `.tdsx` packages for deferred processing
+- Updated all Pulse publish calls to use `server.datasources.publish(ds_item, hyper_path, "Overwrite")` instead of `.tdsx`
+- Pulse metric `time_dimension` now references raw `Date` column (not calculated `Display Date`)
+
+---
+
+## 2026-06-03 — Viz Field Role Exclusivity + Summary Clarity
+
+### Fixed
+
+**Visualizations: field role exclusivity rule**
+- Added a guard to prevent placing the same semantic field in both a grouping slot (dimension/columns) and an aggregation slot (measure/rows) in the same visualization
+- This caused charts to silently fail to render — reported by a user whose build needed manual correction
+- Rule added to both `build-demo.md` Phase 5 instructions and `CLAUDE.md` Known Pitfalls
+
+### Improved
+
+**Final summary: business preferences callout**
+- The post-build summary now explicitly tells the user that Business Preferences are at the end of the walkthrough `.docx` file, includes the full file path, and reminds them where to paste it in the SDM UI
+
+---
 ## 2026-05-29 — Pulse Goals/Thresholds + HCHSP Demo
 
 ### Added
