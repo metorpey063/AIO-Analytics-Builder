@@ -4,6 +4,32 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-06-05 — Pulse Refresh Pattern + Dynamic Offset + /refresh-demo Rewrite
+
+### Changed
+
+**Pulse date freshness: refresh-based instead of self-healing**
+- `.tdsx` packages NEVER index on Tableau Cloud (confirmed: 14+ hours with no indexing, across multiple tests with both hand-crafted and Cloud-format `.tdsx` files)
+- True self-healing via calculated fields is not possible for Pulse on Tableau Cloud
+- New pattern: publish `.hyper` → set `use_dynamic_offset: True` via PATCH → run `/refresh-demo` before meetings to regenerate data anchored to today
+- Metrics survive `.hyper` datasource overwrites — no deletion/recreation needed on refresh
+
+**`/refresh-demo` rewritten from scratch**
+- Old purpose: upgrade legacy demos to `.tdsx` self-healing (no longer applicable)
+- New purpose: regenerate data + re-publish `.hyper` to keep Pulse dates fresh
+- Supports refreshing a single demo by slug or all demos at once
+- ~30 seconds to refresh (data gen + publish)
+- Optional Tableau Next re-ingest for demos that also use Data Cloud
+
+### Added
+
+**Pulse 26.2 API findings documented**
+- `extension_options` must be set via PATCH (not accepted in POST create payload)
+- `temporality: 'TEMPORALITY_UNSPECIFIED'` causes 400 on create — field is read-only
+- PATCH Content-Type: `application/vnd.tableau.metricqueryservice.v1.UpdateDefinitionRequest+json`
+
+---
+
 ## 2026-06-04 — Pulse .hyper Direct Publish Fix
 
 ### Fixed
