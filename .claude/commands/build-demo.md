@@ -570,7 +570,7 @@ This ensures only one complete, working set of assets survives each run.
   - Absolute file paths to the guide and walkthrough (so the user can click them)
   - The full business preferences text (reprinted inline for easy access)
   - A clear callout: "Open the walkthrough .docx for the Business Preferences text to paste into your SDM"
-  - A note: "The Display Date dimension is self-healing — data always appears current with no manual refresh needed."
+  - A note about date freshness: "Tableau Next dates are self-healing (Display Date uses TODAY() at query time). For Pulse, run `/refresh-demo` before your meeting if the demo is more than a week old — it takes ~30 seconds to regenerate and re-publish fresh data."
 - Remind user: enable Analytics Agent Readiness toggle in Data 360 → Semantic Model → Settings
 
 ### For CSV output:
@@ -602,8 +602,8 @@ This ensures only one complete, working set of assets survives each run.
 For Pulse:
 - Visit your Tableau Cloud site → Pulse
 - The group will already be subscribed to all metrics
-- Metrics use the self-healing `Display Date` calculated field — the signal always appears current with no refresh needed
-- Tableau Cloud evaluates `TODAY()` at query time, so dates shift forward automatically every day
+- `use_dynamic_offset` is enabled — Pulse anchors to the most recent data point automatically
+- **Coming back to this demo later?** Run `/refresh-demo` before your meeting if the demo is more than a week old. It regenerates data anchored to today and re-publishes in ~30 seconds. Your metrics, group, and subscriptions stay intact.
 
 For Tableau Next:
 - Visit your Tableau Next workspace
@@ -611,9 +611,11 @@ For Tableau Next:
 - **Add Business Preferences to the SDM:** Data 360 → Semantic Model → [your SDM] → AI Optimization → Manage Business Preferences → paste the text from the "Business Preferences (SDM)" section of the walkthrough `.docx`
 - The Concierge panel is now ready for Q&A demos
 - Open the walkthrough `.docx` — it contains the exact Concierge prompts to use during the demo
-- The Display Date dimension is **self-healing** — data always appears current automatically
+- The Display Date dimension is **self-healing** — `TODAY()` evaluates at query time, data always appears current automatically
 
-Both platforms are self-healing. No `/refresh-demo` needed for either Pulse or Tableau Next.
+**Date freshness:**
+- Tableau Next: fully self-healing, no action needed ever
+- Pulse: run `/refresh-demo` before meetings if the demo is >1 week old (~30 seconds)
 
 Note: the Tableau Next Concierge does not have a public REST API — it is UI-only. Automated testing of Concierge responses is not currently possible programmatically. Business Preferences are also UI-only — the build generates the text for you, but you must paste it in manually.
 
