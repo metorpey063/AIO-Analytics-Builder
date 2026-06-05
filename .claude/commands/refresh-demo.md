@@ -1,21 +1,22 @@
-# /refresh-demo — Upgrade Legacy Demos to Self-Healing
+# /refresh-demo — Refresh Demo Dates
 
-Upgrades legacy demos to the self-healing Display Date formula. **New demos built after May 2026 never need this** — both Tableau Next and Pulse are self-healing out of the box.
+Re-generates data anchored to today and re-publishes the `.hyper` datasource. Pulse metrics survive the overwrite and automatically pick up the fresh data. No metric recreation needed.
+
+**Use this when:** A demo was built days or weeks ago and the dates look stale. Running `/refresh-demo` makes the most recent data appear as "this week" again.
 
 ---
 
-## Background
+## How it works
 
-**All new demos are self-healing** — both platforms use `DATEDIFF`/`TODAY()` formulas that evaluate at query time:
+1. Reads the demo's checkpoint to find the original build parameters (signal config, dimensions, metrics)
+2. Regenerates the synthetic data with `TODAY` as the new anchor date
+3. Writes a new `.hyper` file
+4. Re-publishes to Tableau Cloud (overwrites the existing datasource — same name, same project)
+5. Existing Pulse metrics automatically pick up the new data (no deletion/recreation)
+6. Updates the checkpoint with the new `build_date`
 
-- **Tableau Next**: SDM calculated dimension — `DATEADD("day", DATEDIFF("day", #<build_date>#, [DO].[date_field]), TODAY())`
-- **Tableau Pulse**: `.tdsx` calculated field — `DATEADD('day', DATEDIFF('day', #<build_date>#, [Date]), TODAY())`
-
-The most recent data always appears as "today" with no manual intervention.
-
-**This skill is only needed for legacy demos** that used the old static-offset approach:
-1. **Tableau Next** — old formula: `DATEADD("day", <N>, [DO].[date_field])` with a hardcoded integer
-2. **Tableau Pulse** — raw `.hyper` published without a Display Date calculated field
+**What stays the same:** metric definitions, group subscriptions, project, datasource name
+**What changes:** the data (shifted to today), the `.hyper` file, the CSV export
 
 ---
 
@@ -25,139 +26,142 @@ Run:
 ```bash
 git fetch origin main 2>/dev/null && git rev-list HEAD..origin/main --count
 ```
-- If result is `0` — skip silently.
-- If result is **1 or more** — tell the user an update is available and ask if they want to pull before continuing.
+- If `0` — skip silently.
+- If **1 or more** — ask if they want to pull first.
 
 ---
 
-## Step 1 — Select a demo to refresh
+## Step 1 — Select demo(s) to refresh
 
-List all demos that have a checkpoint file with a `display_date_api` key:
+List all demos with a checkpoint:
 
 ```bash
 python3 -c "
 import os, json, glob
+from datetime import date
 
 demos_dir = 'demos'
+today = date.today()
 found = []
-for cp_path in glob.glob(f'{demos_dir}/*/*.json'):
-    if not cp_path.endswith('_checkpoint.json'):
-        continue
+for cp_path in sorted(glob.glob(f'{demos_dir}/*_checkpoint.json', recursive=True)):
+    # Handle both demos/slug/slug_checkpoint.json patterns
+    pass
+for cp_path in sorted(glob.glob(f'{demos_dir}/*/*_checkpoint.json')):
     with open(cp_path) as f:
         cp = json.load(f)
-    if cp.get('display_date_api') and cp.get('sdm_api'):
-        slug = os.path.basename(os.path.dirname(cp_path))
-        build_date = cp.get('build_date', 'unknown')
-        is_self_healing = cp.get('self_healing_date', False)
-        status = 'self-healing ✓' if is_self_healing else 'legacy (static offset)'
-        print(f'  [{slug}]  built: {build_date}  status: {status}  sdm: {cp[\"sdm_api\"]}')
-        found.append((slug, is_self_healing))
+    if not cp.get('csv_done'):
+        continue
+    slug = os.path.basename(os.path.dirname(cp_path))
+    build_date = cp.get('build_date', 'unknown')
+    days_old = (today - date.fromisoformat(build_date)).days if build_date != 'unknown' else '?'
+    pulse_status = '✓ Pulse' if cp.get('pulse_done') else ''
+    next_status = '✓ Next' if cp.get('sdm_done') else ''
+    print(f'  {slug:45} built: {build_date}  ({days_old}d ago)  {pulse_status}  {next_status}')
+    found.append(slug)
 if not found:
-    print('  No refreshable demos found.')
-    print('  Demos must be built with display_date support to use /refresh-demo.')
+    print('  No demos found.')
 "
 ```
 
-- If no demos are found, tell the user: *"No refreshable demos found. Demos need to be built (or rebuilt) to gain date support."*
-- If the selected demo is already self-healing, tell the user: *"This demo is already self-healing — the Display Date dimension automatically stays current. No action needed for Tableau Next. Would you like to refresh the Pulse datasource instead?"*
-- If the selected demo uses the legacy static-offset formula, proceed to Step 2 to upgrade it.
+Then ask:
+
+> "Which demo would you like to refresh? Enter the slug name, or type **all** to refresh everything."
+
+If the user provides a slug directly (e.g. `/refresh-demo biw` or `/refresh-demo bi_worldwide_sales_incentive`), match it against available demos and skip the selection prompt.
 
 ---
 
-## Step 2 — Upgrade to self-healing formula (legacy demos only)
+## Step 2 — Regenerate data
 
-```bash
-python3 -c "
-import json, requests, sys
-sys.path.insert(0, '.')
-from connections import load_config, get_all_tokens
+For each selected demo:
 
-config = load_config()
-sf_token, sf_instance, _, _ = get_all_tokens(config)
-sf_h = {'Authorization': f'Bearer {sf_token}', 'Content-Type': 'application/json'}
+1. Read the checkpoint to get build parameters:
+   - `SLUG`, `COMPANY`, `DEMO_DIR`
+   - Signal parameters from the demo script header (these are constants in the `.py` file)
 
-slug = 'SLUG_HERE'
-with open(f'demos/{slug}/{slug}_checkpoint.json') as f:
-    cp = json.load(f)
+2. Run the demo script's data generation phase only:
+   ```bash
+   python3 -c "
+   import sys, os, json
+   sys.path.insert(0, os.path.join('demos', 'SLUG_HERE', '..', '..'))
+   # Execute just the data generation portion of the demo script
+   exec(open(os.path.join('demos', 'SLUG_HERE', 'SLUG_HERE_demo.py')).read())
+   "
+   ```
 
-sdm_api          = cp['sdm_api']
-do_api           = cp['do_api']
-display_date_api = cp['display_date_api']
-date_field_api   = cp['date_field_api']
-build_date       = cp['build_date']
+   **Important:** The demo scripts use `TODAY = date.today()` at the top — simply re-running the data generation produces data anchored to today. The signal onset, magnitude, and shape are all relative to `TODAY`.
 
-BASE = f'{sf_instance}/services/data/v65.0'
+3. The script's checkpoint logic will detect `csv_done: True` and skip regeneration. To force regeneration, temporarily set `csv_done: False` in the checkpoint before running:
+   ```python
+   cp['csv_done'] = False
+   cp['pulse_done'] = False  # Force re-publish of .hyper
+   # Keep all other flags (sdm_done, metrics_done, etc.) so Next isn't rebuilt
+   save_checkpoint(cp)
+   ```
 
-# GET current calculated dimension to confirm it exists
-r = requests.get(f'{BASE}/ssot/semantic/models/{sdm_api}/calculated-dimensions/{display_date_api}',
-                 headers=sf_h)
-if r.status_code != 200:
-    print(f'ERROR: calculated dimension not found: {r.status_code} {r.text[:200]}')
-    sys.exit(1)
+---
 
-# PUT self-healing expression
-new_expr = f'DATEADD(\"day\", DATEDIFF(\"day\", #{build_date}#, [{do_api}].[{date_field_api}]), TODAY())'
-payload = {
-    'apiName': display_date_api,
-    'label': 'Display Date',
-    'expression': new_expr,
-    'dataType': 'Date',
-}
-r = requests.put(f'{BASE}/ssot/semantic/models/{sdm_api}/calculated-dimensions/{display_date_api}',
-                 headers=sf_h, json=payload)
-if r.status_code in (200, 201):
-    print(f'OK: Display Date upgraded to self-healing formula')
-    print(f'Expression: {new_expr}')
-else:
-    print(f'ERROR: {r.status_code} {r.text[:300]}')
-    sys.exit(1)
+## Step 3 — Re-publish .hyper
 
-# Mark as self-healing in checkpoint
-cp['self_healing_date'] = True
-cp.pop('display_date_offset_days', None)  # no longer needed
-with open(f'demos/{slug}/{slug}_checkpoint.json', 'w') as f:
-    json.dump(cp, f, indent=2)
-print('Checkpoint updated — demo is now self-healing.')
-"
+The demo script's Pulse phase handles this:
+- Writes a new `.hyper` from the regenerated DataFrame
+- Publishes to the SAME datasource name in the SAME project (Overwrite mode)
+- Existing Pulse metrics automatically see the new data
+
+**Do NOT recreate metrics, groups, or subscriptions.** They survive the datasource overwrite.
+
+After publish, update the checkpoint:
+```python
+cp['build_date'] = date.today().isoformat()
+cp['csv_path'] = new_csv_path
+save_checkpoint(cp)
 ```
 
-- If successful: tell the user *"Done — the Display Date dimension is now self-healing. The demo will always show the signal as current, no further refreshes needed for Tableau Next."*
-- If the calculated dimension is missing: offer to recreate it with POST, then re-point metrics at it using `{"calculatedFieldApiName": "Display_Date"}`.
+---
+
+## Step 4 — Verify
+
+> "Refresh complete. The data now runs through today. Open Pulse and verify the trend line shows recent data."
+
+Print a summary:
+```
+  ✓ {slug}
+    Data regenerated: {row_count} rows through {today}
+    .hyper re-published to: {datasource_name}
+    Pulse metrics: {N} (unchanged — using existing definitions)
+    Build date updated: {old_date} → {today}
+```
 
 ---
 
-## Step 3 — Verify
+## Step 5 — Tableau Next (if applicable)
 
-> "Open the demo in Tableau Next and check the most recent date on the trend line — it should now show data up to around today. Does it look right?"
+If the demo also has Tableau Next output (`sdm_done: True`):
 
-If they say no, diagnose:
-- Check whether the metric's time dimension is pointing at `Display Date` (the calculated dim) vs the raw `date` field. If it's pointing at the raw field, the update won't be visible in metrics.
-- Offer to update each metric's `timeDimensionReference` to `{"calculatedFieldApiName": "Display_Date"}`.
-
----
-
-## Step 4 — Pulse upgrade (legacy demos only)
-
-If the demo also has Pulse output (`pulse_done: true` in checkpoint) AND was built before the `.tdsx` self-healing pattern was introduced (no `Display Date` calculated field in the published datasource):
-
-> "This demo has a legacy Pulse datasource (raw .hyper without a Display Date calculated field). Would you like me to re-package it as a .tdsx with the self-healing formula and re-publish?"
+> "This demo also has Tableau Next assets. Would you like to re-ingest the fresh data to Data Cloud as well? (This takes a few minutes for the bulk ingest job to complete.)"
 
 If yes:
-1. Write a `.tds` XML with the Display Date calc field: `DATEADD('day', DATEDIFF('day', #<build_date>#, [Date]), TODAY())`
-2. Package the existing `.hyper` + new `.tds` into a `.tdsx`
-3. Re-publish the `.tdsx` (overwrite the existing datasource)
-4. Update Pulse metric definitions to use `"time_dimension": {"field": "Display Date"}` instead of `"Date"`
+- Reset `ingest_done: False` in checkpoint
+- Re-run the Data Cloud ingest phase (schema already exists, stream already exists — just submit a new bulk ingest job with the fresh CSV)
+- The SDM, metrics, and visualizations don't need to change — they query the DLO which gets the new data
 
-If no: skip and finish.
+If no: skip. The Pulse data is already fresh.
 
-**Note:** Demos built after this update already publish as `.tdsx` with the self-healing formula — they never need this step.
+---
+
+## Refreshing "all"
+
+If the user selects **all**:
+- Loop through each demo with a checkpoint
+- For each: reset `csv_done` + `pulse_done`, run the script, let checkpoint resume handle the rest
+- Print a summary table at the end
 
 ---
 
 ## Notes
 
-- **New demos are self-healing by default** — both Tableau Next and Pulse use `DATEDIFF`/`TODAY()` formulas that evaluate at query time. No refresh is ever needed.
-- This skill's primary purpose is now **upgrading legacy demos** that used the old `DATEADD("day", <N>, ...)` static-offset pattern (Tableau Next) or raw `.hyper` without a Display Date calc field (Pulse).
-- **Pulse self-healing works via .tdsx**: the `.tdsx` contains a `.tds` XML with the calculated field. Tableau Cloud evaluates `TODAY()` at query time because "unstable functions" are excluded from extract materialization.
-- If the underlying data is genuinely too old (e.g. more than 24 months since build and the demo uses 24-month history), the signal will still appear but history will look truncated. A full rebuild is needed in that case.
-- Date literal syntax uses `#YYYY-MM-DD#` (hash-delimited) in both Tableau calc fields and SDM expressions. The `DATE(year, month, day)` function does NOT accept 3 arguments in SDM expressions.
+- **Metrics survive `.hyper` overwrites** — Pulse definitions persist when the underlying datasource is re-published. No need to delete/recreate.
+- **`use_dynamic_offset: true`** is set on all metrics as a safety net — Pulse anchors to the most recent data point even if the demo hasn't been refreshed recently.
+- **Frequency:** Refresh before each demo. A demo built the same week is fine; a demo built 2+ weeks ago should be refreshed.
+- **Speed:** Refresh is fast (~30 seconds for data gen + publish). No API calls to create/modify metrics.
+- **Tableau Next refresh** is optional and takes longer (bulk ingest → DLO processing → ~2-5 min).
