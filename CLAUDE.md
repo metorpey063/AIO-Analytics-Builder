@@ -219,7 +219,7 @@ BRAND = {
 - Pulse: Use metric ID (from `GET /definitions/{id}/metrics`) for subscriptions — NOT definition ID
 - Pulse: Granularities must include MONTH + QUARTER + YEAR minimum or slicers won't load
 - Pulse: `name` must be top-level in the definition payload, not inside `metadata`
-- Data Cloud: DLO status is nested under `dataLakeObjectInfo.status`, not at the top level of the data-stream response — always read `body.get("dataLakeObjectInfo", {}).get("status") or body.get("status", "UNKNOWN")` to handle both shapes. After reaching ACTIVE, wait an additional 30s before submitting bulk ingest jobs — schema propagation lag can cause 404s even after ACTIVE is reported.
+- Data Cloud: DLO status polling must use the **stream name** (e.g. `bi_worldwide_incentive_fact_bi_worldwide_incentive_fact_B79A6FF2`), NOT the DLO name (e.g. `bi_worldwide_incentive_fact_bi_B79A6FF2__dll`). The endpoint `GET /services/data/v62.0/ssot/data-streams/{name}` returns 400 "DataStream found null" when given a DLO name. Save the stream name from creation/discovery and use it for polling. Status is nested under `dataLakeObjectInfo.status`. After reaching ACTIVE, wait an additional 30s before submitting bulk ingest jobs — schema propagation lag can cause 404s even after ACTIVE is reported.
 - Data Cloud: Dashboard `widgets` must be a dict, not a list
 - Data Cloud: Dashboard page `name` must be a UUID string (`str(uuid.uuid4())`)
 - Data Cloud: `"headers": {}` in visualization style causes 400 — omit entirely
