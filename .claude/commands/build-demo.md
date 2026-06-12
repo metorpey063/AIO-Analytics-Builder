@@ -519,12 +519,100 @@ After all metrics are created, PUT each metric back with natural-language nouns 
 - Good noun examples: `"deal closed"` / `"deals closed"`, `"in-person sales activity"` / `"in-person sales activities"`
 - Sentiment: `"SentimentTypeUpIsGood"` or `"SentimentTypeUpIsBad"`
 
-**Phase 5 — Visualizations + Dashboard**
-- Create 4 visualizations (bar + line charts for key metrics)
-- Create a dashboard with metric tiles and filters
+**Phase 5 — Visualizations + Dashboard (use template library)**
+
+**Step 5a — Ask whether to build a dashboard:**
+
+After SDM/metrics are complete, ask the user:
+
+> "Your Semantic Data Model and metrics are ready — Concierge can already answer questions. Would you also like me to build a **Tableau Next dashboard** with visualizations? This adds chart widgets and a layout on top of the metrics. (yes / no)"
+
+- If **no**: skip Phase 5 entirely (proceed to post-build). The SDM + metrics alone are enough for Concierge demos.
+- If **yes**: continue to Step 5b.
+
+**Step 5b — Present the visualization plan:**
+
+```python
+from viz_templates import recommend_dashboard_vizzes
+from dashboard_builder import format_layout_preview
+
+# Auto-recommend chart types from METRIC_CONFIG
+viz_plan = recommend_dashboard_vizzes(METRIC_CONFIG, list(DIM_DESCRIPTIONS.keys()))
+
+# Show ASCII preview
+metric_labels = [mc['label'] for mc in METRIC_CONFIG[:3]]
+viz_labels = [f"{v['label']} ({v['template'].replace('_', ' ').title()})" for v in viz_plan]
+preview = format_layout_preview(metric_labels, viz_labels)
+```
+
+Print the preview and ask the user: **"Here's the dashboard I'll build — approve, edit, or skip?"**
+
+- If **approve**: build as shown
+- If **edit**: user can change chart types, swap metrics, add/remove vizzes
+- If **skip**: skip viz/dashboard creation (proceed to post-build)
+
+Once approved, build each visualization using the template library:
+
+```python
+from viz_builder import build_viz_payload
+
+payload = build_viz_payload(
+    template_name=rec["template"],       # e.g. "trend_over_time"
+    viz_name=f"{slug}_{rec['metric_field']}",
+    viz_label=rec["label"],
+    sdm_api=sdm_api,
+    ws_api=ws_api,
+    do_api=do_api,
+    field_map={"measure": rec["metric_field"], "date": "date"},
+    dim_field_map=dim_field_map,
+    measurements=measurements,
+    style_overrides=BRAND,               # brand colors (if defined)
+)
+# Validation runs automatically — will print failures before POST
+r = requests.post(f"{VIZ_API_BASE}/tableau/visualizations",
+                  headers=SF_HDR, params=VIZ_PARAMS, json=payload)
+```
+
+Available templates: `trend_over_time`, `multi_series_line`, `bar_by_category`, `stacked_bar`, `horizontal_bar`, `donut`, `scatter`, `heatmap`, `funnel`
+
+After all vizzes are created, assemble the dashboard:
+
+```python
+from dashboard_builder import build_dashboard_payload
+
+dash_payload = build_dashboard_payload(
+    dash_name=f"{slug}_dashboard",
+    dash_label=f"{company} {use_case} Dashboard",
+    ws_api=ws_api,
+    sdm_api=sdm_api,
+    metric_apis=list(metric_api_map.values()),
+    viz_apis=list(viz_apis.values()),
+    layout="auto",                       # or "standard", "story_flow", etc.
+    style_overrides={"dashboard_bg": BRAND.get("dashboard_bg", "#F3F3F3")},
+)
+r = requests.post(f"{VIZ_API_BASE}/tableau/dashboards",
+                  headers=SF_HDR, params=VIZ_PARAMS, json=dash_payload)
+```
+
+Layout patterns available: `standard` (3 metrics + 2×2 vizzes), `metrics_heavy` (6 metrics + 3 vizzes), `story_flow` (3 metrics + wide hero + 2-up), `wide_viz` (3 metrics + 2 full-width)
+
+After dashboard creation, share the workspace with all users:
+
+```python
+# Share workspace with all org users
+share_url = f"{sf_instance}/services/data/v66.0/tableau/records/{ws_api}/shares?minorVersion=12"
+share_payload = {"shareWith": "ALL_USERS", "accessLevel": "View"}
+r = requests.post(share_url, headers=SF_HDR, json=share_payload)
+if r.status_code in (200, 201):
+    print("  Workspace shared with all users.")
+```
+
+**Key rules still apply:**
 - Dashboard page `name` must be a UUID string
 - `widgets` must be a dict, not a list
-- Omit `"headers": {}` from visualization style
+- Widget `source` must have only `"name"` key (no type/label)
+- Metric widgets need `parameters.metricOption.sdmApiName`
+- Container widgets must be in `widgets_dict` with `type: "container"`
 
 **Retry cleanup — apply to EVERY phase that creates assets:**
 

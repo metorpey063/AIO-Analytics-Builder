@@ -4,6 +4,39 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-06-10 — Viz Template Library + Validation Engine + Dashboard Builder
+
+### Added
+
+**Visualization template library** (`viz_templates.py`, `viz_builder.py`)
+- 9 chart templates: trend_over_time, multi_series_line, bar_by_category, stacked_bar, horizontal_bar, donut, scatter, heatmap, funnel
+- Auto-recommends chart types from METRIC_CONFIG based on field names and aggregation patterns
+- Builds complete API payloads with correct fields, encodings, style, marks, legends
+- Infers number formats (%, $, decimals) from field name patterns
+- Supports brand color palettes and style overrides
+- Adapted from alaviron/tableau-skills template library (internal Salesforce)
+
+**Pre-POST validation engine** (`viz_validator.py`)
+- 17 rules checking all known API failure modes before hitting the endpoint
+- Validates: root fields, view structure, visualSpecification keys, marks structure, style (fonts/lines/axis/encodings/headers), encoding field references, donut requirements, size encoding support
+- Catches errors locally instead of learning from 400 responses
+- Returns actionable fix suggestions for each failure
+
+**Dashboard layout builder** (`dashboard_builder.py`)
+- 4 layout patterns: standard (3 metrics + 2x2 vizzes), metrics_heavy (6 metrics + 3 vizzes), story_flow (3 metrics + wide hero + 2-up), wide_viz (3 metrics + 2 full-width)
+- Auto-selects pattern based on widget counts
+- Produces complete dashboard payload with widgets dict, layouts, containers
+- ASCII preview generation for user confirmation before building
+- 72-column grid with rowspan 15 metric cards (matches our existing preference)
+
+**Style defaults module** (`style_defaults.py`)
+- Font builder (7 required keys), line builder (4 keys), shading, field labels
+- Brand color override system
+- Number format helpers for axis, encoding, and header fields
+- Marks header/panes style builders with all v66.12 required fields
+
+---
+
 ## 2026-06-05 — Pulse Refresh Pattern + Dynamic Offset + /refresh-demo Rewrite
 
 ### Changed

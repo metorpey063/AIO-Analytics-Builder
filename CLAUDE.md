@@ -98,6 +98,44 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
 - `config.json` — per-SE credentials (gitignored, never commit)
 - `config.json.template` — safe to commit, shows required fields
 - `demos/` — generated demo scripts and exports land here
+- `viz_templates.py` — chart template definitions and auto-recommendation logic
+- `viz_builder.py` — builds complete viz API payloads from templates + SDM field map
+- `viz_validator.py` — 17-rule pre-POST validation engine; run before every viz POST
+- `dashboard_builder.py` — layout patterns and dashboard payload assembly
+- `style_defaults.py` — font/line/shading/encoding builders with brand color support
+
+## Visualization building (Tableau Next)
+
+When building Tableau Next visualizations in `/build-demo`, ALWAYS use the template library:
+
+```python
+from viz_builder import build_viz_payload
+from viz_validator import is_valid, print_results
+from dashboard_builder import build_dashboard_payload, format_layout_preview
+
+# Build a viz from template
+payload = build_viz_payload(
+    template_name="trend_over_time",  # or bar_by_category, stacked_bar, donut, etc.
+    viz_name="enrollment_trend",
+    viz_label="Enrollment Rate Over Time",
+    sdm_api=sdm_api,
+    ws_api=ws_api,
+    do_api=do_api,
+    field_map={"measure": "benefits_enrollment_rate", "date": "date"},
+    dim_field_map=dim_field_map,
+    measurements=measurements,
+    style_overrides=BRAND,  # optional brand colors
+)
+```
+
+**Available templates:** trend_over_time, multi_series_line, bar_by_category, stacked_bar, horizontal_bar, donut, scatter, heatmap, funnel
+
+**Dashboard UX flow during /build-demo:**
+1. Auto-select viz types from METRIC_CONFIG using `recommend_dashboard_vizzes()`
+2. Show the plan using `format_layout_preview()` — user sees ASCII grid of metrics + vizzes
+3. User approves, edits, or skips
+4. Build each viz with `build_viz_payload()` (validation runs automatically)
+5. Assemble dashboard with `build_dashboard_payload()`
 
 ## Credentials & config
 
