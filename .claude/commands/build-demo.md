@@ -216,6 +216,16 @@ Ask the user for the company name, and include this note when asking:
 
 Use the answer to determine how much research to do in the Company Research step — real company gets web searches, fictitious company gets reasonable industry defaults.
 
+### 1b. Supporting materials
+Immediately after the company name, ask:
+
+> "Do you have any notes, documents, or context you'd like to share to help refine the demo? For example: call notes, a brief, a discovery deck, an email thread, specific metrics they care about, or any files I can read. This is optional — I'll also do my own research — but anything you provide will make the demo more tailored. (paste text, drag in a file, or skip)"
+
+- If the user provides text, a file path, or drags in a document: read and incorporate the content into the Company Research phase. Extract any mentioned metrics, dimensions, personas, pain points, goals, or terminology and use them to inform all subsequent steps.
+- If the user says **skip** or similar: proceed without additional context.
+
+This step is especially valuable for real customer demos where the SE has call notes, a discovery brief, or specific asks from the account team.
+
 ### 2. Use case / industry
 What business problem are we telling a story about? Examples:
 - Corporate travel compliance declining
