@@ -4,6 +4,21 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-06-16 — CRM Analytics (CRMA) Output Mode
+
+### Added
+
+**CRM Analytics as 4th output mode** (`crma_uploader.py`, `crma_dashboard_builder.py`)
+- Full dataset upload via InsightsExternalData API (metadata → base64 CSV chunks → process → poll)
+- Automatic field schema generation from METRIC_CONFIG and dimension lists
+- CRMA dashboard builder: SAQL steps (time series, grouped bars, KPIs), chart widgets, filter dropdowns, text headers
+- Brand color integration: background container, text colors, chart themes
+- App/folder management: find_or_create_app for organizing assets
+- Security predicate helper for row-level security on datasets
+- CRMA guidance document integrated into build flow (SAQL pitfalls, PATCH rules, field naming)
+
+---
+
 ## 2026-06-10 — Viz Template Library + Validation Engine + Dashboard Builder
 
 ### Added

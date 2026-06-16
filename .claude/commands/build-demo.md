@@ -68,6 +68,7 @@ Based on your inputs, the demo builder will:
 |------|----------------|
 | **Pulse** | Publishes a .hyper datasource to Tableau Cloud, creates Pulse metric definitions, creates a group, subscribes the group to all metrics |
 | **Tableau Next** | Pushes data to Salesforce Data Cloud, builds a Semantic Data Model, creates metrics and calculated fields, creates visualizations and a dashboard |
+| **CRMA** | Uploads dataset to CRM Analytics (Wave), creates a dashboard with SAQL-driven charts, KPI numbers, and dimension filters |
 | **CSV Export** | Exports the generated dataset as a CSV file in the `demos/` folder |
 
 ---
@@ -264,8 +265,9 @@ Apply this when generating the data and when writing the walkthrough document �
 Choose one or more:
 - `pulse` — Tableau Pulse metrics
 - `next` — Tableau Next + Data Cloud
+- `crma` — CRM Analytics (Wave) dataset + dashboard
 - `csv` — CSV export only
-- `all` — all three
+- `all` — all four
 
 ### 5b. Brand colors (only ask if output includes `next` or `all`, and only for real companies)
 
@@ -670,6 +672,81 @@ This ensures only one complete, working set of assets survives each run.
   - A clear callout: "Open the walkthrough .docx for the Business Preferences text to paste into your SDM"
   - A note about date freshness: "Tableau Next dates are self-healing (Display Date uses TODAY() at query time). For Pulse, run `/refresh-demo` before your meeting if the demo is more than a week old — it takes ~30 seconds to regenerate and re-publish fresh data."
 - Remind user: enable Analytics Agent Readiness toggle in Data 360 → Semantic Model → Settings
+
+### For CRMA output:
+
+**Phase 1 — Data generation** (same as above)
+
+**Phase 2 — Upload dataset to CRM Analytics**
+
+Uses the same SF token from the active profile (CRMA lives in the same org as Tableau Next).
+
+```python
+from crma_uploader import build_metadata, fields_from_metric_config, upload_dataset, find_or_create_app
+from crma_dashboard_builder import build_dashboard_state, create_dashboard, find_or_create_app
+
+# Build metadata from METRIC_CONFIG
+fields = fields_from_metric_config(METRIC_CONFIG, list(DIM_DESCRIPTIONS.keys()))
+metadata = build_metadata(f"{slug}_fact", f"{company} {use_case}", fields)
+
+# Prepare CSV with snake_case column names
+ingest_df = df.copy()
+ingest_df.columns = [c.lower().replace(" ", "_") for c in ingest_df.columns]
+csv_bytes = ingest_df.to_csv(index=False).encode("utf-8")
+
+# Upload
+job_id, dataset_id = upload_dataset(
+    sf_instance, sf_token,
+    dataset_name=f"{slug}_fact",
+    dataset_label=f"{company} {use_case}",
+    metadata=metadata,
+    csv_bytes=csv_bytes,
+    app_name=app_label,  # optional: places in a CRMA app folder
+)
+```
+
+**Important naming rules for CRMA fields:**
+- Use snake_case for all field names (no spaces, no dots for simple datasets)
+- Avoid reserved words: `location_id` → use `loc_id`; `name` → use `record_name`
+- Date fields auto-derive `_Year`, `_Month`, `_Day` dimensions (use these for grouping)
+- SAQL references the `name` from metadata, not the label
+
+**Phase 3 — Create CRMA dashboard**
+
+```python
+from crma_dashboard_builder import build_dashboard_state, create_dashboard
+
+state = build_dashboard_state(
+    dataset_name=f"{slug}_fact",
+    dashboard_label=f"{company} {use_case} Dashboard",
+    metric_configs=METRIC_CONFIG,
+    dimensions=list(DIM_DESCRIPTIONS.keys()),
+    time_field="date",
+    time_grain=GRAIN,
+    brand=BRAND,
+)
+
+dash_id = create_dashboard(
+    sf_instance, sf_token,
+    dashboard_label=f"{company} {use_case} Dashboard",
+    state=state,
+    app_id=app_id,  # from find_or_create_app
+)
+```
+
+The dashboard includes:
+- Title text widget with brand colors
+- Filter dropdowns for top dimensions (region, market, tier, etc.)
+- KPI number widgets for top 3 metrics
+- Time series + grouped bar charts alternating in a 2-column grid
+- Background container with brand color
+
+**Key CRMA pitfalls:**
+- Cannot `group by` `_sec_epoch` fields — use `_Year`, `_Month`, `_Day` instead
+- Dataset re-upload creates a new version — security predicates must be re-applied
+- Dashboard PATCH requires deep-unescaping HTML entities from GET response
+- `datasets` arrays in steps must only contain `{"name": "..."}` (no label, id, url)
+- Text widgets use `richTextContent` format, not Quill `ops`
 
 ### For CSV output:
 

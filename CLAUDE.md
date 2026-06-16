@@ -103,6 +103,8 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
 - `viz_validator.py` — 17-rule pre-POST validation engine; run before every viz POST
 - `dashboard_builder.py` — layout patterns and dashboard payload assembly
 - `style_defaults.py` — font/line/shading/encoding builders with brand color support
+- `crma_uploader.py` — CRM Analytics dataset upload (metadata + base64 CSV + poll)
+- `crma_dashboard_builder.py` — CRMA dashboard state builder (SAQL steps + chart widgets + layout)
 
 ## Visualization building (Tableau Next)
 
