@@ -711,35 +711,39 @@ job_id, dataset_id = upload_dataset(
 - Date fields auto-derive `_Year`, `_Month`, `_Day` dimensions (use these for grouping)
 - SAQL references the `name` from metadata, not the label
 
-**Phase 3 — Create CRMA dashboard**
+**Phase 3 — Create CRMA dashboard (template-based)**
+
+Ask the user which dashboard template to use:
+
+> "Which CRMA dashboard style would you like?
+> 1. **Metrics Trend** — Time-series charts showing how metrics change over time (recommended for trend stories)
+> 2. **Performance Summary** — Side-by-side metric comparison with dimension grouping
+> 3. **Comparison Dashboard** — Two-column metric comparison
+> 4. **Details Dashboard** — Charts + record-level details table
+> 5. **Summary Dashboard** — Horizontal sections with filters
+> 6. **Time Series** — Includes forecasting/trend projections
+> 7. **Three-Column Dashboard** — Three-column layout with top filters
+> 8. **Table Expansion** — Metrics over time with expandable detail rows"
+
+Then create the dashboard from the template:
 
 ```python
-from crma_dashboard_builder import build_dashboard_state, create_dashboard
+from crma_dashboard_builder import create_dashboard_from_template
 
-state = build_dashboard_state(
-    dataset_name=f"{slug}_fact",
-    dashboard_label=f"{company} {use_case} Dashboard",
-    metric_configs=METRIC_CONFIG,
-    dimensions=list(DIM_DESCRIPTIONS.keys()),
-    time_field="date",
-    time_grain=GRAIN,
-    brand=BRAND,
-)
-
-dash_id = create_dashboard(
+result = create_dashboard_from_template(
     sf_instance, sf_token,
-    dashboard_label=f"{company} {use_case} Dashboard",
-    state=state,
-    app_id=app_id,  # from find_or_create_app
+    template_key="metrics_trend",      # user's choice
+    app_label=f"{company} - {use_case}",
+    dataset_id=dataset_id,             # from upload phase
+    dataset_name=f"{slug}_fact",
+    measure_fields=[mc["field"] for mc in METRIC_CONFIG[:4]],
+    date_field="date",
+    filter_fields=list(DIM_DESCRIPTIONS.keys())[:4],
 )
+# result = {"app_id": "...", "dashboard_id": "...", "dashboard_url": "..."}
 ```
 
-The dashboard includes:
-- Title text widget with brand colors
-- Filter dropdowns for top dimensions (region, market, tier, etc.)
-- KPI number widgets for top 3 metrics
-- Time series + grouped bar charts alternating in a 2-column grid
-- Background container with brand color
+This uses Salesforce's built-in Smart Templates which produce polished, professional dashboards. The template auto-discovers its required variables and maps our metrics/dimensions to the correct inputs.
 
 **Key CRMA pitfalls:**
 - Cannot `group by` `_sec_epoch` fields — use `_Year`, `_Month`, `_Day` instead

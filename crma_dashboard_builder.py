@@ -39,7 +39,6 @@ def _text_widget(text: str, color: str = "#FFFFFF", size: str = "18px", align: s
                     {"attributes": {"align": align}, "insert": "\n"},
                 ]
             },
-            "interactions": [],
             "showActionMenu": False,
         },
         "type": "text",
@@ -50,34 +49,18 @@ def _number_widget(step_name: str, measure_field: str, label: str, compact: bool
     return {
         "parameters": {
             "step": step_name,
-            "visualizationType": "number",
-            "textAlignment": "left",
-            "titleColumn": "",
             "measureField": measure_field,
             "compact": compact,
-            "numberColor": "",
-            "showActionMenu": True,
-            "interactions": [],
         },
         "type": "number",
     }
 
 
-def _chart_widget(step_name: str, viz_type: str, theme: str = "wave", **kwargs) -> dict:
+def _chart_widget(step_name: str, viz_type: str, **kwargs) -> dict:
     params = {
         "step": step_name,
         "visualizationType": viz_type,
-        "theme": theme,
-        "autoFitMode": "keepLabels",
-        "showValues": True,
-        "showActionMenu": True,
-        "interactions": [],
     }
-    if viz_type in ("time", "line"):
-        params["fillArea"] = False
-        params["showPoints"] = True
-    if viz_type == "donut":
-        params["legendPosition"] = "right"
     params.update(kwargs)
     return {"parameters": params, "type": "chart"}
 
@@ -88,9 +71,6 @@ def _listselector_widget(step_name: str, display_mode: str = "dropdown") -> dict
             "step": step_name,
             "instant": True,
             "expanded": display_mode == "list",
-            "visualizationType": "list" if display_mode == "list" else "dropdown",
-            "interactions": [],
-            "showActionMenu": False,
         },
         "type": "listselector",
     }
@@ -102,8 +82,6 @@ def _container_widget(bg_color: str = "#1a1a1a") -> dict:
             "alignmentX": "left",
             "alignmentY": "top",
             "fit": "original",
-            "interactions": [],
-            "backgroundColor": bg_color,
         },
         "type": "container",
     }
@@ -417,3 +395,192 @@ def find_or_create_app(
     if r.status_code in (200, 201):
         return r.json().get("id")
     return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Template-Based Dashboard Creation (recommended — uses CRMA Smart Templates)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+CRMA_TEMPLATES = {
+    "metrics_trend": {
+        "id": "sfdc_internal__MetricsTrendDashboard",
+        "label": "Metrics Trend",
+        "description": "Visualize how metrics change over a period of time with customized filters",
+        "max_measures": 4,
+        "max_filters": 4,
+    },
+    "performance_summary": {
+        "id": "sfdc_internal__PerfSummaryDashboard",
+        "label": "Performance Summary",
+        "description": "Compare metrics side-by-side, across a single dimension with filters",
+        "max_measures": 4,
+        "max_filters": 4,
+    },
+    "comparison": {
+        "id": "sfdc_internal__Comparison_Dashboard",
+        "label": "Comparison Dashboard",
+        "description": "Compare metrics side-by-side, across a single dimension",
+        "max_measures": 4,
+        "max_filters": 4,
+    },
+    "details": {
+        "id": "sfdc_internal__Details_Dashboard",
+        "label": "Details Dashboard",
+        "description": "Charts + record-level details table with KPIs in sidebar",
+        "max_measures": 4,
+        "max_filters": 4,
+    },
+    "summary": {
+        "id": "sfdc_internal__Summary_Dashboard",
+        "label": "Summary Dashboard",
+        "description": "Horizontal sections with filters across the top",
+        "max_measures": 4,
+        "max_filters": 4,
+    },
+    "three_column": {
+        "id": "sfdc_internal__Three_Column_Dashboard",
+        "label": "Three-Column Dashboard",
+        "description": "Three columns with filters across the top",
+        "max_measures": 4,
+        "max_filters": 4,
+    },
+    "time_series": {
+        "id": "sfdc_internal__TimeSeriesDashboard",
+        "label": "Time Series",
+        "description": "Future metrics trends based on historical data with forecasting",
+        "max_measures": 4,
+        "max_filters": 4,
+    },
+    "table_expansion": {
+        "id": "sfdc_internal__TableExpansionDashboard",
+        "label": "Table Expansion",
+        "description": "Metrics over time with expandable details table",
+        "max_measures": 4,
+        "max_filters": 4,
+    },
+}
+
+
+def list_crma_templates() -> List[Dict[str, str]]:
+    """List available CRMA dashboard templates with descriptions."""
+    return [
+        {"key": k, "label": v["label"], "description": v["description"]}
+        for k, v in CRMA_TEMPLATES.items()
+    ]
+
+
+def create_dashboard_from_template(
+    sf_instance: str,
+    sf_token: str,
+    *,
+    template_key: str,
+    app_label: str,
+    dataset_id: str,
+    dataset_name: str,
+    measure_fields: List[str],
+    date_field: str,
+    filter_fields: List[str],
+) -> Optional[Dict[str, str]]:
+    """Create a CRMA dashboard from a Smart Template.
+
+    This is the recommended approach — produces polished, professional
+    dashboards using Salesforce's built-in templates.
+
+    Automatically discovers the template's variable schema and maps
+    our standard inputs to the correct variable names.
+
+    Args:
+        sf_instance: Salesforce instance URL
+        sf_token: Bearer token
+        template_key: Key from CRMA_TEMPLATES (e.g. "metrics_trend")
+        app_label: Label for the app/folder that will contain the dashboard
+        dataset_id: CRMA dataset ID (0Fb...)
+        dataset_name: Dataset API name
+        measure_fields: List of numeric field names to visualize (max 4)
+        date_field: Date field name for time axis
+        filter_fields: Dimension field names for filter widgets (max 4)
+
+    Returns:
+        Dict with 'app_id', 'dashboard_id', 'dashboard_url' or None on failure
+    """
+    template = CRMA_TEMPLATES.get(template_key)
+    if not template:
+        print(f"  Unknown template: {template_key}. Available: {list(CRMA_TEMPLATES.keys())}")
+        return None
+
+    headers = {"Authorization": f"Bearer {sf_token}", "Content-Type": "application/json"}
+    api_base = f"{sf_instance}/services/data/v61.0"
+
+    # Discover variable schema for this template
+    r = requests.get(f"{api_base}/wave/templates/{template['id']}/configuration", headers=headers)
+    if r.status_code != 200:
+        print(f"  Could not get template config ({r.status_code})")
+        return None
+
+    variables = r.json().get("variables", {})
+    template_values = {}
+
+    for var_name, var_def in variables.items():
+        vtype = var_def.get("variableType", {}).get("type", "")
+        required = var_def.get("required", False)
+
+        if vtype == "DatasetType":
+            template_values[var_name] = {"datasetId": dataset_id, "datasetAlias": dataset_name}
+        elif vtype == "DatasetDateType":
+            template_values[var_name] = {"datasetId": dataset_id, "dateAlias": date_field}
+        elif vtype == "DatasetMeasureType":
+            if measure_fields:
+                template_values[var_name] = {"datasetId": dataset_id, "fieldName": measure_fields[0]}
+        elif vtype == "ArrayType":
+            items_type = var_def.get("variableType", {}).get("itemsType", {}).get("type", "")
+            size_limit = var_def.get("variableType", {}).get("sizeLimit", {})
+            max_items = size_limit.get("max", 4)
+
+            if items_type == "DatasetMeasureType":
+                template_values[var_name] = [
+                    {"datasetId": dataset_id, "fieldName": f} for f in measure_fields[:max_items]
+                ]
+            elif items_type == "DatasetDimensionType":
+                template_values[var_name] = [
+                    {"datasetId": dataset_id, "fieldName": f} for f in filter_fields[:max_items]
+                ]
+            elif items_type == "ObjectType" or not items_type:
+                # Generic groupings — try dimensions
+                template_values[var_name] = [
+                    {"datasetId": dataset_id, "fieldName": f} for f in filter_fields[:max_items]
+                ]
+        elif vtype == "BooleanType":
+            template_values[var_name] = True
+        elif vtype == "ObjectType" and not required:
+            pass  # Skip optional complex objects
+
+    payload = {
+        "label": app_label,
+        "templateSourceId": template["id"],
+        "templateValues": template_values,
+    }
+
+    r = requests.post(f"{api_base}/wave/folders", headers=headers, json=payload)
+    if r.status_code not in (200, 201):
+        print(f"  Template creation FAILED ({r.status_code}): {r.text[:400]}")
+        return None
+
+    folder_id = r.json().get("id")
+    print(f"  App created: {folder_id} ({app_label})")
+
+    # Find the dashboard (may take a moment to materialize)
+    import time as _time
+    for _attempt in range(6):
+        r2 = requests.get(f"{api_base}/wave/dashboards", headers=headers, params={"folderId": folder_id})
+        if r2.status_code == 200:
+            dashboards = r2.json().get("dashboards", [])
+            if dashboards:
+                dash_id = dashboards[0]["id"]
+                dash_url = f"{sf_instance}/analytics/dashboard/{dash_id}"
+                print(f"  Dashboard: {dash_id}")
+                print(f"  URL: {dash_url}")
+                return {"app_id": folder_id, "dashboard_id": dash_id, "dashboard_url": dash_url}
+        _time.sleep(3)
+
+    print("  Dashboard not found in folder (may still be generating).")
+    return {"app_id": folder_id, "dashboard_id": None, "dashboard_url": None}
