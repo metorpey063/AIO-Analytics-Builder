@@ -280,7 +280,7 @@ def build_dashboard_state(
 
     # ── Row 0: Title + Date selector + Filters ────────────────────────────────
     widgets["title"] = _text_widget(dashboard_label, color="#FFFFFF", size="20px", bold=True)
-    page_widgets.append({"name": "title", "row": 0, "column": 0, "colspan": 4, "rowspan": 3})
+    page_widgets.append({"name": "title", "row": 0, "column": 0, "colspan": 4, "rowspan": 4})
 
     # Date selector
     steps["date_1"] = {
@@ -310,7 +310,7 @@ def build_dashboard_state(
         },
         "type": "dateselector",
     }
-    page_widgets.append({"name": "dateselector_1", "row": 0, "column": 4, "colspan": 2, "rowspan": 3})
+    page_widgets.append({"name": "dateselector_1", "row": 0, "column": 4, "colspan": 2, "rowspan": 4})
 
     # Dimension filters
     filter_dims = dimensions[:max_filters]
@@ -319,8 +319,8 @@ def build_dashboard_state(
         steps[step_name] = _agg_step([["count", "*"]], [[dim]], dim.replace("_", " ").title())
         steps[step_name]["selectMode"] = "multi"
         widget_name = f"w_filter_{dim}"
-        widgets[widget_name] = {"parameters": {"step": step_name, "instant": True, "expanded": False, "filterStyle": {}}, "type": "listselector"}
-        page_widgets.append({"name": widget_name, "row": 0, "column": 6 + (i * 2), "colspan": 2, "rowspan": 3})
+        widgets[widget_name] = {"parameters": {"step": step_name, "instant": True, "expanded": False, "filterStyle": {"titleColor": "#FFFFFF"}}, "type": "listselector"}
+        page_widgets.append({"name": widget_name, "row": 0, "column": 6 + (i * 2), "colspan": 2, "rowspan": 4})
 
     # ── Row 3: KPI number widgets ─────────────────────────────────────────────
     kpi_metrics = metric_configs[:max_kpis]
@@ -346,11 +346,11 @@ def build_dashboard_state(
             },
             "type": "number",
         }
-        page_widgets.append({"name": widget_name, "row": 3, "column": i * kpi_colspan, "colspan": kpi_colspan, "rowspan": 6})
+        page_widgets.append({"name": widget_name, "row": 5, "column": i * kpi_colspan, "colspan": kpi_colspan, "rowspan": 6})
 
-    # ── Row 10+: Charts (2x2 grid) ───────────────────────────────────────────
+    # ── Row 12+: Charts (2x2 grid) ───────────────────────────────────────────
     chart_metrics = metric_configs[:max_charts]
-    row = 10
+    row = 12
     for i, mc in enumerate(chart_metrics):
         agg = "avg" if mc.get("agg") == "Average" else "sum"
         col = (i % 2) * 5

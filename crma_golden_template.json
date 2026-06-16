@@ -21,7 +21,7 @@
               "column": 0,
               "name": "title",
               "row": 0,
-              "rowspan": 3,
+              "rowspan": 4,
               "widgetStyle": {
                 "borderEdges": []
               }
@@ -31,7 +31,7 @@
               "column": 6,
               "name": "w_filter_vertical",
               "row": 0,
-              "rowspan": 3,
+              "rowspan": 4,
               "widgetStyle": {
                 "borderEdges": []
               }
@@ -41,16 +41,20 @@
               "column": 8,
               "name": "w_filter_region",
               "row": 0,
-              "rowspan": 3,
+              "rowspan": 4,
               "widgetStyle": {
-                "borderEdges": []
+                "backgroundColor": "#16325C",
+                "borderColor": "#E6ECF2",
+                "borderEdges": [],
+                "borderRadius": 0,
+                "borderWidth": 1
               }
             },
             {
               "colspan": 5,
               "column": 0,
               "name": "chart_trend_part",
-              "row": 10,
+              "row": 12,
               "rowspan": 14,
               "widgetStyle": {
                 "borderEdges": []
@@ -60,7 +64,7 @@
               "colspan": 5,
               "column": 5,
               "name": "chart_bar_part",
-              "row": 10,
+              "row": 12,
               "rowspan": 14,
               "widgetStyle": {
                 "borderEdges": []
@@ -70,7 +74,7 @@
               "colspan": 5,
               "column": 0,
               "name": "chart_trend_goal",
-              "row": 25,
+              "row": 27,
               "rowspan": 14,
               "widgetStyle": {
                 "borderEdges": []
@@ -80,7 +84,7 @@
               "colspan": 5,
               "column": 5,
               "name": "chart_bar_region",
-              "row": 25,
+              "row": 27,
               "rowspan": 14,
               "widgetStyle": {
                 "borderEdges": []
@@ -90,7 +94,7 @@
               "colspan": 2,
               "column": 0,
               "name": "number_1",
-              "row": 3,
+              "row": 5,
               "rowspan": 6,
               "widgetStyle": {
                 "borderEdges": []
@@ -100,7 +104,7 @@
               "colspan": 2,
               "column": 2,
               "name": "number_2",
-              "row": 3,
+              "row": 5,
               "rowspan": 6,
               "widgetStyle": {
                 "borderEdges": []
@@ -110,7 +114,7 @@
               "colspan": 2,
               "column": 4,
               "name": "number_3",
-              "row": 3,
+              "row": 5,
               "rowspan": 6,
               "widgetStyle": {
                 "borderEdges": []
@@ -120,7 +124,7 @@
               "colspan": 2,
               "column": 6,
               "name": "number_4",
-              "row": 3,
+              "row": 5,
               "rowspan": 6,
               "widgetStyle": {
                 "borderEdges": []
@@ -130,7 +134,7 @@
               "colspan": 2,
               "column": 8,
               "name": "number_5",
-              "row": 3,
+              "row": 5,
               "rowspan": 6,
               "widgetStyle": {
                 "borderEdges": []
@@ -141,7 +145,7 @@
               "column": 4,
               "name": "dateselector_1",
               "row": 0,
-              "rowspan": 3,
+              "rowspan": 4,
               "widgetStyle": {
                 "backgroundColor": "#16325C",
                 "borderColor": "#747474",
@@ -317,7 +321,7 @@
       "isGlobal": false,
       "label": "Participation by Vertical",
       "query": {
-        "query": "{&quot;measures&quot;:[[&quot;avg&quot;,&quot;participation_rate&quot;]],&quot;groups&quot;:[[&quot;vertical&quot;]],&quot;filters&quot;:[]}",
+        "query": "{&quot;measures&quot;:[[&quot;avg&quot;,&quot;participation_rate&quot;]],&quot;groups&quot;:[[&quot;vertical&quot;]],&quot;filters&quot;:[],&quot;order&quot;:[[&quot;avg_participation_rate&quot;,{&quot;ascending&quot;:false}]]}",
         "version": -1.0
       },
       "receiveFacetSource": {
@@ -327,7 +331,121 @@
       "selectMode": "single",
       "type": "aggregateflex",
       "useGlobal": true,
-      "visualizationParameters": {}
+      "visualizationParameters": {
+        "parameters": {
+          "autoFitMode": "keepLabels",
+          "bins": {
+            "breakpoints": {
+              "high": 100,
+              "low": 0
+            },
+            "bands": {
+              "high": {
+                "color": "#008000",
+                "label": ""
+              },
+              "low": {
+                "color": "#B22222",
+                "label": ""
+              },
+              "medium": {
+                "color": "#ffa500",
+                "label": ""
+              }
+            }
+          },
+          "legend": {
+            "descOrder": false,
+            "showHeader": true,
+            "show": false,
+            "customSize": "auto",
+            "position": "right-top",
+            "inside": false
+          },
+          "axisMode": "sync",
+          "tooltip": {
+            "content": {
+              "legend": {
+                "showBinLabel": true,
+                "measures": [],
+                "showNullValues": true,
+                "customizeLegend": false,
+                "showPercentage": true,
+                "showDimensions": true,
+                "showMeasures": true,
+                "dimensions": []
+              }
+            }
+          },
+          "visualizationType": "hbar",
+          "title": {
+            "fontSize": 14,
+            "subtitleFontSize": 11,
+            "label": "",
+            "align": "center",
+            "subtitleLabel": ""
+          },
+          "binValues": false,
+          "trellis": {
+            "flipLabels": false,
+            "showGridLines": true,
+            "size": [
+              100,
+              100
+            ],
+            "enable": false,
+            "type": "x",
+            "chartsPerLine": 4
+          },
+          "columnMap": {
+            "trellis": [],
+            "dimensionAxis": [
+              "vertical"
+            ],
+            "plots": [
+              "avg_participation_rate"
+            ]
+          },
+          "showActionMenu": true,
+          "measureAxis2": {
+            "sqrtScale": false,
+            "showTitle": true,
+            "showAxis": true,
+            "title": "",
+            "customDomain": {
+              "showDomain": false
+            }
+          },
+          "valueType": "compactNumber",
+          "measureAxis1": {
+            "sqrtScale": false,
+            "showTitle": true,
+            "showAxis": true,
+            "title": "",
+            "customDomain": {
+              "showDomain": false
+            }
+          },
+          "theme": "wave",
+          "compactDecimalDigits": -1,
+          "applyConditionalFormatting": false,
+          "dimensionAxis": {
+            "showTitle": true,
+            "customSize": "auto",
+            "showAxis": true,
+            "title": "",
+            "icons": {
+              "useIcons": false,
+              "iconProps": {
+                "fit": "cover",
+                "column": "",
+                "type": "round"
+              }
+            }
+          }
+        },
+        "type": "chart"
+      }
     },
     "filter_vertical": {
       "broadcastFacet": true,
@@ -367,7 +485,7 @@
       "isGlobal": false,
       "label": "Goal Achievement by Region",
       "query": {
-        "query": "{&quot;measures&quot;:[[&quot;avg&quot;,&quot;goal_achievement_rate&quot;]],&quot;groups&quot;:[[&quot;region&quot;]],&quot;filters&quot;:[]}",
+        "query": "{&quot;measures&quot;:[[&quot;avg&quot;,&quot;goal_achievement_rate&quot;],[&quot;avg&quot;,&quot;participation_rate&quot;]],&quot;groups&quot;:[&quot;program_type&quot;,&quot;client_name&quot;]}",
         "version": -1.0
       },
       "receiveFacetSource": {
@@ -377,7 +495,95 @@
       "selectMode": "single",
       "type": "aggregateflex",
       "useGlobal": true,
-      "visualizationParameters": {}
+      "visualizationParameters": {
+        "parameters": {
+          "autoFitMode": "keepLabels",
+          "legend": {
+            "descOrder": false,
+            "showHeader": true,
+            "show": false,
+            "customSize": "auto",
+            "position": "right-top",
+            "inside": false
+          },
+          "tooltip": {
+            "content": {
+              "legend": {
+                "showBinLabel": true,
+                "measures": [],
+                "showNullValues": true,
+                "customizeLegend": false,
+                "showPercentage": true,
+                "showDimensions": true,
+                "showMeasures": true,
+                "dimensions": []
+              }
+            }
+          },
+          "visualizationType": "scatter",
+          "title": {
+            "fontSize": 14,
+            "subtitleFontSize": 11,
+            "label": "Goal and Participation Rates",
+            "align": "center",
+            "subtitleLabel": ""
+          },
+          "trellis": {
+            "flipLabels": false,
+            "showGridLines": true,
+            "size": [
+              100,
+              100
+            ],
+            "enable": false,
+            "type": "x",
+            "chartsPerLine": 4
+          },
+          "radiusRatio": 2,
+          "columnMap": {
+            "r": [],
+            "x": [
+              "avg_goal_achievement_rate"
+            ],
+            "y": [
+              "avg_participation_rate"
+            ],
+            "trellis": [],
+            "plots": [
+              "program_type",
+              "client_name"
+            ]
+          },
+          "showActionMenu": true,
+          "x": {
+            "sqrtScale": false,
+            "showZero": false,
+            "showTitle": true,
+            "showAxis": true,
+            "title": "Goal",
+            "customDomain": {
+              "high": 0.8,
+              "low": 0.5,
+              "showDomain": true
+            }
+          },
+          "y": {
+            "sqrtScale": false,
+            "showZero": false,
+            "showTitle": true,
+            "showAxis": true,
+            "title": "Participation",
+            "customDomain": {
+              "high": 0.9,
+              "low": 0.5,
+              "showDomain": true
+            }
+          },
+          "theme": "wave",
+          "applyConditionalFormatting": false
+        },
+        "type": "chart"
+      }
     },
     "filter_region": {
       "broadcastFacet": true,
@@ -392,7 +598,7 @@
       "isGlobal": false,
       "label": "Region",
       "query": {
-        "query": "{&quot;measures&quot;:[[&quot;count&quot;,&quot;*&quot;]],&quot;groups&quot;:[[&quot;region&quot;]],&quot;filters&quot;:[]}",
+        "query": "{&quot;measures&quot;:[[&quot;count&quot;,&quot;*&quot;]],&quot;groups&quot;:[&quot;program_type&quot;],&quot;filters&quot;:[]}",
         "version": -1.0
       },
       "receiveFacetSource": {
@@ -402,7 +608,121 @@
       "selectMode": "multi",
       "type": "aggregateflex",
       "useGlobal": true,
-      "visualizationParameters": {}
+      "visualizationParameters": {
+        "parameters": {
+          "autoFitMode": "keepLabels",
+          "bins": {
+            "breakpoints": {
+              "high": 100,
+              "low": 0
+            },
+            "bands": {
+              "high": {
+                "color": "#008000",
+                "label": ""
+              },
+              "low": {
+                "color": "#B22222",
+                "label": ""
+              },
+              "medium": {
+                "color": "#ffa500",
+                "label": ""
+              }
+            }
+          },
+          "legend": {
+            "descOrder": false,
+            "showHeader": true,
+            "show": true,
+            "customSize": "auto",
+            "position": "right-top",
+            "inside": false
+          },
+          "axisMode": "sync",
+          "tooltip": {
+            "content": {
+              "legend": {
+                "showBinLabel": true,
+                "measures": [],
+                "showNullValues": true,
+                "customizeLegend": false,
+                "showPercentage": true,
+                "showDimensions": true,
+                "showMeasures": true,
+                "dimensions": []
+              }
+            }
+          },
+          "visualizationType": "hbar",
+          "title": {
+            "fontSize": 14,
+            "subtitleFontSize": 11,
+            "label": "",
+            "align": "center",
+            "subtitleLabel": ""
+          },
+          "binValues": false,
+          "trellis": {
+            "flipLabels": false,
+            "showGridLines": true,
+            "size": [
+              100,
+              100
+            ],
+            "enable": false,
+            "type": "x",
+            "chartsPerLine": 4
+          },
+          "columnMap": {
+            "trellis": [],
+            "dimensionAxis": [
+              "program_type"
+            ],
+            "plots": [
+              "count"
+            ]
+          },
+          "showActionMenu": true,
+          "measureAxis2": {
+            "sqrtScale": false,
+            "showTitle": true,
+            "showAxis": true,
+            "title": "",
+            "customDomain": {
+              "showDomain": false
+            }
+          },
+          "valueType": "compactNumber",
+          "measureAxis1": {
+            "sqrtScale": false,
+            "showTitle": true,
+            "showAxis": true,
+            "title": "",
+            "customDomain": {
+              "showDomain": false
+            }
+          },
+          "theme": "wave",
+          "compactDecimalDigits": -1,
+          "dimensionAxis": {
+            "showTitle": true,
+            "customSize": "auto",
+            "showAxis": true,
+            "title": "",
+            "icons": {
+              "useIcons": false,
+              "iconProps": {
+                "fit": "cover",
+                "column": "",
+                "type": "round"
+              }
+            }
+          },
+          "applyConditionalFormatting": true
+        },
+        "type": "chart"
+      }
     },
     "date_1": {
       "broadcastFacet": true,
@@ -1402,9 +1722,12 @@
     "w_filter_vertical": {
       "parameters": {
         "expanded": false,
-        "filterStyle": {},
+        "filterStyle": {
+          "titleColor": "#FFFFFF"
+        },
         "instant": true,
-        "step": "filter_vertical"
+        "step": "filter_vertical",
+        "title": "Vertical"
       },
       "type": "listselector"
     },
@@ -1454,10 +1777,19 @@
     },
     "w_filter_region": {
       "parameters": {
+        "compact": false,
+        "displayMode": "combo",
         "expanded": false,
-        "filterStyle": {},
+        "exploreLink": false,
+        "filterStyle": {
+          "titleColor": "#FFFFFF",
+          "valueColor": "#091A3E"
+        },
         "instant": true,
-        "step": "filter_region"
+        "measureField": "count",
+        "showActionMenu": true,
+        "step": "filter_region",
+        "title": "Program"
       },
       "type": "listselector"
     },
@@ -1655,26 +1987,6 @@
     "chart_bar_region": {
       "parameters": {
         "autoFitMode": "keepLabels",
-        "bins": {
-          "breakpoints": {
-            "high": 100,
-            "low": 0
-          },
-          "bands": {
-            "high": {
-              "color": "#008000",
-              "label": ""
-            },
-            "low": {
-              "color": "#B22222",
-              "label": ""
-            },
-            "medium": {
-              "color": "#ffa500",
-              "label": ""
-            }
-          }
-        },
         "legend": {
           "descOrder": false,
           "showHeader": true,
@@ -1683,7 +1995,6 @@
           "position": "right-top",
           "inside": false
         },
-        "axisMode": "sync",
         "tooltip": {
           "content": {
             "legend": {
@@ -1698,16 +2009,15 @@
             }
           }
         },
-        "visualizationType": "hbar",
+        "visualizationType": "scatter",
         "exploreLink": true,
         "title": {
           "fontSize": 14,
           "subtitleFontSize": 11,
-          "label": "",
+          "label": "Goal and Participation Rates",
           "align": "center",
           "subtitleLabel": ""
         },
-        "binValues": false,
         "trellis": {
           "flipLabels": false,
           "showGridLines": true,
@@ -1719,44 +2029,49 @@
           "type": "x",
           "chartsPerLine": 4
         },
+        "radiusRatio": 2,
+        "columnMap": {
+          "r": [],
+          "x": [
+            "avg_goal_achievement_rate"
+          ],
+          "y": [
+            "avg_participation_rate"
+          ],
+          "trellis": [],
+          "plots": [
+            "program_type",
+            "client_name"
+          ]
+        },
         "showActionMenu": true,
-        "measureAxis2": {
+        "x": {
           "sqrtScale": false,
+          "showZero": false,
           "showTitle": true,
           "showAxis": true,
-          "title": "",
+          "title": "Goal",
           "customDomain": {
-            "showDomain": false
+            "high": 0.8,
+            "low": 0.5,
+            "showDomain": true
           }
         },
-        "valueType": "compactNumber",
-        "measureAxis1": {
+        "y": {
           "sqrtScale": false,
+          "showZero": false,
           "showTitle": true,
           "showAxis": true,
-          "title": "",
+          "title": "Participation",
           "customDomain": {
-            "showDomain": false
+            "high": 0.9,
+            "low": 0.5,
+            "showDomain": true
           }
         },
         "step": "bar_region",
         "theme": "dark",
-        "compactDecimalDigits": -1,
-        "applyConditionalFormatting": false,
-        "dimensionAxis": {
-          "showTitle": true,
-          "customSize": "auto",
-          "showAxis": true,
-          "title": "",
-          "icons": {
-            "useIcons": false,
-            "iconProps": {
-              "fit": "cover",
-              "column": "",
-              "type": "round"
-            }
-          }
-        }
+        "applyConditionalFormatting": false
       },
       "type": "chart"
     },
@@ -1957,6 +2272,15 @@
           "enable": false,
           "type": "x",
           "chartsPerLine": 4
+        },
+        "columnMap": {
+          "trellis": [],
+          "dimensionAxis": [
+            "vertical"
+          ],
+          "plots": [
+            "avg_participation_rate"
+          ]
         },
         "showActionMenu": true,
         "measureAxis2": {
