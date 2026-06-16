@@ -349,36 +349,49 @@ def build_dashboard_state(
         page_widgets.append({"name": widget_name, "row": 5, "column": i * kpi_colspan, "colspan": kpi_colspan, "rowspan": 6})
 
     # ── Row 12+: Charts (2x2 grid) ───────────────────────────────────────────
-    chart_metrics = metric_configs[:max_charts]
+    # Pattern: [line trend, hbar by dim, line trend, scatter correlation]
     row = 12
-    for i, mc in enumerate(chart_metrics):
+    chart_configs = []
+    if len(metric_configs) >= 1:
+        mc = metric_configs[0]
         agg = "avg" if mc.get("agg") == "Average" else "sum"
-        col = (i % 2) * 5
+        groups = [[f"{time_field}_Year", f"{time_field}_Month"]]
+        if dimensions:
+            groups.append(dimensions[0])
+        chart_configs.append(("trend_0", _agg_step([[agg, mc["field"]]], groups, f"{mc['label']} Trend"), "line", mc["label"]))
+    if len(metric_configs) >= 2:
+        mc = metric_configs[1]
+        agg = "avg" if mc.get("agg") == "Average" else "sum"
+        dim = dimensions[0] if dimensions else "region"
+        chart_configs.append(("bar_0", _agg_step([[agg, mc["field"]]], [[dim]], f"{mc['label']} by {dim.replace('_', ' ').title()}"), "hbar", mc["label"]))
+    if len(metric_configs) >= 3:
+        mc = metric_configs[2]
+        agg = "avg" if mc.get("agg") == "Average" else "sum"
+        groups = [[f"{time_field}_Year", f"{time_field}_Month"]]
+        if dimensions:
+            groups.append(dimensions[0])
+        chart_configs.append(("trend_1", _agg_step([[agg, mc["field"]]], groups, f"{mc['label']} Trend"), "line", mc["label"]))
+    if len(metric_configs) >= 2:
+        # Scatter: first two metrics plotted against each other
+        mc0, mc1 = metric_configs[0], metric_configs[1]
+        agg0 = "avg" if mc0.get("agg") == "Average" else "sum"
+        agg1 = "avg" if mc1.get("agg") == "Average" else "sum"
+        scatter_groups = [dimensions[0]] if dimensions else []
+        chart_configs.append(("scatter_0", _agg_step([[agg0, mc0["field"]], [agg1, mc1["field"]]], scatter_groups, f"{mc0['label']} vs {mc1['label']}"), "scatter", f"{mc0['label']} vs {mc1['label']}"))
 
-        if i % 2 == 0:
-            # Line chart (time trend)
-            step_name = f"trend_{mc['field']}"
-            groups = [[f"{time_field}_Year", f"{time_field}_Month"]]
-            if dimensions:
-                groups.append(dimensions[0])
-            steps[step_name] = _agg_step([[agg, mc["field"]]], groups, f"{mc['label']} Trend")
-            viz_type = "line"
-        else:
-            # Horizontal bar (by dimension)
-            step_name = f"bar_{mc['field']}"
-            dim = dimensions[i % len(dimensions)] if dimensions else "region"
-            steps[step_name] = _agg_step([[agg, mc["field"]]], [[dim]], f"{mc['label']} by {dim.replace('_', ' ').title()}")
-            viz_type = "hbar"
+    for i, (step_name, step_def, viz_type, label) in enumerate(chart_configs[:max_charts]):
+        col = (i % 2) * 5
+        steps[step_name] = step_def
 
         widget_name = f"chart_{i}"
         widgets[widget_name] = {
             "parameters": {
                 "autoFitMode": "keepLabels",
                 "exploreLink": True,
-                "legend": {"descOrder": False, "show": True, "showHeader": False, "customSize": "auto", "position": "bottom-center", "inside": False},
+                "legend": {"descOrder": False, "show": viz_type != "scatter", "showHeader": False, "customSize": "auto", "position": "bottom-center", "inside": False},
                 "step": step_name,
                 "theme": "dark",
-                "title": {"fontSize": 14, "subtitleFontSize": 11, "label": mc["label"]},
+                "title": {"fontSize": 14, "subtitleFontSize": 11, "label": label},
                 "visualizationType": viz_type,
             },
             "type": "chart",
