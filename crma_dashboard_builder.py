@@ -30,12 +30,25 @@ def _uid() -> str:
     return str(uuid.uuid4())
 
 
-def _text_widget(text: str, color: str = "#FFFFFF", size: str = "18px", align: str = "left") -> dict:
+def _is_dark(hex_color: str) -> bool:
+    """Check if a hex color is dark (luminance < 50%)."""
+    h = hex_color.lstrip("#")
+    if len(h) != 6:
+        return True
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+    return luminance < 0.5
+
+
+def _text_widget(text: str, color: str = "#FFFFFF", size: str = "24px", align: str = "left", bold: bool = True) -> dict:
+    attrs = {"color": color, "size": size}
+    if bold:
+        attrs["bold"] = True
     return {
         "parameters": {
             "content": {
                 "richTextContent": [
-                    {"attributes": {"color": color, "size": size}, "insert": text},
+                    {"attributes": attrs, "insert": text},
                     {"attributes": {"align": align}, "insert": "\n"},
                 ]
             },
@@ -56,11 +69,15 @@ def _number_widget(step_name: str, measure_field: str, label: str, compact: bool
     }
 
 
-def _chart_widget(step_name: str, viz_type: str, **kwargs) -> dict:
+def _chart_widget(step_name: str, viz_type: str, theme: str = "dark", **kwargs) -> dict:
     params = {
         "step": step_name,
         "visualizationType": viz_type,
+        "theme": theme,
+        "autoFitMode": "keepLabels",
     }
+    if viz_type == "line":
+        params["showPoints"] = True
     params.update(kwargs)
     return {"parameters": params, "type": "chart"}
 
@@ -122,19 +139,9 @@ def build_saql_step(
         lines.append(f"q = foreach q generate {gen_cols}, {aggregation}('{measure_field}') as 'value';")
         lines.append("q = order q by 'value' desc;")
     else:
-        if time_grain == "week":
-            lines.append(f"q = group q by ('{time_field}_Year', '{time_field}_Month', '{time_field}_Day');")
-            lines.append(f"q = foreach q generate '{time_field}_Year' + \"-\" + '{time_field}_Month' + \"-\" + '{time_field}_Day' as 'date_label', {aggregation}('{measure_field}') as 'value';")
-        elif time_grain == "month":
-            lines.append(f"q = group q by ('{time_field}_Year', '{time_field}_Month');")
-            lines.append(f"q = foreach q generate '{time_field}_Year' + \"-\" + '{time_field}_Month' as 'date_label', {aggregation}('{measure_field}') as 'value';")
-        elif time_grain == "quarter":
-            lines.append(f"q = group q by ('{time_field}_Year', '{time_field}_Quarter');")
-            lines.append(f"q = foreach q generate '{time_field}_Year' + \"-Q\" + '{time_field}_Quarter' as 'date_label', {aggregation}('{measure_field}') as 'value';")
-        else:
-            lines.append(f"q = group q by '{time_field}_Year';")
-            lines.append(f"q = foreach q generate '{time_field}_Year' as 'date_label', {aggregation}('{measure_field}') as 'value';")
-        lines.append("q = order q by 'date_label' asc;")
+        lines.append(f"q = group q by ('{time_field}_Year', '{time_field}_Month');")
+        lines.append(f"q = foreach q generate '{time_field}_Year' as '{time_field}_Year', '{time_field}_Month' as '{time_field}_Month', {aggregation}('{measure_field}') as 'value';")
+        lines.append(f"q = order q by ('{time_field}_Year' asc, '{time_field}_Month' asc);")
 
     lines.append(f"q = limit q {limit};")
     query = "\n".join(lines)
@@ -225,8 +232,8 @@ def build_dashboard_state(
     """
     brand = brand or {"primary": "#032D60", "secondary": "#1B5297", "chart_bg": "#FFFFFF", "text": "#2E2E2E"}
     bg_color = brand.get("dashboard_bg", brand.get("primary", "#032D60"))
-    text_color = brand.get("text", "#FFFFFF")
-    chart_theme = "wave"
+    text_color = "#FFFFFF" if _is_dark(bg_color) else brand.get("text", "#2E2E2E")
+    chart_theme = "dark"
 
     steps = {}
     widgets = {}
@@ -252,17 +259,23 @@ def build_dashboard_state(
         page_widgets.append({"name": widget_name, "row": row, "column": i * filter_colspan, "colspan": filter_colspan, "rowspan": 5})
     row += 6
 
-    # KPI row (top 3 metrics)
+    # KPI row (top 3 metrics — label + big number)
     kpi_metrics = metric_configs[:3]
     kpi_colspan = col_count // max(len(kpi_metrics), 1)
     for i, mc in enumerate(kpi_metrics):
+        # KPI label
+        label_name = f"w_kpi_label_{i}"
+        widgets[label_name] = _text_widget(mc["label"], color=text_color, size="14px", bold=False)
+        page_widgets.append({"name": label_name, "row": row, "column": i * kpi_colspan, "colspan": kpi_colspan, "rowspan": 3})
+
+        # KPI number
         step_name = f"kpi_{mc['field']}"
         agg = "avg" if mc.get("agg") == "Average" else "sum"
         steps[step_name] = build_kpi_step(dataset_name, mc["field"], agg)
         widget_name = f"w_kpi_{i}"
         widgets[widget_name] = _number_widget(step_name, "value", mc["label"])
-        page_widgets.append({"name": widget_name, "row": row, "column": i * kpi_colspan, "colspan": kpi_colspan, "rowspan": 8})
-    row += 9
+        page_widgets.append({"name": widget_name, "row": row + 3, "column": i * kpi_colspan, "colspan": kpi_colspan, "rowspan": 10})
+    row += 14
 
     # Chart grid (2 columns)
     chart_metrics = metric_configs[:max_charts]
@@ -272,11 +285,11 @@ def build_dashboard_state(
     for i, mc in enumerate(chart_metrics):
         agg = "avg" if mc.get("agg") == "Average" else "sum"
 
-        # Alternate between time series and grouped bar
+        # Alternate between line charts and grouped bars
         if i % 3 == 0:
             step_name = f"trend_{mc['field']}"
             steps[step_name] = build_saql_step(dataset_name, mc["field"], agg, time_field=time_field, time_grain=time_grain)
-            viz_type = "time"
+            viz_type = "line"
         elif i % 3 == 1 and dimensions:
             step_name = f"bar_{mc['field']}"
             steps[step_name] = build_saql_step(dataset_name, mc["field"], agg, group_by=[dimensions[0]])
@@ -284,7 +297,7 @@ def build_dashboard_state(
         else:
             step_name = f"trend2_{mc['field']}"
             steps[step_name] = build_saql_step(dataset_name, mc["field"], agg, time_field=time_field, time_grain=time_grain)
-            viz_type = "time"
+            viz_type = "line"
 
         widget_name = f"w_chart_{i}"
         widgets[widget_name] = _chart_widget(step_name, viz_type, theme=chart_theme)
@@ -295,11 +308,6 @@ def build_dashboard_state(
             col = 0
             row += chart_rowspan
 
-    # Background container (placed behind everything)
-    bg_name = "bg_container"
-    widgets[bg_name] = _container_widget(bg_color)
-    total_height = row + (chart_rowspan if col > 0 else 0)
-    page_widgets.insert(0, {"name": bg_name, "row": 0, "column": 0, "colspan": col_count, "rowspan": total_height})
 
     state = {
         "steps": steps,
@@ -325,7 +333,7 @@ def build_dashboard_state(
             }
         ],
         "filters": [],
-        "widgetStyle": {"backgroundColor": brand.get("chart_bg", "#FFFFFF"), "borderEdges": []},
+        "widgetStyle": {"backgroundColor": "#16325C", "borderEdges": [], "borderColor": "#1a3e6e", "borderWidth": 1, "borderRadius": 4},
     }
 
     return state
@@ -405,58 +413,50 @@ CRMA_TEMPLATES = {
     "metrics_trend": {
         "id": "sfdc_internal__MetricsTrendDashboard",
         "label": "Metrics Trend",
-        "description": "Visualize how metrics change over a period of time with customized filters",
-        "max_measures": 4,
-        "max_filters": 4,
-    },
-    "performance_summary": {
-        "id": "sfdc_internal__PerfSummaryDashboard",
-        "label": "Performance Summary",
-        "description": "Compare metrics side-by-side, across a single dimension with filters",
-        "max_measures": 4,
-        "max_filters": 4,
-    },
-    "comparison": {
-        "id": "sfdc_internal__Comparison_Dashboard",
-        "label": "Comparison Dashboard",
-        "description": "Compare metrics side-by-side, across a single dimension",
-        "max_measures": 4,
-        "max_filters": 4,
+        "description": "Time-series charts showing how metrics change over time with filters (recommended)",
+        "api_reliable": True,
     },
     "details": {
         "id": "sfdc_internal__Details_Dashboard",
         "label": "Details Dashboard",
         "description": "Charts + record-level details table with KPIs in sidebar",
-        "max_measures": 4,
-        "max_filters": 4,
+        "api_reliable": True,
     },
     "summary": {
         "id": "sfdc_internal__Summary_Dashboard",
         "label": "Summary Dashboard",
         "description": "Horizontal sections with filters across the top",
-        "max_measures": 4,
-        "max_filters": 4,
+        "api_reliable": True,
     },
     "three_column": {
         "id": "sfdc_internal__Three_Column_Dashboard",
         "label": "Three-Column Dashboard",
         "description": "Three columns with filters across the top",
-        "max_measures": 4,
-        "max_filters": 4,
-    },
-    "time_series": {
-        "id": "sfdc_internal__TimeSeriesDashboard",
-        "label": "Time Series",
-        "description": "Future metrics trends based on historical data with forecasting",
-        "max_measures": 4,
-        "max_filters": 4,
+        "api_reliable": True,
     },
     "table_expansion": {
         "id": "sfdc_internal__TableExpansionDashboard",
         "label": "Table Expansion",
         "description": "Metrics over time with expandable details table",
-        "max_measures": 4,
-        "max_filters": 4,
+        "api_reliable": True,
+    },
+    "comparison": {
+        "id": "sfdc_internal__Comparison_Dashboard",
+        "label": "Comparison Dashboard",
+        "description": "Compare metrics side-by-side, across a single dimension",
+        "api_reliable": True,
+    },
+    "performance_summary": {
+        "id": "sfdc_internal__PerfSummaryDashboard",
+        "label": "Performance Summary",
+        "description": "Side-by-side comparison (limited: single measure, 2 groupings, labels may not resolve)",
+        "api_reliable": False,
+    },
+    "time_series": {
+        "id": "sfdc_internal__TimeSeriesDashboard",
+        "label": "Time Series",
+        "description": "Forecasting/projections (requires complex Overrides variable — may need UI wizard)",
+        "api_reliable": False,
     },
 }
 
