@@ -211,10 +211,14 @@ def build_dashboard_state(
     time_field: str = "date",
     time_grain: str = "week",
     brand: Optional[Dict[str, str]] = None,
-    max_charts: int = 6,
-    max_filters: int = 3,
+    max_kpis: int = 5,
+    max_charts: int = 4,
+    max_filters: int = 2,
 ) -> dict:
-    """Build a complete CRMA dashboard state.
+    """Build a complete CRMA dashboard state using the golden template pattern.
+
+    Uses aggregateflex steps (visually editable in the UI), 10-column grid,
+    dark theme, and the exact widget styling from the tested template.
 
     Args:
         dataset_name: CRMA dataset API name
@@ -224,116 +228,198 @@ def build_dashboard_state(
         time_field: Date field name in the dataset
         time_grain: "week", "month", "quarter"
         brand: Brand color dict (primary, secondary, chart_bg, text)
-        max_charts: Max number of chart widgets
-        max_filters: Max number of filter dropdowns
+        max_kpis: Max KPI number widgets (default 5)
+        max_charts: Max chart widgets (default 4, arranged 2x2)
+        max_filters: Max filter dropdowns (default 2)
 
     Returns:
-        Complete dashboard state dict ready for POST/PATCH
+        Complete dashboard state dict ready for POST
     """
-    brand = brand or {"primary": "#032D60", "secondary": "#1B5297", "chart_bg": "#FFFFFF", "text": "#2E2E2E"}
+    brand = brand or {"primary": "#032D60", "secondary": "#1B5297", "chart_bg": "#16325C", "text": "#FFFFFF"}
     bg_color = brand.get("dashboard_bg", brand.get("primary", "#032D60"))
-    text_color = "#FFFFFF" if _is_dark(bg_color) else brand.get("text", "#2E2E2E")
-    chart_theme = "dark"
 
     steps = {}
     widgets = {}
     page_widgets = []
 
-    row = 0
-    col_count = 50
+    # ── Helper: aggregateflex step for charts/filters ─────────────────────────
+    def _agg_step(measures, groups, label):
+        query_obj = json.dumps({"measures": measures, "groups": groups, "filters": []})
+        return {
+            "broadcastFacet": True,
+            "datasets": [{"name": dataset_name}],
+            "isGlobal": False,
+            "label": label,
+            "query": {"query": query_obj, "version": -1.0},
+            "receiveFacetSource": {"mode": "all", "steps": []},
+            "selectMode": "single",
+            "type": "aggregateflex",
+            "useGlobal": True,
+        }
 
-    # Title
-    title_name = "title_text"
-    widgets[title_name] = _text_widget(dashboard_label, color=text_color, size="24px")
-    page_widgets.append({"name": title_name, "row": row, "column": 0, "colspan": col_count, "rowspan": 4})
-    row += 4
+    # ── Helper: lens step for KPI numbers ─────────────────────────────────────
+    def _kpi_step(agg, field, label):
+        return {
+            "broadcastFacet": False,
+            "datasets": [{"name": dataset_name}],
+            "isGlobal": False,
+            "label": label,
+            "query": {
+                "aggregateFilters": [], "columnGroups": [], "columnTotals": [],
+                "limit": 2000, "orders": [], "rowTotals": [], "sourceFilters": {},
+                "sources": [{
+                    "columns": [{"field": [agg, field], "name": "A"}],
+                    "filters": [], "groups": ["all"], "joins": [], "name": dataset_name,
+                }],
+            },
+            "receiveFacetSource": {"mode": "all", "steps": []},
+            "selectMode": "none",
+            "type": "aggregateflex",
+            "useGlobal": True,
+        }
 
-    # Filters row
+    # ── Row 0: Title + Date selector + Filters ────────────────────────────────
+    widgets["title"] = _text_widget(dashboard_label, color="#FFFFFF", size="20px", bold=True)
+    page_widgets.append({"name": "title", "row": 0, "column": 0, "colspan": 4, "rowspan": 3})
+
+    # Date selector
+    steps["date_1"] = {
+        "broadcastFacet": True,
+        "datasets": [{"name": dataset_name}],
+        "isGlobal": False,
+        "label": "",
+        "query": {"query": json.dumps({"measures": [["count", "*"]], "groups": [time_field]}), "version": -1.0},
+        "receiveFacetSource": {"mode": "all", "steps": []},
+        "selectMode": "single",
+        "type": "aggregateflex",
+        "useGlobal": True,
+    }
+    widgets["dateselector_1"] = {
+        "parameters": {
+            "absoluteModeEnabled": True,
+            "calendarTypeSwitchingAllowed": True,
+            "defaultFiscalMode": False,
+            "displayMode": "filter",
+            "filterStyle": {"titleColor": "#FFFFFF", "valueColor": "#FFFFFF"},
+            "instant": False,
+            "presetsEnabled": True,
+            "relativeModeEnabled": True,
+            "showActionMenu": True,
+            "step": "date_1",
+            "title": "Date",
+        },
+        "type": "dateselector",
+    }
+    page_widgets.append({"name": "dateselector_1", "row": 0, "column": 4, "colspan": 2, "rowspan": 3})
+
+    # Dimension filters
     filter_dims = dimensions[:max_filters]
-    filter_colspan = col_count // max(len(filter_dims), 1)
     for i, dim in enumerate(filter_dims):
         step_name = f"filter_{dim}"
-        steps[step_name] = build_filter_step(dataset_name, dim)
+        steps[step_name] = _agg_step([["count", "*"]], [[dim]], dim.replace("_", " ").title())
+        steps[step_name]["selectMode"] = "multi"
         widget_name = f"w_filter_{dim}"
-        widgets[widget_name] = _listselector_widget(step_name)
-        page_widgets.append({"name": widget_name, "row": row, "column": i * filter_colspan, "colspan": filter_colspan, "rowspan": 5})
-    row += 6
+        widgets[widget_name] = {"parameters": {"step": step_name, "instant": True, "expanded": False, "filterStyle": {}}, "type": "listselector"}
+        page_widgets.append({"name": widget_name, "row": 0, "column": 6 + (i * 2), "colspan": 2, "rowspan": 3})
 
-    # KPI row (top 3 metrics — label + big number)
-    kpi_metrics = metric_configs[:3]
-    kpi_colspan = col_count // max(len(kpi_metrics), 1)
+    # ── Row 3: KPI number widgets ─────────────────────────────────────────────
+    kpi_metrics = metric_configs[:max_kpis]
+    kpi_colspan = 10 // max(len(kpi_metrics), 1)
     for i, mc in enumerate(kpi_metrics):
-        # KPI label
-        label_name = f"w_kpi_label_{i}"
-        widgets[label_name] = _text_widget(mc["label"], color=text_color, size="14px", bold=False)
-        page_widgets.append({"name": label_name, "row": row, "column": i * kpi_colspan, "colspan": kpi_colspan, "rowspan": 3})
-
-        # KPI number
-        step_name = f"kpi_{mc['field']}"
         agg = "avg" if mc.get("agg") == "Average" else "sum"
-        steps[step_name] = build_kpi_step(dataset_name, mc["field"], agg)
-        widget_name = f"w_kpi_{i}"
-        widgets[widget_name] = _number_widget(step_name, "value", mc["label"])
-        page_widgets.append({"name": widget_name, "row": row + 3, "column": i * kpi_colspan, "colspan": kpi_colspan, "rowspan": 10})
-    row += 14
+        step_name = f"lens_{i+1}"
+        steps[step_name] = _kpi_step(agg, mc["field"], mc["label"])
+        widget_name = f"number_{i+1}"
+        widgets[widget_name] = {
+            "parameters": {
+                "compact": False,
+                "exploreLink": True,
+                "measureField": "A",
+                "numberColor": "#FFFFFF",
+                "numberSize": 32,
+                "showActionMenu": True,
+                "step": step_name,
+                "textAlignment": "center",
+                "title": mc["label"].split()[0] if len(mc["label"]) > 15 else mc["label"],
+                "titleColor": "#FFFFFF",
+                "titleSize": 20,
+            },
+            "type": "number",
+        }
+        page_widgets.append({"name": widget_name, "row": 3, "column": i * kpi_colspan, "colspan": kpi_colspan, "rowspan": 6})
 
-    # Chart grid (2 columns)
+    # ── Row 10+: Charts (2x2 grid) ───────────────────────────────────────────
     chart_metrics = metric_configs[:max_charts]
-    chart_colspan = col_count // 2
-    chart_rowspan = 20
-    col = 0
+    row = 10
     for i, mc in enumerate(chart_metrics):
         agg = "avg" if mc.get("agg") == "Average" else "sum"
+        col = (i % 2) * 5
 
-        # Alternate between line charts and grouped bars
-        if i % 3 == 0:
+        if i % 2 == 0:
+            # Line chart (time trend)
             step_name = f"trend_{mc['field']}"
-            steps[step_name] = build_saql_step(dataset_name, mc["field"], agg, time_field=time_field, time_grain=time_grain)
+            groups = [[f"{time_field}_Year", f"{time_field}_Month"]]
+            if dimensions:
+                groups.append(dimensions[0])
+            steps[step_name] = _agg_step([[agg, mc["field"]]], groups, f"{mc['label']} Trend")
             viz_type = "line"
-        elif i % 3 == 1 and dimensions:
-            step_name = f"bar_{mc['field']}"
-            steps[step_name] = build_saql_step(dataset_name, mc["field"], agg, group_by=[dimensions[0]])
-            viz_type = "hbar"
         else:
-            step_name = f"trend2_{mc['field']}"
-            steps[step_name] = build_saql_step(dataset_name, mc["field"], agg, time_field=time_field, time_grain=time_grain)
-            viz_type = "line"
+            # Horizontal bar (by dimension)
+            step_name = f"bar_{mc['field']}"
+            dim = dimensions[i % len(dimensions)] if dimensions else "region"
+            steps[step_name] = _agg_step([[agg, mc["field"]]], [[dim]], f"{mc['label']} by {dim.replace('_', ' ').title()}")
+            viz_type = "hbar"
 
-        widget_name = f"w_chart_{i}"
-        widgets[widget_name] = _chart_widget(step_name, viz_type, theme=chart_theme)
-        page_widgets.append({"name": widget_name, "row": row, "column": col, "colspan": chart_colspan, "rowspan": chart_rowspan})
+        widget_name = f"chart_{i}"
+        widgets[widget_name] = {
+            "parameters": {
+                "autoFitMode": "keepLabels",
+                "exploreLink": True,
+                "legend": {"descOrder": False, "show": True, "showHeader": False, "customSize": "auto", "position": "bottom-center", "inside": False},
+                "step": step_name,
+                "theme": "dark",
+                "title": {"fontSize": 14, "subtitleFontSize": 11, "label": mc["label"]},
+                "visualizationType": viz_type,
+            },
+            "type": "chart",
+        }
+        page_widgets.append({"name": widget_name, "row": row, "column": col, "colspan": 5, "rowspan": 14})
 
-        col += chart_colspan
-        if col >= col_count:
-            col = 0
-            row += chart_rowspan
-
+        if i % 2 == 1:
+            row += 15
 
     state = {
+        "dataSourceLinksInfo": {"enableAutomaticLinking": True, "excludeRelationships": [], "links": []},
         "steps": steps,
         "widgets": widgets,
         "gridLayouts": [
             {
-                "name": _uid(),
+                "name": "default",
+                "numColumns": 10,
+                "rowHeight": "fine",
+                "maxWidth": 1200,
                 "pages": [
                     {
                         "label": "Overview",
-                        "name": _uid(),
+                        "name": "page1",
                         "widgets": page_widgets,
                     }
                 ],
                 "selectors": [],
                 "style": {
+                    "alignmentX": "left",
+                    "alignmentY": "top",
                     "backgroundColor": bg_color,
-                    "cellSpacingX": 4,
-                    "cellSpacingY": 4,
+                    "cellSpacingX": 8,
+                    "cellSpacingY": 8,
+                    "fit": "original",
                     "gutterColor": bg_color,
                 },
                 "version": 1,
             }
         ],
         "filters": [],
-        "widgetStyle": {"backgroundColor": "#16325C", "borderEdges": [], "borderColor": "#1a3e6e", "borderWidth": 1, "borderRadius": 4},
+        "widgetStyle": {"backgroundColor": "#16325C", "borderColor": "#747474", "borderEdges": [], "borderRadius": 0, "borderWidth": 1},
     }
 
     return state
