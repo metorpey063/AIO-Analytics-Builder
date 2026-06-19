@@ -1,6 +1,7 @@
-# Credentials — never commit
+# Credentials and local-only config — never commit
 config.json
 .claude/settings.local.json
+CLAUDE.local.md
 
 # Downloaded/generated artifacts
 *.hyper

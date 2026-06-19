@@ -77,7 +77,7 @@ Claude will ask for the company name, use case, persona, and story signal — th
 
 Both Tableau Next and Pulse demos are **self-healing** — a `Display Date` formula using `TODAY()` ensures data always appears current automatically. The most recent data point floats forward to today on every query, with no manual refresh or re-publish needed.
 
-For legacy demos built before this feature, run `/refresh-demo` to upgrade them to the self-healing formula.
+For Pulse demos, run `/refresh-dates` before a meeting if the demo is more than a week old (~30 seconds). Tableau Next demos are self-healing and never need refreshing.
 
 ---
 
@@ -95,7 +95,7 @@ analytics-builder/
 ├── .claude/
 │   ├── commands/
 │   │   ├── build-demo.md     # /build-demo slash command
-│   │   ├── refresh-demo.md   # /refresh-demo slash command
+│   │   ├── refresh-dates.md   # /refresh-dates slash command (Pulse only)
 │   │   └── setup.md          # /setup slash command
 │   └── settings.local.json # Local Claude permissions (gitignored)
 └── demos/                  # Generated demo scripts and outputs (gitignored)

@@ -9,7 +9,7 @@ A Claude Code tool for Salesforce/Tableau Solutions Engineers to rapidly build c
 1. Run `/setup` once to connect your Tableau Cloud PAT and Salesforce OAuth credentials
 2. Run `/build-demo` to describe your customer scenario
 3. Walk away — Claude generates the data, builds all the assets, and hands you a ready-to-run walkthrough document
-4. Demo your Tableau Next — the Display Date is self-healing and always shows current data (run `/refresh-demo` only for Pulse or legacy demos)
+4. Demo your Tableau Next — the Display Date is self-healing and always shows current data (run `/refresh-dates` only for Pulse demos)
 
 ---
 
@@ -55,8 +55,8 @@ Both `/setup` and `/build-demo` check for updates at launch via `git fetch`. If 
 **Self-healing dates (both Tableau Next and Pulse)**
 Both platforms use the same `DATEDIFF`/`TODAY()` formula that evaluates at query time — data always appears current automatically, no manual refresh needed. Tableau Next uses an SDM calculated dimension; Pulse uses a calculated field in the `.tdsx` datasource package.
 
-**Date refresh (/refresh-demo)**
-Only needed for legacy demos built before the self-healing formula was introduced. Upgrades them to the new pattern in one API call (Tableau Next) or re-packages as `.tdsx` (Pulse).
+**Date refresh (/refresh-dates)**
+Only needed for Tableau Pulse demos — Pulse can't use calculated date formulas, so dates go stale over time. Run `/refresh-dates` before a meeting to regenerate data anchored to today and re-publish the `.hyper` (~30 seconds). Tableau Next demos are self-healing and never need this.
 
 **Checkpoint / resume**
 Every build writes a checkpoint file after each phase. If a run is interrupted, re-running `/build-demo` skips completed phases and picks up where it left off — no re-ingesting data, no duplicate assets.

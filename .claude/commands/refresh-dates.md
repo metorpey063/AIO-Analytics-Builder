@@ -1,8 +1,10 @@
-# /refresh-demo — Refresh Demo Dates
+# /refresh-dates — Refresh Pulse Demo Dates
 
 Re-generates data anchored to today and re-publishes the `.hyper` datasource. Pulse metrics survive the overwrite and automatically pick up the fresh data. No metric recreation needed.
 
-**Use this when:** A demo was built days or weeks ago and the dates look stale. Running `/refresh-demo` makes the most recent data appear as "this week" again.
+**This is for Tableau Pulse demos only.** Tableau Next demos use a self-healing `Display Date` calculated dimension (`DATEADD("day", DATEDIFF("day", #build_date#, ...), TODAY())`) that evaluates at query time — their dates are always current automatically and never need refreshing.
+
+**Use this when:** A Pulse demo was built days or weeks ago and the sparkline dates look stale. Running `/refresh-dates` makes the most recent data appear as "this week" again.
 
 ---
 
@@ -67,7 +69,7 @@ Then ask:
 
 > "Which demo would you like to refresh? Enter the slug name, or type **all** to refresh everything."
 
-If the user provides a slug directly (e.g. `/refresh-demo biw` or `/refresh-demo bi_worldwide_sales_incentive`), match it against available demos and skip the selection prompt.
+If the user provides a slug directly (e.g. `/refresh-dates biw` or `/refresh-dates bi_worldwide_sales_incentive`), match it against available demos and skip the selection prompt.
 
 ---
 
@@ -134,18 +136,13 @@ Print a summary:
 
 ---
 
-## Step 5 — Tableau Next (if applicable)
+## Step 5 — Tableau Next (skip by default)
 
-If the demo also has Tableau Next output (`sdm_done: True`):
+If the demo also has Tableau Next output (`sdm_done: True`), note in the summary:
 
-> "This demo also has Tableau Next assets. Would you like to re-ingest the fresh data to Data Cloud as well? (This takes a few minutes for the bulk ingest job to complete.)"
+> "This demo also has Tableau Next assets — those dates are self-healing via the Display Date formula and don't need refreshing."
 
-If yes:
-- Reset `ingest_done: False` in checkpoint
-- Re-run the Data Cloud ingest phase (schema already exists, stream already exists — just submit a new bulk ingest job with the fresh CSV)
-- The SDM, metrics, and visualizations don't need to change — they query the DLO which gets the new data
-
-If no: skip. The Pulse data is already fresh.
+Do NOT re-ingest to Data Cloud unless the user explicitly asks. The `Display Date` calculated dimension uses `TODAY()` at query time, so Tableau Next dates are always current automatically.
 
 ---
 

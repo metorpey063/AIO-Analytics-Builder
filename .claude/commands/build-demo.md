@@ -106,14 +106,65 @@ At the very start of every `/build-demo` run, before any other output, tell the 
 
 If the user types "manual mode" during the build, pause before every Bash and Read, describe what you're about to do, and wait for confirmation. Do not remove the `allow` block from `settings.local.json` even in manual mode — just change your own behavior.
 
-### 0b. Advanced mode
+### 1. Company name
+Ask the user for the company name, and include this note when asking:
 
-Ask immediately after the autonomous mode question:
+> "If this is a real company, I can research their industry, product lines, regions, and go-to-market model to make the demo data and story much more relevant — real segment names, realistic deal sizes, accurate geographies. If it's a fictitious company, the demo will still be compelling but more generic. Real company = better demo."
 
-> "Would you like to use **Advanced Mode**? This unlocks extra configuration options — data history length, time grain, and fine-grained signal tuning. Recommended if you have a specific use case or audience in mind. (yes / no)"
+Use the answer to determine how much research to do in the Company Research step — real company gets web searches, fictitious company gets reasonable industry defaults.
 
-- If **no**: skip to Step 1. Use defaults: 24 months history, monthly grain, standard signal ramp.
-- If **yes**: ask the following questions one at a time before proceeding to Step 1.
+### 1b. Supporting materials
+Immediately after the company name, ask:
+
+> "Do you have any notes, documents, or context you'd like to share to help refine the demo? For example: call notes, a brief, a discovery deck, an email thread, specific metrics they care about, or any files I can read. This is optional — I'll also do my own research — but anything you provide will make the demo more tailored. (paste text, drag in a file, or skip)"
+
+- If the user provides text, a file path, or drags in a document: read and incorporate the content into the Company Research phase. Extract any mentioned metrics, dimensions, personas, pain points, goals, or terminology and use them to inform all subsequent steps.
+- If the user says **skip** or similar: proceed without additional context.
+
+This step is especially valuable for real customer demos where the SE has call notes, a discovery brief, or specific asks from the account team.
+
+### 2. Use case / industry
+What business problem are we telling a story about? Examples:
+- Corporate travel compliance declining
+- Hotel booking revenue at risk
+- Loan originations falling in a specific region
+- Customer churn in subscription services
+- Operational cost overruns in logistics
+
+### 3. Persona
+Who is the primary viewer of this demo? (e.g. VP of Finance, Chief Revenue Officer, Head of Operations). This shapes which metrics matter most.
+
+### 4. Story signal
+What is the "uh oh" moment in the data? The signal is a deliberately engineered decline that creates urgency. Examples:
+- Bookings through the platform down 18% over last 6 months
+- Off-platform spend increasing in a specific region
+- Net Promoter Score declining among enterprise accounts
+
+### 4b. Primary metric(s)
+Which 1–2 metrics carry the story? These are the ones the demo click path leads with — they get a strong, obvious signal that any viewer can see at a glance.
+
+The remaining metrics are **supporting context**: they show correlated movement (e.g. issues up when CSAT is down) but their signal is softer. They answer "why" when the audience digs in, but they don't compete for attention up front.
+
+Examples:
+- Primary: CSAT Score. Supporting: Issues Reported, Resolution Hours, Platform Booking Rate
+- Primary: Platform Booking Rate. Supporting: CSAT Score, NPS Score
+- Primary: Loan Origination Volume. Supporting: Approval Rate, Time-to-Close
+
+**Signal design rule:**
+- Primary metric: exaggerate for storytelling impact — a 25–40% drop over 6 months creates a clear "uh oh" moment that's unmissable in a sparkline. Real-world anomalies of 5–10% matter operationally but don't land in a demo. The goal is to make the audience say "wow, something is clearly wrong here" within the first 10 seconds.
+- Supporting metrics: softer correlated drift — 8–15% movement is enough to tell a causal story when the audience digs in, without stealing attention from the primary signal.
+- The ramp should be smooth (use the `signal_ramp` function), not a sudden cliff — a gradual deterioration looks like a real emerging problem, not synthetic data.
+
+Apply this when generating the data and when writing the walkthrough document — the demo flow should always open on the primary metric and use supporting metrics only to answer follow-up questions.
+
+### 4c. Advanced mode
+
+Ask after the primary metrics are decided:
+
+> "Would you like to use **Advanced Mode**? This lets you fine-tune the data history length, time grain, and signal parameters for each metric. Recommended if you have a specific audience or storytelling style in mind. (yes / no)"
+
+- If **no**: skip to Step 5. Use defaults: 24 months history, monthly grain, standard signal ramp.
+- If **yes**: ask the following questions one at a time before proceeding to Step 5.
 
 Advanced mode is asked fresh each session — never saved to config.
 
@@ -209,57 +260,6 @@ SUPPORTING_MAGNITUDE  = 0.12    # supporting metric movement (fraction)
 Update the `signal_ramp` function to accept `onset`, `shape`, and `duration` parameters. Update date range generation to use `HISTORY_MONTHS` and `GRAIN`. Print a summary of all advanced settings at the start of each script run.
 
 ---
-
-### 1. Company name
-Ask the user for the company name, and include this note when asking:
-
-> "If this is a real company, I can research their industry, product lines, regions, and go-to-market model to make the demo data and story much more relevant — real segment names, realistic deal sizes, accurate geographies. If it's a fictitious company, the demo will still be compelling but more generic. Real company = better demo."
-
-Use the answer to determine how much research to do in the Company Research step — real company gets web searches, fictitious company gets reasonable industry defaults.
-
-### 1b. Supporting materials
-Immediately after the company name, ask:
-
-> "Do you have any notes, documents, or context you'd like to share to help refine the demo? For example: call notes, a brief, a discovery deck, an email thread, specific metrics they care about, or any files I can read. This is optional — I'll also do my own research — but anything you provide will make the demo more tailored. (paste text, drag in a file, or skip)"
-
-- If the user provides text, a file path, or drags in a document: read and incorporate the content into the Company Research phase. Extract any mentioned metrics, dimensions, personas, pain points, goals, or terminology and use them to inform all subsequent steps.
-- If the user says **skip** or similar: proceed without additional context.
-
-This step is especially valuable for real customer demos where the SE has call notes, a discovery brief, or specific asks from the account team.
-
-### 2. Use case / industry
-What business problem are we telling a story about? Examples:
-- Corporate travel compliance declining
-- Hotel booking revenue at risk
-- Loan originations falling in a specific region
-- Customer churn in subscription services
-- Operational cost overruns in logistics
-
-### 3. Persona
-Who is the primary viewer of this demo? (e.g. VP of Finance, Chief Revenue Officer, Head of Operations). This shapes which metrics matter most.
-
-### 4. Story signal
-What is the "uh oh" moment in the data? The signal is a deliberately engineered decline that creates urgency. Examples:
-- Bookings through the platform down 18% over last 6 months
-- Off-platform spend increasing in a specific region
-- Net Promoter Score declining among enterprise accounts
-
-### 4b. Primary metric(s)
-Which 1–2 metrics carry the story? These are the ones the demo click path leads with — they get a strong, obvious signal that any viewer can see at a glance.
-
-The remaining metrics are **supporting context**: they show correlated movement (e.g. issues up when CSAT is down) but their signal is softer. They answer "why" when the audience digs in, but they don't compete for attention up front.
-
-Examples:
-- Primary: CSAT Score. Supporting: Issues Reported, Resolution Hours, Platform Booking Rate
-- Primary: Platform Booking Rate. Supporting: CSAT Score, NPS Score
-- Primary: Loan Origination Volume. Supporting: Approval Rate, Time-to-Close
-
-**Signal design rule:**
-- Primary metric: exaggerate for storytelling impact — a 25–40% drop over 6 months creates a clear "uh oh" moment that's unmissable in a sparkline. Real-world anomalies of 5–10% matter operationally but don't land in a demo. The goal is to make the audience say "wow, something is clearly wrong here" within the first 10 seconds.
-- Supporting metrics: softer correlated drift — 8–15% movement is enough to tell a causal story when the audience digs in, without stealing attention from the primary signal.
-- The ramp should be smooth (use the `signal_ramp` function), not a sudden cliff — a gradual deterioration looks like a real emerging problem, not synthetic data.
-
-Apply this when generating the data and when writing the walkthrough document — the demo flow should always open on the primary metric and use supporting metrics only to answer follow-up questions.
 
 ### 5. Output mode
 Choose one or more:
@@ -670,7 +670,7 @@ This ensures only one complete, working set of assets survives each run.
   - Absolute file paths to the guide and walkthrough (so the user can click them)
   - The full business preferences text (reprinted inline for easy access)
   - A clear callout: "Open the walkthrough .docx for the Business Preferences text to paste into your SDM"
-  - A note about date freshness: "Tableau Next dates are self-healing (Display Date uses TODAY() at query time). For Pulse, run `/refresh-demo` before your meeting if the demo is more than a week old — it takes ~30 seconds to regenerate and re-publish fresh data."
+  - A note about date freshness: "Tableau Next dates are self-healing (Display Date uses TODAY() at query time). For Pulse, run `/refresh-dates` before your meeting if the demo is more than a week old — it takes ~30 seconds to regenerate and re-publish fresh data."
 - Remind user: enable Analytics Agent Readiness toggle in Data 360 → Semantic Model → Settings
 
 ### For CRMA output:
@@ -782,7 +782,7 @@ For Pulse:
 - Visit your Tableau Cloud site → Pulse
 - The group will already be subscribed to all metrics
 - `use_dynamic_offset` is enabled — Pulse anchors to the most recent data point automatically
-- **Coming back to this demo later?** Run `/refresh-demo` before your meeting if the demo is more than a week old. It regenerates data anchored to today and re-publishes in ~30 seconds. Your metrics, group, and subscriptions stay intact.
+- **Coming back to this demo later?** Run `/refresh-dates` before your meeting if the demo is more than a week old. It regenerates data anchored to today and re-publishes in ~30 seconds. Your metrics, group, and subscriptions stay intact.
 
 For Tableau Next:
 - Visit your Tableau Next workspace
@@ -794,7 +794,7 @@ For Tableau Next:
 
 **Date freshness:**
 - Tableau Next: fully self-healing, no action needed ever
-- Pulse: run `/refresh-demo` before meetings if the demo is >1 week old (~30 seconds)
+- Pulse: run `/refresh-dates` before meetings if the demo is >1 week old (~30 seconds)
 
 Note: the Tableau Next Concierge does not have a public REST API — it is UI-only. Automated testing of Concierge responses is not currently possible programmatically. Business Preferences are also UI-only — the build generates the text for you, but you must paste it in manually.
 
