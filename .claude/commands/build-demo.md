@@ -373,6 +373,7 @@ Always sanity-check: print the min/max/mean of derived metrics (e.g. quota attai
 - IMPORTANT: Do NOT publish a `.tdsx` for Pulse. Pulse indexes `.hyper` in seconds but takes 2+ hours to index `.tdsx` packages, causing metric creation to fail with 404.
 
 **Phase 3 — Create Pulse metrics**
+- **Before creating metrics**, send a test POST to `/api/-/pulse/definitions` with a minimal valid payload. If it returns 400, the site is likely affected by the 2026.2 API version mismatch (missing 262.1 Hotfix). Print a clear error message explaining the issue and exit gracefully — the datasource is already published and the script can be re-run once the hotfix lands.
 - POST each metric to `/api/-/pulse/definitions`
 - GET `/definitions/{id}/metrics` to retrieve metric ID (NOT definition ID)
 - Use `"time_dimension": {"field": "Date"}` (the raw Date column — Pulse handles time display natively)
