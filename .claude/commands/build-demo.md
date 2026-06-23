@@ -77,9 +77,23 @@ Based on your inputs, the demo builder will:
 
 When you invoke `/build-demo`, Claude will ask you the following questions one at a time. You don't need to have all answers ready — work through them conversationally.
 
+### -2. New or existing demo?
+
+**Ask this first, before the update check.**
+
+> "Are you starting a **new demo build**, or would you like to **pick up where you left off** on an existing one?"
+
+- If **new**: continue to the update check and full build flow.
+- If **existing / resume**: check `sessions/` in the memory directory for demo session summaries. List any that match (by company name, use case, or recency). Load the relevant summary and present the state:
+  - What was built (metrics, assets, output modes)
+  - What the user mentioned wanting to add/change
+  - Any open issues from last time
+  - Then ask: "What would you like to do next — add metrics, tweak the data, rebuild a specific phase, or something else?"
+  - Use the checkpoint file referenced in the session summary to skip already-completed phases.
+
 ### -1. Update check
 
-**Do this before anything else, every time.**
+**Do this before anything else on a new build.**
 
 Run:
 
@@ -802,6 +816,61 @@ Note: the Tableau Next Concierge does not have a public REST API — it is UI-on
 For CSV:
 - Open the file in Tableau Desktop, Excel, or any viz tool
 - Use it to build custom views or upload to another platform
+
+---
+
+## Session summary (auto-save after every build)
+
+After the build completes (or if it's interrupted and the user ends the conversation), save a session summary to the memory system:
+
+**File:** `sessions/demo_{company_slug}_{use_case_slug}_{YYYY-MM-DD}.md`
+
+**Contents:**
+
+```markdown
+---
+name: demo-{company_slug}-{use_case_slug}-{YYYY-MM-DD}
+description: {Company} {use case} demo build — {output modes used}
+metadata:
+  type: project
+---
+
+## Demo: {Company} — {Use Case}
+
+**Built:** {date}
+**Output modes:** {Pulse / Next / CRMA / CSV}
+**Persona:** {who the demo is for}
+
+## Decisions made
+- Primary metric(s): {list}
+- Supporting metrics: {list}
+- Dimensions: {list}
+- Signal: {magnitude}% decline over {onset} months, {shape} shape
+- Brand colors: {if applicable}
+- Advanced settings: {if used}
+
+## Assets created
+- **Pulse:** project "{name}", datasource "{name}", metrics: {list with def IDs}
+- **Next:** workspace "{api}", SDM "{api}", DO "{api}", dashboard "{name}"
+- **CRMA:** app "{name}", dataset "{id}", dashboard "{name}"
+- **Files:** {absolute paths to script, guide, walkthrough, CSV}
+
+## Checkpoint
+- Path: `demos/{slug}/{slug}_checkpoint.json`
+- Phases completed: {list}
+
+## Issues encountered
+- {any errors, workarounds, or quirks discovered during this build}
+
+## User notes for next time
+- {anything the user said they might want to add, change, or revisit}
+
+## Resume instructions
+To pick up this demo: load the checkpoint at the path above, skip completed phases,
+and ask the user what they'd like to add or change.
+```
+
+If updating an existing demo (user resumed and made changes), update the existing session summary file rather than creating a new one — append the new changes to the "User notes" and "Assets created" sections.
 
 ---
 

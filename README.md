@@ -1,6 +1,6 @@
 # AIO Analytics Builder
 
-A Claude Code tool for Salesforce/Tableau Solutions Engineers to rapidly build compelling demo assets across three platforms: **Tableau Pulse**, **Tableau Next**, and **Salesforce Data Cloud**.
+A Claude Code tool for Salesforce/Tableau Solutions Engineers to rapidly build compelling demo assets across four platforms: **Tableau Pulse**, **Tableau Next**, **CRM Analytics (CRMA)**, and **Salesforce Data Cloud**.
 
 > For a full feature overview, see [OVERVIEW.md](OVERVIEW.md).
 
@@ -11,6 +11,7 @@ A Claude Code tool for Salesforce/Tableau Solutions Engineers to rapidly build c
 - Generates synthetic data with an engineered story signal (a deliberate metric decline that creates urgency)
 - Publishes to Tableau Cloud as a Pulse datasource with metric definitions and group subscriptions
 - Pushes to Salesforce Data Cloud and builds a full Tableau Next workspace: Semantic Data Model, metrics, visualizations, and dashboard
+- Uploads datasets to CRM Analytics (Wave) and creates SAQL-driven dashboards with KPI numbers, charts, and filters
 - Produces a ready-to-run demo walkthrough document (`.docx`) for the SE to use in front of a customer
 
 ---
@@ -109,8 +110,9 @@ analytics-builder/
 |------|----------------|
 | `pulse` | Publishes a `.hyper` datasource to Tableau Cloud, creates Pulse metric definitions, creates a group, subscribes the group to all metrics |
 | `next` | Pushes data to Salesforce Data Cloud, builds a Semantic Data Model, metrics, visualizations, and a dashboard |
-| `both` | Both of the above |
+| `crma` | Uploads dataset to CRM Analytics (Wave), creates a dashboard with SAQL-driven charts, KPI numbers, and dimension filters |
 | `csv` | Exports the generated dataset as a CSV file |
+| `all` | All of the above |
 
 Every build produces a `.docx` demo walkthrough with a focused click path, talking points, and suggested questions — one document per demo, with sections for each output mode that was built.
 

@@ -4,6 +4,16 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-06-23 — Session Summaries + CRMA in About Info
+
+### Added
+- **Session summaries** — `/build-demo` now saves a structured session summary after every build (company, decisions, assets, resume instructions). Enables "pick up where you left off" in future conversations.
+- **New/resume prompt** — `/build-demo` now asks at the start whether this is a new build or resuming an existing one. If resuming, loads the session summary and skips completed phases.
+- **Generic session summaries** — long working conversations (troubleshooting, debugging, multi-step projects) offer to save a summary at the end for future context restore.
+- **Updated README + OVERVIEW** — CRMA now listed as the 4th output mode alongside Pulse, Next, and CSV in all project documentation.
+
+---
+
 ## 2026-06-16 — CRM Analytics (CRMA) Output Mode
 
 ### Added

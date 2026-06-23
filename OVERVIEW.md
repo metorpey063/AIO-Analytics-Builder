@@ -1,6 +1,6 @@
 # AIO Analytics Builder — Feature Overview
 
-A Claude Code tool for Salesforce/Tableau Solutions Engineers to rapidly build compelling, story-driven demo assets — without writing a line of code.
+A Claude Code tool for Salesforce/Tableau Solutions Engineers to rapidly build compelling, story-driven demo assets across four platforms — without writing a line of code.
 
 ---
 
@@ -25,6 +25,13 @@ A Claude Code tool for Salesforce/Tableau Solutions Engineers to rapidly build c
 - Builds a full Semantic Data Model — DLO, measurements, calculated measurements, metrics
 - Generates visualizations and an assembled dashboard with brand colors applied
 - Configures AI optimization: field descriptions, Concierge noun pairs, and Business Preferences text
+
+### CRM Analytics (CRMA / Wave)
+- Uploads dataset via InsightsExternalData API (metadata → base64 CSV → process → poll)
+- Creates a SAQL-driven dashboard from smart templates: time-series charts, grouped bars, KPI numbers, scatter plots
+- Dimension filter dropdowns for interactive segmentation
+- Brand color integration for backgrounds, text, and chart themes
+- Organizes assets in a dedicated CRMA app/folder
 
 ### CSV export
 - Exports the generated dataset for use in any viz tool
