@@ -11,6 +11,9 @@ Usage:
 
 Integrated into /build-demo: runs automatically once per week (or if the
 server build version has changed since last validation).
+
+Release rollout canvas (Tableau Cloud pod deployment schedule):
+    https://salesforce.enterprise.slack.com/docs/T7KUQ9FLZ/F094XCHG0Q2
 """
 
 import sys, os, json, time, requests
