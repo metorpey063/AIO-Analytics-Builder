@@ -91,7 +91,32 @@ When you invoke `/build-demo`, Claude will ask you the following questions one a
   - Then ask: "What would you like to do next — add metrics, tweak the data, rebuild a specific phase, or something else?"
   - Use the checkpoint file referenced in the session summary to skip already-completed phases.
 
-### -1. Update check
+### -1. Pulse API validation (weekly, automatic)
+
+**For Pulse builds only.** Before the update check, run the canary validator if it's due:
+
+```python
+from pulse_validator import should_run_validation, run_validation, get_last_validation_status
+
+if should_run_validation():
+    print("Running weekly Pulse API validation against canary pod (10ax)...")
+    passed, failed, results = run_validation(quiet=False)
+    if failed > 0:
+        print("\n⚠ Pulse API validation failed — the payload format may have changed on the canary pod.")
+        print("  This means a breaking change is coming to your site soon.")
+        print("  Review the failures above and update the payload format before proceeding.")
+        # Ask user whether to continue or abort
+else:
+    state = get_last_validation_status()
+    if state:
+        print(f"  Pulse API: validated {state['passed']}/{state['passed']+state['failed']} on {state['version']} ({state['last_run'][:10]})")
+```
+
+The validator runs against `10ax.online.tableau.com` (first pod to receive each release). If it detects failures, it means a breaking payload change is imminent — fix the format before it hits production pods.
+
+Triggers: runs if (a) it's been 7+ days since last run, or (b) the canary pod's build version changed.
+
+### -1b. Update check
 
 **Do this before anything else on a new build.**
 
