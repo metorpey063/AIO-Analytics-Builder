@@ -4,6 +4,16 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-06-23 — Fix Pulse Insights API language/locale enum format
+
+### Fixed
+
+**Brief API requires enum-format `language` and `locale` fields**
+
+The Pulse brief endpoint (`POST /api/-/pulse/insights/brief`) requires `"LANGUAGE_EN_US"` and `"LOCALE_EN_US"` — not plain strings like `"en"` or `"en_US"`. Using plain strings causes a silent 400 "Invalid request" with no detail about which field is wrong.
+
+---
+
 ## 2026-06-23 — Add /update command
 
 ### Added
