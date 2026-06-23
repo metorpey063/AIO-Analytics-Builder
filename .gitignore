@@ -2,6 +2,8 @@
 config.json
 .claude/settings.local.json
 CLAUDE.local.md
+.pulse_validation_state.json
+.pulse_validator.hyper
 
 # Downloaded/generated artifacts
 *.hyper
