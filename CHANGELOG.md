@@ -4,6 +4,14 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-06-23 — Add /update command
+
+### Added
+
+**`/update` slash command** — Pulls the latest version from git, shows what changed, and summarizes updates in plain language. Other SEs can now run `/update` instead of manually running `git pull`.
+
+---
+
 ## 2026-06-23 — Fix allowed_dimensions format + response parsing in Pulse payloads
 
 ### Fixed
