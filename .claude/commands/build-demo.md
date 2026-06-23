@@ -387,14 +387,44 @@ Always sanity-check: print the min/max/mean of derived metrics (e.g. quota attai
 - IMPORTANT: Do NOT publish a `.tdsx` for Pulse. Pulse indexes `.hyper` in seconds but takes 2+ hours to index `.tdsx` packages, causing metric creation to fail with 404.
 
 **Phase 3 — Create Pulse metrics**
-- **Before creating metrics**, send a test POST to `/api/-/pulse/definitions` with a minimal valid payload. If it returns 400, the site is likely affected by the 2026.2 API version mismatch (missing 262.1 Hotfix). Print a clear error message explaining the issue and exit gracefully — the datasource is already published and the script can be re-run once the hotfix lands.
-- POST each metric to `/api/-/pulse/definitions`
+- POST each metric to `/api/-/pulse/definitions` using the **2026.2 required payload format**:
+  ```python
+  payload = {
+      "name": f"{COMPANY} - {mc['label']}",
+      "description": mc["why_it_matters"],
+      "specification": {
+          "datasource": {"id": ds_item.id},
+          "basic_specification": {
+              "measure": {"field": mc["label"], "aggregation": mc["pulse_agg"]},
+              "time_dimension": {"field": "Date"},
+              "filters": [],
+          },
+          "is_running_total": mc["pulse_agg"] == "AGGREGATION_SUM",
+      },
+      "extension_options": {
+          "allowed_dimensions": DIMENSIONS,
+          "allowed_granularities": GRANULARITIES,
+          "offset_from_today": 0,
+          "correlation_candidate_definition_ids": [],
+          "use_dynamic_offset": False,
+      },
+      "representation_options": {
+          "type": fmt,  # NUMBER_FORMAT_TYPE_NUMBER or _CURRENCY
+          "sentiment_type": mc["sentiment"],  # SENTIMENT_TYPE_UP_IS_GOOD / _DOWN_IS_GOOD
+      },
+      "insights_options": {"show_insights": True, "settings": []},
+      "comparisons": {"comparisons": [
+          {"compare_config": {"comparison": "TIME_COMPARISON_PREVIOUS_PERIOD", "comparison_period_override": []}, "index": "0"},
+      ]},
+  }
+  ```
+- **Required fields in 2026.2**: `extension_options`, `insights_options`, `comparisons` — omitting any returns 400
+- **Validation rules**: `AGGREGATION_AVERAGE` requires `is_running_total: false`; `NUMBER_FORMAT_TYPE_PERCENTAGE` cannot be used with `AGGREGATION_SUM`; sentiment must use SCREAMING_SNAKE format (`SENTIMENT_TYPE_UP_IS_GOOD`)
+- **Rate metrics**: use `NUMBER_FORMAT_TYPE_NUMBER` (not PERCENTAGE) with `AGGREGATION_AVERAGE` and `is_running_total: false`
+- **Flow metrics**: use `NUMBER_FORMAT_TYPE_NUMBER` or `_CURRENCY` with `AGGREGATION_SUM` and `is_running_total: true`
 - GET `/definitions/{id}/metrics` to retrieve metric ID (NOT definition ID)
-- Use `"time_dimension": {"field": "Date"}` (the raw Date column — Pulse handles time display natively)
-- Classify each metric before creating it:
-  - Flow (sum, YTD): volume, revenue, originations
-  - Rate/Average (average, last month): percentages, ratios, scores
-  - Snapped (sum, last month): balances, headcount, pipeline
+- PATCH `use_dynamic_offset: true` separately after creation
+- Subscribe group using: `{"metric_id": "...", "followers": [{"group_id": "..."}]}` (flat format, NOT the old `"subscriptions"` wrapper)
 - Include at minimum GRANULARITY_BY_MONTH, GRANULARITY_BY_QUARTER, GRANULARITY_BY_YEAR
 
 **Phase 3b — Goals / Thresholds (manual setup, auto-documented)**
