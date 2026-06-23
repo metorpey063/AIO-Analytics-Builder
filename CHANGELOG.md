@@ -4,6 +4,20 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-06-23 — Fix allowed_dimensions format + response parsing in Pulse payloads
+
+### Fixed
+
+**Pulse `allowed_dimensions` must be flat strings, not objects**
+
+`extension_options.allowed_dimensions` requires a flat list of field name strings (e.g. `["Region", "Program Type"]`). Using objects like `[{"field": "Region"}]` causes a silent 400 "Invalid request". Updated CLAUDE.md Known Pitfalls and build-demo skill with the correct format.
+
+**Pulse definition creation response parsing**
+
+Definition ID is nested under `metadata.id` in the POST response — not at the top level or under `definition.id`. Incorrect parsing caused `def_id=None`, which broke the `GET /definitions/{def_id}/metrics` call and prevented subscriptions from being created in the same run.
+
+---
+
 ## 2026-06-23 — Pulse 2026.2 Payload Fix + Canary Validator
 
 ### Fixed

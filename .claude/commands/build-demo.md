@@ -444,6 +444,7 @@ Always sanity-check: print the min/max/mean of derived metrics (e.g. quota attai
   }
   ```
 - **Required fields in 2026.2**: `extension_options`, `insights_options`, `comparisons` — omitting any returns 400
+- **`allowed_dimensions` format**: must be a flat list of field name strings — `["Region", "Program Type"]`. Using objects like `[{"field": "Region"}]` causes 400 with no detail.
 - **Validation rules**: `AGGREGATION_AVERAGE` requires `is_running_total: false`; `NUMBER_FORMAT_TYPE_PERCENTAGE` cannot be used with `AGGREGATION_SUM`; sentiment must use SCREAMING_SNAKE format (`SENTIMENT_TYPE_UP_IS_GOOD`)
 - **Rate metrics**: use `NUMBER_FORMAT_TYPE_NUMBER` (not PERCENTAGE) with `AGGREGATION_AVERAGE` and `is_running_total: false`
 - **Flow metrics**: use `NUMBER_FORMAT_TYPE_NUMBER` or `_CURRENCY` with `AGGREGATION_SUM` and `is_running_total: true`
