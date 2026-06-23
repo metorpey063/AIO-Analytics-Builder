@@ -50,6 +50,17 @@ Root cause: 2026.2 added stricter payload validation to `POST /api/-/pulse/defin
 
 ---
 
+## 2026-06-19 — Rename /refresh-demo → /refresh-dates
+
+### Changed
+- Renamed `/refresh-demo` skill to `/refresh-dates` to clarify its purpose
+- Updated description: this is **Pulse-only** — Tableau Next demos use self-healing Display Date formula and never need refreshing
+- Simplified the Tableau Next section in the skill (just notes dates are self-healing, no re-ingest offered)
+- Updated all references across CLAUDE.md, OVERVIEW.md, README.md, and build-demo.md
+- Moved Advanced Mode in `/build-demo` from step 0b (before company name) to step 4c (after metrics are decided) — signal tuning is more meaningful once you know the actual metrics
+
+---
+
 ## 2026-06-16 — CRM Analytics (CRMA) Output Mode
 
 ### Added
