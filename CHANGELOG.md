@@ -4,6 +4,42 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-06-23 — Pulse 2026.2 Payload Fix + Canary Validator
+
+### Fixed
+
+**Pulse metric creation broken after Tableau Cloud 2026.2 release**
+
+Root cause: 2026.2 added stricter payload validation to `POST /api/-/pulse/definitions`. Fields that were previously optional are now required, and aggregation/format combinations are now validated. The generic 400 "Invalid request" error gives no detail about which field is wrong — took 4 days of debugging to isolate.
+
+**New required fields in 2026.2:**
+- `extension_options` — must be present (with `allowed_dimensions`, `allowed_granularities`, etc.)
+- `insights_options` — must be present (can have empty `settings: []`)
+- `comparisons` — must be present (can have empty `comparisons: []`)
+
+**New validation rules:**
+- `AGGREGATION_AVERAGE` requires `is_running_total: false` — combining AVERAGE with running total now returns 400
+- `NUMBER_FORMAT_TYPE_PERCENTAGE` cannot be used with `AGGREGATION_SUM`
+- Sentiment must use SCREAMING_SNAKE format (`SENTIMENT_TYPE_UP_IS_GOOD`, not `SentimentTypeUpIsGood`)
+- Subscriptions payload changed to flat format: `{"metric_id": "...", "followers": [{"group_id": "..."}]}`
+
+### Added
+
+**Pulse API Canary Validator** (`pulse_validator.py`)
+- Runs against 10ax.online.tableau.com (first pod to receive each release)
+- Tests 8 payload variations: AVERAGE/SUM/COUNT aggregations, NUMBER/CURRENCY formats, sentiment types, PATCH, subscriptions
+- Integrated into `/build-demo`: runs automatically weekly or when the canary pod's build version changes
+- If tests fail, warns the user that a breaking change is incoming before it hits their production site
+- Credentials stored in `config.json` (pulse_validation profile), not hardcoded
+
+### Changed
+- Updated `CLAUDE.md` Known Pitfalls with 2026.2 payload requirements
+- Updated `/build-demo` Phase 3 (Pulse metrics) with correct payload format and code example
+- Renamed `/refresh-demo` → `/refresh-dates` (Pulse-only, clarified in all docs)
+- Moved Advanced Mode from step 0b to step 4c (after metrics are decided)
+
+---
+
 ## 2026-06-23 — Session Summaries + CRMA in About Info
 
 ### Added
