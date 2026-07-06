@@ -781,8 +781,45 @@ This ensures only one complete, working set of assets survives each run.
   - Absolute file paths to the guide and walkthrough (so the user can click them)
   - The full business preferences text (reprinted inline for easy access)
   - A clear callout: "Open the walkthrough .docx for the Business Preferences text to paste into your SDM"
-  - A note about date freshness: "Tableau Next dates are self-healing (Display Date uses TODAY() at query time). For Pulse, run `/refresh-dates` before your meeting if the demo is more than a week old — it takes ~30 seconds to regenerate and re-publish fresh data."
 - Remind user: enable Analytics Agent Readiness toggle in Data 360 → Semantic Model → Settings
+- **IMPORTANT — Print the auto-refresh scheduling instructions for Pulse demos:**
+
+  ```
+  ╔══════════════════════════════════════════════════════════════════════╗
+  │  📅 SCHEDULE YOUR AUTO-REFRESH FLOW                                │
+  ╠══════════════════════════════════════════════════════════════════════╣
+  │                                                                    │
+  │  Your demo includes an auto-refresh Prep flow that keeps Pulse     │
+  │  dates current automatically. To activate it:                      │
+  │                                                                    │
+  │  1. Go to Tableau Cloud → Explore → {project_name}                 │
+  │  2. Open "{COMPANY} Auto Refresh" flow                             │
+  │  3. Click "+ Create new task" (on the Overview tab)                 │
+  │  4. Set the schedule:                                              │
+  │     • Daily grain → schedule DAILY (recommended: 6:00 AM)          │
+  │     • Weekly grain → schedule WEEKLY (recommended: Monday 6:00 AM) │
+  │     • Monthly grain → schedule MONTHLY (1st of month, 6:00 AM)     │
+  │                                                                    │
+  │  WHY THIS MATTERS:                                                 │
+  │  Without the schedule, your Pulse sparklines will show stale       │
+  │  dates (e.g. "2 weeks ago" as the most recent data point).         │
+  │  With it, the most recent data always appears as "today" —         │
+  │  the demo is permanently fresh with zero maintenance.              │
+  │                                                                    │
+  │  Flow: {COMPANY} Auto Refresh                                      │
+  │  Datasource: {datasource_name}                                     │
+  │  Grain: {GRAIN}                                                    │
+  ╚══════════════════════════════════════════════════════════════════════╝
+  ```
+
+  Match the schedule frequency to the data grain:
+  - **Daily grain** → schedule the flow to run **daily** (every morning before working hours)
+  - **Weekly grain** → schedule the flow to run **weekly** (Monday mornings)
+  - **Monthly grain** → schedule the flow to run **monthly** (1st of the month)
+
+  Running more frequently than the grain is harmless (dates recalculate the same way) but wastes flow run credits. Running less frequently means the demo will look stale between runs.
+
+  Note: Tableau Next dates are self-healing via the `Display Date` calculated dimension (`TODAY()` at query time) — they never need refreshing. This scheduling is only for Pulse demos.
 
 ### For CRMA output:
 
