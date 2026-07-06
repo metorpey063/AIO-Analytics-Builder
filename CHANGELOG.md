@@ -4,6 +4,47 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-07-06 — Prep Flow Auto-Refresh + Build Workflow Restructure
+
+### Added
+
+**`prep_flow_builder.py` — Automated date refresh via Tableau Prep flows**
+
+Programmatically builds self-contained `.tflx` Prep flows that keep Pulse demo dates fresh automatically. The flow embeds the CSV data with relative day offsets and calculates `Date = DATEADD('day', [Day_Offset], TODAY())` at runtime. When scheduled daily/weekly on Tableau Cloud, demos never go stale.
+
+- `build_prep_flow(df, date_column, datasource_name, ...)` — generates the .tflx
+- `publish_and_run_flow(flow_path, flow_name, ...)` — publishes to Tableau Cloud and triggers execution
+
+**Post-build "Actions Required" section**
+
+Every `/build-demo` completion now prints a clear **Actions Required** section listing only the manual steps the user is responsible for (schedule the flow, set goals, paste business preferences). Each action has Where/Do/Why format.
+
+### Changed
+
+**Pulse build order restructured: flow-first approach**
+
+Previous: publish .hyper → create metrics → create flow (afterthought)
+New: build Prep flow → run flow (creates published datasource) → create metrics against it
+
+Benefits:
+- Datasource is "owned" by the flow from the start
+- No separate `.hyper` publish step needed
+- No auth mismatch when the flow overwrites on scheduled runs
+- Single source of truth: the flow IS the datasource publisher
+
+### Fixed
+
+**Pulse definition ID parsing**
+
+The POST `/api/-/pulse/definitions` response wraps everything under a `"definition"` key:
+```
+resp["definition"]["metadata"]["id"]      → definition ID
+resp["definition"]["metrics"][0]["id"]    → metric ID (no separate GET needed)
+```
+Previously documented as `resp.get("metadata", {}).get("id")` which returned None.
+
+---
+
 ## 2026-06-23 — Fix Pulse Insights API language/locale enum format
 
 ### Fixed
