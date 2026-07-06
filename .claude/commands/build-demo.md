@@ -887,68 +887,62 @@ This uses Salesforce's built-in Smart Templates which produce polished, professi
 
 ## After the build
 
-Print the following structured summary when the build completes. The **ACTIONS REQUIRED** section must always be present and visually prominent — these are the manual steps the user is responsible for. Everything automated is confirmed above it.
+Print the following structured summary when the build completes. Use clean markdown (headers, bold, bullet points) — no code blocks or ASCII box art.
 
-```
-╔══════════════════════════════════════════════════════════════════════╗
-│  ✓ BUILD COMPLETE                                                   │
-╠══════════════════════════════════════════════════════════════════════╣
-│                                                                      │
-│  Company: {COMPANY}                                                  │
-│  Use Case: {USE_CASE_LABEL}                                         │
-│  Output: {Pulse / Tableau Next / Both / CSV}                         │
-│                                                                      │
-│  Assets created:                                                     │
-│    • Datasource: {datasource_name}                                   │
-│    • Metrics: {N} ({list of metric names})                           │
-│    • Flow: {flow_name}                                               │
-│    • Group: {group_name}                                             │
-│    • Workspace/SDM: {ws_name} (if Next)                              │
-│    • Dashboard: {dash_name} (if Next)                                │
-│                                                                      │
-│  Files:                                                              │
-│    • Script: {absolute_path}                                         │
-│    • Guide: {absolute_path}                                          │
-│    • Walkthrough: {absolute_path}                                    │
-│    • CSV: {absolute_path}                                            │
-│                                                                      │
-╚══════════════════════════════════════════════════════════════════════╝
+**Format:**
 
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃  ⚠️  ACTIONS REQUIRED (manual steps you need to complete)            ┃
-┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
-┃                                                                      ┃
-┃  1. SCHEDULE THE AUTO-REFRESH FLOW                                   ┃
-┃     Tableau Cloud → Explore → {project_name} → {flow_name}           ┃
-┃     → Click "+ Create new task"                                       ┃
-┃     → Frequency: {DAILY/WEEKLY/MONTHLY based on grain}                ┃
-┃     Without this, Pulse dates go stale after {grain period}.          ┃
-┃                                                                      ┃
-┃  2. SET UP GOAL LINES IN PULSE (if goals defined)                    ┃
-┃     Pulse → {metric_name} → Edit → Goals → select "{goal_field}"     ┃
-┃     (Repeat for each metric with a goal — see walkthrough for list)   ┃
-┃     Takes ~2 minutes. Creates the visual threshold line.              ┃
-┃                                                                      ┃
-┃  3. PASTE BUSINESS PREFERENCES (if Tableau Next)                     ┃
-┃     Data 360 → Semantic Model → {sdm_name} → AI Optimization         ┃
-┃     → Manage Business Preferences → paste from walkthrough .docx      ┃
-┃     Without this, Concierge asks clarifying questions instead of       ┃
-┃     answering directly.                                               ┃
-┃                                                                      ┃
-┃  4. ENABLE ANALYTICS AGENT READINESS (if Tableau Next)               ┃
-┃     Data 360 → Semantic Model → {sdm_name} → Settings                ┃
-┃     → Analytics Agent Readiness → toggle ON                           ┃
-┃                                                                      ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-```
+> ## ✓ Build Complete
+> 
+> **Company:** {COMPANY}
+> **Use Case:** {USE_CASE_LABEL}
+> **Output:** {Pulse / Tableau Next / Both / CSV}
+> **Build Date:** {today}
+> 
+> ### Assets Created
+> - **Datasource:** {datasource_name}
+> - **Metrics:** {N} — {comma-separated metric labels}
+> - **Flow:** {flow_name}
+> - **Group:** {group_name}
+> - (if Next) **Workspace/SDM:** {ws_name}
+> - (if Next) **Dashboard:** {dash_name}
+> 
+> ### Files
+> - **Script:** {path as clickable markdown link}
+> - **Guide:** {path}
+> - **Walkthrough:** {path}
+> - **CSV:** {path}
+> 
+> ---
+> 
+> ## ⚠️ Actions Required
+> 
+> ### 1. Schedule the Auto-Refresh Flow
+> **Where:** Tableau Cloud → Explore → {project_name} → "{flow_name}"
+> **Do:** Click "+ Create new task" → set frequency to **{Daily/Weekly/Monthly}** (matches {GRAIN} grain)
+> **Why:** Without this, Pulse sparklines show stale dates after {one day/one week/one month}. With it, dates stay permanently fresh — zero maintenance.
+> 
+> ### 2. Set Up Goal Lines in Pulse (only if goals defined)
+> **Where:** Tableau Pulse → open metric → Edit → Goals
+> **Do:** (list each metric and its goal field/direction/value)
+> **Why:** Goal lines make the threshold visually urgent — the audience sees exactly when the metric crosses it.
+> 
+> ### 3. Paste Business Preferences (only if Tableau Next)
+> **Where:** Data 360 → Semantic Model → {sdm_name} → AI Optimization → Manage Business Preferences
+> **Do:** Paste the text from the "Business Preferences" section of the walkthrough .docx
+> **Why:** Without this, Concierge asks clarifying questions back to the user instead of answering directly.
+> 
+> ### 4. Enable Analytics Agent Readiness (only if Tableau Next)
+> **Where:** Data 360 → Semantic Model → {sdm_name} → Settings → Analytics Agent Readiness
+> **Do:** Toggle ON
+> **Why:** Required for Concierge to serve answers from this SDM.
 
-**Rules for the ACTIONS REQUIRED section:**
-- Only include items that are relevant to the build type (don't show Tableau Next actions for a Pulse-only build, etc.)
+**Rules for the Actions Required section:**
+- Only include actions relevant to the build type (don't show Next actions for Pulse-only builds)
 - Action 1 (schedule flow) is ALWAYS present for Pulse builds
 - Action 2 (goals) only if `METRIC_CONFIG` entries have a `goal` key
 - Actions 3-4 only for Tableau Next builds
-- Number them sequentially (skip numbers for inapplicable actions)
-- Each action should have: WHERE to go, WHAT to do, and WHY it matters (one line)
+- Number them sequentially (skip inapplicable actions — don't leave gaps)
+- Each action has three lines: **Where** (navigation path), **Do** (the click), **Why** (consequence of skipping)
 
 **Additional notes to print after the box:**
 
