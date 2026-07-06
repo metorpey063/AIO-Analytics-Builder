@@ -1,0 +1,56 @@
+{
+  "all_ws_apis": [
+    "Waste_Connections_Route_Operations"
+  ],
+  "all_sdm_apis": [
+    "Waste_Connections_Route_Ops_07a"
+  ],
+  "all_viz_apis": [
+    "wc_cost_trend",
+    "wc_turnover_trend",
+    "wc_stops_by_service",
+    "wc_fleet_util",
+    "wc_safety_region"
+  ],
+  "all_dash_apis": [
+    "wc_route_ops_dashboard",
+    "wc_route_ops_dashboard_v2"
+  ],
+  "csv_done": true,
+  "csv_path": "/Users/mtorpey/Desktop/AI Stuff/AIO Analytics Builder/demos/waste_connections_route_ops/waste_connections_route_ops_20260706.csv",
+  "build_date": "2026-07-06",
+  "stream_name": "waste_connections_route_ops_fact_waste_connections_route_ops_fact_12E32182",
+  "dlo_name": "waste_connections_route_ops_fac_12E32182__dll",
+  "ingest_done": true,
+  "ws_api": "Waste_Connections_Route_Operations",
+  "sdm_api": "Waste_Connections_Route_Ops_07a",
+  "do_api": "Waste_Connections_Route_Ops_Fact",
+  "dim_field_map": {
+    "cdp_sys_SourceVersion": "cdp_sys_SourceVersion4",
+    "DataSource": "Data_Source4",
+    "DataSourceObject": "Data_Source_Object4",
+    "Date": "Date4",
+    "District": "District",
+    "Fleet_Age": "Fleet_Age",
+    "KQ_Record_ID": "KQ_Record_ID4",
+    "Record_ID": "Record_ID4",
+    "Region": "Region4",
+    "Role_Type": "Role_Type",
+    "Service_Type": "Service_Type",
+    "Tenure_Band": "Tenure_Band"
+  },
+  "meas_field_map": {
+    "Avg_Driver_Tenure_Years": "Avg_Driver_Tenure_Years",
+    "Fleet_Utilization_Rate": "Fleet_Utilization_Rate",
+    "Revenue": "Revenue",
+    "Route_Cost_Per_Ton": "Route_Cost_Per_Ton",
+    "Safety_Incident_Rate": "Safety_Incident_Rate",
+    "Stops_Per_Route": "Stops_Per_Route",
+    "Tons_Collected": "Tons_Collected",
+    "Truck_Count": "Truck_Count",
+    "Voluntary_Turnover_Rate": "Voluntary_Turnover_Rate"
+  },
+  "dash_api": "wc_route_ops_dashboard_v2",
+  "sdm_done": true,
+  "business_preferences": "# 'Route cost' or 'cost per ton' refers to the Route Cost Per Ton metric.\n# 'Turnover' refers to the Voluntary Turnover Rate metric (monthly rate).\n# 'Experienced drivers' refers to employees in the 2-5 Years tenure band.\n# 'TRIR' is the Safety Incident Rate (Total Recordable Incident Rate per 200,000 hours worked).\n# When asking about costs or efficiency, group by Region first.\n# When asking about workforce or retention, group by Region and Tenure Band.\n# When comparing performance, use Canada as the benchmark region.\n# Commercial is the most complex service type \u2014 requires experienced drivers.\n# Fleet Utilization Rate target is 85-95%. Below 80% is underperforming.\n# Route Cost Per Ton above $55 is above industry average ($38-52 range).\n# Voluntary Turnover Rate above 0.03 monthly is elevated. Healthy is below 0.02.\n# When asking about trends, default to last 6 months vs prior 6 months.\n# 'At risk' means Voluntary Turnover Rate exceeding 0.035 in a district.\n# When asked about metrics by category or region, respond with a visualization.\n# When asked about trends over time, respond with a line chart.\n# When comparing two regions or segments, respond with a side-by-side visualization.\n# Lead with the answer first, then show the supporting data or chart."
+}
