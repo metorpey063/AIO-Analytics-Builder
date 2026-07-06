@@ -443,7 +443,6 @@ ds_item = next(ds for ds in all_ds if ds.name == datasource_name and ds.project_
 ```
 
 - IMPORTANT: Pulse indexes flow-published datasources the same as `.hyper` — metric creation should work immediately after the flow completes. If you get a 404 on metric creation, wait 30 seconds and retry.
-- Tell the user at the end: "Schedule the auto-refresh flow daily in Tableau Cloud ('+ Create new task') — dates will stay fresh permanently without /refresh-dates."
 
 **Phase 3 — Create Pulse metrics**
 - POST each metric to `/api/-/pulse/definitions` using the **2026.2 required payload format**:
@@ -781,45 +780,7 @@ This ensures only one complete, working set of assets survives each run.
   - Absolute file paths to the guide and walkthrough (so the user can click them)
   - The full business preferences text (reprinted inline for easy access)
   - A clear callout: "Open the walkthrough .docx for the Business Preferences text to paste into your SDM"
-- Remind user: enable Analytics Agent Readiness toggle in Data 360 → Semantic Model → Settings
-- **IMPORTANT — Print the auto-refresh scheduling instructions for Pulse demos:**
-
-  ```
-  ╔══════════════════════════════════════════════════════════════════════╗
-  │  📅 SCHEDULE YOUR AUTO-REFRESH FLOW                                │
-  ╠══════════════════════════════════════════════════════════════════════╣
-  │                                                                    │
-  │  Your demo includes an auto-refresh Prep flow that keeps Pulse     │
-  │  dates current automatically. To activate it:                      │
-  │                                                                    │
-  │  1. Go to Tableau Cloud → Explore → {project_name}                 │
-  │  2. Open "{COMPANY} Auto Refresh" flow                             │
-  │  3. Click "+ Create new task" (on the Overview tab)                 │
-  │  4. Set the schedule:                                              │
-  │     • Daily grain → schedule DAILY (recommended: 6:00 AM)          │
-  │     • Weekly grain → schedule WEEKLY (recommended: Monday 6:00 AM) │
-  │     • Monthly grain → schedule MONTHLY (1st of month, 6:00 AM)     │
-  │                                                                    │
-  │  WHY THIS MATTERS:                                                 │
-  │  Without the schedule, your Pulse sparklines will show stale       │
-  │  dates (e.g. "2 weeks ago" as the most recent data point).         │
-  │  With it, the most recent data always appears as "today" —         │
-  │  the demo is permanently fresh with zero maintenance.              │
-  │                                                                    │
-  │  Flow: {COMPANY} Auto Refresh                                      │
-  │  Datasource: {datasource_name}                                     │
-  │  Grain: {GRAIN}                                                    │
-  ╚══════════════════════════════════════════════════════════════════════╝
-  ```
-
-  Match the schedule frequency to the data grain:
-  - **Daily grain** → schedule the flow to run **daily** (every morning before working hours)
-  - **Weekly grain** → schedule the flow to run **weekly** (Monday mornings)
-  - **Monthly grain** → schedule the flow to run **monthly** (1st of the month)
-
-  Running more frequently than the grain is harmless (dates recalculate the same way) but wastes flow run credits. Running less frequently means the demo will look stale between runs.
-
-  Note: Tableau Next dates are self-healing via the `Display Date` calculated dimension (`TODAY()` at query time) — they never need refreshing. This scheduling is only for Pulse demos.
+- Print the **ACTIONS REQUIRED** section (see "After the build" below) — this is where the scheduling instructions, goal setup, and business preferences paste are consolidated. This scheduling is only for Pulse demos.
 
 ### For CRMA output:
 
@@ -926,29 +887,85 @@ This uses Salesforce's built-in Smart Templates which produce polished, professi
 
 ## After the build
 
+Print the following structured summary when the build completes. The **ACTIONS REQUIRED** section must always be present and visually prominent — these are the manual steps the user is responsible for. Everything automated is confirmed above it.
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+│  ✓ BUILD COMPLETE                                                   │
+╠══════════════════════════════════════════════════════════════════════╣
+│                                                                      │
+│  Company: {COMPANY}                                                  │
+│  Use Case: {USE_CASE_LABEL}                                         │
+│  Output: {Pulse / Tableau Next / Both / CSV}                         │
+│                                                                      │
+│  Assets created:                                                     │
+│    • Datasource: {datasource_name}                                   │
+│    • Metrics: {N} ({list of metric names})                           │
+│    • Flow: {flow_name}                                               │
+│    • Group: {group_name}                                             │
+│    • Workspace/SDM: {ws_name} (if Next)                              │
+│    • Dashboard: {dash_name} (if Next)                                │
+│                                                                      │
+│  Files:                                                              │
+│    • Script: {absolute_path}                                         │
+│    • Guide: {absolute_path}                                          │
+│    • Walkthrough: {absolute_path}                                    │
+│    • CSV: {absolute_path}                                            │
+│                                                                      │
+╚══════════════════════════════════════════════════════════════════════╝
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ⚠️  ACTIONS REQUIRED (manual steps you need to complete)            ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃                                                                      ┃
+┃  1. SCHEDULE THE AUTO-REFRESH FLOW                                   ┃
+┃     Tableau Cloud → Explore → {project_name} → {flow_name}           ┃
+┃     → Click "+ Create new task"                                       ┃
+┃     → Frequency: {DAILY/WEEKLY/MONTHLY based on grain}                ┃
+┃     Without this, Pulse dates go stale after {grain period}.          ┃
+┃                                                                      ┃
+┃  2. SET UP GOAL LINES IN PULSE (if goals defined)                    ┃
+┃     Pulse → {metric_name} → Edit → Goals → select "{goal_field}"     ┃
+┃     (Repeat for each metric with a goal — see walkthrough for list)   ┃
+┃     Takes ~2 minutes. Creates the visual threshold line.              ┃
+┃                                                                      ┃
+┃  3. PASTE BUSINESS PREFERENCES (if Tableau Next)                     ┃
+┃     Data 360 → Semantic Model → {sdm_name} → AI Optimization         ┃
+┃     → Manage Business Preferences → paste from walkthrough .docx      ┃
+┃     Without this, Concierge asks clarifying questions instead of       ┃
+┃     answering directly.                                               ┃
+┃                                                                      ┃
+┃  4. ENABLE ANALYTICS AGENT READINESS (if Tableau Next)               ┃
+┃     Data 360 → Semantic Model → {sdm_name} → Settings                ┃
+┃     → Analytics Agent Readiness → toggle ON                           ┃
+┃                                                                      ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+```
+
+**Rules for the ACTIONS REQUIRED section:**
+- Only include items that are relevant to the build type (don't show Tableau Next actions for a Pulse-only build, etc.)
+- Action 1 (schedule flow) is ALWAYS present for Pulse builds
+- Action 2 (goals) only if `METRIC_CONFIG` entries have a `goal` key
+- Actions 3-4 only for Tableau Next builds
+- Number them sequentially (skip numbers for inapplicable actions)
+- Each action should have: WHERE to go, WHAT to do, and WHY it matters (one line)
+
+**Additional notes to print after the box:**
+
 For Pulse:
-- Visit your Tableau Cloud site → Pulse
-- The group will already be subscribed to all metrics
-- `use_dynamic_offset` is enabled — Pulse anchors to the most recent data point automatically
-- **Coming back to this demo later?** Run `/refresh-dates` before your meeting if the demo is more than a week old. It regenerates data anchored to today and re-publishes in ~30 seconds. Your metrics, group, and subscriptions stay intact.
+- `use_dynamic_offset` is enabled — Pulse anchors to the most recent data point as a safety net even between flow runs
+- The flow is self-contained (embedded CSV) — no external connections to break
 
 For Tableau Next:
-- Visit your Tableau Next workspace
-- Enable Analytics Agent Readiness: Data 360 → Semantic Model → Settings → Analytics Agent Readiness → toggle ON
-- **Add Business Preferences to the SDM:** Data 360 → Semantic Model → [your SDM] → AI Optimization → Manage Business Preferences → paste the text from the "Business Preferences (SDM)" section of the walkthrough `.docx`
-- The Concierge panel is now ready for Q&A demos
-- Open the walkthrough `.docx` — it contains the exact Concierge prompts to use during the demo
-- The Display Date dimension is **self-healing** — `TODAY()` evaluates at query time, data always appears current automatically
-
-**Date freshness:**
-- Tableau Next: fully self-healing, no action needed ever
-- Pulse: run `/refresh-dates` before meetings if the demo is >1 week old (~30 seconds)
-
-Note: the Tableau Next Concierge does not have a public REST API — it is UI-only. Automated testing of Concierge responses is not currently possible programmatically. Business Preferences are also UI-only — the build generates the text for you, but you must paste it in manually.
+- The Display Date dimension is **self-healing** — `TODAY()` evaluates at query time, data always appears current automatically (no scheduling needed for Next)
+- The Concierge panel is ready for Q&A demos immediately
+- Open the walkthrough `.docx` for recommended demo prompts
 
 For CSV:
 - Open the file in Tableau Desktop, Excel, or any viz tool
 - Use it to build custom views or upload to another platform
+
+Note: the Tableau Next Concierge does not have a public REST API — it is UI-only. Business Preferences are also UI-only — the build generates the text, but you must paste it in manually.
 
 ---
 
