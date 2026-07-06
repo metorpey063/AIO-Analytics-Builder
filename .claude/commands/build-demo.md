@@ -482,7 +482,13 @@ ds_item = next(ds for ds in all_ds if ds.name == datasource_name and ds.project_
 - **Validation rules**: `AGGREGATION_AVERAGE` requires `is_running_total: false`; `NUMBER_FORMAT_TYPE_PERCENTAGE` cannot be used with `AGGREGATION_SUM`; sentiment must use SCREAMING_SNAKE format (`SENTIMENT_TYPE_UP_IS_GOOD`)
 - **Rate metrics**: use `NUMBER_FORMAT_TYPE_NUMBER` (not PERCENTAGE) with `AGGREGATION_AVERAGE` and `is_running_total: false`
 - **Flow metrics**: use `NUMBER_FORMAT_TYPE_NUMBER` or `_CURRENCY` with `AGGREGATION_SUM` and `is_running_total: true`
-- GET `/definitions/{id}/metrics` to retrieve metric ID (NOT definition ID)
+- **Parse the creation response correctly** — the response wraps under `"definition"`:
+  ```python
+  resp = r.json()
+  def_id = resp["definition"]["metadata"]["id"]
+  metric_id = resp["definition"]["metrics"][0]["id"]  # No separate GET needed!
+  ```
+  Do NOT use `resp.get("metadata", {}).get("id")` — that returns None (no top-level `metadata`).
 - PATCH `use_dynamic_offset: true` separately after creation
 - Subscribe group using: `{"metric_id": "...", "followers": [{"group_id": "..."}]}` (flat format, NOT the old `"subscriptions"` wrapper)
 - Include at minimum GRANULARITY_BY_MONTH, GRANULARITY_BY_QUARTER, GRANULARITY_BY_YEAR
