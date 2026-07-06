@@ -105,6 +105,7 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
 - `style_defaults.py` — font/line/shading/encoding builders with brand color support
 - `crma_uploader.py` — CRM Analytics dataset upload (metadata + base64 CSV + poll)
 - `crma_dashboard_builder.py` — CRMA dashboard state builder (SAQL steps + chart widgets + layout)
+- `prep_flow_builder.py` — Tableau Prep flow generator for auto-refreshing Pulse dates (builds .tflx with embedded CSV + DATEADD(Day_Offset, TODAY()) calc + PublishExtract output)
 
 ## Visualization building (Tableau Next)
 

@@ -489,6 +489,55 @@ Pulse goals cannot be set programmatically via the REST API (`datasource_goals` 
 - POST XML to create a group named `{Company} | {YYYY-MM-DD HH:MM}`
 - POST to `/api/-/pulse/subscriptions:batchCreate` for each metric ID
 
+**Phase 5 — Create auto-refresh Prep flow**
+
+After the `.hyper` is published and metrics are created, build and publish a self-contained Tableau Prep flow that keeps dates fresh automatically — eliminating the need for `/refresh-dates`.
+
+```python
+from prep_flow_builder import build_prep_flow, publish_and_run_flow
+
+# Build the flow (embeds CSV with Day_Offset, calculates Date = DATEADD('day', [Day_Offset], TODAY()))
+flow_path = build_prep_flow(
+    df=fact_df,                        # The generated DataFrame
+    date_column="Date",                # Column name containing dates
+    datasource_name=datasource_name,   # Must match the published .hyper datasource name
+    project_name=project_name,         # Tableau Cloud project
+    project_luid=project_id,           # Project LUID
+    server_url=server_url,             # e.g. "https://us-east-1.online.tableau.com"
+    site_name=site_name,               # e.g. "torpeyshouseodata"
+    output_path=os.path.join(SCRIPT_DIR, f"{SLUG}_auto_refresh.tflx"),
+)
+
+# Publish and run immediately (overwrites the datasource with today's dates)
+result = publish_and_run_flow(
+    flow_path=flow_path,
+    flow_name=f"{COMPANY} Auto Refresh",
+    project_id=project_id,
+    server=server,
+    auth_token=auth_token,
+    site_id=site_id,
+)
+if result["success"]:
+    print(f"  ✓ Auto-refresh flow published: {result['flow_id']}")
+    print(f"    Schedule it in Tableau Cloud: flow → '+ Create new task' → Daily")
+    cp["flow_id"] = result["flow_id"]
+    cp["flow_name"] = f"{COMPANY} Auto Refresh"
+    save_cp(cp)
+else:
+    print(f"  ⚠ Flow publish/run failed: {result['error']}")
+    print(f"    Dates can still be refreshed manually with /refresh-dates")
+```
+
+**How it works:**
+- The flow embeds the CSV data with a `Day_Offset` column (e.g. -364 to 0)
+- At runtime, Prep calculates: `Date = DATEADD('day', [Day_Offset], TODAY())`
+- Output overwrites the published datasource — Pulse metrics auto-pickup new data
+- No auth issues because the CSV is embedded (no external input connection)
+- Schedule daily via Tableau Cloud UI ("+ Create new task" on the flow overview page)
+
+**After the build completes, tell the user:**
+> "An auto-refresh flow has been published to Tableau Cloud. To keep dates permanently fresh, open the flow in Tableau Cloud and click '+ Create new task' to schedule it daily. Once scheduled, you'll never need to run /refresh-dates again."
+
 ### For Tableau Next output:
 
 **Phase 1 — Data generation** (same as above)
