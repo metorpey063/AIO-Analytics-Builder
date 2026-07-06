@@ -395,7 +395,7 @@ Always sanity-check: print the min/max/mean of derived metrics (e.g. quota attai
 
 ## Build process
 
-### For Pulse output:
+### For Pulse output (flow-first approach):
 
 **Phase 1 — Data generation**
 - Create a DataFrame: 24 months of history, one row per entity per month
@@ -403,13 +403,47 @@ Always sanity-check: print the min/max/mean of derived metrics (e.g. quota attai
 - All percentages stored as decimals (0.35 not 35)
 - Column names business-friendly with spaces and proper caps
 
-**Phase 2 — Publish to Tableau Cloud**
+**Phase 2 — Build and run Prep flow (creates the published datasource)**
 - Connect via PAT (from config.json)
-- Clean up any existing project/datasource with the same company name
+- Clean up any existing project/datasource/flow with the same company name
 - Create a timestamped project: `{Company} | {YYYY-MM-DD HH:MM}`
-- Write a `.hyper` file with the physical data
-- **Publish the `.hyper` directly** — `server.datasources.publish(ds_item, hyper_path, "Overwrite")`
-- IMPORTANT: Do NOT publish a `.tdsx` for Pulse. Pulse indexes `.hyper` in seconds but takes 2+ hours to index `.tdsx` packages, causing metric creation to fail with 404.
+- Build a self-contained Prep flow using `prep_flow_builder.py`:
+  ```python
+  from prep_flow_builder import build_prep_flow, publish_and_run_flow
+
+  flow_path = build_prep_flow(
+      df=fact_df,
+      date_column="Date",
+      datasource_name=f"{COMPANY} - {USE_CASE_LABEL}",
+      project_name=project_name,
+      project_luid=project_id,
+      server_url=server.server_address,
+      site_name=config["tableau"]["site_name"],
+      output_path=os.path.join(SCRIPT_DIR, f"{SLUG}_auto_refresh.tflx"),
+  )
+
+  result = publish_and_run_flow(
+      flow_path=flow_path,
+      flow_name=f"{COMPANY} Auto Refresh",
+      project_id=project_id,
+      server=server,
+      auth_token=server.auth_token,
+      site_id=server.site_id,
+  )
+  ```
+- The flow embeds the CSV with a `Day_Offset` column and calculates `Date = DATEADD('day', [Day_Offset], TODAY())` at runtime
+- Running the flow creates/overwrites the published datasource — this is the datasource that metrics will point to
+- The datasource is "owned" by the flow from the start — no auth issues on future scheduled runs
+- Save `flow_id`, `datasource_name`, `project_id` to checkpoint
+
+**After the flow run succeeds**, retrieve the datasource ID (needed for metric creation):
+```python
+all_ds, _ = server.datasources.get()
+ds_item = next(ds for ds in all_ds if ds.name == datasource_name and ds.project_id == project_id)
+```
+
+- IMPORTANT: Pulse indexes flow-published datasources the same as `.hyper` — metric creation should work immediately after the flow completes. If you get a 404 on metric creation, wait 30 seconds and retry.
+- Tell the user at the end: "Schedule the auto-refresh flow daily in Tableau Cloud ('+ Create new task') — dates will stay fresh permanently without /refresh-dates."
 
 **Phase 3 — Create Pulse metrics**
 - POST each metric to `/api/-/pulse/definitions` using the **2026.2 required payload format**:
@@ -488,55 +522,6 @@ Pulse goals cannot be set programmatically via the REST API (`datasource_goals` 
 **Phase 4 — Create group and subscribe**
 - POST XML to create a group named `{Company} | {YYYY-MM-DD HH:MM}`
 - POST to `/api/-/pulse/subscriptions:batchCreate` for each metric ID
-
-**Phase 5 — Create auto-refresh Prep flow**
-
-After the `.hyper` is published and metrics are created, build and publish a self-contained Tableau Prep flow that keeps dates fresh automatically — eliminating the need for `/refresh-dates`.
-
-```python
-from prep_flow_builder import build_prep_flow, publish_and_run_flow
-
-# Build the flow (embeds CSV with Day_Offset, calculates Date = DATEADD('day', [Day_Offset], TODAY()))
-flow_path = build_prep_flow(
-    df=fact_df,                        # The generated DataFrame
-    date_column="Date",                # Column name containing dates
-    datasource_name=datasource_name,   # Must match the published .hyper datasource name
-    project_name=project_name,         # Tableau Cloud project
-    project_luid=project_id,           # Project LUID
-    server_url=server_url,             # e.g. "https://us-east-1.online.tableau.com"
-    site_name=site_name,               # e.g. "torpeyshouseodata"
-    output_path=os.path.join(SCRIPT_DIR, f"{SLUG}_auto_refresh.tflx"),
-)
-
-# Publish and run immediately (overwrites the datasource with today's dates)
-result = publish_and_run_flow(
-    flow_path=flow_path,
-    flow_name=f"{COMPANY} Auto Refresh",
-    project_id=project_id,
-    server=server,
-    auth_token=auth_token,
-    site_id=site_id,
-)
-if result["success"]:
-    print(f"  ✓ Auto-refresh flow published: {result['flow_id']}")
-    print(f"    Schedule it in Tableau Cloud: flow → '+ Create new task' → Daily")
-    cp["flow_id"] = result["flow_id"]
-    cp["flow_name"] = f"{COMPANY} Auto Refresh"
-    save_cp(cp)
-else:
-    print(f"  ⚠ Flow publish/run failed: {result['error']}")
-    print(f"    Dates can still be refreshed manually with /refresh-dates")
-```
-
-**How it works:**
-- The flow embeds the CSV data with a `Day_Offset` column (e.g. -364 to 0)
-- At runtime, Prep calculates: `Date = DATEADD('day', [Day_Offset], TODAY())`
-- Output overwrites the published datasource — Pulse metrics auto-pickup new data
-- No auth issues because the CSV is embedded (no external input connection)
-- Schedule daily via Tableau Cloud UI ("+ Create new task" on the flow overview page)
-
-**After the build completes, tell the user:**
-> "An auto-refresh flow has been published to Tableau Cloud. To keep dates permanently fresh, open the flow in Tableau Cloud and click '+ Create new task' to schedule it daily. Once scheduled, you'll never need to run /refresh-dates again."
 
 ### For Tableau Next output:
 
