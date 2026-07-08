@@ -75,7 +75,7 @@ def run_oauth_flow(client_id: str, sf_login_url: str = "https://login.salesforce
     server_thread.start()
 
     # Build authorization URL
-    scopes = "api sfap_api cdp_query_api cdp_ingest_api refresh_token"
+    scopes = "api sfap_api cdp_query_api cdp_ingest_api cdp_api cdp_profile_api wave_api refresh_token"
     auth_params = urlencode({
         "response_type": "code",
         "client_id": client_id,

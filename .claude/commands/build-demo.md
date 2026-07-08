@@ -910,6 +910,31 @@ Print the following structured summary when the build completes. Use clean markd
 > **Output:** {Pulse / Tableau Next / Both / CSV}
 > **Build Date:** {today}
 > 
+> ### Phase Summary
+> | Phase | Status |
+> |-------|--------|
+> | Data Generation | ✓ Complete |
+> | Schema + Streams | ✓ Complete |
+> | Bulk Ingest | ✓ Complete |
+> | Workspace + SDM | ✓ Complete |
+> | Calculated Measurements (CLCs) | ✓ Complete |
+> | Metrics | ✓ Complete |
+> | Field Descriptions | ✓ Complete |
+> | Business Preferences | ✓ Complete |
+> | Visualizations | ✓ Complete |
+> | Dashboard | ✓ Complete |
+> 
+> Show only the phases relevant to the build type (Pulse, Next, CRMA, CSV). Use these status values:
+> - **✓ Complete** — phase ran successfully
+> - **✗ Failed** — phase attempted but errored (include brief reason)
+> - **⊘ Skipped** — phase not applicable or user declined (e.g. user said no to dashboard)
+> - **— Not run** — phase was never attempted (e.g. build interrupted before reaching it)
+> 
+> For Pulse builds, phases are: Data Generation, Prep Flow Build + Publish, Metric Creation, Group + Subscriptions, Insights (BAN/Brief)
+> For Next builds, phases are: Data Generation, Schema + Streams, Bulk Ingest, Workspace + SDM, Calculated Measurements, Metrics, Field Descriptions, Business Preferences, Visualizations, Dashboard
+> For CRMA builds, phases are: Data Generation, Dataset Upload, Dashboard Creation
+> For CSV-only: Data Generation, CSV Export
+> 
 > ### Assets Created
 > - **Datasource:** {datasource_name}
 > - **Metrics:** {N} — {comma-separated metric labels}
