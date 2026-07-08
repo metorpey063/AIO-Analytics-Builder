@@ -349,7 +349,21 @@ When writing a demo script and the limit is low, break the write into 4 sequenti
 
 Each chunk appends to the file — create it with `Write` on chunk 1, then use `Edit` to append for chunks 2–4.
 
-## Company research (do this before writing any data)
+## Company research (launch in background, don't block the user)
+
+**Timing:** As soon as the user provides the company name (Step 1) and it's a real company, immediately launch the company research as a **background Agent** (using `run_in_background: true`). Do NOT wait for the research to complete before asking the remaining questions (use case, persona, signal, metrics, advanced mode, output mode). Continue the conversation with the user in parallel.
+
+**Why:** Research takes 30-90 seconds. The user can answer 5-6 questions in that time. By the time all inputs are collected and you're ready to write the data generation script, the research results will be available. This eliminates the dead wait.
+
+**Pattern:**
+```
+1. User says "Acme Corp" → launch background research agent immediately
+2. Continue asking: use case? persona? signal? primary metrics? advanced? output?
+3. By step 5 (output mode), research agent has completed
+4. Use research results when writing the data generation code
+```
+
+**If research hasn't returned yet** by the time you need it (rare — only if the user answers very fast), wait for it at that point. The key is: never block early when you can block late.
 
 Before generating numbers, spend 3–4 web searches to ground the demo in reality:
 
