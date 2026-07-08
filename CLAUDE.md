@@ -107,6 +107,64 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
 - `crma_dashboard_builder.py` — CRMA dashboard state builder (SAQL steps + chart widgets + layout)
 - `prep_flow_builder.py` — Tableau Prep flow generator for auto-refreshing Pulse dates (builds .tflx with embedded CSV + DATEADD(Day_Offset, TODAY()) calc + PublishExtract output)
 
+## Walkthrough document format (.docx)
+
+Every demo build generates a `{slug}_demo_walkthrough.docx` file. **All walkthroughs must follow this consistent 4-section structure** (reference implementation: `demos/bi_worldwide_sales_incentive/bi_worldwide_sales_incentive_concierge_walkthrough.docx`):
+
+### Section 1 — Demo Scenario
+- **H1:** "Demo Scenario"
+- **H2:** "About {Company}" — one paragraph describing the company, their industry, scale, operating model, and why this use case matters to them
+- **H2:** "Audience & Story" — audience line (persona + title), then a paragraph describing the story the demo tells (what's wrong, where it's concentrated, the root cause, and the counter-trend)
+
+### Section 2 — Metrics Reference
+- **H1:** "Metrics Reference"
+- Intro paragraph: "Each metric below includes its definition and why it matters to the client..."
+- **H2** per metric with two bold-labeled paragraphs:
+  - **"What it measures:"** — technical definition, aggregation type, signal direction, benchmarks/thresholds
+  - **"Why it matters:"** — business context for this specific audience; what decision it informs, what it signals when it moves
+
+### Section 3 — Concierge Prompts (Tableau Next) / Demo Click Path (Pulse)
+
+**For Tableau Next builds (Concierge):**
+- **H1:** "Concierge Prompts"
+- Intro paragraph: "Each step below shows the question to ask followed by the expected Concierge response..."
+- **H2** per step with a drill-down title (Opening, Drill 1 — Region, Reveal — Concentration, Root Cause, Counter-trend, Action, etc.)
+- Each step has:
+  - **"Ask:"** (bold) — the quoted question to ask Concierge
+  - **"Expected response:"** (bold) — the AI's answer text (captured live from the Insights API when available, or written from known data when API is unavailable)
+
+**For Pulse-only builds (no Concierge):**
+- **H1:** "Demo Click Path"
+- Same H2-per-step structure, but with:
+  - **"Action:"** (bold) — what to click/filter in Pulse
+  - **"Audience sees:"** (bold) — what the sparkline/data reveals at this step
+
+**Prompt sequence pattern** (adapt to use case):
+1. Opening (surface-level metric view)
+2. Drill 1 — primary dimension (where is it worst?)
+3. Reveal — concentration check (is it everywhere or concentrated?)
+4. Root cause (what's driving it?)
+5. Drill 2 — secondary dimension (which sub-segment?)
+6. Drill 3 — tertiary dimension (tenure band, cost tier, etc.)
+7. Counter-trend (the benchmark that proves it's not systemic)
+8. Cross-metric correlation (safety, belonging, alerts confirming the story)
+9. At-risk identification (who specifically needs action?)
+10. Action/Summary (what to do next)
+
+### Section 4 — Business Preferences (SDM) — Tableau Next only
+- **H1:** "Business Preferences (SDM)"
+- Copy-paste instructions pointing to: Data 360 → Semantic Model → [SDM name] → AI Optimization → Manage Business Preferences
+- Full `#`-prefixed text block with sections:
+  - `# COMPANY CONTEXT` — what the data represents
+  - `# METRIC DEFINITIONS` — how to interpret each metric name
+  - `# DIMENSION GUIDANCE` — which dimensions to use for which question types
+  - `# THRESHOLDS AND TARGETS` — numeric boundaries for "good" vs "bad"
+  - `# QUESTION INTENT` — how to resolve ambiguous terms without asking the user
+  - `# ANSWER STYLE` — "Lead with the answer, then supporting data. Do not open with questions back to the user."
+  - `# TIME CONTEXT` — default comparison period
+
+**Omit Section 4 for Pulse-only builds** (Pulse has no Concierge/Business Preferences).
+
 ## Visualization building (Tableau Next)
 
 When building Tableau Next visualizations in `/build-demo`, ALWAYS use the template library:
