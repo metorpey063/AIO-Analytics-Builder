@@ -4,6 +4,63 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-07-09 — /update Overhaul + Walkthrough Format Standard + Parallel Research
+
+### Fixed
+
+**/update now guarantees identical code across all users (eliminates merge conflicts)**
+
+Previously, `/update` used `git pull` which could fail with merge conflicts when Claude had made local inline fixes to shared files during a build session. Users would get stuck in a conflicted state or end up with stale/divergent code.
+
+**What changed:**
+- Replaced `git pull` with `git reset --hard origin/main` — forces all tracked files to match the repository byte-for-byte
+- `config.json` is stash-protected (never overwritten)
+- `demos/` folder is gitignored (never touched)
+- No confirmation prompt — `/update` always proceeds immediately
+
+**Why this matters:** When a bug is found and fixed during one user's session, the fix gets pushed to git. Previously, other users might not get that exact fix due to merge conflicts or local divergence. Now every `/update` guarantees they're running the same code.
+
+### Added
+
+**Walkthrough .docx format standard (codified in CLAUDE.md)**
+
+All demo walkthroughs now follow a consistent 4-section structure:
+1. **Demo Scenario** — About the company + Audience & Story
+2. **Metrics Reference** — "What it measures" / "Why it matters" per metric
+3. **Concierge Prompts** — Ask / Expected response pairs (live from Pulse Discover API when available)
+4. **Business Preferences (SDM)** — Copy-paste text for Concierge configuration
+
+This ensures every demo walkthrough feels like the same polished product regardless of who built it or which use case.
+
+**Parallel company research during /build-demo**
+
+Research agent now launches in the background immediately after learning the company name, while the conversation continues (use case, persona, signal, metrics, advanced mode questions). Eliminates 30-90 seconds of dead wait during the build flow.
+
+**Platform indexing outage documentation**
+
+Added guidance for HTTP 400706 errors from Tableau Cloud's catalog indexing service. This is a platform-side issue (not a code bug) that occasionally affects `prod-useast-b` and other pods. Users now get clear instructions: wait for recovery, then retry via checkpoint.
+
+### How to get this update
+
+**If you already have git set up:**
+```
+/update
+```
+That's it. The new `/update` command will hard-reset your tracked files to match the repo.
+
+**If you've never updated before or hit a merge conflict previously:**
+
+Run these commands manually in your terminal (from the AIO Analytics Builder directory):
+```bash
+git fetch origin main
+git reset --hard origin/main
+```
+This will fix any conflicted state and put you on the latest code. Your `config.json` and `demos/` folder will not be affected.
+
+**After updating:** Start a new Claude Code session so the updated skill files and CLAUDE.md take effect.
+
+---
+
 ## 2026-07-06 — Prep Flow Auto-Refresh + Build Workflow Restructure
 
 ### Added
