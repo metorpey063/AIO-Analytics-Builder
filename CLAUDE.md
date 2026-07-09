@@ -327,7 +327,7 @@ BRAND = {
 - Data Cloud: Dashboard `widgets` must be a dict, not a list
 - Data Cloud: Dashboard page `name` must be a UUID string (`str(uuid.uuid4())`)
 - Data Cloud: `"headers": {}` in visualization style causes 400 — omit entirely
-- Salesforce External Client App requires scopes: api, sfap_api, cdp_query_api, cdp_ingest_api, refresh_token; must check "Enable Authorization Code and Credentials Flow"; must UNCHECK "Require PKCE" (it defaults to on). If dashboard creation returns 500 "For input string: null" and the layout format is correct, check whether the token has `wave_api` scope (introspect endpoint) — adding extra scopes to the Connected App can trigger stricter enforcement; re-run the OAuth flow to get a token with the broader scope set
+- Salesforce External Client App requires scopes: api, sfap_api, cdp_query_api, cdp_ingest_api, refresh_token; must check "Enable Authorization Code and Credentials Flow"; PKCE can be left checked (our OAuth flow supports PKCE via code_challenge/code_verifier). If dashboard creation returns 500 "For input string: null" and the layout format is correct, check whether the token has `wave_api` scope (introspect endpoint) — adding extra scopes to the Connected App can trigger stricter enforcement; re-run the OAuth flow to get a token with the broader scope set
 - Semantics: SDM `name` field is ignored — `apiName` is auto-generated from `label`; capture `apiName` from POST response
 - Semantics: `dataObjectType` in data-objects POST must be lowercase `"dlo"` (not `"DLO"`)
 - Semantics: Relationship payload uses `leftSemanticDefinitionApiName`/`rightSemanticDefinitionApiName` (DO apiName) + `leftFieldApiName`/`rightFieldApiName` (field name with `__c` suffix)

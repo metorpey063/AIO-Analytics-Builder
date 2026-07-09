@@ -2,11 +2,15 @@
 Salesforce OAuth browser flow for AIO Analytics Builder.
 Opens a browser, catches the auth code on localhost:8080/callback,
 exchanges it for tokens, and returns the refresh token.
+Supports PKCE (Proof Key for Code Exchange) for orgs that require it.
 """
 
+import base64
+import hashlib
 import http.server
 import json
 import os
+import secrets
 import threading
 import urllib.parse
 import webbrowser
@@ -19,6 +23,14 @@ REDIRECT_URI = f"http://localhost:{CALLBACK_PORT}{CALLBACK_PATH}"
 _auth_code = None
 _auth_error = None
 _server_ready = threading.Event()
+
+
+def _generate_pkce():
+    """Generate PKCE code_verifier and code_challenge (S256)."""
+    code_verifier = secrets.token_urlsafe(64)[:128]
+    digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
+    code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+    return code_verifier, code_challenge
 
 
 class _CallbackHandler(http.server.BaseHTTPRequestHandler):
@@ -56,10 +68,10 @@ class _CallbackHandler(http.server.BaseHTTPRequestHandler):
         pass  # suppress default request logging
 
 
-def run_oauth_flow(client_id: str, sf_login_url: str = "https://login.salesforce.com") -> dict:
+def run_oauth_flow(client_id: str, sf_login_url: str = "https://login.salesforce.com") -> tuple:
     """
-    Runs the full browser-based OAuth flow.
-    Returns a dict with access_token, refresh_token, instance_url.
+    Runs the full browser-based OAuth flow with PKCE.
+    Returns (auth_code, code_verifier) tuple.
     Raises RuntimeError on failure.
     """
     global _auth_code, _auth_error
@@ -68,19 +80,24 @@ def run_oauth_flow(client_id: str, sf_login_url: str = "https://login.salesforce
 
     import requests
 
+    # Generate PKCE verifier and challenge
+    code_verifier, code_challenge = _generate_pkce()
+
     # Start local callback server
     server = http.server.HTTPServer(("localhost", CALLBACK_PORT), _CallbackHandler)
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
     server_thread.start()
 
-    # Build authorization URL
-    scopes = "api sfap_api cdp_query_api cdp_ingest_api cdp_api cdp_profile_api wave_api refresh_token"
+    # Build authorization URL with PKCE
+    scopes = "api sfap_api cdp_query_api cdp_ingest_api refresh_token"
     auth_params = urlencode({
         "response_type": "code",
         "client_id": client_id,
         "redirect_uri": REDIRECT_URI,
         "scope": scopes,
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
     })
     auth_url = f"{sf_login_url}/services/oauth2/authorize?{auth_params}"
 
@@ -104,23 +121,25 @@ def run_oauth_flow(client_id: str, sf_login_url: str = "https://login.salesforce
     if _auth_code is None:
         raise RuntimeError("Timed out waiting for Salesforce authorization. Check your browser.")
 
-    return _auth_code
+    return _auth_code, code_verifier
 
 
 def exchange_code_for_tokens(auth_code: str, client_id: str, client_secret: str,
-                              sf_login_url: str = "https://login.salesforce.com") -> dict:
-    """Exchange auth code for access + refresh tokens."""
+                              sf_login_url: str = "https://login.salesforce.com",
+                              code_verifier: str = None) -> dict:
+    """Exchange auth code for access + refresh tokens. Includes PKCE code_verifier if provided."""
     import requests
-    r = requests.post(
-        f"{sf_login_url}/services/oauth2/token",
-        data={
-            "grant_type": "authorization_code",
-            "code": auth_code,
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "redirect_uri": REDIRECT_URI,
-        },
-    )
+    data = {
+        "grant_type": "authorization_code",
+        "code": auth_code,
+        "client_id": client_id,
+        "redirect_uri": REDIRECT_URI,
+    }
+    if client_secret:
+        data["client_secret"] = client_secret
+    if code_verifier:
+        data["code_verifier"] = code_verifier
+    r = requests.post(f"{sf_login_url}/services/oauth2/token", data=data)
     if r.status_code != 200:
         raise RuntimeError(f"Token exchange failed ({r.status_code}): {r.text}")
     return r.json()
@@ -129,11 +148,11 @@ def exchange_code_for_tokens(auth_code: str, client_id: str, client_secret: str,
 def get_refresh_token(client_id: str, client_secret: str,
                        sf_login_url: str = "https://login.salesforce.com") -> dict:
     """
-    Full OAuth flow: open browser → catch code → exchange for tokens.
+    Full OAuth flow: open browser → catch code → exchange for tokens (with PKCE).
     Returns the full token response dict (contains access_token, refresh_token, instance_url).
     """
-    auth_code = run_oauth_flow(client_id, sf_login_url)
-    tokens = exchange_code_for_tokens(auth_code, client_id, client_secret, sf_login_url)
+    auth_code, code_verifier = run_oauth_flow(client_id, sf_login_url)
+    tokens = exchange_code_for_tokens(auth_code, client_id, client_secret, sf_login_url, code_verifier)
     return tokens
 
 

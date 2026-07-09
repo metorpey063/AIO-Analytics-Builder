@@ -237,13 +237,9 @@ Enable Authorization Code and Credentials Flow
 
 ---
 
-**Step 5 — Security (important!)**
+**Step 5 — Security**
 
-> "Under **Security**, you need to **uncheck** this — it's on by default and must be turned off:"
-```
-Require Proof Key for Code Exchange (PKCE) extension for Supported Authorization Flows
-```
-> "Type **next** when that's unchecked."
+> "Under **Security**, leave **Require Proof Key for Code Exchange (PKCE)** checked — our OAuth flow supports PKCE. No changes needed here. Type **next** to continue."
 
 ---
 
