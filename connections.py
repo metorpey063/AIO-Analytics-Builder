@@ -178,7 +178,8 @@ def tableau_pulse_headers(auth_token):
 # ── Salesforce + Data Cloud (Tableau Next) ────────────────────────────────────
 
 def get_sf_token(config=None):
-    """Returns (sf_token, sf_instance) via refresh_token grant."""
+    """Returns (sf_token, sf_instance) via refresh_token grant.
+    Saves rotated refresh token back to config.json if one is returned."""
     if config is None:
         config = load_config()
     sf = config["salesforce"]
@@ -193,6 +194,17 @@ def get_sf_token(config=None):
     )
     r.raise_for_status()
     body = r.json()
+
+    # Handle refresh token rotation: save new token if returned
+    new_refresh = body.get("refresh_token")
+    if new_refresh and new_refresh != sf["refresh_token"]:
+        sf["refresh_token"] = new_refresh
+        full = load_full_config()
+        active_key = full.get("active_profile")
+        if active_key and active_key in full.get("profiles", {}):
+            full["profiles"][active_key]["salesforce"]["refresh_token"] = new_refresh
+            save_full_config(full)
+
     return body["access_token"], body["instance_url"]
 
 
