@@ -191,6 +191,21 @@ Immediately after the company name, ask:
 
 This step is especially valuable for real customer demos where the SE has call notes, a discovery brief, or specific asks from the account team.
 
+### 1c. Research depth (only for real companies)
+
+Ask the user:
+
+> "How much research should I do on {Company}?
+> 1. **Quick** (~2-3 minutes) — basic company info, industry, key regions. Good if you already know the account well or are short on time.
+> 2. **Detailed** (~10-15 minutes) — deep dive into their business model, industry benchmarks, regulatory targets, brand colors, competitor context. Produces the most realistic demo data."
+
+- If **Quick**: the background research agent does 2-3 focused searches (company overview, industry benchmarks for the use case). Prompt the agent to return results within 3 minutes. Limit to essentials: company size/industry, real region/segment names, baseline metric ranges.
+- If **Detailed**: the background research agent does 5-7 searches covering all five research areas (company itself, industry benchmarks, use-case context, goals/thresholds, brand guidelines). Allow the agent full time to be thorough.
+
+**For fictitious companies**: skip this question entirely — no research needed, use reasonable industry defaults.
+
+**Launch the research agent immediately after this answer** (don't wait for use case/persona questions). Use `run_in_background: true`.
+
 ### 2. Use case / industry
 What business problem are we telling a story about? Examples:
 - Corporate travel compliance declining
