@@ -4,24 +4,53 @@ You are running the AIO Analytics Builder setup wizard. Your job is to guide the
 
 ---
 
-## Step 0 — Update check
+## Step 0 — Connect to remote + update check
 
 **Do this before anything else, every time.**
 
-Run:
+First, check if this is a git repo connected to the remote:
+
+```bash
+git rev-parse --is-inside-work-tree 2>/dev/null && git remote get-url origin 2>/dev/null
+```
+
+**If either fails** (not a git repo, or no remote configured), this is a ZIP download or folder copy. Auto-connect it:
+
+```bash
+git init 2>/dev/null
+git remote remove origin 2>/dev/null
+git remote add origin https://github.com/metorpey063/AIO-Analytics-Builder.git
+git fetch origin main
+git reset --hard origin/main
+```
+
+Tell the user:
+> "I've connected this project to the AIO Analytics Builder repository and pulled the latest code. You're all set."
+
+Then skip to Step 1 — the hard reset already applied the update.
+
+**If git is set up and remote exists**, check for updates:
 
 ```bash
 git fetch origin main 2>/dev/null && git rev-list HEAD..origin/main --count
 ```
 
-- If the command fails (no network, not a git repo, etc.) — skip silently and continue.
+- If the command fails (no network) — skip silently and continue.
 - If the result is `0` — skip silently and continue.
-- If the result is **1 or more** — tell the user:
+- If the result is **1 or more** — apply the update automatically:
 
-> "There's an update available for AIO Analytics Builder (`N` commit(s) ahead of your local version). Run `git pull` to get the latest before continuing, then re-run `/setup`. Would you like to update now, or continue with your current version?"
+```bash
+git stash push -m "pre-update-stash" -- config.json 2>/dev/null
+git reset --hard origin/main
+git stash pop 2>/dev/null
+```
 
-  - If they say **update**: run `git pull origin main` and confirm what changed (`git log HEAD~N..HEAD --oneline`). Then continue setup as normal.
-  - If they say **continue**: proceed without pulling.
+Tell the user:
+> "Updated to the latest version (`N` new commits applied). Here's what changed:"
+
+Show: `git log HEAD~N..HEAD --oneline`
+
+Then continue setup as normal.
 
 ---
 
