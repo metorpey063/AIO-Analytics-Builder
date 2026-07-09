@@ -1,6 +1,6 @@
 # /update — Update AIO Analytics Builder
 
-Pull the latest version of AIO Analytics Builder from the git repository and show what changed.
+Pull the latest version of AIO Analytics Builder from the git repository. This ensures you have exactly what's in git — no merge conflicts, no stale local fixes.
 
 **Remote repository:** `https://github.com/metorpey063/AIO-Analytics-Builder.git`
 
@@ -57,33 +57,67 @@ Format the output clearly:
 
 > "There are `N` update(s) available:"
 > (list of commit messages)
-> "Would you like to update now?"
+> "Updating now..."
 
-### 3. Pull the update
+**Do NOT ask for confirmation** — always proceed with the update. The user invoked `/update` specifically to get updates.
 
-If the user confirms (or didn't object):
+### 3. Apply the update (hard reset to origin/main)
+
+**Critical:** Do NOT use `git pull` or `git merge`. These can cause merge conflicts when Claude has made local fixes to shared files during a session. Instead, force-reset all tracked files to match `origin/main` exactly.
+
+**Protected files** (never overwritten by update):
+- `config.json` — user credentials
+- `demos/` — user's generated demo assets
+- `.claude/settings.local.json` — user's local settings
+- `CLAUDE.local.md` — user's private instructions
+
+**Steps:**
 
 ```bash
-git pull origin main
+# Stash any uncommitted changes to protected files (safety net)
+git stash push -m "pre-update-stash" -- config.json 2>/dev/null
+
+# Hard reset tracked files to match origin/main exactly
+git reset --hard origin/main
+
+# Restore config.json from stash if it was stashed
+git stash pop 2>/dev/null
 ```
 
-Then show what changed in detail:
+If `config.json` was not modified (stash is empty), that's fine — `git stash pop` will just say "No stash entries found."
+
+**Why hard reset instead of pull:**
+- Guarantees every user has byte-for-byte identical shared code
+- Eliminates merge conflicts entirely
+- Prevents stale local fixes from persisting after the fix is properly committed upstream
+- The only files users modify locally (`config.json`, `demos/`) are either gitignored or stash-protected
+
+### 4. Verify the update landed
 
 ```bash
-git log HEAD~N..HEAD --oneline
+git log --oneline -5
 ```
 
-Where N is the number of commits that were pulled.
+Confirm HEAD now matches origin/main:
 
-### 4. Summarize changes
+```bash
+git rev-list HEAD..origin/main --count
+```
 
-After pulling, briefly summarize the changes in plain language:
+This should return `0`.
+
+### 5. Summarize changes
+
+After updating, briefly summarize the changes in plain language:
+- Read the commits that were applied: `git log HEAD~N..HEAD --oneline` (where N is the number of new commits)
 - Group by type: fixes, new features, documentation updates
 - Highlight anything that affects the user's workflow (new required fields, changed API patterns, new commands)
 - If CHANGELOG.md was updated, read the new entries and present them as the summary instead of interpreting commit messages
 
-### 5. Confirm success
+### 6. Confirm success
 
-> "Updated successfully. You're now on the latest version."
+> "Updated successfully. You're now on the latest version — all shared files match the repository exactly."
 
-If any of the updated files are currently open or were recently used in this session, mention that they should restart their Claude Code session to pick up the changes to skill files.
+If any of the updated files are skill files (`.claude/commands/`) or `CLAUDE.md`, tell the user:
+
+> "Core instructions were updated. Please start a new Claude Code session to pick up the changes."
