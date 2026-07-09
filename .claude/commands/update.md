@@ -24,14 +24,14 @@ If this returns `false` or fails (exit code != 0), the user has the project file
 git init
 git remote add origin https://github.com/metorpey063/AIO-Analytics-Builder.git
 git fetch origin main
-git reset --mixed origin/main
+git reset --hard origin/main
 ```
 
 Tell the user:
 
-> "I've connected this project to the AIO Analytics Builder repository. You're now set up to receive updates. Running the update now..."
+> "I've connected this project to the AIO Analytics Builder repository and pulled the latest code. You're all set — here's what's new:"
 
-Then continue to Step 1.
+Then skip to Step 5 (summarize changes) — the hard reset already applied the update.
 
 ### 1. Fetch and check for updates
 
