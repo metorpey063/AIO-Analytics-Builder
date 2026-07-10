@@ -150,9 +150,12 @@ def get_refresh_token(client_id: str, client_secret: str,
     """
     Full OAuth flow: open browser → catch code → exchange for tokens (with PKCE).
     Returns the full token response dict (contains access_token, refresh_token, instance_url).
+    Also includes 'code_verifier' in the returned dict — callers MUST save this to config
+    because PKCE-enforced orgs require it on every subsequent refresh_token grant.
     """
     auth_code, code_verifier = run_oauth_flow(client_id, sf_login_url)
     tokens = exchange_code_for_tokens(auth_code, client_id, client_secret, sf_login_url, code_verifier)
+    tokens["code_verifier"] = code_verifier
     return tokens
 
 

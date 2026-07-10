@@ -177,32 +177,39 @@ def tableau_pulse_headers(auth_token):
 
 # ── Salesforce + Data Cloud (Tableau Next) ────────────────────────────────────
 
-def get_sf_token(config=None):
+def get_sf_token(config=None, profile_key=None):
     """Returns (sf_token, sf_instance) via refresh_token grant.
+    Supports PKCE orgs (includes code_verifier if saved in config).
     Saves rotated refresh token back to config.json if one is returned."""
     if config is None:
-        config = load_config()
+        config = load_config(profile_key)
     sf = config["salesforce"]
-    r = requests.post(
-        f"{sf['sf_login_url']}/services/oauth2/token",
-        data={
-            "grant_type": "refresh_token",
-            "refresh_token": sf["refresh_token"],
-            "client_id": sf["client_id"],
-            "client_secret": sf["client_secret"],
-        },
-    )
+
+    data = {
+        "grant_type": "refresh_token",
+        "refresh_token": sf["refresh_token"],
+        "client_id": sf["client_id"],
+    }
+    if sf.get("client_secret"):
+        data["client_secret"] = sf["client_secret"]
+    if sf.get("code_verifier"):
+        data["code_verifier"] = sf["code_verifier"]
+
+    r = requests.post(f"{sf['sf_login_url']}/services/oauth2/token", data=data)
     r.raise_for_status()
     body = r.json()
 
     # Handle refresh token rotation: save new token if returned
     new_refresh = body.get("refresh_token")
-    if new_refresh and new_refresh != sf["refresh_token"]:
-        sf["refresh_token"] = new_refresh
-        full = load_full_config()
-        active_key = full.get("active_profile")
-        if active_key and active_key in full.get("profiles", {}):
-            full["profiles"][active_key]["salesforce"]["refresh_token"] = new_refresh
+    full = load_full_config()
+    key = profile_key or full.get("active_profile")
+    if key and key in full.get("profiles", {}):
+        changed = False
+        if new_refresh and new_refresh != sf["refresh_token"]:
+            full["profiles"][key]["salesforce"]["refresh_token"] = new_refresh
+            sf["refresh_token"] = new_refresh
+            changed = True
+        if changed:
             save_full_config(full)
 
     return body["access_token"], body["instance_url"]
