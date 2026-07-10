@@ -180,6 +180,7 @@ def tableau_pulse_headers(auth_token):
 def get_sf_token(config=None, profile_key=None):
     """Returns (sf_token, sf_instance) via refresh_token grant.
     Supports PKCE orgs (includes code_verifier if saved in config).
+    Handles orgs that reject code_verifier by retrying without it.
     Saves rotated refresh token back to config.json if one is returned."""
     if config is None:
         config = load_config(profile_key)
@@ -192,10 +193,17 @@ def get_sf_token(config=None, profile_key=None):
     }
     if sf.get("client_secret"):
         data["client_secret"] = sf["client_secret"]
-    if sf.get("code_verifier"):
-        data["code_verifier"] = sf["code_verifier"]
 
+    # Try WITHOUT code_verifier first (works for most orgs).
+    # Only add it if the org requires it ("invalid code verifier" error).
+    # This order prevents burning the refresh token on orgs that reject it.
     r = requests.post(f"{sf['sf_login_url']}/services/oauth2/token", data=data)
+
+    # If org REQUIRES code_verifier ("invalid code verifier"), retry with it
+    if r.status_code == 400 and "invalid code verifier" in r.text.lower() and sf.get("code_verifier"):
+        data["code_verifier"] = sf["code_verifier"]
+        r = requests.post(f"{sf['sf_login_url']}/services/oauth2/token", data=data)
+
     r.raise_for_status()
     body = r.json()
 
