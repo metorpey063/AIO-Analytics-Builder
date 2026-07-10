@@ -599,9 +599,81 @@ Pulse goals cannot be set programmatically via the REST API (`datasource_goals` 
 **Phase 1 — Data generation** (same as above)
 
 **Phase 2 — Register schema + streams**
-- GET existing schemas from the connector, merge new schemas (don't replace)
-- POST to create data streams for fact and dimension tables
-- Wait for DLO status to reach `ACTIVE` (poll every 10s, up to 5 min)
+
+**Schema registration** — GET existing, strip read-only fields, merge, PUT:
+```python
+STRIP_FIELDS = {"availabilityStatus", "createdDate", "lastModifiedDate"}
+def clean_schema(s):
+    return {k: v for k, v in s.items() if k not in STRIP_FIELDS}
+
+r = requests.get(f"{sf_instance}/services/data/v62.0/ssot/connections/{connector_id}/schema", headers=h)
+existing_schemas = r.json().get("schemas", []) if r.status_code == 200 else []
+
+new_schema = {"name": schema_name, "label": schema_name, "schemaType": "IngestApi", "fields": FACT_FIELDS}
+# FACT_FIELDS: [{"name": "field_name", "label": "Field Label", "dataType": "Text|Number|Date"}, ...]
+# Do NOT include isPrimaryKey in schema fields — that only goes in the stream payload
+
+if schema_name in [s["name"] for s in existing_schemas]:
+    merged = [clean_schema(s) if s["name"] != schema_name else new_schema for s in existing_schemas]
+else:
+    merged = [clean_schema(s) for s in existing_schemas] + [new_schema]
+
+r = requests.put(f"{sf_instance}/services/data/v62.0/ssot/connections/{connector_id}/schema",
+                 headers=h, json={"schemas": merged})
+# Must return 200. Wait 20s for propagation after success.
+```
+
+**Stream creation — USE THIS EXACT PAYLOAD FORMAT (do not simplify):**
+```python
+stream_payload = {
+    "name":            schema_name,                    # e.g. "company_fact"
+    "label":           schema_name,                    # same as name
+    "datasource":      connector_short_name[:10],      # first 10 chars of connector short name
+    "datastreamType":  "INGESTAPI",                    # REQUIRED — exactly this string
+    "connectorInfo": {
+        "connectorType":    "IngestApi",
+        "connectorDetails": {
+            "name": connector_uuid_name,               # the full UUID name from config
+            "events": [schema_name]                    # array with the schema name
+        },
+    },
+    "dataLakeObjectInfo": {                            # REQUIRED — entire block
+        "label":    schema_name,
+        "category": "Other",
+        "dataspaceInfo": [{"name": "default"}],        # REQUIRED — must be "default"
+        "dataLakeFieldInputRepresentations": [
+            {"name": "record_id", "label": "record_id", "dataType": "Text", "isPrimaryKey": True}
+        ],
+        "eventDateTimeFieldName":   "",
+        "recordModifiedFieldName":  "",
+    },
+    "mappings": [],                                    # REQUIRED — empty array
+}
+r = requests.post(f"{sf_instance}/services/data/v62.0/ssot/data-streams", headers=h, json=stream_payload)
+```
+
+**CRITICAL: A minimal payload (just name + connectorInfo) returns `INTERNAL_ERROR` on most orgs.** You MUST include `datastreamType`, `dataLakeObjectInfo` (with `dataspaceInfo`, `category`, `dataLakeFieldInputRepresentations`), and `mappings`. Do not guess — use the exact format above.
+
+**After stream creation succeeds (201):**
+- Capture stream name: `r.json().get("name")`
+- Capture DLO name: `r.json().get("dataLakeObjectInfo", {}).get("name")`
+- Poll for ACTIVE using stream name (NOT DLO name): `GET /ssot/data-streams/{stream_name}`
+- Check: `body.get("dataLakeObjectInfo", {}).get("status") == "ACTIVE"`
+- Poll every 10s, up to 5 min
+- Wait additional 30s after ACTIVE before submitting bulk ingest (schema propagation delay)
+
+**If stream already exists** ("already in use" in response text):
+```python
+r2 = requests.get(f"{sf_instance}/services/data/v62.0/ssot/data-streams", headers=h,
+                  params={"connectorId": connector_id, "limit": 200})
+for ds_item in r2.json().get("dataStreams", []):
+    if schema_name.lower() in ds_item.get("name", "").lower():
+        stream_name = ds_item["name"]
+        break
+# Then GET the stream to find its DLO name
+r3 = requests.get(f"{sf_instance}/services/data/v62.0/ssot/data-streams/{stream_name}", headers=h)
+dlo_name = r3.json().get("dataLakeObjectInfo", {}).get("name")
+```
 
 **Phase 3 — Bulk ingest**
 - Submit all bulk ingest jobs in parallel (submit all, then poll)
