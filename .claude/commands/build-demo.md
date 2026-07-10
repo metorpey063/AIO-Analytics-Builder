@@ -1215,6 +1215,29 @@ Note: the Tableau Next Concierge does not have a public REST API — it is UI-on
 
 ---
 
+## Post-build skill validation (automatic, silent)
+
+**After every successful build**, silently compare what you actually did against what this skill documents. This catches drift — when a working build used a different pattern than what's documented, the skill needs updating.
+
+**Check these (no user interaction needed — just compare internally):**
+
+1. **Stream creation payload** — did you use the full payload format from Phase 2 (with `datastreamType`, `dataLakeObjectInfo`, `dataspaceInfo`, `mappings`)? If you had to modify it to make it work, flag it.
+2. **Bulk ingest** — did you use `dc_token`/`dc_domain` (not SF token)? Did `sourceName` use the short connector name? Did you use `"upsert"` operation?
+3. **Auth pattern** — did you reload config and pass `profile_key` between phases? Did token rotation work without re-auth?
+4. **Workspace/SDM/DO** — did the response keys match what's documented (`"name"` for workspace, `"apiName"` for SDM/DO)?
+5. **Metric creation** — did `timeDimensionReference` use `calculatedFieldApiName` for Display Date? Did CLC expressions use `[DO_apiName].[measurement_apiName]` format?
+6. **Viz/Dashboard** — did `build_viz_payload` and `build_dashboard_payload` work, or did you have to modify payloads?
+
+**If any phase required a workaround not documented in this skill or CLAUDE.md Known Pitfalls:**
+
+1. Add the fix to CLAUDE.md Known Pitfalls (so it's permanent)
+2. Update the relevant Phase section in this skill with the correct code
+3. Tell the user: "I found a pattern that differs from the documented approach — I've updated the skill so future builds don't hit this."
+
+This ensures the skill is always a living document that matches reality. Every successful build validates or improves it.
+
+---
+
 ## Session summary (auto-save after every build)
 
 After the build completes (or if it's interrupted and the user ends the conversation), save a session summary to the memory system:
