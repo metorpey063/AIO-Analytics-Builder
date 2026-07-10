@@ -2,6 +2,23 @@
 
 A Claude Code skill for Tableau and Salesforce Solutions Engineers to rapidly build compelling demo assets across three platforms: Tableau Pulse, Tableau Next, and Salesforce Data Cloud.
 
+## CRITICAL: Troubleshooting rules
+
+**When you encounter an error during a `/build-demo` run, follow this order EVERY time:**
+
+1. **Check the Known Pitfalls section below FIRST** — most errors are already documented with exact fixes
+2. **Check the `/build-demo` skill instructions** — the correct payload format, field names, and API patterns are already specified there
+3. **Check existing working demo scripts** in `demos/` — if another demo built successfully on the same org, copy its exact pattern
+4. **Only if the error is genuinely new** (not in Known Pitfalls, not in the skill, not in any working script) — then troubleshoot independently
+
+**NEVER:**
+- Research or web-search for solutions to API errors that are already documented in this file
+- Guess at payload formats when the `/build-demo` skill specifies the exact format
+- Rewrite working patterns from scratch when you can copy from a working demo script
+- Spend multiple retries on an approach that contradicts what's documented here
+
+**When you fix a genuinely new issue**, add it to the Known Pitfalls section so it's solved permanently for all future builds.
+
 ## Demo design principle — conversational analytics
 
 Every demo should let the audience *solve a problem*, not just see a chart. Design data and dimensions so the demo can answer a sequence of questions:
