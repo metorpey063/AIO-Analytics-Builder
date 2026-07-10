@@ -75,12 +75,12 @@ Format the output clearly:
 
 ```bash
 # Stash any uncommitted changes to protected files (safety net)
-git stash push -m "pre-update-stash" -- config.json 2>/dev/null
+git stash push -m "pre-update-stash" -- config.json discovered_fixes.md 2>/dev/null
 
 # Hard reset tracked files to match origin/main exactly
 git reset --hard origin/main
 
-# Restore config.json from stash if it was stashed
+# Restore protected files from stash
 git stash pop 2>/dev/null
 ```
 
@@ -114,7 +114,21 @@ After updating, briefly summarize the changes in plain language:
 - Highlight anything that affects the user's workflow (new required fields, changed API patterns, new commands)
 - If CHANGELOG.md was updated, read the new entries and present them as the summary instead of interpreting commit messages
 
-### 6. Confirm success
+### 6. Check for discovered fixes to share
+
+After the update completes, check if `discovered_fixes.md` has any entries (content beyond the header):
+
+```bash
+wc -l discovered_fixes.md 2>/dev/null
+```
+
+If the file has more than 5 lines (meaning fixes were logged during builds on this machine), tell the user:
+
+> "You have discovered fixes from recent builds that haven't been shared with the team yet. Please send the contents of `discovered_fixes.md` to the project maintainer (Matt) so they can be evaluated for inclusion in the main skill. After sharing, I'll clear the file."
+
+If the user confirms they've shared it (or asks to clear it), reset the file to just the header.
+
+### 7. Confirm success
 
 > "Updated successfully. You're now on the latest version — all shared files match the repository exactly."
 

@@ -55,7 +55,7 @@ git fetch origin main 2>/dev/null && git rev-list HEAD..origin/main --count
 - If the result is **1 or more** — apply the update automatically:
 
 ```bash
-git stash push -m "pre-update-stash" -- config.json 2>/dev/null
+git stash push -m "pre-update-stash" -- config.json discovered_fixes.md 2>/dev/null
 git reset --hard origin/main
 git stash pop 2>/dev/null
 ```

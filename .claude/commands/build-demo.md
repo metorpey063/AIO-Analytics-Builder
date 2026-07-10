@@ -152,7 +152,7 @@ git fetch origin main 2>/dev/null && git rev-list HEAD..origin/main --count
 - If the result is **1 or more** — apply the update automatically:
 
 ```bash
-git stash push -m "pre-update-stash" -- config.json 2>/dev/null
+git stash push -m "pre-update-stash" -- config.json discovered_fixes.md 2>/dev/null
 git reset --hard origin/main
 git stash pop 2>/dev/null
 ```
@@ -1230,11 +1230,19 @@ Note: the Tableau Next Concierge does not have a public REST API — it is UI-on
 
 **If any phase required a workaround not documented in this skill or CLAUDE.md Known Pitfalls:**
 
-1. Add the fix to CLAUDE.md Known Pitfalls (so it's permanent)
-2. Update the relevant Phase section in this skill with the correct code
-3. Tell the user: "I found a pattern that differs from the documented approach — I've updated the skill so future builds don't hit this."
+1. Append the fix to `discovered_fixes.md` in the project root with this format:
+   ```markdown
+   ## [DATE] — [Short description]
+   **Phase:** [which phase]
+   **Error:** [what failed]
+   **Fix:** [what worked]
+   **Payload/code:** [the working code if applicable]
+   ```
+2. Tell the user: "I discovered a new fix during this build and logged it to `discovered_fixes.md`. This will be reviewed for inclusion in the main skill on your next update."
 
-This ensures the skill is always a living document that matches reality. Every successful build validates or improves it.
+**Do NOT directly edit CLAUDE.md or the skill files** — only the project owner pushes changes to those. Your job is to log the discovery so it can be evaluated.
+
+This ensures fixes from all users are captured and can be merged into the main skill by the maintainer.
 
 ---
 
