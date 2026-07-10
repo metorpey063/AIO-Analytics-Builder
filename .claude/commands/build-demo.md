@@ -596,6 +596,24 @@ Pulse goals cannot be set programmatically via the REST API (`datasource_goals` 
 
 ### For Tableau Next output:
 
+**Auth pattern for ALL Tableau Next phases (CRITICAL):**
+
+Every phase that calls Salesforce/Data Cloud APIs MUST follow this pattern:
+```python
+# At the START of each phase, reload config (picks up rotated tokens from prior phase)
+config = load_config(profile_key=PROFILE_KEY)
+sf_token, sf_instance = get_sf_token(config, profile_key=PROFILE_KEY)
+
+# For Data Cloud bulk ingest, also get DC token:
+dc_token, dc_domain = get_dc_token(sf_token, sf_instance)
+```
+
+**Rules:**
+- ALWAYS pass `profile_key` to both `load_config()` and `get_sf_token()` — without it, token rotation saves to the wrong profile
+- ALWAYS reload config at the start of each phase — the refresh token may have rotated during the previous phase
+- NEVER call `get_sf_token(config)` without `profile_key` — this breaks token rotation persistence
+- If you get `400 "expired access/refresh token"`, the token rotated but wasn't saved — re-run `/setup` Step 4b to re-authorize
+
 **Phase 1 — Data generation** (same as above)
 
 **Phase 2 — Register schema + streams**
@@ -676,16 +694,87 @@ dlo_name = r3.json().get("dataLakeObjectInfo", {}).get("name")
 ```
 
 **Phase 3 — Bulk ingest**
-- Submit all bulk ingest jobs in parallel (submit all, then poll)
-- Use DC token (not SF token) and dc_domain (not sf_instance)
-- Response key is `"data"` not `"jobs"`
-- Wait for state `"JobComplete"` — this can take 5-10 minutes; that's normal
-- New schemas need 15-30s before bulk API accepts them — retry on 404
+
+```python
+# Prepare CSV with snake_case columns matching schema field names
+ingest_df = df.rename(columns={"Record ID": "record_id", "Date": "date", ...})
+csv_data = ingest_df.to_csv(index=False)
+
+# Create job — uses DC token and dc_domain (NOT sf_token/sf_instance)
+job_payload = {"object": schema_name, "operation": "upsert", "sourceName": connector_short_name}
+for retry in range(3):
+    r = requests.post(f"https://{dc_domain}/api/v1/ingest/jobs",
+        headers={"Authorization": f"Bearer {dc_token}", "Content-Type": "application/json"},
+        json=job_payload)
+    if r.status_code in (200, 201):
+        break
+    time.sleep(15)  # Retry on 404 — schema propagation delay
+
+job_id = r.json().get("id")
+
+# Upload CSV batch
+r = requests.put(f"https://{dc_domain}/api/v1/ingest/jobs/{job_id}/batches",
+    headers={"Authorization": f"Bearer {dc_token}", "Content-Type": "text/csv"},
+    data=csv_data.encode("utf-8"))
+
+# Close job
+r = requests.patch(f"https://{dc_domain}/api/v1/ingest/jobs/{job_id}",
+    headers={"Authorization": f"Bearer {dc_token}", "Content-Type": "application/json"},
+    json={"state": "UploadComplete"})
+
+# Poll for completion (5-10 minutes is normal)
+for attempt in range(60):
+    r = requests.get(f"https://{dc_domain}/api/v1/ingest/jobs/{job_id}",
+        headers={"Authorization": f"Bearer {dc_token}", "Content-Type": "application/json"})
+    state = r.json().get("state", "")
+    if state == "JobComplete":
+        break
+    elif state == "Failed":
+        raise RuntimeError(f"Ingest failed: {r.json()}")
+    time.sleep(10)
+```
+
+**Key rules:**
+- Use `dc_token` and `dc_domain` (NOT `sf_token`/`sf_instance`) — the bulk ingest API is a separate endpoint
+- `sourceName` = the short connector name (e.g. `"analytics_connector"`), NOT the UUID name
+- `operation` = `"upsert"` (not `"insert"` — insert returns 400)
+- `object` = the schema name (same value used in stream creation)
+- CSV column names must match schema field `name` values exactly (snake_case)
+- Retry job creation on 404 — new schemas take 15-30s before the bulk API recognizes them
 
 **Phase 4 — Build workspace + Semantic Data Model**
-- Create workspace via `/services/data/v65.0/tableau/workspaces`
-- Create SDM with `agentEnabled: true`
-- Add relationships between fact and dimension tables
+
+```python
+# Reload config at start of phase (token may have rotated during ingest)
+config = load_config(profile_key=PROFILE_KEY)
+sf_token, sf_instance = get_sf_token(config, profile_key=PROFILE_KEY)
+h = {"Authorization": f"Bearer {sf_token}", "Content-Type": "application/json"}
+
+# Create workspace — response uses "name" key (not "apiName")
+r = requests.post(f"{sf_instance}/services/data/v65.0/tableau/workspaces", headers=h,
+    json={"label": f"{COMPANY} {USE_CASE}", "description": "..."})
+ws_api = r.json().get("name")
+
+# Create SDM — response uses "apiName" key
+r = requests.post(f"{sf_instance}/services/data/v65.0/ssot/semantic/models", headers=h,
+    json={"label": f"{COMPANY} {USE_CASE}", "description": "...", "dataspace": "default", "agentEnabled": True})
+sdm_api = r.json().get("apiName")
+
+# Add Data Object — MUST include both dataLakeObjectName AND dataObjectName, plus label
+dlo_name = cp["dlo_name"]  # from Phase 2 stream creation response
+r = requests.post(f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{sdm_api}/data-objects", headers=h,
+    json={"dataLakeObjectName": dlo_name, "dataObjectName": dlo_name, "dataObjectType": "dlo", "label": "..."})
+do_api = r.json().get("apiName")
+
+# Get field mappings from the DO
+r = requests.get(f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{sdm_api}/data-objects/{do_api}", headers=h)
+measurements = r.json().get("semanticMeasurements", [])
+dimensions = r.json().get("semanticDimensions", [])
+# Build maps: field_name (without __c) → apiName
+dim_field_map = {d["dataObjectFieldName"].replace("__c", ""): d["apiName"] for d in dimensions}
+measurement_map = {m["dataObjectFieldName"].replace("__c", ""): m["apiName"] for m in measurements}
+```
+
 - Add calculated measurements (KPIs) and calculated dimensions (self-healing date shift)
 - Create a `Display Date` calculated dimension using the **self-healing formula**:
   ```

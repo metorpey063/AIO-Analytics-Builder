@@ -288,34 +288,41 @@ from oauth_flow import get_refresh_token
 import json
 try:
     tokens = get_refresh_token('CLIENT_ID_HERE', 'CLIENT_SECRET_HERE', 'LOGIN_URL_HERE')
-    print(json.dumps({'refresh_token': tokens['refresh_token'], 'instance_url': tokens['instance_url']}))
+    # IMPORTANT: tokens contains 'code_verifier' — MUST save this to config
+    # PKCE-enforced orgs require it on every subsequent refresh_token grant
+    print(json.dumps({
+        'refresh_token': tokens['refresh_token'],
+        'instance_url': tokens['instance_url'],
+        'code_verifier': tokens.get('code_verifier', '')
+    }))
 except Exception as e:
     print(f'FAIL:{e}')
 "
 ```
 
-If that succeeds, immediately test the Data Cloud token exchange:
+**IMPORTANT:** Save BOTH `refresh_token` AND `code_verifier` to the profile's salesforce config. The `code_verifier` is required by PKCE-enforced orgs on every refresh. Without it, the token will fail on first use.
+
+If that succeeds, immediately test the Data Cloud token exchange using `get_sf_token` (which handles PKCE and token rotation correctly):
 
 ```bash
 python3 -c "
-import requests, json
-sf_login_url = 'LOGIN_URL_HERE'
-client_id = 'CLIENT_ID_HERE'
-client_secret = 'CLIENT_SECRET_HERE'
-refresh_token = 'REFRESH_TOKEN_HERE'
+import sys, json
+sys.path.insert(0, '.')
+from connections import get_sf_token, get_dc_token
+# Temporarily write the profile first so get_sf_token can read it
+config = {
+    'salesforce': {
+        'sf_login_url': 'LOGIN_URL_HERE',
+        'client_id': 'CLIENT_ID_HERE',
+        'client_secret': 'CLIENT_SECRET_HERE',
+        'refresh_token': 'REFRESH_TOKEN_HERE',
+        'code_verifier': 'CODE_VERIFIER_HERE',
+    }
+}
 try:
-    r = requests.post(f'{sf_login_url}/services/oauth2/token',
-        data={'grant_type':'refresh_token','refresh_token':refresh_token,
-              'client_id':client_id,'client_secret':client_secret})
-    sf_token = r.json()['access_token']
-    sf_instance = r.json()['instance_url']
-    r2 = requests.post(f'{sf_instance}/services/a360/token',
-        headers={'Content-Type':'application/x-www-form-urlencoded'},
-        data={'grant_type':'urn:salesforce:grant-type:external:cdp',
-              'subject_token':sf_token,
-              'subject_token_type':'urn:ietf:params:oauth:token-type:access_token'})
-    dc = r2.json()
-    print(json.dumps({'sf_instance': sf_instance, 'dc_domain': dc['instance_url']}))
+    sf_token, sf_instance = get_sf_token(config)
+    dc_token, dc_domain = get_dc_token(sf_token, sf_instance)
+    print(json.dumps({'sf_instance': sf_instance, 'dc_domain': dc_domain}))
 except Exception as e:
     print(f'FAIL:{e}')
 "
@@ -402,6 +409,7 @@ profile = {
         'client_id': 'CLIENT_ID_HERE',
         'client_secret': 'CLIENT_SECRET_HERE',
         'refresh_token': 'REFRESH_TOKEN_HERE',
+        'code_verifier': 'CODE_VERIFIER_HERE',  # REQUIRED for PKCE orgs — save from OAuth response
         'data_cloud_domain': 'DC_DOMAIN_HERE',
         'ingestion_connector_name': 'CONNECTOR_NAME_HERE',
         'connector_sf_id': 'CONNECTOR_ID_HERE',
