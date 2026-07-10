@@ -385,7 +385,7 @@ Each chunk appends to the file — create it with `Write` on chunk 1, then use `
 
 **CRITICAL: All web searches and research MUST happen inside a background Agent — NEVER in the main conversation.** The user should never see WebFetch or WebSearch tool calls scrolling through their session. The main conversation is for asking questions and showing results — research happens silently in the background.
 
-**Timing:** As soon as the user provides the company name (Step 1) and it's a real company, immediately launch the company research as a **background Agent** (using `run_in_background: true`). Do NOT wait for the research to complete before asking the remaining questions (use case, persona, signal, metrics, advanced mode, output mode). Continue the conversation with the user in parallel.
+**Timing:** Launch the research agent AFTER the user answers Step 1c (research depth — Quick vs Detailed). Do NOT launch before asking the depth question. The depth answer determines how many searches the agent does. After launching, continue asking the remaining questions (use case, persona, signal, metrics, advanced mode, output mode) without waiting for the agent to finish.
 
 **Why:** Research takes 30-90 seconds. The user can answer 5-6 questions in that time. By the time all inputs are collected and you're ready to write the data generation script, the research results will be available. This eliminates the dead wait.
 
