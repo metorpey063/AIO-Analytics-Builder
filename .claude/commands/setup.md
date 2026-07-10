@@ -2,6 +2,21 @@
 
 You are running the AIO Analytics Builder setup wizard. Your job is to guide the user through configuring their connections conversationally — asking one question at a time, testing each connection before moving on, and writing credentials to config.json. Do not dump all questions at once.
 
+## CRITICAL: Follow this skill exactly — do not freelance
+
+**When you encounter an error during `/setup`:**
+
+1. **Check CLAUDE.md Known Pitfalls FIRST** — most connection/OAuth errors are already documented with exact fixes (PKCE, scope issues, cross-org errors, token rotation, etc.)
+2. **Follow the steps in this skill file exactly** — the correct field names, payload formats, scope lists, and security settings are specified here. Do not deviate or guess.
+3. **Check `connections.py` and `oauth_flow.py`** — these are the working implementations. If the error is in auth, the fix is likely already in those files.
+4. **Only research externally if the error is genuinely new** — not documented here, not in Known Pitfalls, not matching any known pattern.
+
+**NEVER:**
+- Web-search for Salesforce OAuth troubleshooting when the answer is in this file or Known Pitfalls
+- Change the scope list, callback URL, or PKCE settings unless this skill explicitly says to
+- Skip steps or reorder them — the sequence matters (especially for External Client App creation)
+- Tell the user to "contact Salesforce support" for issues that have documented workarounds here
+
 ---
 
 ## Step 0 — Connect to remote + update check
