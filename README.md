@@ -16,6 +16,25 @@ A Claude Code tool for Salesforce/Tableau Solutions Engineers to rapidly build c
 
 ---
 
+## Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Conversational build flow** | Claude asks questions one at a time — company, use case, persona, signal — then builds everything autonomously |
+| **Real company research** | Automatically researches the target company (industry, segments, regions, benchmarks) to ground the demo in reality |
+| **Self-healing dates** | Prep flows use `TODAY()` so demo data always appears current — no manual refresh, no scheduled jobs to babysit |
+| **Auto-update** | `/update` hard-resets to the latest code from git — no merge conflicts, no version drift between users |
+| **PKCE OAuth** | Supports modern Salesforce security (PKCE + token rotation) out of the box — works on locked-down demo orgs |
+| **Checkpoint/resume** | Every build saves progress — if interrupted, pick up where you left off without re-ingesting data |
+| **Multi-platform output** | One dataset → Pulse, Tableau Next, CRM Analytics, or CSV — choose any combination per build |
+| **Signal engineering** | Configurable decline severity, onset timing, and shape per metric — makes the "uh oh" moment unmissable |
+| **Walkthrough generation** | Produces a polished `.docx` with demo click path, Concierge prompts (with live AI responses), and business preferences |
+| **Post-build validation** | Silently compares what was built against documented patterns — discovers and logs new fixes automatically |
+| **Multi-org profiles** | Switch between customer orgs, demo environments, and Tableau sites without re-running setup |
+| **Canary validation** | Pre-checks Pulse API payloads against the canary pod before releases hit production — catches breaking changes early |
+
+---
+
 ## Prerequisites
 
 - **Python 3.10+** — check with `python3 --version` in a terminal
