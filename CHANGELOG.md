@@ -4,6 +4,37 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-07-21 — Self-Healing Dates Without Prep Flows
+
+### Changed
+
+**Pulse date refresh: replaced Prep flows with `.tdsx` calculated Date pattern**
+
+Previous: build a `.tflx` Prep flow → publish → schedule daily/weekly → flow recalculates `DATEADD(Day_Offset, TODAY())` at runtime. Required scheduling, could fail, added maintenance burden.
+
+New: publish `.hyper` with stored Date (indexes immediately) → create metrics → overwrite with `.tdsx` containing `Date = DATEADD('day', [Day_Offset], TODAY())`. Self-heals forever with zero maintenance — no flow, no scheduling, no refresh needed.
+
+**How it works:**
+- `TODAY()` is an unstable function — Tableau re-evaluates it on every query and never materializes it into the extract
+- The calculated `Date` field slides forward by one day automatically, every day, with no intervention
+- Metrics survive the overwrite because the LUID is preserved and the field name (`"Date"`) stays the same
+
+### Added
+
+**`tdsx_builder.py`** — new module for self-healing Pulse datasources:
+- `publish_hyper_for_indexing(df, date_column, ...)` — Step 1: publish `.hyper` with stored Date
+- `convert_to_self_healing(df, date_column, ...)` — Step 2: overwrite with `.tdsx` (call AFTER metrics are created)
+- `build_hyper_with_date()` / `build_tdsx()` — lower-level builders
+
+### Important
+
+- **Metrics must be created BETWEEN steps 1 and 2** — after the `.hyper` indexes but before the `.tdsx` overwrite
+- `prep_flow_builder.py` is kept as a fallback but is no longer the primary approach
+- The "Actions Required" section for Pulse builds no longer needs a "Schedule the flow" step
+- Restore point: `git tag pre-tdsx-selfheal` — revert with `git reset --hard pre-tdsx-selfheal` if needed
+
+---
+
 ## 2026-07-09 — /update Overhaul + Walkthrough Format Standard + Parallel Research
 
 ### Fixed
