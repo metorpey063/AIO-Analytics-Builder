@@ -469,46 +469,58 @@ Always sanity-check: print the min/max/mean of derived metrics (e.g. quota attai
 - All percentages stored as decimals (0.35 not 35)
 - Column names business-friendly with spaces and proper caps
 
-**Phase 2 — Build and run Prep flow (creates the published datasource)**
-- Connect via PAT (from config.json)
-- Clean up any existing project/datasource/flow with the same company name
-- Create a timestamped project: `{Company} | {YYYY-MM-DD HH:MM}`
-- Build a self-contained Prep flow using `prep_flow_builder.py`:
-  ```python
-  from prep_flow_builder import build_prep_flow, publish_and_run_flow
+**Phase 2 — Publish self-healing datasource (no Prep flow needed)**
 
-  flow_path = build_prep_flow(
-      df=fact_df,
-      date_column="Date",
-      datasource_name=f"{COMPANY} - {USE_CASE_LABEL}",
-      project_name=project_name,
-      project_luid=project_id,
-      server_url=server.server_address,
-      site_name=config["tableau"]["site_name"],
-      output_path=os.path.join(SCRIPT_DIR, f"{SLUG}_auto_refresh.tflx"),
-  )
+The self-healing pattern uses a two-step publish:
+1. Publish `.hyper` with a stored `Date` column → Pulse indexes it immediately
+2. After metrics are created (Phase 3), overwrite with `.tdsx` containing calc `Date = DATEADD('day', [Day_Offset], TODAY())` → self-heals forever, no scheduling
 
-  result = publish_and_run_flow(
-      flow_path=flow_path,
-      flow_name=f"{COMPANY} Auto Refresh",
-      project_id=project_id,
-      server=server,
-      auth_token=server.auth_token,
-      site_id=server.site_id,
-  )
-  ```
-- The flow embeds the CSV with a `Day_Offset` column and calculates `Date = DATEADD('day', [Day_Offset], TODAY())` at runtime
-- Running the flow creates/overwrites the published datasource — this is the datasource that metrics will point to
-- The datasource is "owned" by the flow from the start — no auth issues on future scheduled runs
-- Save `flow_id`, `datasource_name`, `project_id` to checkpoint
-
-**After the flow run succeeds**, retrieve the datasource ID (needed for metric creation):
 ```python
-all_ds, _ = server.datasources.get()
-ds_item = next(ds for ds in all_ds if ds.name == datasource_name and ds.project_id == project_id)
+from tdsx_builder import publish_hyper_for_indexing, convert_to_self_healing
+
+# Connect via PAT
+server, auth_token, site_id = get_tableau_token(config)
+
+# Clean up existing project/datasource with same company name
+# Create timestamped project: {Company} | {YYYY-MM-DD HH:MM}
+
+# Step 2a: Publish .hyper (indexes immediately, stored Date for metric creation)
+ds_luid = publish_hyper_for_indexing(
+    df=fact_df,
+    date_column="Date",
+    datasource_name=f"{COMPANY} - {USE_CASE_LABEL}",
+    project_id=project_id,
+    server=server,
+    output_dir=SCRIPT_DIR,
+)
+# Save ds_luid to checkpoint — metrics will reference this
 ```
 
-- IMPORTANT: Pulse indexes flow-published datasources the same as `.hyper` — metric creation should work immediately after the flow completes. If you get a 404 on metric creation, wait 30 seconds and retry.
+**CRITICAL SEQUENCE:** Create metrics (Phase 3) IMMEDIATELY after this step, BEFORE converting to self-healing. The metrics need the stored `Date` field to exist during creation. After metrics are created, THEN convert:
+
+```python
+# Step 2b: AFTER all metrics are created (Phase 3 complete), convert to self-healing
+tdsx_path = convert_to_self_healing(
+    df=fact_df,
+    date_column="Date",
+    datasource_name=f"{COMPANY} - {USE_CASE_LABEL}",
+    project_id=project_id,
+    server=server,
+    output_dir=SCRIPT_DIR,
+)
+# Metrics survive — LUID preserved, calc Date resolves as "Date"
+# No Prep flow. No scheduling. No maintenance. Self-heals forever.
+```
+
+**How it works:**
+- The `.hyper` publishes with a stored `Date` column so Pulse can index it and discover the field
+- Metrics are created against this indexed `Date` field
+- The `.tdsx` overwrite replaces the stored `Date` with a calculated field of the same name (`name='[Date]'`)
+- Because the LUID is preserved (Overwrite mode), all metrics stay bound
+- `TODAY()` is an unstable function — Tableau re-evaluates it on every query, so dates slide forward automatically
+- No refresh, no flow, no scheduling — the demo stays fresh forever
+
+**Fallback:** If the `.tdsx` overwrite fails for any reason, the `.hyper` with stored dates is still live and working — metrics are unaffected. You can retry the overwrite later or fall back to the old Prep flow approach (`prep_flow_builder.py` is still available).
 
 **Phase 3 — Create Pulse metrics**
 - POST each metric to `/api/-/pulse/definitions` using the **2026.2 required payload format**:
