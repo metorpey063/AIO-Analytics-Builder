@@ -194,20 +194,40 @@ def get_sf_token(config=None, profile_key=None):
     if sf.get("client_secret"):
         data["client_secret"] = sf["client_secret"]
 
-    # Try WITHOUT code_verifier first (works for most orgs).
-    # Only add it if the org requires it ("invalid code verifier" error).
-    # This order prevents burning the refresh token on orgs that reject it.
+    # Determine whether to include code_verifier based on org's known behavior.
+    # Some PKCE orgs require it ("invalid code verifier" if missing), others
+    # reject it ("unexpected code verifier" if present). We store a flag after
+    # learning which behavior the org has to avoid burning tokens on the wrong path.
+    pkce_mode = sf.get("pkce_refresh_mode")  # "required" | "rejected" | None (unknown)
+
+    if pkce_mode == "required" and sf.get("code_verifier"):
+        data["code_verifier"] = sf["code_verifier"]
+    elif pkce_mode == "rejected":
+        pass  # don't include code_verifier
+    else:
+        # Unknown — try WITHOUT first (most orgs don't need it on refresh)
+        pass
+
     r = requests.post(f"{sf['sf_login_url']}/services/oauth2/token", data=data)
 
-    # If org REQUIRES code_verifier ("invalid code verifier"), retry with it
-    if r.status_code == 400 and "invalid code verifier" in r.text.lower() and sf.get("code_verifier"):
-        data["code_verifier"] = sf["code_verifier"]
-        r = requests.post(f"{sf['sf_login_url']}/services/oauth2/token", data=data)
+    # Learn from failure and retry the other way
+    if r.status_code == 400 and sf.get("code_verifier"):
+        err_text = r.text.lower()
+        if "invalid code verifier" in err_text or "code verifier required" in err_text:
+            # Org REQUIRES code_verifier on refresh — add it and retry
+            data["code_verifier"] = sf["code_verifier"]
+            r = requests.post(f"{sf['sf_login_url']}/services/oauth2/token", data=data)
+            pkce_mode = "required"
+        elif "unexpected code verifier" in err_text:
+            # Org REJECTS code_verifier on refresh — remove it and retry
+            data.pop("code_verifier", None)
+            r = requests.post(f"{sf['sf_login_url']}/services/oauth2/token", data=data)
+            pkce_mode = "rejected"
 
     r.raise_for_status()
     body = r.json()
 
-    # Handle refresh token rotation: save new token if returned
+    # Handle refresh token rotation: save new token + learned PKCE mode
     new_refresh = body.get("refresh_token")
     full = load_full_config()
     key = profile_key or full.get("active_profile")
@@ -216,6 +236,9 @@ def get_sf_token(config=None, profile_key=None):
         if new_refresh and new_refresh != sf["refresh_token"]:
             full["profiles"][key]["salesforce"]["refresh_token"] = new_refresh
             sf["refresh_token"] = new_refresh
+            changed = True
+        if pkce_mode and sf.get("pkce_refresh_mode") != pkce_mode:
+            full["profiles"][key]["salesforce"]["pkce_refresh_mode"] = pkce_mode
             changed = True
         if changed:
             save_full_config(full)

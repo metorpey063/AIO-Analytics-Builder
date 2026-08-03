@@ -4,6 +4,23 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-08-03 — Fix PKCE Token Rotation for Refresh Grants
+
+### Fixed
+
+**`connections.py` — PKCE `code_verifier` handling on refresh token grants**
+
+Some Salesforce orgs reject `code_verifier` on refresh grants ("unexpected code verifier") while others require it ("invalid code verifier"). Previously the code tried without first, which worked — but on orgs with refresh token rotation enabled, the first attempt burned the single-use token before the retry could succeed.
+
+**New behavior:**
+- First call auto-detects whether the org requires or rejects `code_verifier` on refresh
+- Saves the learned mode (`pkce_refresh_mode: "required" | "rejected"`) to the profile config
+- All subsequent calls use the correct mode without probing, preventing token burn
+
+This fixes `400 expired access/refresh token` errors on PKCE-enforced orgs with token rotation (e.g. Jordan's Tableau Next org pattern).
+
+---
+
 ## 2026-07-21 — Self-Healing Dates Without Prep Flows
 
 ### Changed
