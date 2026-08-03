@@ -184,6 +184,8 @@ Every demo build generates a `{slug}_demo_walkthrough.docx` file. **All walkthro
 
 ## Visualization building (Tableau Next)
 
+**ALWAYS build visualizations and a dashboard for Tableau Next demos.** Never ask the user whether to create them — they are required so that assets appear in the workspace. Without vizzes, the workspace appears empty in the Tableau Next UI and the SDM is only accessible through Data 360 (which the demo audience won't navigate to).
+
 When building Tableau Next visualizations in `/build-demo`, ALWAYS use the template library:
 
 ```python
@@ -329,7 +331,7 @@ BRAND = {
 
 ## Known pitfalls
 
-- Pulse: **2026.2 payload validation changes** — `POST /api/-/pulse/definitions` now requires fields that were previously optional and enforces aggregation/format consistency. Missing any of these causes a generic 400 "Invalid request" with no detail. Required fields as of 2026.2: (1) `insights_options` key must be present (can be `{"show_insights": true, "settings": []}`); (2) `comparisons` key must be present (can be `{"comparisons": [{"compare_config": {"comparison": "TIME_COMPARISON_PREVIOUS_PERIOD", "comparison_period_override": []}, "index": "0"}]}`); (3) `AGGREGATION_AVERAGE` requires `is_running_total: false` — combining AVERAGE with `is_running_total: true` returns 400; (4) `NUMBER_FORMAT_TYPE_PERCENTAGE` cannot be used with `AGGREGATION_SUM` — use `NUMBER_FORMAT_TYPE_NUMBER` for rate metrics or use `AGGREGATION_AVERAGE` with percentage format. Always set `is_running_total: false` for rate/average metrics and `true` only for flow/sum metrics that accumulate over time.
+- Pulse: **2026.2 payload validation changes** — `POST /api/-/pulse/definitions` now requires fields that were previously optional and enforces aggregation/format consistency. Missing any of these causes a generic 400 "Invalid request" with no detail. Required fields as of 2026.2: (1) `insights_options` key must be present (can be `{"show_insights": true, "settings": []}`); (2) `comparisons` key must be present (can be `{"comparisons": [{"compare_config": {"comparison": "TIME_COMPARISON_PREVIOUS_PERIOD", "comparison_period_override": []}, "index": "0"}]}`); (3) `AGGREGATION_AVERAGE` requires `is_running_total: false` — combining AVERAGE with `is_running_total: true` returns 400; (4) `NUMBER_FORMAT_TYPE_PERCENTAGE` cannot be used programmatically at all — both POST and PATCH reject it with 400 "Invalid request" regardless of aggregation type (tested with AVERAGE, SUM, and COUNT on us-east-1 and 10ax pods as of 2026.2). Workaround: create metrics with `NUMBER_FORMAT_TYPE_NUMBER`, store values as decimals (0.62 = 62%), then manually change Number Format to "Percentage" in the Pulse UI (Edit → Core Definition → Number format → Percentage). The UI handles the ×100 display automatically. Always set `is_running_total: false` for rate/average metrics and `true` only for flow/sum metrics that accumulate over time.
 - Pulse: **Self-healing date pattern (`.hyper` → metrics → `.tdsx` overwrite)** — Pulse does NOT index `.tdsx` packages published cold (from scratch). However, if you first publish a `.hyper` with a stored `Date` column (indexes in seconds), create metrics against it, and THEN overwrite with a `.tdsx` containing a calculated `Date = DATEADD('day', [Day_Offset], TODAY())`, the metrics survive and the calc Date resolves — self-healing forever with no Prep flow or scheduling. The key: metrics must be created BETWEEN the `.hyper` publish and the `.tdsx` overwrite. Use `tdsx_builder.py`: `publish_hyper_for_indexing()` → create metrics → `convert_to_self_healing()`. The `.tds` inside the `.tdsx` must set `name='[Date]'` on the calc column so Pulse resolves `time_dimension.field = "Date"` correctly.
 - Pulse: **Default time filter (Month to Date) cannot be changed via API** — the `measurement_period.granularity` field on the metric spec appears settable (putting `GRANULARITY_BY_YEAR` first in `allowed_granularities` causes the API to return `GRANULARITY_BY_YEAR` in the metric's `measurement_period`), but the Pulse UI always defaults to "Month to Date" regardless. This is a UI-level user preference — each user must manually select "Year to Date" in the Filter dropdown on first view. Document this in the walkthrough as a first-time setup step. There is no known API workaround as of 2026.2.
 - Pulse: **Comparison period is tied to the filter period** — the `TIME_COMPARISON_PREVIOUS_PERIOD` comparison dynamically changes based on the active filter. With "Month to Date" filter, comparison shows "vs. prior month." With "Year to Date" filter, comparison shows "vs. prior year (same period)." You cannot independently set the comparison period separately from the filter period — they are linked. If you want month-over-month comparison, the filter must be set to Month to Date. If you want year-over-year, filter must be Year to Date.
@@ -408,6 +410,24 @@ BRAND = {
   - **brief action_type**: Use `"ACTION_TYPE_SUMMARIZE"` with `"role": "ROLE_USER"`. `ACTION_TYPE_QUESTION` returns "Invalid request".
   - **Payload structure**: BAN uses `{"bundle_request": {"version": 1, "options": {...}, "input": {"metadata": ..., "metric": {...}}}}`. Brief uses `{"language": "LANGUAGE_EN_US", "locale": "LOCALE_EN_US", "now": ..., "messages": [{"content": ..., "action_type": "ACTION_TYPE_SUMMARIZE", "role": "ROLE_USER", "metric_group_context": [ctx], "metric_group_context_resolved": false}]}`.
   - **`language` and `locale` fields**: MUST use enum format — `"LANGUAGE_EN_US"` and `"LOCALE_EN_US"` (not `"en"` or `"en_US"`). Plain string values cause 400 "Invalid request" with no detail.
-  - **metric context**: Build from the live definition GET (`/api/-/pulse/definitions/{def_id}`) and metric GET (`/api/-/pulse/definitions/{def_id}/metrics`) — use `d.get("specification")` for `definition`, `d.get("extension_options")` for `extension_options`, `m.get("specification")` for `metric_specification`, `d.get("representation_options")` for `representation_options`.
+  - **metric context structure (CRITICAL)**: The `metric_group_context` array entries MUST use a nested `metadata` + `metric` wrapper — NOT flat keys. Build from live definition GET (`/api/-/pulse/definitions/{def_id}`) and metric GET (`/api/-/pulse/definitions/{def_id}/metrics`). Pattern:
+    ```python
+    metric_context = {
+        "metadata": {
+            "definition_id": def_id,
+            "metric_id": metric_id,
+            "name": f"{COMPANY} — {metric_label}",
+            "tags": []
+        },
+        "metric": {
+            "definition":           d.get("specification", {}),
+            "extension_options":    d.get("extension_options", {}),
+            "metric_specification": m.get("specification", {}),
+            "representation_options": d.get("representation_options", {}),
+        }
+    }
+    ```
+    Using flat keys (e.g. `{"definition": ..., "extension_options": ..., "metric_specification": ...}` without the `metadata`/`metric` wrapper) causes 400 "Invalid request" with no detail. The GET headers for fetching definition/metric data should use standard `{"x-tableau-auth": token, "Accept": "application/json"}` — NOT the Pulse vendor Content-Type.
+  - **Brief response**: Success returns 201 with `{"markup": "..."}`. The `markup` field contains HTML spans (`<span data-type="metric">...</span>`), bold markers (`**...**`), markdown headers, and reference links (`[[1]](uuid|metric_id)`). Strip these for clean text: `re.sub(r'<span[^>]*>(.*?)</span>', r'\1', markup)` then `re.sub(r'\[\[\d+\]\]\([^)]+\)', '', text)` then `re.sub(r'\*\*', '', text)`.
   - **Save def_ids**: During Pulse metric creation, save both `pulse_metric_ids` AND `pulse_def_ids` to the checkpoint so the insights phase can look them up.
   - **generativeAiPulse**: The REST API GET on the site may incorrectly return `False` for this flag even when it's enabled via the Tableau Cloud UI. If all insight endpoints return 400 "Bad Request" with `validation_code: 400952`, ask the user to enable Pulse AI in Tableau Cloud Settings → AI Features. The `pulsePremiumInsightsEnabled: true` and `pulsePremiumGAIEnabled: true` flags in `siteSettings` are the authoritative indicator.

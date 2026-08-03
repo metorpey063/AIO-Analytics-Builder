@@ -882,16 +882,9 @@ After all metrics are created, PUT each metric back with natural-language nouns 
 
 **Phase 5 — Visualizations + Dashboard (use template library)**
 
-**Step 5a — Ask whether to build a dashboard:**
+**ALWAYS build the dashboard.** Do not ask the user whether to create it — every Tableau Next demo must have visualizations and a dashboard so assets appear in the workspace. Without vizzes, the workspace appears empty and the SDM is only accessible through Data 360.
 
-After SDM/metrics are complete, ask the user:
-
-> "Your Semantic Data Model and metrics are ready — Concierge can already answer questions. Would you also like me to build a **Tableau Next dashboard** with visualizations? This adds chart widgets and a layout on top of the metrics. (yes / no)"
-
-- If **no**: skip Phase 5 entirely (proceed to post-build). The SDM + metrics alone are enough for Concierge demos.
-- If **yes**: continue to Step 5b.
-
-**Step 5b — Present the visualization plan:**
+**Step 5a — Present the visualization plan:**
 
 ```python
 from viz_templates import recommend_dashboard_vizzes
@@ -906,11 +899,10 @@ viz_labels = [f"{v['label']} ({v['template'].replace('_', ' ').title()})" for v 
 preview = format_layout_preview(metric_labels, viz_labels)
 ```
 
-Print the preview and ask the user: **"Here's the dashboard I'll build — approve, edit, or skip?"**
+Print the preview and ask the user: **"Here's the dashboard I'll build — approve or edit?"**
 
-- If **approve**: build as shown
+- If **approve** (or user says nothing / "looks good" / "go"): build as shown
 - If **edit**: user can change chart types, swap metrics, add/remove vizzes
-- If **skip**: skip viz/dashboard creation (proceed to post-build)
 
 Once approved, build each visualization using the template library:
 
@@ -1154,7 +1146,7 @@ Print the following structured summary when the build completes. Use clean markd
 > Show only the phases relevant to the build type (Pulse, Next, CRMA, CSV). Use these status values:
 > - **✓ Complete** — phase ran successfully
 > - **✗ Failed** — phase attempted but errored (include brief reason)
-> - **⊘ Skipped** — phase not applicable or user declined (e.g. user said no to dashboard)
+> - **⊘ Skipped** — phase not applicable to this build type
 > - **— Not run** — phase was never attempted (e.g. build interrupted before reaching it)
 > 
 > For Pulse builds, phases are: Data Generation, Prep Flow Build + Publish, Metric Creation, Group + Subscriptions, Insights (BAN/Brief)

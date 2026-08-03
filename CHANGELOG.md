@@ -4,6 +4,18 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-08-03 — Always Build Dashboard + Fix PKCE Token Rotation
+
+### Changed
+
+**`/build-demo` skill — always create visualizations and dashboard for Tableau Next demos**
+
+Previously the skill asked "Would you also like me to build a dashboard?" after creating the SDM and metrics. This resulted in workspaces appearing empty in the Tableau Next UI when users declined (or the question was skipped). Vizzes and dashboards are now always created — the workspace must have assets visible so the demo audience can see them.
+
+### Fixed
+
+---
+
 ## 2026-08-03 — Fix PKCE Token Rotation for Refresh Grants
 
 ### Fixed
