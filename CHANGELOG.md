@@ -4,6 +4,29 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-08-06 — Add /transfer-assets Command (Cross-Org Dashboard Deployment)
+
+### Added
+
+**`/transfer-assets` — new skill for moving Tableau Next dashboards between orgs**
+
+Packages a dashboard from a source Salesforce org and deploys it to a target org using the Tableau Next Package & Deploy API (`next-package-deploy.demo.tableau.com`). Solves the cross-org field name mismatch problem (auto-generated suffixes like `region6` vs `region1`) that previously made programmatic dashboard copying unreliable.
+
+Key features:
+- Guided flow: select source/target profiles, choose dashboard, deploy
+- Automatic DLO name patching (source org UUID suffix → target org UUID suffix)
+- "Create new" mode deploys a fresh workspace + SDM with correct field structure
+- "Use existing" mode validates dependencies and builds a field mapping
+- Package saved locally as `.json` for re-use if deployment fails
+
+API endpoints discovered and documented:
+- `GET /api/v1/dashboards/list` — list dashboards in connected org
+- `POST /api/v1/dashboards/package` — async package job
+- `POST /api/v1/deployment/deploy` — async deploy with workspace/SDM options
+- `POST /api/v1/deployment/validate-requirements` — pre-flight validation
+
+---
+
 ## 2026-08-03 — Always Build Dashboard + Fix PKCE Token Rotation
 
 ### Changed
