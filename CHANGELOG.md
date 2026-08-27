@@ -4,6 +4,40 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-08-27 — Tableau Dashboard Builder (.twb workbook generation)
+
+### Added
+
+**`twb_builder.py` — programmatic Tableau workbook generation and publish**
+
+Generates valid `.twb` XML workbooks from a config dict and publishes them to Tableau Cloud via `server.workbooks.publish()`. No Tableau Desktop required — the XML is hand-authored using patterns reverse-engineered from Desktop-saved reference files.
+
+Key features:
+- Live `sqlproxy` connection to already-published datasources (no embed)
+- Embedded Pulse metric tiles — live KPI cards with BAN, comparison, sparkline
+- Multiple chart types: horizontal_bar, bar, line, multi-line (color split), dual_axis (bar+line combo)
+- Auto-adapting dashboard layouts: 2×2 grid, side-by-side, 2+1, 3+N patterns
+- Global dimension filters wired to all worksheets
+- Brand-colored title text
+- Deterministic UUIDs for idempotent rebuilds
+
+Dashboard components:
+- Filter row (all dimension fields as dropdown filters)
+- Styled title zone (brand-colored text)
+- Pulse metric tile row (renders live from Pulse metric IDs)
+- Viz content grid (auto-layout based on worksheet count)
+
+Integration:
+- Added as optional Phase 5 in `/build-demo` for Pulse demos (y/n prompt)
+- `get_datasource_content_url()` handles Tableau's timestamp-appended content URLs
+- Requires "Allow Tableau-built extensions" in site Settings → Extensions for Pulse tiles
+
+### Fixed
+
+- Pulse Discover AI: documented that "Enable In-Region Model Requests Only" in the backing Salesforce org blocks Tableau Pulse AI silently — disable to fix
+
+---
+
 ## 2026-08-06 — Add /transfer-assets Command (Cross-Org Dashboard Deployment)
 
 ### Added

@@ -122,6 +122,7 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
 - `style_defaults.py` — font/line/shading/encoding builders with brand color support
 - `crma_uploader.py` — CRM Analytics dataset upload (metadata + base64 CSV + poll)
 - `crma_dashboard_builder.py` — CRMA dashboard state builder (SAQL steps + chart widgets + layout)
+- `twb_builder.py` — Tableau Desktop workbook (.twb) generator: creates worksheets (bar, line, multi-line, dual-axis) + dashboard with Pulse metric tiles, publishes via TSC
 - `prep_flow_builder.py` — Tableau Prep flow generator for auto-refreshing Pulse dates (builds .tflx with embedded CSV + DATEADD(Day_Offset, TODAY()) calc + PublishExtract output)
 
 ## Walkthrough document format (.docx)
@@ -216,6 +217,34 @@ payload = build_viz_payload(
 3. User approves, edits, or skips
 4. Build each viz with `build_viz_payload()` (validation runs automatically)
 5. Assemble dashboard with `build_dashboard_payload()`
+
+## Tableau Dashboard building (Pulse demos — .twb workbooks)
+
+For Pulse demos, optionally publish a Tableau workbook (.twb) alongside the metrics. This uses `twb_builder.py` which generates valid Tableau XML and publishes via `server.workbooks.publish()`.
+
+**How it works:**
+- The `.twb` references the already-published datasource via a `class='sqlproxy'` connection (live reference by `content_url`, not an embed)
+- Tableau Cloud resolves the connection server-side at render time
+- Embedded Pulse metric tiles render live BAN numbers using the `com.tableau.pulse-metric` dashboard extension
+- Requires "Allow Tableau-built extensions" enabled in site Settings → Extensions
+
+**Supported chart types:**
+- `horizontal_bar` — dimension sorted by measure (who is worst?)
+- `bar` — vertical bar chart
+- `line` — measure over time (monthly trend)
+- `line` + `color_field` — multi-line, one line per dimension value (segment divergence)
+- `dual_axis` — two measures on independent Y-axes, bar + line combo (leading indicator relationship)
+
+**Dashboard layout auto-adapts:** 1=full width, 2=side-by-side, 3=2+1, 4=2×2 grid, 5+=3+N rows.
+
+**Critical implementation details:**
+- The datasource `content_url` includes a Tableau-appended timestamp — always use `get_datasource_content_url()` to look it up at runtime
+- Pulse tile extension URL must be `tableau:/pulse/extension-assets/dashboard-metric/index.html` (not `main.trex`)
+- Pulse tile zones must use `type-v2='dashboard-object'`
+- The workbook must include a `<referenced-extensions>` manifest section after `</windows>` for Pulse tiles to load
+- Instance IDs for tiles must be uppercase hex without hyphens
+- Zone-before-zone-style rule (TD-017): child `<zone>` elements must precede `<zone-style>` in every container
+- Window/zone/viewpoint lockstep: every worksheet name in a dashboard zone must also appear in `<windows>` and in the dashboard window's `<viewpoints>`
 
 ## Credentials & config
 

@@ -606,6 +606,116 @@ Pulse goals cannot be set programmatically via the REST API (`datasource_goals` 
 - POST XML to create a group named `{Company} | {YYYY-MM-DD HH:MM}`
 - POST to `/api/-/pulse/subscriptions:batchCreate` for each metric ID
 
+**Phase 5 — Tableau Dashboard (optional, prompt user)**
+
+After Pulse metrics and group are created, ask:
+
+> "Would you like me to also build a Tableau Dashboard with charts and embedded Pulse metric tiles? This publishes a workbook to the same project with interactive filters and visualizations. (yes / no)"
+
+If **yes**, use `twb_builder.py` to generate and publish a `.twb` workbook:
+
+```python
+from twb_builder import build_twb, publish_twb, get_datasource_content_url
+
+# Look up the datasource content_url (Tableau appends a timestamp)
+content_url = get_datasource_content_url(
+    datasource_name=f"{COMPANY} - {USE_CASE_LABEL}",
+    project_id=project_id,
+    server=server,
+)
+
+# Build config for twb_builder
+tc = config["tableau"]
+server_pod = tc["server_url"].replace("https://", "").rstrip("/")
+
+twb_config = {
+    "workbook_name": f"{COMPANY} - {USE_CASE_LABEL}",
+    "datasource_name": f"{COMPANY} - {USE_CASE_LABEL}",
+    "datasource_content_url": content_url,
+    "server_pod": server_pod,
+    "site_name": tc["site_name"],
+    "output_dir": DEMO_DIR,
+    "columns": [
+        # One entry per DataFrame column:
+        # Dimensions: {"name": "Restaurant", "role": "dimension", "datatype": "string"}
+        # Measures (float): {"name": "Daily Revenue", "role": "measure", "datatype": "real", "format": "currency"}
+        # Measures (int): {"name": "Transaction Count", "role": "measure", "datatype": "integer", "format": "integer"}
+        # Date: {"name": "Date", "role": "dimension", "datatype": "datetime"}
+        # Format options: "currency", "percentage", "decimal", "integer" (or omit for no format)
+    ],
+    "worksheets": [
+        # Choose 3-4 charts that tell the demo story. Available types:
+        #
+        # HORIZONTAL BAR — dimension ranked by measure (good for "who is worst/best?"):
+        # {"name": "Revenue by Restaurant", "type": "horizontal_bar", "title": "...",
+        #  "rows_field": "Restaurant", "cols_field": "Daily Revenue",
+        #  "aggregation": "Avg", "sort": "desc"}
+        #
+        # LINE — measure over time (good for "what's the trend?"):
+        # {"name": "Revenue Trend", "type": "line", "title": "...",
+        #  "rows_field": "Daily Revenue", "cols_field": "Date",
+        #  "aggregation": "Avg", "date_derivation": "Month-Trunc"}
+        #
+        # MULTI-LINE (color split) — measure over time, one line per dimension value:
+        # {"name": "Wait by Region", "type": "line", "title": "...",
+        #  "rows_field": "Average Wait Minutes", "cols_field": "Date",
+        #  "aggregation": "Avg", "date_derivation": "Month-Trunc",
+        #  "color_field": "Region"}
+        #
+        # DUAL-AXIS — two measures on separate Y-axes (bar + line combo):
+        # {"name": "Revenue vs Wait", "type": "dual_axis", "title": "...",
+        #  "rows_field": "Daily Revenue", "rows_field_2": "Average Wait Minutes",
+        #  "cols_field": "Date", "aggregation": "Avg", "aggregation_2": "Avg",
+        #  "date_derivation": "Month-Trunc",
+        #  "mark_1": "Bar", "mark_2": "Line",
+        #  "color_1": "#4E9FD1", "color_2": "#E8513A"}
+        #
+        # VERTICAL BAR — measure on rows, dimension on cols:
+        # {"name": "Revenue by Category", "type": "bar", "title": "...",
+        #  "rows_field": "Daily Revenue", "cols_field": "Menu Category",
+        #  "aggregation": "Avg"}
+    ],
+    "pulse_tiles": [
+        # One entry per Pulse metric to embed as a KPI card:
+        # {"field": "Daily Revenue", "def_id": "<def_id>", "metric_id": "<metric_id>"}
+        # Use the def_ids and metric_ids saved to the checkpoint in Phase 3
+    ],
+    "filters": DIMENSIONS,  # list of dimension field names for global dashboard filters
+    "dashboard_name": f"{COMPANY} — {USE_CASE_LABEL} Overview",
+    "brand": {"primary": "#1B3A6B", "secondary": "#4E9FD1", "border": "#bfb18c"},
+}
+
+# Generate .twb file
+twb_path = build_twb(twb_config)
+
+# Publish to Tableau Cloud (same project as the datasource)
+wb_luid = publish_twb(twb_path, project_id, twb_config["workbook_name"], server)
+cp["workbook_luid"] = wb_luid
+save_checkpoint(cp)
+```
+
+**Dashboard layout auto-adapts based on worksheet count:**
+- 1 chart: full width
+- 2 charts: side by side (50/50)
+- 3 charts: 2 on top + 1 full-width bottom
+- 4 charts: 2×2 grid (recommended — most balanced)
+- 5+ charts: top row of 3 + bottom row with remaining
+
+**Chart selection guidelines:**
+- Always include a **horizontal_bar** sorted desc for "who is worst?" (the primary dimension breakdown)
+- Always include a **line** or **multi-line** over time for "what's the trend?"
+- If the demo has a leading/lagging indicator pair, use **dual_axis** to show the relationship
+- If the demo story involves regional/segment divergence, use **multi-line** with `color_field`
+
+**Pulse tile integration:**
+- The Pulse metric tiles render as live KPI cards with BAN number, comparison text, and sparkline
+- They respond to dashboard filters — filtering by Region updates the tiles automatically
+- Requires "Allow Tableau-built extensions" enabled in site settings (Settings → Extensions)
+- Uses the same datasource name and Pulse metric IDs from Phase 3
+
+**Important: datasource content_url lookup.**
+Tableau Cloud appends a timestamp to the content_url when publishing (e.g. `DineAmic-RestaurantOperations_17872297698210`). The `get_datasource_content_url()` function handles this — never hardcode it.
+
 ### For Tableau Next output:
 
 **Auth pattern for ALL Tableau Next phases (CRITICAL):**
