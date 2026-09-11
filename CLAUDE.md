@@ -127,58 +127,66 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
 
 ## Walkthrough document format (.docx)
 
-Every demo build generates a `{slug}_demo_walkthrough.docx` file. **All walkthroughs must follow this consistent 4-section structure** (reference implementation: `demos/bi_worldwide_sales_incentive/bi_worldwide_sales_incentive_concierge_walkthrough.docx`):
+Every demo build generates a `{slug}_demo_walkthrough.docx` file. **All walkthroughs must follow this consistent structure.** The sections included depend on the build type (Pulse vs Next), but the format within each section is identical across all demos. Reference implementation: `demos/mcgough_labor_productivity/mcgough_labor_productivity_demo_walkthrough.docx` (Pulse), `demos/bi_worldwide_sales_incentive/bi_worldwide_sales_incentive_concierge_walkthrough.docx` (Next).
 
-### Section 1 — Demo Scenario
+### Section 1 — Demo Scenario (ALL builds)
 - **H1:** "Demo Scenario"
 - **H2:** "About {Company}" — one paragraph describing the company, their industry, scale, operating model, and why this use case matters to them
 - **H2:** "Audience & Story" — audience line (persona + title), then a paragraph describing the story the demo tells (what's wrong, where it's concentrated, the root cause, and the counter-trend)
 
-### Section 2 — Metrics Reference
+### Section 2 — Metrics Reference (ALL builds)
 - **H1:** "Metrics Reference"
 - Intro paragraph: "Each metric below includes its definition and why it matters to the client..."
 - **H2** per metric with two bold-labeled paragraphs:
   - **"What it measures:"** — technical definition, aggregation type, signal direction, benchmarks/thresholds
   - **"Why it matters:"** — business context for this specific audience; what decision it informs, what it signals when it moves
 
-### Section 3 — Concierge Prompts (Tableau Next) / Demo Click Path (Pulse)
-
-**For Tableau Next builds (Concierge):**
-- **H1:** "Concierge Prompts"
-- Intro paragraph: "Each step below shows the question to ask followed by the expected Concierge response..."
-- **H2** per step with a drill-down title (Opening, Drill 1 — Region, Reveal — Concentration, Root Cause, Counter-trend, Action, etc.)
-- Each step has:
-  - **"Ask:"** (bold) — the quoted question to ask Concierge
-  - **"Expected response:"** (bold) — the AI's answer text (captured live from the Insights API when available, or written from known data when API is unavailable)
+### Section 3 — Demo Click Path (Pulse) / Concierge Prompts (Next)
 
 **For Pulse builds — Demo Click Path:**
 - **H1:** "Demo Click Path"
-- Same H2-per-step structure, but with:
+- Intro paragraph: "Each step below shows the action to take in Pulse followed by what the audience will see."
+- **H2** per step with a drill-down title (Opening, Drill 1 — Sector, Root Cause — Trade, Counter-trend, Action, etc.)
+- Each step has:
   - **"Action:"** (bold) — what to click/filter in Pulse
   - **"Audience sees:"** (bold) — what the sparkline/data reveals at this step
 
-**For Pulse builds — Pulse Discover Questions (separate section):**
-- **H1:** "Pulse Discover Questions"
-- Intro paragraph: "Each question below was asked to Pulse Discover at build time..."
-- **H2** per question (Q1, Q2, etc.) with:
-  - **"Ask:"** (bold) — the quoted question sent to Pulse Discover
-  - **"Expected response:"** (bold) — the live AI-generated answer from the Discover API
+**For Tableau Next builds — Concierge Prompts:**
+- **H1:** "Concierge Prompts"
+- Intro paragraph: "Each step below shows the question to ask followed by the expected Concierge response..."
+- Same H2-per-step structure, but with:
+  - **"Ask:"** (bold) — the quoted question to ask Concierge
+  - **"Expected response:"** (bold) — the AI's answer text (captured live from the Insights API when available, or written from known data when API is unavailable)
 
-**IMPORTANT:** "Ask:" / "Expected response:" is for AI Q&A sections (Concierge Prompts, Pulse Discover Questions). "Action:" / "Audience sees:" is for UI navigation sections (Demo Click Path). Do not mix them.
-
-**Prompt sequence pattern** (adapt to use case):
+**Prompt/step sequence pattern** (adapt to use case):
 1. Opening (surface-level metric view)
 2. Drill 1 — primary dimension (where is it worst?)
-3. Reveal — concentration check (is it everywhere or concentrated?)
+3. Drill 2 — secondary dimension within the culprit
 4. Root cause (what's driving it?)
-5. Drill 2 — secondary dimension (which sub-segment?)
-6. Drill 3 — tertiary dimension (tenure band, cost tier, etc.)
+5. Leading indicator (what moved first?)
+6. Consequence (what broke downstream?)
 7. Counter-trend (the benchmark that proves it's not systemic)
-8. Cross-metric correlation (safety, belonging, alerts confirming the story)
+8. Financial impact (what's the cost?)
 9. At-risk identification (who specifically needs action?)
 10. Action/Summary (what to do next)
 
-### Section 4 — Business Preferences (SDM) — Tableau Next only
+### Section 4 — Pulse Discover Questions (Pulse builds only)
+- **H1:** "Pulse Discover Questions"
+- Intro paragraph: "Each question below was asked to Pulse Discover at build time. The responses are live AI-generated answers based on the actual demo data."
+- **H2** per question (Q1, Q2, Q3, etc.) with:
+  - **"Ask:"** (bold) — the quoted question sent to the Pulse Discover API
+  - **"Expected response:"** (bold) — the live AI-generated answer captured from the `POST /api/-/pulse/insights/brief` endpoint
+- Questions should mirror the demo click path story arc (overall trend → worst segment → drill deeper → root cause → supporting metrics → counter-trend → action)
+- These are **real API responses**, not hand-written — they are captured during the build by sending each question to the Brief API with the metric context
+
+### Section 5 — Setting Up Goal Lines (Pulse builds with goals defined)
+- **H1:** "Setting Up Goal Lines"
+- Intro paragraph: "The datasource includes target columns for easy goal setup in the Pulse UI:"
+- **Bulleted list** — one per metric with a goal: `{Metric}: select "{Goal Field}" → target {value}% → direction: {above/below}`
+- Instructions: "To set up: Open metric → Edit → Goals → Select field from data → Choose the target column → Set direction."
+- **Include only if** any `METRIC_CONFIG` entries have a `goal` key
+
+### Section 6 — Business Preferences (SDM) — Tableau Next only
 - **H1:** "Business Preferences (SDM)"
 - Copy-paste instructions pointing to: Data 360 → Semantic Model → [SDM name] → AI Optimization → Manage Business Preferences
 - Full `#`-prefixed text block with sections:
@@ -190,7 +198,20 @@ Every demo build generates a `{slug}_demo_walkthrough.docx` file. **All walkthro
   - `# ANSWER STYLE` — "Lead with the answer, then supporting data. Do not open with questions back to the user."
   - `# TIME CONTEXT` — default comparison period
 
-**Omit Section 4 for Pulse-only builds** (Pulse has no Concierge/Business Preferences).
+### Summary of sections by build type
+
+| Section | Pulse | Tableau Next | CRMA |
+|---------|-------|-------------|------|
+| 1. Demo Scenario | ✓ | ✓ | ✓ |
+| 2. Metrics Reference | ✓ | ✓ | ✓ |
+| 3. Demo Click Path / Concierge Prompts | ✓ (Click Path) | ✓ (Concierge) | ✓ (Click Path) |
+| 4. Pulse Discover Questions | ✓ | — | — |
+| 5. Setting Up Goal Lines | ✓ (if goals) | — | — |
+| 6. Business Preferences (SDM) | — | ✓ | — |
+
+**Label rules — do NOT mix these:**
+- **"Action:" / "Audience sees:"** → for UI navigation sections (Demo Click Path). Describes what to click and what the data shows visually.
+- **"Ask:" / "Expected response:"** → for AI Q&A sections (Concierge Prompts, Pulse Discover Questions). Describes questions asked to an AI and the AI's responses.
 
 ## Visualization building (Tableau Next)
 

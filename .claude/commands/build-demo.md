@@ -617,6 +617,30 @@ Pulse goals cannot be set programmatically via the REST API (`datasource_goals` 
 - POST XML to create a group named `{Company} | {YYYY-MM-DD HH:MM}`
 - POST to `/api/-/pulse/subscriptions:batchCreate` for each metric ID
 
+**Phase 4b — Pulse Discover Questions**
+
+After metrics are created and subscribed, send the demo story questions to the Pulse Discover (Brief) API and capture the live AI responses. These become the "Pulse Discover Questions" section of the walkthrough .docx.
+
+Define 8-12 questions that mirror the demo click path story arc:
+1. Overall trend question (e.g. "How is our crew efficiency rate trending?")
+2. Worst segment question (e.g. "Which sector has the worst crew efficiency decline?")
+3. Drill deeper within culprit (e.g. "Within Data Centers, which region has the steepest drop?")
+4. Root cause dimension (e.g. "Which trade is driving the decline?")
+5-7. Supporting metric trend questions (one per supporting metric)
+8. Counter-trend question (e.g. "Are any sectors actually improving?")
+9. Financial impact question
+10. Action/at-risk question
+
+For each question, call `POST /api/-/pulse/insights/brief` with:
+- `action_type: "ACTION_TYPE_SUMMARIZE"` (not ACTION_TYPE_QUESTION — that returns 400)
+- The question in the `content` field
+- The appropriate metric context (match the question to the right metric's def_id/metric_id)
+- `language: "LANGUAGE_EN_US"`, `locale: "LOCALE_EN_US"`, `now: date.today().isoformat()`
+
+Clean the response markup: strip `<span>`, `<llm_value>`, other HTML tags, `[[N]](...)` reference links, `**` bold markers, and `###` heading markers.
+
+Save the questions and responses to the checkpoint as `discover_results` (list of `{question, response}` dicts).
+
 **Phase 5 — Tableau Dashboard (optional, prompt user)**
 
 After Pulse metrics and group are created, ask:
@@ -1113,26 +1137,32 @@ This ensures only one complete, working set of assets survives each run.
 - Never delete assets created outside this script (manually, by another build, etc.)
 - If a user asks you to delete assets during a session, confirm the asset name appears in the checkpoint before proceeding. If it doesn't, say: "I don't have a record of creating that asset — please confirm you want me to delete it before I proceed."
 
-**Phase 6 — Post-build steps**
-- Create a dedicated subfolder for this demo: `demos/{company_slug}_{use_case_slug}/`
-- Write the demo guide markdown file there (`{slug}_guide.md`)
-- Generate a Concierge walkthrough `.docx` file there using python-docx (`{slug}_demo_walkthrough.docx`)
-  - The `.docx` must include a **"Business Preferences (SDM)"** section at the end containing the full business preferences text (see below) with copy-paste instructions pointing to: Data 360 → Semantic Model → [SDM name] → AI Optimization → Manage Business Preferences
-- Generate business preferences text tailored to the company/use case and save it to the checkpoint as `"business_preferences"`. Structure as `#`-prefixed instruction lines covering:
-  - What the data represents (company context, what entities are tracked)
-  - Which metrics are leading vs. lagging indicators
-  - Which dimensions are most diagnostic for root-cause analysis
-  - Any terminology clarifications (e.g. what "at-risk" means in this org)
-  - Default time comparison preference (e.g. last 6 months vs. prior 6 months)
-  - Any metric hierarchy notes (which to prioritize when similar metrics exist)
-- Print a final summary block with:
-  - All created asset names (metric names, viz names, dashboard name)
-  - Direct URL to the Tableau Next workspace/dashboard
-  - Direct URL to Tableau Pulse
-  - Absolute file paths to the guide and walkthrough (so the user can click them)
-  - The full business preferences text (reprinted inline for easy access)
-  - A clear callout: "Open the walkthrough .docx for the Business Preferences text to paste into your SDM"
-- Print the **ACTIONS REQUIRED** section (see "After the build" below) — this is where the scheduling instructions, goal setup, and business preferences paste are consolidated. This scheduling is only for Pulse demos.
+**Phase 6 — Walkthrough document + post-build steps**
+
+Generate the walkthrough `.docx` using python-docx. **Follow the standard structure from CLAUDE.md "Walkthrough document format (.docx)" exactly.** The sections included depend on the build type:
+
+**For Pulse builds, the .docx must contain (in this order):**
+1. **Demo Scenario** — H1 with "About {Company}" (H2) and "Audience & Story" (H2)
+2. **Metrics Reference** — H1 with H2 per metric, each with **"What it measures:"** and **"Why it matters:"** bold-labeled paragraphs
+3. **Demo Click Path** — H1 with H2 per step. Labels: **"Action:"** (bold) + **"Audience sees:"** (bold). Describes what to click in the Pulse UI and what the data shows.
+4. **Pulse Discover Questions** — H1 with H2 per question (Q1, Q2, etc.). Labels: **"Ask:"** (bold) + **"Expected response:"** (bold). These are the real AI responses captured in Phase 4b.
+5. **Setting Up Goal Lines** — H1 with bulleted list of metric-to-goal-field mappings plus setup instructions. Only include if any `METRIC_CONFIG` entries have a `goal` key.
+
+**For Tableau Next builds, the .docx must contain (in this order):**
+1. **Demo Scenario** — same as Pulse
+2. **Metrics Reference** — same as Pulse
+3. **Concierge Prompts** — H1 with H2 per step. Labels: **"Ask:"** (bold) + **"Expected response:"** (bold). These are AI Q&A pairs.
+4. **Business Preferences (SDM)** — H1 with copy-paste instructions and `#`-prefixed text block
+
+**Label rules (critical — do not mix):**
+- **"Action:" / "Audience sees:"** → UI navigation (Demo Click Path)
+- **"Ask:" / "Expected response:"** → AI Q&A (Concierge Prompts, Pulse Discover Questions)
+
+**Additional post-build steps:**
+- Create a dedicated subfolder: `demos/{company_slug}_{use_case_slug}/`
+- For Next builds: generate business preferences text and save to checkpoint as `"business_preferences"`
+- Print a final summary block with all created asset names, file paths, and URLs
+- Print the **ACTIONS REQUIRED** section (see "After the build" below)
 
 ### For CRMA output:
 
@@ -1270,9 +1300,9 @@ Print the following structured summary when the build completes. Use clean markd
 > - **⊘ Skipped** — phase not applicable to this build type
 > - **— Not run** — phase was never attempted (e.g. build interrupted before reaching it)
 > 
-> For Pulse builds, phases are: Data Generation, Prep Flow Build + Publish, Metric Creation, Group + Subscriptions, Insights (BAN/Brief)
-> For Next builds, phases are: Data Generation, Schema + Streams, Bulk Ingest, Workspace + SDM, Calculated Measurements, Metrics, Field Descriptions, Business Preferences, Visualizations, Dashboard
-> For CRMA builds, phases are: Data Generation, Dataset Upload, Dashboard Creation
+> For Pulse builds, phases are: Data Generation, Datasource Publish, Metric Creation, Group + Subscriptions, Pulse Discover Questions, Walkthrough Document
+> For Next builds, phases are: Data Generation, Schema + Streams, Bulk Ingest, Workspace + SDM, Calculated Measurements, Metrics, Field Descriptions, Business Preferences, Visualizations, Dashboard, Walkthrough Document
+> For CRMA builds, phases are: Data Generation, Dataset Upload, Dashboard Creation, Walkthrough Document
 > For CSV-only: Data Generation, CSV Export
 > 
 > ### Assets Created

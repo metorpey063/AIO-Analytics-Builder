@@ -4,14 +4,19 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
-## 2026-09-11 — Pulse Discover Questions + walkthrough label clarity
+## 2026-09-11 — Standardized walkthrough .docx format + Pulse Discover Questions
 
 ### Added
-- **Pulse Discover Questions section** in walkthrough .docx: sends demo story questions to the Pulse Discover (Brief) API at build time and captures live AI responses as Ask/Expected response pairs.
+- **Pulse Discover Questions phase** (Phase 4b): sends 8-12 demo story questions to the Pulse Discover (Brief) API at build time and captures live AI responses. These become a dedicated section in the .docx with real Ask/Expected response pairs.
+- **Setting Up Goal Lines section** in .docx: auto-generated from METRIC_CONFIG goal definitions with field-to-metric mapping and UI instructions.
 
 ### Changed
-- **Walkthrough label rules clarified**: "Action:" / "Audience sees:" for UI click paths (Demo Click Path); "Ask:" / "Expected response:" for AI Q&A sections (Concierge Prompts, Pulse Discover Questions). Labels must match the type of interaction.
-- **`/build-demo` skill**: when user selects `pulse` output mode, immediately ask whether to also create a Tableau Dashboard (Step 5a). Previously this was only asked post-build.
+- **Walkthrough .docx structure standardized** across all build types with a section-by-section specification:
+  - Pulse: Demo Scenario → Metrics Reference → Demo Click Path (Action/Audience sees) → Pulse Discover Questions (Ask/Expected response) → Setting Up Goal Lines
+  - Next: Demo Scenario → Metrics Reference → Concierge Prompts (Ask/Expected response) → Business Preferences
+  - CRMA: Demo Scenario → Metrics Reference → Demo Click Path
+- **Label rules formalized**: "Action:" / "Audience sees:" for UI navigation (click paths); "Ask:" / "Expected response:" for AI Q&A (Concierge, Pulse Discover). Never mix them.
+- **`/build-demo` skill**: when user selects `pulse` output mode, immediately ask whether to also create a Tableau Dashboard (Step 5a).
 
 ---
 
