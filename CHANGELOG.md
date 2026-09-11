@@ -4,10 +4,13 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
-## 2026-09-10 — Standardize walkthrough labels + Pulse dashboard prompt
+## 2026-09-11 — Pulse Discover Questions + walkthrough label clarity
+
+### Added
+- **Pulse Discover Questions section** in walkthrough .docx: sends demo story questions to the Pulse Discover (Brief) API at build time and captures live AI responses as Ask/Expected response pairs.
 
 ### Changed
-- **Walkthrough .docx format**: all builds (Pulse and Tableau Next) now use **"Ask:"** / **"Expected response:"** labels in Section 3. Deprecated "Action:" / "Audience sees:" labels for consistency across platforms.
+- **Walkthrough label rules clarified**: "Action:" / "Audience sees:" for UI click paths (Demo Click Path); "Ask:" / "Expected response:" for AI Q&A sections (Concierge Prompts, Pulse Discover Questions). Labels must match the type of interaction.
 - **`/build-demo` skill**: when user selects `pulse` output mode, immediately ask whether to also create a Tableau Dashboard (Step 5a). Previously this was only asked post-build.
 
 ---

@@ -143,15 +143,28 @@ Every demo build generates a `{slug}_demo_walkthrough.docx` file. **All walkthro
 
 ### Section 3 — Concierge Prompts (Tableau Next) / Demo Click Path (Pulse)
 
-**Use the same labels for ALL builds — Pulse and Tableau Next:**
-- **H1:** "Concierge Prompts" (for Next) or "Demo Click Path" (for Pulse)
-- Intro paragraph: "Each step below shows the question to ask followed by the expected response..."
+**For Tableau Next builds (Concierge):**
+- **H1:** "Concierge Prompts"
+- Intro paragraph: "Each step below shows the question to ask followed by the expected Concierge response..."
 - **H2** per step with a drill-down title (Opening, Drill 1 — Region, Reveal — Concentration, Root Cause, Counter-trend, Action, etc.)
 - Each step has:
-  - **"Ask:"** (bold) — the quoted question to ask Concierge, or the action to take in Pulse
-  - **"Expected response:"** (bold) — the AI's answer text, or what the sparkline/data reveals at this step
+  - **"Ask:"** (bold) — the quoted question to ask Concierge
+  - **"Expected response:"** (bold) — the AI's answer text (captured live from the Insights API when available, or written from known data when API is unavailable)
 
-**IMPORTANT:** Always use **"Ask:"** and **"Expected response:"** labels regardless of platform. Do NOT use "Action:" / "Audience sees:" — those labels were deprecated.
+**For Pulse builds — Demo Click Path:**
+- **H1:** "Demo Click Path"
+- Same H2-per-step structure, but with:
+  - **"Action:"** (bold) — what to click/filter in Pulse
+  - **"Audience sees:"** (bold) — what the sparkline/data reveals at this step
+
+**For Pulse builds — Pulse Discover Questions (separate section):**
+- **H1:** "Pulse Discover Questions"
+- Intro paragraph: "Each question below was asked to Pulse Discover at build time..."
+- **H2** per question (Q1, Q2, etc.) with:
+  - **"Ask:"** (bold) — the quoted question sent to Pulse Discover
+  - **"Expected response:"** (bold) — the live AI-generated answer from the Discover API
+
+**IMPORTANT:** "Ask:" / "Expected response:" is for AI Q&A sections (Concierge Prompts, Pulse Discover Questions). "Action:" / "Audience sees:" is for UI navigation sections (Demo Click Path). Do not mix them.
 
 **Prompt sequence pattern** (adapt to use case):
 1. Opening (surface-level metric view)
