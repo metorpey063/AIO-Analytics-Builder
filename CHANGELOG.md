@@ -4,6 +4,17 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-09-17 — /transfer-assets: auto-create data infrastructure in target org
+
+### Added
+- **Automatic data infrastructure creation** in `/transfer-assets`: when the target org doesn't have a matching DLO, the command now auto-creates it (schema registration, stream creation, bulk ingest) instead of requiring a separate `/build-demo` run first.
+- **Data source discovery**: looks for data in order — local CSV in demos/ folder → checkpoint reference → Data Cloud Query API from source org → ask user for CSV path.
+
+### Changed
+- `/transfer-assets` prerequisites relaxed: target org only needs Data Cloud + ingest connector configured, not a pre-existing DLO/stream.
+
+---
+
 ## 2026-09-11 — Standardized walkthrough .docx format + Pulse Discover Questions
 
 ### Added

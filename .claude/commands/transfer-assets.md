@@ -22,10 +22,9 @@ Both orgs must be set up as profiles via `/setup`. If they aren't:
 
 The target org must have:
 - Data Cloud enabled and configured
-- A Data Lake Object (DLO) with the same schema as the source (same data stream/ingest connector)
-- The DLO must be in ACTIVE status
+- An ingest connector configured (via `/setup`)
 
-**IMPORTANT:** The Package & Deploy tool does NOT migrate data infrastructure (streams, DLOs, ingest connectors). The data must already exist in the target org. Use `/build-demo` to create the data infrastructure first, or manually create a matching ingest stream.
+The target org does NOT need to have a matching DLO or data stream already. If the data infrastructure doesn't exist, `/transfer-assets` will create it automatically (schema registration, stream creation, data ingest) as part of Step 4.
 
 ---
 
@@ -81,39 +80,172 @@ r = requests.get(f"{DEPLOY_BASE}/api/v1/dashboards/package/status/{job_id}", hea
 
 Save the package locally at `demos/{slug}/{slug}_package.json`.
 
-### Step 4 — DLO Mapping
+### Step 4 — DLO Mapping (auto-creates data infrastructure if needed)
 
-The package references the source org's DLO name. The target org has the same data but with a different DLO name (auto-generated UUID suffix differs per org).
+The package references the source org's DLO name. The target org needs a matching DLO — either one that already exists, or one that `/transfer-assets` creates automatically.
 
-**Find the source DLO name** from the package:
+**4a — Find the source DLO name** from the package:
 ```python
-# Search the package JSON for DLO references (contains "__dll" suffix)
 import re
 pkg_str = json.dumps(package_data)
 dlo_matches = re.findall(r'[a-z_]+__dll', pkg_str)
 source_dlo = dlo_matches[0] if dlo_matches else None
+# Extract schema prefix (everything before the last _XXXXXXXX__dll)
+source_prefix = re.sub(r'_[A-Fa-f0-9]{8}__dll$', '', source_dlo)
 ```
 
-**Find the target DLO:**
+**4b — Search for a matching DLO in the target org:**
 ```python
 # Using target org token
-r = requests.get(f"{sf_instance}/services/data/v62.0/ssot/data-streams",
-                 headers=h, params={"connectorId": connector_id, "limit": 200})
-# Find the stream whose name contains the same schema prefix
-for stream in streams:
-    stream_detail = requests.get(f"{sf_instance}/services/data/v62.0/ssot/data-streams/{stream['name']}", headers=h)
-    target_dlo = stream_detail.json().get("dataLakeObjectInfo", {}).get("name", "")
+r = requests.get(f"{tgt_instance}/services/data/v62.0/ssot/data-streams",
+                 headers=tgt_h, params={"connectorId": tgt_connector_id, "limit": 200})
+target_dlo = None
+target_stream_name = None
+for stream in r.json().get("dataStreams", []):
+    if source_prefix in stream.get("name", "").lower():
+        stream_detail = requests.get(
+            f"{tgt_instance}/services/data/v62.0/ssot/data-streams/{stream['name']}",
+            headers=tgt_h)
+        target_dlo = stream_detail.json().get("dataLakeObjectInfo", {}).get("name", "")
+        target_stream_name = stream["name"]
+        break
 ```
 
-**Patch the package:** Replace the source DLO name with the target DLO name in the package JSON:
+**4c — If no matching DLO exists, auto-create the data infrastructure:**
+
+Tell the user:
+> "The target org doesn't have a matching data stream. I'll create the data infrastructure now — this takes 2-5 minutes."
+
+**4c.1 — Get the schema from the source org:**
+```python
+# Find the source stream to extract its schema fields
+src_r = requests.get(f"{src_instance}/services/data/v62.0/ssot/data-streams",
+                     headers=src_h, params={"connectorId": src_connector_id, "limit": 200})
+for stream in src_r.json().get("dataStreams", []):
+    if source_prefix in stream.get("name", "").lower():
+        src_stream = requests.get(
+            f"{src_instance}/services/data/v62.0/ssot/data-streams/{stream['name']}",
+            headers=src_h).json()
+        break
+
+# Extract field definitions from the source stream
+src_fields = src_stream.get("dataLakeObjectInfo", {}).get("dataLakeFieldInputRepresentations", [])
+# These give us: name, label, dataType, isPrimaryKey for each field
+```
+
+**4c.2 — Find CSV data:**
+
+Look for data in this order:
+1. **Local CSV** — search `demos/` for a CSV matching the schema name or source dashboard slug
+2. **Checkpoint reference** — check if a `_checkpoint.json` exists that references a CSV path
+3. **Data Cloud Query API** — query the source org's DLO directly (requires `cdp_query_api` scope):
+   ```python
+   query_url = f"{src_dc_domain}/api/v2/query"
+   query_payload = {"sql": f"SELECT * FROM {source_dlo}"}
+   r = requests.post(query_url, headers={"Authorization": f"Bearer {src_dc_token}",
+                     "Content-Type": "application/json"}, json=query_payload)
+   # Parse response rows into a DataFrame, export as CSV
+   ```
+4. If none available, ask the user to provide a CSV file path.
+
+**4c.3 — Register schema in target org:**
+```python
+# GET existing schemas, merge, PUT
+tgt_connector_id = tgt_config["salesforce"]["connector_sf_id"]
+r = requests.get(f"{tgt_instance}/services/data/v62.0/ssot/connections/{tgt_connector_id}/schema",
+                 headers=tgt_h)
+existing = r.json().get("schemas", [])
+
+STRIP_FIELDS = {"availabilityStatus", "createdDate", "lastModifiedDate"}
+cleaned = [{k: v for k, v in s.items() if k not in STRIP_FIELDS} for s in existing]
+
+# Build schema from source fields
+schema_fields = [{"name": f["name"], "label": f.get("label", f["name"]),
+                  "dataType": f["dataType"]} for f in src_fields]
+new_schema = {"name": schema_name, "label": schema_name,
+              "schemaType": "IngestApi", "fields": schema_fields}
+
+# Merge or append
+if schema_name in [s["name"] for s in cleaned]:
+    merged = [new_schema if s["name"] == schema_name else s for s in cleaned]
+else:
+    merged = cleaned + [new_schema]
+
+requests.put(f"{tgt_instance}/services/data/v62.0/ssot/connections/{tgt_connector_id}/schema",
+             headers=tgt_h, json={"schemas": merged})
+time.sleep(20)  # Schema propagation
+```
+
+**4c.4 — Create data stream in target org:**
+
+Use the exact stream creation payload format from CLAUDE.md (with `datastreamType`, `dataLakeObjectInfo`, `dataspaceInfo`, `mappings`). Find the `isPrimaryKey` field from the source fields and include it in `dataLakeFieldInputRepresentations`.
+
+```python
+tgt_connector_uuid = tgt_config["salesforce"]["connector_uuid_name"]
+tgt_connector_short = tgt_config["salesforce"]["ingestion_connector_name"]
+pk_field = next((f["name"] for f in src_fields if f.get("isPrimaryKey")), "record_id")
+
+stream_payload = {
+    "name": schema_name, "label": schema_name,
+    "datasource": tgt_connector_short[:10],
+    "datastreamType": "INGESTAPI",
+    "connectorInfo": {
+        "connectorType": "IngestApi",
+        "connectorDetails": {"name": tgt_connector_uuid, "events": [schema_name]},
+    },
+    "dataLakeObjectInfo": {
+        "label": schema_name, "category": "Other",
+        "dataspaceInfo": [{"name": "default"}],
+        "dataLakeFieldInputRepresentations": [
+            {"name": pk_field, "label": pk_field, "dataType": "Text", "isPrimaryKey": True}
+        ],
+        "eventDateTimeFieldName": "", "recordModifiedFieldName": "",
+    },
+    "mappings": [],
+}
+r = requests.post(f"{tgt_instance}/services/data/v62.0/ssot/data-streams",
+                  headers=tgt_h, json=stream_payload)
+```
+
+If the stream already exists ("already in use"), discover the existing stream name and DLO.
+
+Poll for ACTIVE status, then wait 30s for schema propagation.
+
+**4c.5 — Bulk ingest data:**
+
+```python
+tgt_dc_token, tgt_dc_domain = get_dc_token(tgt_sf_token, tgt_instance)
+
+# Create ingest job
+job_r = requests.post(f"https://{tgt_dc_domain}/api/v1/ingest/jobs",
+    headers={"Authorization": f"Bearer {tgt_dc_token}", "Content-Type": "application/json"},
+    json={"object": schema_name, "operation": "upsert", "sourceName": tgt_connector_short})
+
+job_id = job_r.json().get("id")
+
+# Upload CSV
+requests.put(f"https://{tgt_dc_domain}/api/v1/ingest/jobs/{job_id}/batches",
+    headers={"Authorization": f"Bearer {tgt_dc_token}", "Content-Type": "text/csv"},
+    data=csv_bytes)
+
+# Close job
+requests.patch(f"https://{tgt_dc_domain}/api/v1/ingest/jobs/{job_id}",
+    headers={"Authorization": f"Bearer {tgt_dc_token}", "Content-Type": "application/json"},
+    json={"state": "UploadComplete"})
+
+# Poll until JobComplete (up to 10 minutes)
+```
+
+After ingest completes, the target DLO and stream name are known — proceed to 4d.
+
+**4d — Patch the package:**
+
+Replace the source DLO name with the target DLO name:
 ```python
 pkg_str = json.dumps(package_data)
-pkg_str = pkg_str.replace(source_dlo_name, target_dlo_name)
+pkg_str = pkg_str.replace(source_dlo, target_dlo)
 package_data = json.loads(pkg_str)
 ```
-
-If no matching DLO exists in the target org, tell the user:
-> "The target org doesn't have a matching data stream. You need to run `/build-demo` in the target org first to create the data infrastructure, then come back and run `/transfer-assets` to deploy the dashboard."
 
 ### Step 5 — Deployment Options
 
@@ -234,7 +366,10 @@ On failure, print the error and suggest next steps based on the error code:
 
 ## Known issues
 
-- **DLO validation:** The tool validates that the DLO referenced in the package exists in the target org. Since DLO names include org-specific UUID suffixes, you MUST patch the DLO name in the package before deploying. The Step 4 DLO Mapping handles this automatically.
+- **DLO validation:** The tool validates that the DLO referenced in the package exists in the target org. Since DLO names include org-specific UUID suffixes, you MUST patch the DLO name in the package before deploying. Step 4 handles this automatically (including creating the DLO if needed).
+- **Data infrastructure creation:** When auto-creating data infrastructure (Step 4c), the target org's ingest connector must already be configured via `/setup`. The schema, stream, and data are created automatically, but the connector is a one-time setup step.
+- **Data source priority:** When creating data infrastructure, the command looks for data in this order: local CSV (demos/ folder) → checkpoint reference → Data Cloud Query API (source org) → ask user. The Query API requires `cdp_query_api` scope on the source org's connected app.
+- **Schema propagation delay:** After registering a schema and creating a stream, there's a 20-30 second propagation delay before the bulk ingest API recognizes the new object. The command handles this with automatic retries.
 - **"Use existing" SDM:** When deploying to an existing SDM, the tool validates field names exactly. If the target org has different auto-generated suffixes (e.g. `region1` vs `region6`), you need a complete `dependency_map`. The "Create new" option avoids this entirely and is recommended.
 - **Token expiration:** Some orgs have aggressive token rotation. If deploy fails with auth errors, re-run `/setup` Step 4b to refresh the token for that profile.
 - **Internal tool:** This is an internal Salesforce tool (not a public product). Availability is not guaranteed. If the service is down, fall back to manual dashboard recreation.
