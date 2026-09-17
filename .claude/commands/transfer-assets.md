@@ -133,20 +133,65 @@ src_fields = src_stream.get("dataLakeObjectInfo", {}).get("dataLakeFieldInputRep
 # These give us: name, label, dataType, isPrimaryKey for each field
 ```
 
-**4c.2 — Find CSV data:**
+**4c.2 — Download data from the source org:**
 
-Look for data in this order:
-1. **Local CSV** — search `demos/` for a CSV matching the schema name or source dashboard slug
-2. **Checkpoint reference** — check if a `_checkpoint.json` exists that references a CSV path
-3. **Data Cloud Query API** — query the source org's DLO directly (requires `cdp_query_api` scope):
-   ```python
-   query_url = f"{src_dc_domain}/api/v2/query"
-   query_payload = {"sql": f"SELECT * FROM {source_dlo}"}
-   r = requests.post(query_url, headers={"Authorization": f"Bearer {src_dc_token}",
-                     "Content-Type": "application/json"}, json=query_payload)
-   # Parse response rows into a DataFrame, export as CSV
-   ```
-4. If none available, ask the user to provide a CSV file path.
+Always pull data directly from the source org via the Data Cloud Query API. This ensures the transfer works regardless of whether we built the original demo or not.
+
+```python
+from connections import get_dc_token
+
+# Get Data Cloud token for the SOURCE org
+src_dc_token, src_dc_domain = get_dc_token(src_sf_token, src_instance)
+
+# Query the source DLO for all rows
+query_url = f"https://{src_dc_domain}/api/v2/query"
+query_payload = {"sql": f"SELECT * FROM {source_dlo}"}
+r = requests.post(query_url, headers={
+    "Authorization": f"Bearer {src_dc_token}",
+    "Content-Type": "application/json",
+}, json=query_payload)
+
+if r.status_code not in (200, 201):
+    raise RuntimeError(f"Failed to query source data: {r.status_code} {r.text[:300]}")
+
+result = r.json()
+columns = [col["name"] for col in result.get("metadata", {}).get("columns", [])]
+rows = result.get("data", [])
+
+import pandas as pd
+df = pd.DataFrame(rows, columns=columns)
+print(f"  Downloaded {len(df):,} rows from source org")
+
+# Convert to CSV bytes for ingest
+# Column names from Data Cloud have __c suffix — strip for ingest schema matching
+ingest_df = df.copy()
+ingest_df.columns = [c.replace("__c", "") for c in ingest_df.columns]
+csv_bytes = ingest_df.to_csv(index=False).encode("utf-8")
+
+# Save a local copy for reference
+csv_path = os.path.join(DEMO_DIR, f"{schema_name}_transferred.csv")
+ingest_df.to_csv(csv_path, index=False)
+print(f"  Saved local copy: {csv_path}")
+```
+
+**Pagination:** If the source DLO has more than 10,000 rows, the Query API paginates. Handle with `nextBatchId`:
+```python
+all_rows = []
+next_batch = None
+while True:
+    payload = {"sql": f"SELECT * FROM {source_dlo}"}
+    if next_batch:
+        payload["nextBatchId"] = next_batch
+    r = requests.post(query_url, headers=query_headers, json=payload)
+    result = r.json()
+    all_rows.extend(result.get("data", []))
+    next_batch = result.get("nextBatchId")
+    if not next_batch:
+        break
+```
+
+**If the Query API fails** (missing `cdp_query_api` scope, or source org doesn't support it), fall back to asking the user:
+> "I couldn't query data from the source org directly. Please provide a CSV file path containing the data to ingest into the target org."
 
 **4c.3 — Register schema in target org:**
 ```python
@@ -368,7 +413,7 @@ On failure, print the error and suggest next steps based on the error code:
 
 - **DLO validation:** The tool validates that the DLO referenced in the package exists in the target org. Since DLO names include org-specific UUID suffixes, you MUST patch the DLO name in the package before deploying. Step 4 handles this automatically (including creating the DLO if needed).
 - **Data infrastructure creation:** When auto-creating data infrastructure (Step 4c), the target org's ingest connector must already be configured via `/setup`. The schema, stream, and data are created automatically, but the connector is a one-time setup step.
-- **Data source priority:** When creating data infrastructure, the command looks for data in this order: local CSV (demos/ folder) → checkpoint reference → Data Cloud Query API (source org) → ask user. The Query API requires `cdp_query_api` scope on the source org's connected app.
+- **Data sourced from source org:** When creating data infrastructure, the command always downloads data directly from the source org via the Data Cloud Query API (`POST /api/v2/query`). This works regardless of whether the demo was originally built by this tool. Requires `cdp_query_api` scope on the source org's connected app. Falls back to asking for a CSV if the query fails.
 - **Schema propagation delay:** After registering a schema and creating a stream, there's a 20-30 second propagation delay before the bulk ingest API recognizes the new object. The command handles this with automatic retries.
 - **"Use existing" SDM:** When deploying to an existing SDM, the tool validates field names exactly. If the target org has different auto-generated suffixes (e.g. `region1` vs `region6`), you need a complete `dependency_map`. The "Create new" option avoids this entirely and is recommended.
 - **Token expiration:** Some orgs have aggressive token rotation. If deploy fails with auth errors, re-run `/setup` Step 4b to refresh the token for that profile.
