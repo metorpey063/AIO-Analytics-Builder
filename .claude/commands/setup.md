@@ -384,6 +384,118 @@ print(json.dumps(connectors))
 
 After the user confirms it's created, re-run the connector lookup to get the connector ID and name, then save to config.
 
+### Step 4d — Tableau Next MCP Server (optional, pilot)
+
+After the ingest connector is configured, ask:
+> "Would you also like to connect the **Tableau Next MCP server**? This is a pilot feature that lets Claude Code build Tableau Next demos through a governed, platform-backed API — no manual REST calls needed. It enables slim viz creation, programmatic business preferences, dashboard filters, and live Concierge testing. (Requires the `TableauPilotMCPServerEnabled` org permission.)"
+
+- If **no**: skip to Step 5.
+- If **yes**: guide through the following steps.
+
+---
+
+**Step 4d.1 — Enable the pilot org permission**
+
+> "First, the org needs the `TableauPilotMCPServerEnabled` permission enabled. You can do this via BlackTab, or request it in #q-branch-xdo-license-extension-requests. Is this already enabled?"
+
+- If **yes**: continue.
+- If **no**: tell them to enable it and come back.
+
+---
+
+**Step 4d.2 — Activate the MCP server in the org**
+
+> "In Salesforce Setup, search for **'MCP Servers'** (under API Catalog) → click the **Salesforce Servers** tab → find **tableau-next-pilot** → click **Activate**. Type **next** when done."
+
+---
+
+**Step 4d.3 — Create or identify the MCP External Client App**
+
+> "The MCP needs its own External Client App with different scopes than the one we set up for direct API access. Do you already have one set up for the MCP, or should we create a new one?"
+
+**If they need to create one**, walk through:
+
+> "Go to Setup → **External Client App Manager** → **New External Client App**. Fill in:"
+
+- **App Name:**
+```
+Claude Code MCP Client
+```
+- **Contact Email:** your email
+
+> "Expand **API (Enable OAuth Settings)**, check **Enable OAuth**, and set:"
+
+- **Callback URL:**
+```
+http://localhost:8080/callback
+```
+
+> "Under **Selected OAuth Scopes**, add these two:"
+```
+Perform requests at any time (refresh_token, offline_access)
+```
+```
+Access Salesforce Hosted MCP Servers (mcp_api)
+```
+
+> "Under **Security**:"
+> - **Uncheck:** Require secret for Web Server Flow, Require secret for Refresh Token Flow, Enforce Refresh Token IP Allowlist
+> - **Check:** Require Proof Key for Code Exchange (PKCE), Issue JSON Web Token (JWT)-based access tokens for named users
+
+> "Click **Create**. Then go to the app's **Settings** tab → **OAuth Settings** → **Consumer Key and Secret** → copy the **Consumer Key**. Paste it here."
+
+**If they already have one**, ask:
+> "What is the Consumer Key for your MCP External Client App?"
+
+---
+
+**Step 4d.4 — Add the MCP to Claude Code**
+
+Once you have the consumer key, run:
+
+```bash
+claude mcp remove tableau-next-pilot 2>/dev/null
+claude mcp add tableau-next-pilot --transport http --callback-port 8080 --scope user --client-id CONSUMER_KEY_HERE https://api.salesforce.com/platform/mcp/v1/analytics/tableau-next-pilot
+```
+
+Tell the user:
+> "MCP server registered. Now you need to authenticate:"
+> 1. Make sure your **default browser is logged into this org** (log out of all other Salesforce orgs)
+> 2. Run `/mcp` in Claude Code, select **tableau-next-pilot**, and press Enter
+> 3. Authenticate in the browser tab that opens
+>
+> "If authentication fails, wait a few minutes for the External Client App to become active."
+
+---
+
+**Step 4d.5 — Test the MCP connection**
+
+After the user authenticates, verify the connection works:
+
+```bash
+# Test by listing workspaces (will return empty array if org is new, that's fine)
+```
+
+Use the MCP tool `mcp__tableau-next-pilot__list_workspaces` with `limit: 1` to verify the connection. If it returns successfully (even with zero workspaces), the MCP is working.
+
+- If successful: tell the user "MCP connected — Tableau Next demos can now use the MCP build path for slim viz creation, programmatic business preferences, and live Concierge testing. See MCP_BUILD_GUIDE.md for details."
+- If it fails: check that the org permission is enabled, the MCP server is activated, and the ECA has the correct scopes (`mcp_api` + `refresh_token, offline_access`).
+
+---
+
+**MCP scope reference (for documentation):**
+
+| Scope | Purpose | Required for |
+|-------|---------|-------------|
+| `api` | General Salesforce API access | Direct REST (Step 4a ECA) |
+| `sfap_api` | Salesforce API Platform | Direct REST |
+| `cdp_ingest_api` | Data Cloud Ingest API | Direct REST (bulk ingest) |
+| `cdp_query_api` | Data Cloud Query API | Direct REST (data queries) |
+| `refresh_token` | Offline token refresh | Both ECAs |
+| `mcp_api` | MCP server access | MCP ECA only (Step 4d) |
+
+The direct REST ECA (Step 4a) and the MCP ECA (Step 4d) are **separate apps** with different scopes. Both can coexist on the same org.
+
 ---
 
 ## Step 5 — Save config and validate

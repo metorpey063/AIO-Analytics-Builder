@@ -4,6 +4,29 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-09-21 — Tableau Next MCP integration + MCP Build Guide
+
+### Added
+- **MCP_BUILD_GUIDE.md**: comprehensive guide for building Tableau Next demos using the `tableau-next-pilot` MCP server, covering every phase from data upload through dashboard creation
+- **MCP setup in `/setup`** (Step 4d): optional guided setup for the Tableau Next MCP server — org permission enablement, ECA creation with `mcp_api` scope, `claude mcp add` command, and connection verification
+- **DDI Franchise Performance v2 demo**: full end-to-end MCP build (31,500 rows, 7 metrics, 4 vizzes, dashboard with 7 widgets + 3 global filters, business preferences, 7 live Concierge responses)
+- **MCP vs REST comparison doc**: quantified efficiency gains — 80% less code, 5x more assets, zero manual post-build steps, 1,399 lines of shared library code eliminated
+- **Concierge Q&A capture via MCP**: `analyze_data` tool replaces manual Concierge testing for Tableau Next demos, equivalent to Pulse BAN/Brief API flow
+
+### Key MCP advantages documented
+- `create_visualization`: slim ~10-line specs replace 400+ lines of VizQL payload construction (viz_builder.py, viz_validator.py, style_defaults.py all unnecessary)
+- `update_semantic_model(businessPreferences=...)`: programmatic business preferences (was UI-only manual paste)
+- `add_semantic_model_metric`: 1 call per metric with nouns + insights inline (was 3 calls: CLC + metric + noun PUT)
+- `add_global_filter_to_dashboard`: dashboard filters work via MCP (400 errors via direct REST)
+- `analyze_data`: live Concierge response capture for walkthrough .docx
+
+### Notes
+- MCP is Tableau Next only — Pulse, CRMA, .twb, .docx generation unchanged
+- MCP is currently in pilot (`TableauPilotMCPServerEnabled` permission required)
+- Direct REST approach remains the fallback for non-MCP orgs
+
+---
+
 ## 2026-09-17 — /transfer-assets: auto-create data infrastructure in target org
 
 ### Added
