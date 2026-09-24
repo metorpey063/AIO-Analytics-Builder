@@ -4,6 +4,14 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-09-24 — UX: clickable buttons replace "type next" in /setup
+
+### Changed
+- **`/setup` wizard**: all "type next" / "say go" / "type done" prompts replaced with `AskUserQuestion` clickable buttons. Users now click contextual options (e.g. "App created — ready to continue" / "I need help") instead of typing free text.
+- Added UX rule section at top of `setup.md` enforcing this pattern for all future step-by-step flows.
+
+---
+
 ## 2026-09-21 — Tableau Next MCP integration + MCP Build Guide
 
 ### Added
