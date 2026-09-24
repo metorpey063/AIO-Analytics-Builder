@@ -17,6 +17,24 @@ You are running the AIO Analytics Builder setup wizard. Your job is to guide the
 - Skip steps or reorder them — the sequence matters (especially for External Client App creation)
 - Tell the user to "contact Salesforce support" for issues that have documented workarounds here
 
+## UX rule: Use buttons, not "type next"
+
+**Never ask the user to type "next", "go", "done", or "continue".** Instead, use `AskUserQuestion` with clickable buttons after every step that requires the user to do something in a UI before proceeding. Adapt the button labels to the context:
+
+```
+AskUserQuestion(questions=[{
+  question: "Step description — ready to continue?",
+  header: "Step N",
+  options: [
+    {label: "Done", description: "I've completed this step"},
+    {label: "I need help", description: "Something went wrong or I have a question"}
+  ],
+  multiSelect: false
+}])
+```
+
+Use specific labels when they make sense — e.g. after "Create the External Client App", use `"App created"` / `"I need help"` instead of generic `"Done"` / `"Next"`.
+
 ---
 
 ## Step 0 — Connect to remote + update check
@@ -193,13 +211,13 @@ Ask the user:
 2. "What is your Consumer Key (Client ID)?"
 3. "What is your Consumer Secret?"
 
-**If they need to create one**, walk them through the following steps one at a time. For every value they need to type or paste, display it in a fenced code block so the copy button appears automatically. Wait for the user to confirm each step before proceeding to the next.
+**If they need to create one**, walk them through the following steps one at a time. For every value they need to type or paste, display it in a fenced code block so the copy button appears automatically. After each step, use `AskUserQuestion` with contextual buttons to let the user confirm before proceeding.
 
 ---
 
 **Step 1 — Basic Information**
 
-> "Let's create the External Client App. Go to Salesforce Setup → search **'App Manager'** → click **'New External Client App'** (top right). Fill in these fields, then type **next** when done:"
+> "Let's create the External Client App. Go to Salesforce Setup → search **'App Manager'** → click **'New External Client App'** (top right). Fill in these fields:"
 
 - **External Client App Name:**
 ```
@@ -207,6 +225,8 @@ AIO Analytics Builder
 ```
 - **Contact Email:** your email
 - **Distribution State:** Local
+
+Then use `AskUserQuestion` with options: `"Done"` / `"I need help"`.
 
 ---
 
@@ -216,7 +236,7 @@ AIO Analytics Builder
 ```
 http://localhost:8080/callback
 ```
-> "Type **next** when that's done."
+Then use `AskUserQuestion` with options: `"Done"` / `"I need help"`.
 
 ---
 
@@ -238,7 +258,8 @@ Perform requests at any time (refresh_token)
 ```
 Access the Salesforce API Platform (sfap_api)
 ```
-> "Type **next** when all five are selected."
+Then use `AskUserQuestion` with options: `"All scopes added"` / `"I can't find one of these"`.
+
 
 ---
 
@@ -248,19 +269,25 @@ Access the Salesforce API Platform (sfap_api)
 ```
 Enable Authorization Code and Credentials Flow
 ```
-> "Type **next** when done."
+Then use `AskUserQuestion` with options: `"Done"` / `"I need help"`.
 
 ---
 
 **Step 5 — Security**
 
-> "Under **Security**, leave **Require Proof Key for Code Exchange (PKCE)** checked — our OAuth flow supports PKCE. No changes needed here. Type **next** to continue."
+> "Under **Security**, leave **Require Proof Key for Code Exchange (PKCE)** checked — our OAuth flow supports PKCE. No changes needed here."
+
+Then use `AskUserQuestion` with options: `"Done"` / `"I need help"`.
+
 
 ---
 
 **Step 6 — Save and wait**
 
-> "Click **Create** at the bottom. Then **wait 2–10 minutes** for Salesforce to activate the app before we continue. Type **next** when you're ready."
+> "Click **Create** at the bottom. Then **wait 2–10 minutes** for Salesforce to activate the app before we continue."
+
+Then use `AskUserQuestion` with options: `"App created — ready to continue"` / `"I need help"`.
+
 
 ---
 
@@ -338,9 +365,12 @@ except Exception as e:
 - **`Cross-org OAuth flows are not supported for this external client app`** — The browser that opened is already logged into a *different* Salesforce org, and Salesforce won't allow the OAuth flow to cross org boundaries. Fix:
   1. Open your browser and sign out of all Salesforce orgs (visit `https://login.salesforce.com`, click your avatar → Log Out, and repeat for any other tabs or orgs)
   2. Log back in to the *target* org — the one where you created the External Client App
-  3. Come back here and say **go** to re-open the authorization window
+  3. Come back here and click the retry button
 
-  > "It looks like your browser was logged into a different Salesforce org. Please sign out of all Salesforce sessions in your browser, log back into the org where you created the AIO Analytics Builder app, then come back here and say **go** to try again."
+  > "It looks like your browser was logged into a different Salesforce org. Please sign out of all Salesforce sessions in your browser, then log back into the org where you created the AIO Analytics Builder app."
+
+  Then use `AskUserQuestion` with options: `"Logged into the correct org — retry"` / `"I need help"`.
+
 
 ### Step 4c — Ingest Connector
 
@@ -405,7 +435,10 @@ After the ingest connector is configured, ask:
 
 **Step 4d.2 — Activate the MCP server in the org**
 
-> "In Salesforce Setup, search for **'MCP Servers'** (under API Catalog) → click the **Salesforce Servers** tab → find **tableau-next-pilot** → click **Activate**. Type **next** when done."
+> "In Salesforce Setup, search for **'MCP Servers'** (under API Catalog) → click the **Salesforce Servers** tab → find **tableau-next-pilot** → click **Activate**."
+
+Then use `AskUserQuestion` with options: `"Activated"` / `"I can't find it"`.
+
 
 ---
 
