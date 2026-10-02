@@ -248,6 +248,91 @@ payload = build_viz_payload(
 4. Build each viz with `build_viz_payload()` (validation runs automatically)
 5. Assemble dashboard with `build_dashboard_payload()`
 
+## Two-pass viz creation (Tableau Next — high fidelity)
+
+For demos requiring pixel-perfect vizzes, use the **two-pass pattern**: MCP creates the structure, REST PATCH applies the styling.
+
+**Pass 1 — MCP `create_visualization`** (slim IR-v2 spec):
+- Chart type, fields, shelves (rows/columns), encodings (Color/Size/Detail/Label)
+- Sorts (`sortIntent`), filters, reference lines, number formats, mark color
+- This gets ~80% of the visual right
+
+**Pass 2 — REST PATCH** for styling the MCP can't set:
+```python
+import requests
+from connections import sf_headers
+
+# GET the viz, modify specific style properties, PATCH back
+viz = requests.get(f'{instance}/services/data/v66.0/tableau/visualizations/{viz_id}?minorVersion=12',
+    headers=sf_headers(token)).json()
+
+# Example: set dual-axis (F1=Bar, F2=Line)
+viz['visualSpecification']['marks']['fields'] = {
+    'F1': {'type': 'Bar', 'isAutomatic': False, 'encodings': [], 'stack': {'isAutomatic': True, 'isStacked': True}},
+    'F2': {'type': 'Line', 'isAutomatic': False, 'encodings': [], 'stack': {'isAutomatic': True, 'isStacked': False}},
+}
+
+# Strip read-only keys before PATCH
+STRIP = {'id','createdBy','createdDate','lastModifiedBy','lastModifiedDate','permissions',
+    'sourceVersion','templateSource','creationSource','url','isOriginal','semanticModel','useInlineModel'}
+def clean(obj):
+    if isinstance(obj, dict):
+        return {k: clean(v) for k, v in obj.items() if k not in STRIP}
+    elif isinstance(obj, list):
+        return [clean(i) for i in obj]
+    return obj
+
+requests.patch(f'{instance}/services/data/v66.0/tableau/visualizations/{viz_id}?minorVersion=12',
+    headers=sf_headers(token), json=clean(viz))
+```
+
+**What PATCH can set that MCP cannot:**
+
+| Property | Path in viz spec |
+|----------|-----------------|
+| Dual-axis mark types | `marks.fields.{fk}.type` (Line/Bar per measure) |
+| Per-field mark colors | `style.marks.fields.{fk}.color.color` (hex) |
+| Continuous color palettes | `style.encodings.fields.{fk}.colors = {type: "Continuous", palette: {start, end}}` |
+| Hidden axes | `style.axis.fields.{fk}.isVisible = false` |
+| Axis titles | `style.axis.fields.{fk}.titleText` |
+| Mark size/line width | `style.marks.panes.size = {type: "Pixel", value: 3}` |
+| Mark labels | `style.marks.panes.label.showMarkLabels = true` |
+| Fit mode | `style.fit = "Entire"` |
+| Reference lines | `visualSpecification.referenceLines.{key}` |
+
+**PATCH gotchas:**
+- `negativeValuesFormat: "NegativeSign"` is rejected — omit this field from number formats
+- `isOriginal` on `view` is read-only — must strip
+- `semanticModel` inside `dataSource` is huge and read-only — must strip
+- Always GET → modify → PATCH (never build from scratch — the viz has server-generated fields you must preserve)
+
+## Dashboard assembly (Tableau Next)
+
+**Layout defaults for clean spacing:**
+```python
+layout = {
+    "columnCount": 48, "rowHeight": 20, "maxWidth": 1200,
+    "style": {"backgroundColor": "#FFFFFF", "gutterColor": "#F3F3F3", "cellSpacingX": 4, "cellSpacingY": 4}
+}
+```
+
+**Widget gaps:** leave 2-row gaps between visual sections. Use column gaps (e.g. col 0-23 + col 25-47) instead of col 0-24 + col 24-48 to prevent widgets from touching.
+
+**Metric widgets** can't be added via `create_dashboard` — use `add_widget_to_dashboard` with `semanticModelIdOrName` after creation. Same for text widgets (`textContent` only works on `add_widget_to_dashboard`).
+
+**`edit_visualization` is nearly useless** — only `changeMarkType` works (and it's global, not per-field). Use REST PATCH instead for all viz styling.
+
+## SDM replication (for /transfer-assets)
+
+When cloning an SDM to another workspace or org:
+
+1. **Create SDM with all DOs inline** (`semanticDataObjects` in create payload with `shouldIncludeAllFields: true`)
+2. **Read BOTH SDMs** to build complete field apiName mapping — match by `dataObjectFieldName` (the `__c` suffixed DLO field name is stable; auto-generated apiNames are not)
+3. **HTML-decode expressions** — `html.unescape()` all expressions from GET before POSTing (API returns `&gt;`, `&#39;`, `&quot;`)
+4. **Create in dependency order**: parameters → calc dimensions → calc measurements → metrics → relationships
+5. **Translate viz field references** using the DO + field mapping before creating vizzes
+6. **Auto-generated apiName suffixes change on SDM recreation** — if an SDM is deleted and recreated, ALL field apiNames get new suffixes (e.g. `FullName1` → `FullName2`). Always read current state, never cache.
+
 ## Tableau Dashboard building (Pulse demos — .twb workbooks)
 
 For Pulse demos, optionally publish a Tableau workbook (.twb) alongside the metrics. This uses `twb_builder.py` which generates valid Tableau XML and publishes via `server.workbooks.publish()`.
@@ -390,6 +475,17 @@ BRAND = {
 
 ## Known pitfalls
 
+- Visualizations: **REST PATCH is the only way to set advanced viz styling** — the MCP `edit_visualization` tool only supports `changeMarkType` (and it's global, not per-field). For dual-axis, per-field colors, continuous palettes, hidden axes, mark sizes, etc., use `PATCH /services/data/v66.0/tableau/visualizations/{id}?minorVersion=12` with GET → modify → PATCH pattern. Strip read-only keys: `id`, `createdBy`, `createdDate`, `lastModifiedBy`, `lastModifiedDate`, `permissions`, `sourceVersion`, `templateSource`, `creationSource`, `url`, `isOriginal`, `semanticModel`, `useInlineModel`.
+- Visualizations: **`negativeValuesFormat: "NegativeSign"` rejected** — the PATCH endpoint rejects this value in `numberFormatInfo`. Omit the field entirely; the engine uses the correct default.
+- Visualizations: **MCP BasicViz endpoint not directly accessible** — the `/services/data/v67.0/tableau/visualizations/basic` POST endpoint used internally by MCP returns `METHOD_NOT_ALLOWED` when called directly via REST. Must use the MCP `create_visualization` tool for slim-spec viz creation.
+- Visualizations: **Calc field `level` required for MCP viz creation** — model-level calc measures MUST include `level` when a `function` is supplied. `AggregateFunction` for `UserAgg` calcs, `Row` for `Sum`/`Avg`/`CountD`/`Max`/`Min` calcs, `Lod` for LOD calcs, `TableCalc` for table calcs. Calc dimensions used as measures (e.g. with `CountD` function) also need `level: "Row"`. Omitting causes "must include its semantic level" error.
+- Visualizations: **`Mdy` date function** in original viz packages maps to `DateTruncMonth` in MCP slim spec.
+- Dashboards: **Metric widgets require `add_widget_to_dashboard`** — the `create_dashboard` endpoint does not accept `semanticModelIdOrName` on metric widgets. Create the dashboard with viz widgets inline, then add metric widgets via `add_widget_to_dashboard` which supports `semanticModelIdOrName`.
+- Dashboards: **Text widget `textContent` requires `add_widget_to_dashboard`** — the `create_dashboard` endpoint rejects `textContent` on text widgets. Add text widgets after creation.
+- Dashboards: **`cellSpacingX/Y: 0` makes widgets touch** — always use `cellSpacingX: 4, cellSpacingY: 4` with `gutterColor: "#F3F3F3"` for readable layouts. Leave 2-row gaps between visual sections and 1-2 column gaps between side-by-side widgets.
+- SDM replication: **Auto-generated field apiNames change on SDM recreation** — if an SDM is deleted and recreated with the same DOs, the field apiNames get different numeric suffixes (e.g. `FullName1` → `FullName2`). Never cache field maps across SDM deletions. Always read the CURRENT SDM state via `GET /ssot/semantic/models/{sdm}?includeModelContent=true`.
+- SDM replication: **HTML entity encoding in expressions** — expressions returned by the SDM GET API are HTML-encoded (`&gt;` for `>`, `&#39;` for `'`, `&quot;` for `"`). Must call `html.unescape()` before POSTing to create calc fields. Without this, ~90% of calc fields fail with "token recognition error at: '&'".
+- SDM replication: **Parameters must be created before calc fields** — calc dimensions/measurements that reference `[Parameters].[param_name]` fail if the parameter doesn't exist yet. Create all parameters first, then calc dims, then calc meas, then metrics, then relationships.
 - Pulse: **2026.2 payload validation changes** — `POST /api/-/pulse/definitions` now requires fields that were previously optional and enforces aggregation/format consistency. Missing any of these causes a generic 400 "Invalid request" with no detail. Required fields as of 2026.2: (1) `insights_options` key must be present (can be `{"show_insights": true, "settings": []}`); (2) `comparisons` key must be present (can be `{"comparisons": [{"compare_config": {"comparison": "TIME_COMPARISON_PREVIOUS_PERIOD", "comparison_period_override": []}, "index": "0"}]}`); (3) `AGGREGATION_AVERAGE` requires `is_running_total: false` — combining AVERAGE with `is_running_total: true` returns 400; (4) `NUMBER_FORMAT_TYPE_PERCENTAGE` cannot be used programmatically at all — both POST and PATCH reject it with 400 "Invalid request" regardless of aggregation type (tested with AVERAGE, SUM, and COUNT on us-east-1 and 10ax pods as of 2026.2). Workaround: create metrics with `NUMBER_FORMAT_TYPE_NUMBER`, store values as decimals (0.62 = 62%), then manually change Number Format to "Percentage" in the Pulse UI (Edit → Core Definition → Number format → Percentage). The UI handles the ×100 display automatically. Always set `is_running_total: false` for rate/average metrics and `true` only for flow/sum metrics that accumulate over time.
 - Pulse: **Self-healing date pattern (`.hyper` → metrics → `.tdsx` overwrite)** — Pulse does NOT index `.tdsx` packages published cold (from scratch). However, if you first publish a `.hyper` with a stored `Date` column (indexes in seconds), create metrics against it, and THEN overwrite with a `.tdsx` containing a calculated `Date = DATEADD('day', [Day_Offset], TODAY())`, the metrics survive and the calc Date resolves — self-healing forever with no Prep flow or scheduling. The key: metrics must be created BETWEEN the `.hyper` publish and the `.tdsx` overwrite. Use `tdsx_builder.py`: `publish_hyper_for_indexing()` → create metrics → `convert_to_self_healing()`. The `.tds` inside the `.tdsx` must set `name='[Date]'` on the calc column so Pulse resolves `time_dimension.field = "Date"` correctly.
 - Pulse: **Default time filter (Month to Date) cannot be changed via API** — the `measurement_period.granularity` field on the metric spec appears settable (putting `GRANULARITY_BY_YEAR` first in `allowed_granularities` causes the API to return `GRANULARITY_BY_YEAR` in the metric's `measurement_period`), but the Pulse UI always defaults to "Month to Date" regardless. This is a UI-level user preference — each user must manually select "Year to Date" in the Filter dropdown on first view. Document this in the walkthrough as a first-time setup step. There is no known API workaround as of 2026.2.

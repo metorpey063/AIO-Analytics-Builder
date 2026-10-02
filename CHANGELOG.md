@@ -4,6 +4,22 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-10-02 — REST PATCH viz styling + SDM replication patterns
+
+### Added
+- **Two-pass viz creation pattern** for Tableau Next: MCP `create_visualization` for structure, then REST PATCH for full styling (dual-axis, per-field colors, continuous palettes, hidden axes, mark sizes, reference lines, axis titles)
+- **SDM replication workflow** for `/transfer-assets`: create SDM with DOs inline, HTML-decode expressions, field apiName translation by `dataObjectFieldName`, dependency-ordered creation (params → calc dims → calc meas → metrics → relationships)
+- **Dashboard assembly best practices**: `cellSpacing: 4` with gutters, metric/text widgets via `add_widget_to_dashboard`, section gaps between widget groups
+- 12 new Known Pitfalls covering REST PATCH gotchas, MCP BasicViz limitations, calc field level requirements, SDM replication HTML encoding, auto-generated apiName instability, and dashboard widget creation constraints
+
+### Key discoveries
+- `PATCH /services/data/v66.0/tableau/visualizations/{id}?minorVersion=12` accepts the FULL viz spec — enables programmatic dual-axis, per-field mark colors, and all style properties that MCP's slim spec cannot express
+- `edit_visualization` MCP tool only supports `changeMarkType` (global, not per-field) — REST PATCH is the correct tool for all viz styling
+- `negativeValuesFormat: "NegativeSign"` is rejected by the PATCH endpoint — must omit
+- SDM field apiName suffixes are not stable across delete/recreate cycles
+
+---
+
 ## 2026-09-24 — UX: clickable buttons replace "type next" in /setup
 
 ### Changed
