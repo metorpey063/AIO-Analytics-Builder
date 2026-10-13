@@ -177,11 +177,57 @@ def tableau_pulse_headers(auth_token):
 
 # ── Salesforce + Data Cloud (Tableau Next) ────────────────────────────────────
 
+def _is_expired_refresh_token(response):
+    """Check if a token request failed due to an expired/revoked refresh token."""
+    if response.status_code != 400:
+        return False
+    try:
+        body = response.json()
+    except Exception:
+        body = {}
+    err = body.get("error", "")
+    desc = body.get("error_description", "").lower()
+    text = response.text.lower()
+    return (
+        err in ("invalid_grant", "expired_access/refresh_token")
+        or "expired access/refresh token" in desc
+        or "token has been expired" in desc
+        or "refresh token has expired" in text
+        or "invalid_grant" in text
+    )
+
+
+def _reauth_via_browser(sf, profile_key=None):
+    """Run the OAuth browser flow to get a fresh refresh token, save it, and return new tokens."""
+    from oauth_flow import get_refresh_token
+
+    print("\n⚠  Refresh token expired (Salesforce enforces a 30-day idle TTL).")
+    print("   Opening browser to re-authenticate…\n")
+
+    tokens = get_refresh_token(
+        sf["client_id"],
+        sf.get("client_secret", ""),
+        sf.get("sf_login_url", "https://login.salesforce.com"),
+    )
+
+    full = load_full_config()
+    key = profile_key or full.get("active_profile")
+    if key and key in full.get("profiles", {}):
+        full["profiles"][key]["salesforce"]["refresh_token"] = tokens["refresh_token"]
+        if tokens.get("code_verifier"):
+            full["profiles"][key]["salesforce"]["code_verifier"] = tokens["code_verifier"]
+        full["profiles"][key]["salesforce"].pop("pkce_refresh_mode", None)
+        save_full_config(full)
+
+    return tokens["access_token"], tokens["instance_url"]
+
+
 def get_sf_token(config=None, profile_key=None):
     """Returns (sf_token, sf_instance) via refresh_token grant.
     Supports PKCE orgs (includes code_verifier if saved in config).
     Handles orgs that reject code_verifier by retrying without it.
-    Saves rotated refresh token back to config.json if one is returned."""
+    Saves rotated refresh token back to config.json if one is returned.
+    Auto-triggers browser re-auth if the refresh token has expired."""
     if config is None:
         config = load_config(profile_key)
     sf = config["salesforce"]
@@ -210,6 +256,10 @@ def get_sf_token(config=None, profile_key=None):
 
     r = requests.post(f"{sf['sf_login_url']}/services/oauth2/token", data=data)
 
+    # Expired/revoked refresh token — re-authenticate via browser
+    if _is_expired_refresh_token(r):
+        return _reauth_via_browser(sf, profile_key)
+
     # Learn from failure and retry the other way
     if r.status_code == 400 and sf.get("code_verifier"):
         err_text = r.text.lower()
@@ -217,11 +267,15 @@ def get_sf_token(config=None, profile_key=None):
             # Org REQUIRES code_verifier on refresh — add it and retry
             data["code_verifier"] = sf["code_verifier"]
             r = requests.post(f"{sf['sf_login_url']}/services/oauth2/token", data=data)
+            if _is_expired_refresh_token(r):
+                return _reauth_via_browser(sf, profile_key)
             pkce_mode = "required"
         elif "unexpected code verifier" in err_text:
             # Org REJECTS code_verifier on refresh — remove it and retry
             data.pop("code_verifier", None)
             r = requests.post(f"{sf['sf_login_url']}/services/oauth2/token", data=data)
+            if _is_expired_refresh_token(r):
+                return _reauth_via_browser(sf, profile_key)
             pkce_mode = "rejected"
 
     r.raise_for_status()

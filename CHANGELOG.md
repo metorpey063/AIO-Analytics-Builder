@@ -4,6 +4,16 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-10-13 — Auto re-auth on expired Salesforce refresh tokens
+
+### Changed
+- **`connections.py`**: `get_sf_token()` now detects expired/revoked refresh tokens (`invalid_grant`, 30-day idle TTL enforcement) and automatically triggers the OAuth browser flow to re-authenticate — no more crashes when a token goes stale. The new refresh token is saved back to `config.json` so subsequent calls work without re-auth.
+
+### Context
+- Salesforce enforces a 30-day idle TTL on refresh tokens starting Nov 4, 2026 (production). SEs who haven't run a demo in 30+ days will hit this. Previously this caused an unhandled `raise_for_status()` crash; now it opens the browser for a one-click re-auth.
+
+---
+
 ## 2026-10-02 — REST PATCH viz styling + SDM replication patterns
 
 ### Added
