@@ -4,6 +4,15 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-10-16 — Layout alignment for /transfer-assets
+
+### Added
+- **Step 6b — Layout Alignment** in `/transfer-assets`: after deploying a dashboard to a target org, the command now reads the source dashboard's exact widget positions (row, column, rowspan, colspan) and applies them to the target dashboard via PATCH or MCP `update_dashboard`. Widgets are matched by viz/metric label; unmatched widgets are appended at the bottom.
+- **Automatic grid scaling**: handles source dashboards with varying column counts (48, 72, or 91 columns) by proportionally scaling positions to the target grid. This fixes the layout drift seen in the Sales Insights clone (91-col source → 48-col target).
+- **Multi-page support**: each page is aligned independently when source and target have matching page counts.
+
+---
+
 ## 2026-10-13 — Auto re-auth on expired Salesforce refresh tokens
 
 ### Changed

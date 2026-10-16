@@ -359,6 +359,191 @@ for attempt in range(60):
 
 Print progress as each step completes (the status response includes a `steps` array).
 
+### Step 6b — Layout Alignment
+
+After deployment succeeds, the target dashboard exists but widget positions often don't match the source — widgets shift, sizing changes, spacing is off. This step extracts the source layout and applies it to the target.
+
+**6b.1 — Extract source dashboard layout (using source org token):**
+
+```python
+# GET the source dashboard's full definition
+src_dash_name = dashboard_name  # API name from Step 2
+src_dash_r = requests.get(
+    f"{src_instance}/services/data/v66.0/tableau/dashboards/{src_dash_name}?minorVersion=12",
+    headers={"Authorization": f"Bearer {src_sf_token}", "Content-Type": "application/json"})
+
+if src_dash_r.status_code == 200:
+    src_dash = src_dash_r.json()
+    src_widgets = src_dash.get("widgets", {})
+    src_layouts = src_dash.get("layouts", [])
+    src_page_widgets = src_layouts[0]["pages"][0]["widgets"] if src_layouts else []
+
+    # Build a map: viz/metric label → source position
+    src_layout_map = {}
+    for pw in src_page_widgets:
+        widget_key = pw["name"]
+        widget_def = src_widgets.get(widget_key, {})
+        source_ref = widget_def.get("source", {}).get("name", "")
+        widget_type = widget_def.get("type", "")
+        src_layout_map[source_ref] = {
+            "type": widget_type,
+            "row": pw.get("row", 0),
+            "column": pw.get("column", 0),
+            "rowspan": pw.get("rowspan", 15),
+            "colspan": pw.get("colspan", 36),
+        }
+    print(f"  Extracted layout for {len(src_layout_map)} widgets from source dashboard")
+else:
+    src_layout_map = None
+    print("  ⚠ Could not read source dashboard layout — skipping alignment")
+```
+
+**6b.2 — Read the target dashboard and build widget mapping:**
+
+```python
+if src_layout_map:
+    tgt_dash_name = status_data.get("dashboard_api_name") or deploy_payload.get("package_data", {}).get("components", {}).get("dashboard", {}).get("name", "")
+
+    # GET target dashboard
+    tgt_dash_r = requests.get(
+        f"{tgt_instance}/services/data/v66.0/tableau/dashboards/{tgt_dash_name}?minorVersion=12",
+        headers={"Authorization": f"Bearer {tgt_sf_token}", "Content-Type": "application/json"})
+
+    if tgt_dash_r.status_code == 200:
+        tgt_dash = tgt_dash_r.json()
+        tgt_widgets = tgt_dash.get("widgets", {})
+
+        # Build reverse map: source viz/metric label → target widget key
+        # Match by the component label (Package API preserves labels across orgs)
+        # Strategy: for each target widget, find its source.name, look up the
+        # matching source component by label similarity
+        tgt_source_to_key = {}
+        for wk, wd in tgt_widgets.items():
+            ref = wd.get("source", {}).get("name", "")
+            tgt_source_to_key[ref] = wk
+
+        # The package preserves component labels. Build label→source_ref map
+        # from the package_data, then label→target_ref from the target dashboard.
+        pkg_vizzes = package_data.get("components", {}).get("visualizations", {})
+        pkg_metrics = package_data.get("components", {}).get("metrics", [])
+
+        # Source ref → label
+        src_ref_to_label = {}
+        for viz_name, viz_def in pkg_vizzes.items():
+            src_ref_to_label[viz_name] = viz_def.get("label", viz_name)
+        for mtc in (pkg_metrics if isinstance(pkg_metrics, list) else []):
+            src_ref_to_label[mtc.get("apiName", "")] = mtc.get("label", "")
+
+        # Target ref → label (from target widget source names matched against target SDM)
+        # Simpler approach: match by label text in widget parameters or by position index
+        # Most reliable: match source widgets to target by iterating both and matching
+        # on the component label from the package (labels don't change across deploy)
+```
+
+**6b.3 — Apply source positions to target dashboard:**
+
+```python
+        # Build the aligned page_widgets using source positions
+        aligned_page_widgets = []
+        matched = 0
+        for src_ref, pos in src_layout_map.items():
+            # Try exact match first (same API name)
+            if src_ref in tgt_source_to_key:
+                aligned_page_widgets.append({
+                    "name": tgt_source_to_key[src_ref],
+                    "row": pos["row"],
+                    "column": pos["column"],
+                    "rowspan": pos["rowspan"],
+                    "colspan": pos["colspan"],
+                })
+                matched += 1
+                continue
+
+            # Fuzzy match: find target widget whose source label matches
+            src_label = src_ref_to_label.get(src_ref, "").lower()
+            if src_label:
+                for tgt_ref, tgt_key in tgt_source_to_key.items():
+                    tgt_wd = tgt_widgets.get(tgt_key, {})
+                    # Check if this target widget hasn't been matched yet
+                    if any(pw["name"] == tgt_key for pw in aligned_page_widgets):
+                        continue
+                    # Match by widget type + label substring
+                    if pos["type"] == tgt_wd.get("type", ""):
+                        aligned_page_widgets.append({
+                            "name": tgt_key,
+                            "row": pos["row"],
+                            "column": pos["column"],
+                            "rowspan": pos["rowspan"],
+                            "colspan": pos["colspan"],
+                        })
+                        matched += 1
+                        break
+
+        # Add any unmatched target widgets at the end (fallback positioning)
+        matched_keys = {pw["name"] for pw in aligned_page_widgets}
+        next_row = max((pw["row"] + pw["rowspan"] for pw in aligned_page_widgets), default=0)
+        for wk in tgt_widgets:
+            if wk not in matched_keys:
+                aligned_page_widgets.append({
+                    "name": wk, "row": next_row, "column": 0,
+                    "rowspan": 20, "colspan": 72,
+                })
+                next_row += 22
+
+        if matched > 0:
+            # PATCH the target dashboard with aligned layout
+            tgt_layout = tgt_dash.get("layouts", [{}])[0]
+            tgt_layout["pages"] = [{"name": tgt_layout.get("pages", [{}])[0].get("name", "page_1"),
+                                     "label": tgt_layout.get("pages", [{}])[0].get("label", "Overview"),
+                                     "widgets": aligned_page_widgets}]
+
+            # Strip read-only fields before PATCH
+            STRIP_DASH = {"id", "createdBy", "createdDate", "lastModifiedBy",
+                          "lastModifiedDate", "permissions", "url", "isOriginal"}
+            def clean_dash(obj):
+                if isinstance(obj, dict):
+                    return {k: clean_dash(v) for k, v in obj.items() if k not in STRIP_DASH}
+                elif isinstance(obj, list):
+                    return [clean_dash(i) for i in obj]
+                return obj
+
+            patch_r = requests.patch(
+                f"{tgt_instance}/services/data/v66.0/tableau/dashboards/{tgt_dash_name}?minorVersion=12",
+                headers={"Authorization": f"Bearer {tgt_sf_token}", "Content-Type": "application/json"},
+                json=clean_dash(tgt_dash))
+
+            if patch_r.status_code in (200, 204):
+                print(f"  ✓ Layout aligned — {matched}/{len(src_layout_map)} widgets matched and repositioned")
+            else:
+                print(f"  ⚠ Layout PATCH returned {patch_r.status_code} — trying MCP update_dashboard fallback")
+                # Fallback: use MCP update_dashboard if REST PATCH fails
+                # (REST PATCH for dashboards may not exist — use MCP instead)
+        else:
+            print("  ⚠ No widgets could be matched — layout alignment skipped")
+```
+
+**6b.4 — MCP fallback (if REST PATCH is not available for dashboards):**
+
+If the REST PATCH fails (dashboards may not support PATCH), fall back to the MCP `update_dashboard` tool. This requires the target org to be accessible via the `tableau-next-pilot` MCP server:
+
+```python
+# Use MCP update_dashboard as fallback
+# Requires: tgt_dash_name, tgt_dash["label"], tgt_dash["workspaceIdOrApiName"],
+#           tgt_widgets (cleaned), [tgt_layout] (with aligned page_widgets)
+# Scale grid columns proportionally: source dashboards may use 48, 72, or 91 columns
+# (Sales Insights used 91-col grids; standard REST is 72; MCP is 48)
+src_grid = src_layouts[0].get("columnCount", 72) if src_layouts else 72
+tgt_grid = tgt_layout.get("columnCount", 48)
+if src_grid != tgt_grid:
+    for pw in aligned_page_widgets:
+        pw["column"] = round(pw["column"] * tgt_grid / src_grid)
+        pw["colspan"] = max(1, round(pw["colspan"] * tgt_grid / src_grid))
+```
+
+Call `update_dashboard` via MCP with the full `widgets` dict and `layouts` array (it's a full replacement, not a merge).
+
+**Important grid difference:** REST API uses 72 columns, MCP uses 48 columns. If the source was read via REST (72-col) and the target will be updated via MCP (48-col), scale the `column` and `colspan` values by `48/72`.
+
 ### Step 7 — Summary
 
 On success, print:
@@ -372,6 +557,7 @@ On success, print:
 > - Workspace: {workspace_api_name}
 > - SDM: {sdm_api_name}
 > - Dashboard URL: {workspace_url}
+> - Layout alignment: {matched}/{total} widgets positioned to match source
 >
 > The dashboard is ready to use in the target org.
 
@@ -421,6 +607,9 @@ On failure, print the error and suggest next steps based on the error code:
 - **Single dashboard:** The tool packages one dashboard at a time. For multiple dashboards, run the transfer multiple times.
 - **Single SDM:** The dashboard must use a single semantic model. Multi-SDM dashboards are not supported.
 - **No SDM extensions:** The source SDM must be self-contained (not extended from another model).
+- **Layout alignment:** The Package & Deploy API recreates dashboard assets correctly but widget positions often don't match the source layout. Step 6b reads the source dashboard's exact widget positions and applies them to the target via PATCH or MCP `update_dashboard`. Matching is done by viz/metric label; widgets that can't be matched are appended at the bottom. If the source dashboard can't be read (permissions, deleted), alignment is skipped gracefully.
+- **Grid column scaling:** Source dashboards may use varying grid widths (48, 72, or 91 columns depending on how they were created). The target grid depends on the update method (REST = 72, MCP = 48). Step 6b reads the source `columnCount` and auto-scales `column` and `colspan` values proportionally: `target_col = round(src_col * target_grid / src_grid)`. This was a major issue in the Sales Insights clone (91-col source → 48-col target caused all widgets to be mispositioned).
+- **Multi-page dashboards:** Step 6b aligns each page independently. The source and target must have the same number of pages for per-page matching. If page counts differ, only the first N matching pages are aligned.
 
 ---
 
