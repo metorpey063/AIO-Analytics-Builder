@@ -4,6 +4,31 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-10-16 — AIO Web UI (v2.0)
+
+### Added
+- **AIO Web UI** (`web-ui/`): a local web server that provides a visual, browser-based experience for AIO Analytics Builder — no VS Code or Claude Code required. Run `python3 web-ui/app.py` or double-click `AIO Builder.command` to launch.
+  - **Home page**: action cards for Build Demo, My Demos, Setup, and Connections
+  - **Build Demo**: 5-step wizard (Company → Story → Metrics → Output → Build) with a Wizard/Form toggle — wizard walks through one step at a time, form shows everything at once for power users. Fields sync between modes.
+  - **Setup**: guided configuration with tooltip help icons on every field explaining exactly where to go and what to click in Tableau Cloud and Salesforce Setup (PAT creation, ECA setup, OAuth scopes, etc.). Includes an ECA checklist with checkable items. Wizard/Form toggle here too.
+  - **Connections**: collapsible accordion cards per connection profile (e.g. "Torpey's House of Data", "Tableau Next"). Auto-fetches live data on page load — Pulse API status, datasource/workbook counts, SF username, Data Cloud domain, workspace/SDM counts, ingest connector status. Profile switching built in.
+  - **My Demos**: lists all demos from `demos/` with checkpoint data (company name, build type, phases completed)
+  - **Chat bot widget**: floating chat bubble (bottom-right corner, every page) powered by the Claude API. Auto-detects `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_BEDROCK_BASE_URL` env vars for zero-config auth, falls back to `ANTHROPIC_API_KEY` or manual entry. System prompt loaded with live context (connected orgs, existing demos, available skills). Uses Bedrock `/invoke` format for gateway compatibility.
+  - **SSE progress streaming**: build progress streams to the browser in real-time via Server-Sent Events
+  - **Sidebar navigation** with live connection status dots (green/gray) for Tableau and Salesforce
+- **One-click installer** (`install.py` + `Install AIO.command`): double-click to install everything — checks Python 3.10+, creates a `.venv`, installs all dependencies, creates `config.json`, generates an `AIO Builder.command` launcher, and opens the web UI. Detects existing AIO installations and preserves connections + demos (upgrade in place or copy data over).
+- **`requirements.txt`**: added `flask`, `anthropic`, `python-dateutil` to project dependencies
+
+### Architecture
+- **Flask backend** (`web-ui/app.py`): routes for pages + REST API endpoints for connection testing, config saving, profile switching, build orchestration, and Claude chat
+- **Plain HTML/CSS/JS frontend**: no build step, no npm, no React — just Jinja2 templates and vanilla JS. Professional, clean design with dark sidebar nav.
+- **Reuses existing AIO modules**: imports `connections.py` directly for auth, profile management, and live connection testing. The web UI is a presentation layer over the same Python backend.
+
+### Context
+- Core SEs and non-power-users need a friendlier interface than VS Code + Claude Code CLI. The web UI makes AIO accessible to anyone who can open a browser — guided setup, visual build wizard, and a chat assistant for questions.
+
+---
+
 ## 2026-10-16 — Layout alignment for /transfer-assets
 
 ### Added

@@ -282,6 +282,7 @@ def build_viz_payload(
         color_meas_key = _add_field("Measure", "Continuous", meas_field)
         encodings.append({"fieldKey": color_meas_key, "type": "Color"})
         enc_fields[color_meas_key] = {
+            "defaults": {"format": {"numberFormatInfo": {"decimalPlaces": decimals, "displayUnits": "Auto", "includeThousandSeparator": True, "prefix": "", "suffix": suffix, "type": fmt_type}}},
             "colors": {
                 "palette": {"end": "#FF906E", "start": "#5867E8", "startToEndSteps": []},
                 "type": "Continuous",

@@ -124,6 +124,23 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
 - `crma_dashboard_builder.py` — CRMA dashboard state builder (SAQL steps + chart widgets + layout)
 - `twb_builder.py` — Tableau Desktop workbook (.twb) generator: creates worksheets (bar, line, multi-line, dual-axis) + dashboard with Pulse metric tiles, publishes via TSC
 - `prep_flow_builder.py` — Tableau Prep flow generator for auto-refreshing Pulse dates (builds .tflx with embedded CSV + DATEADD(Day_Offset, TODAY()) calc + PublishExtract output)
+- `crm_upserter.py` — Salesforce CRM record upsert (External ID field creation via Tooling API, batch upsert via Composite Collections API, SOQL query helper)
+
+## CRM actionability (Tableau Next)
+
+When `crm_actionable` is enabled for a Tableau Next build, AIO creates real Salesforce CRM records (Accounts) linked to the analytics fact data via a shared External ID. This closes the insight-to-action loop: the audience drills from a metric → identifies at-risk entities → clicks through to the actual Account record → triggers a Flow or Global Action.
+
+**How it works:**
+1. Data gen creates an `ACCOUNT_ROSTER` — one Account per entity in the demo, with standard SF fields (`Name`, `Industry`, `BillingState`, etc.) plus `Demo_External_ID__c` matching the fact table entity key
+2. Phase 1b upserts these records via `crm_upserter.py` (Composite Collections API, 200 records/batch, idempotent)
+3. Phase 4a adds the Account DMO to the SDM and creates a `ManyToOne` relationship from the fact DLO to Account on the External ID
+4. Concierge can now answer "which accounts are at risk?" and return results linked to real Account records
+
+**Key patterns:**
+- `ensure_external_id_field(sf_token, sf_instance, "Account", "Demo_External_ID__c")` — creates the custom field via Tooling API if it doesn't exist (one-time per org)
+- `upsert_crm_records(sf_token, sf_instance, "Account", "Demo_External_ID__c", records)` — returns `{external_id: sf_record_id}` mapping
+- Account DMO discovery: list DMOs in default dataspace, find `category: "Standard"` + name starts with `"Account"`
+- Relationship: `joinType: "Auto"`, `cardinality: "ManyToOne"`, join on `entity_key__c` → `Demo_External_ID__c`
 
 ## Walkthrough document format (.docx)
 
@@ -513,10 +530,13 @@ BRAND = {
 - Semantics: Metric `timeDimensionReference` for SDM-level calculated dimensions (like Display Date) must use `{"calculatedFieldApiName": "Display_Date"}` — NOT `{"tableFieldReference": {...}}`. Using tableFieldReference with a calculated dim name causes 400 "Table field with table name (X) and field name (Display_Date) was not found in the model" because calc dims are SDM-level, not DO-level
 - Semantics: SDM-level list endpoints use `items` key (not `semanticModels` or `calculatedMeasurements`) — always read `r.json().get('items', [])`
 - Semantics: Relationship join criteria (`leftFieldApiName`/`rightFieldApiName`) are silently dropped for IngestAPI DLO relationships — `criteria` always comes back `[]`; SDM will throw "No join criteria found" at query time. Workaround: denormalize dimension fields into the fact table and only add the fact DLO to the SDM (no relationship needed)
+- Semantics: Relationship `joinType` must be `"Auto"` — explicit types like `"LeftOuter"`, `"LEFT_OUTER"`, or `"Left"` cause 400 "Relationship must have the 'AUTO' join type." Explicit join types are only permitted for relationships within logical views.
+- Semantics: CRM standard objects (Account, Contact, etc.) must be added to SDMs with `dataObjectType: "dlo"` and the full DLO name including `__dll` suffix (e.g. `Account_Home__dll`). Using `"dmo"` causes "DMO/CI/DLO does not exist" even when the object is active in the data lake.
 - Bulk Ingest: `sourceName` must be the short connector name (e.g. `analytics_builder_demo`), not the UUID name (`analytics_builder_demo_d964ca78_...`)
 - Bulk Ingest: API is CSV-based — submit jobs with `Content-Type: application/json`, then PUT batches with `Content-Type: text/csv`, then PATCH to `UploadComplete`. Response from job creation has `"id"` at top level (not nested under `"data"`).
 - Bulk Ingest: Only `upsert` and `delete` operations are supported — `insert` causes 400. For daily-grain fact tables where the natural key is non-unique (e.g. `client_id` alone), add a surrogate `record_id` column (`date_clientid`) and use it as the stream PK. Set it as the `isPrimaryKey` field in the stream's `dataLakeFieldInputRepresentations` and insert it as the first column of the fact DataFrame.
 - Schema registration: PUT payload uses key `"schemas"` (not `"objects"`). Each schema needs `name`, `label`, `schemaType: "IngestApi"`, and fields with `dataType` (not `type`). Field dataType values: `"Text"`, `"Number"`, `"Date"`.
+- Schema registration: If the target schema already exists on the connector, skip the PUT entirely. Other schemas on the same connector may contain platform-injected reserved fields (`DataSourceId`, `DataSourceObjectId`) that the API returns in GET but rejects on PUT — stripping them causes "Removing ExternalDataTranField not allowed", keeping them causes "reserved field" validation error.
 - Stream creation: requires full nested payload — `connectorInfo.connectorDetails.name` must be the UUID connector name (not short name). Capture `dataLakeObjectInfo.name` from the POST response — it's the auto-generated DLO name (e.g. `trinet_benefits_fact_trinet_ben_D5EE9465__dll`), not the schema name.
 - DO creation: POST to `/ssot/semantic/models/{sdm}/data-objects` requires both `dataLakeObjectName` AND `dataObjectName` (set both to the DLO name). Missing `dataObjectName` causes 400.
 - Measurement PUT: requires `label` field in the body alongside `apiName`, `dataObjectFieldName`, `aggregationType`. Missing `label` causes 500.

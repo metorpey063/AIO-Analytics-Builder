@@ -188,6 +188,8 @@ def _is_expired_refresh_token(response):
     err = body.get("error", "")
     desc = body.get("error_description", "").lower()
     text = response.text.lower()
+    if "code verifier" in desc or "code_verifier" in desc:
+        return False
     return (
         err in ("invalid_grant", "expired_access/refresh_token")
         or "expired access/refresh token" in desc

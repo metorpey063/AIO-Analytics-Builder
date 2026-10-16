@@ -1,0 +1,471 @@
+{% extends "base.html" %}
+{% set active = "setup" %}
+
+{% block title %}Setup — AIO Analytics Builder{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+    <div>
+        <h1>Setup</h1>
+        <p class="subtitle">Connect your Tableau Cloud and Salesforce environments</p>
+    </div>
+    <div class="mode-toggle-bar" style="margin-bottom:0">
+        <span class="mode-label active" id="lbl-wizard" onclick="setSetupMode('wizard')">Wizard</span>
+        <div class="toggle-track" id="setup-mode-track" onclick="toggleSetupMode()">
+            <div class="toggle-thumb"></div>
+        </div>
+        <span class="mode-label" id="lbl-form" onclick="setSetupMode('form')">Form</span>
+    </div>
+</div>
+
+<!-- ===================================================================
+     WIZARD MODE — step by step
+     =================================================================== -->
+<div id="setup-wizard" class="setup-sections">
+    <div class="stepper" style="margin-bottom:20px">
+        <div class="step active" data-step="1"><span class="step-num">1</span> Tableau Cloud</div>
+        <div class="step" data-step="2"><span class="step-num">2</span> Salesforce ECA</div>
+        <div class="step" data-step="3"><span class="step-num">3</span> OAuth Flow</div>
+        <div class="step" data-step="4"><span class="step-num">4</span> Verify</div>
+    </div>
+
+    <!-- Wizard Step 1: Tableau Cloud PAT -->
+    <div class="wizard-step" id="setup-step-1">
+        <section class="card">
+            <h2>Step 1: Tableau Cloud Personal Access Token</h2>
+            <p class="subtitle" style="margin-bottom:16px">Create a PAT in Tableau Cloud so AIO can publish datasources and create Pulse metrics.</p>
+            <div class="form-stack">
+                <div class="form-group">
+                    <label for="w-tab-server">
+                        Server URL
+                        <span class="tooltip-trigger" data-tooltip="Go to your Tableau Cloud site. The URL in your browser bar is the server URL — copy everything up to and including the domain (e.g. https://us-east-1.online.tableau.com). Don't include any path after the domain.">?</span>
+                    </label>
+                    <input type="url" id="w-tab-server" class="setup-sync" data-field="tab-server" placeholder="https://10ax.online.tableau.com"
+                           value="{{ config.get('tableau', {}).get('server_url', '') }}">
+                </div>
+                <div class="form-group">
+                    <label for="w-tab-site">
+                        Site Name
+                        <span class="tooltip-trigger" data-tooltip="This is the subdomain in your Tableau Cloud URL. For example, if your URL is https://10ax.online.tableau.com/#/site/my-company/home then the site name is 'my-company'. You can also find it in Settings → Site under 'Site Name'.">?</span>
+                    </label>
+                    <input type="text" id="w-tab-site" class="setup-sync" data-field="tab-site" placeholder="my-site"
+                           value="{{ config.get('tableau', {}).get('site_name', '') }}">
+                </div>
+                <div class="form-group">
+                    <label for="w-tab-pat-name">
+                        PAT Name
+                        <span class="tooltip-trigger" data-tooltip="Go to Tableau Cloud → click your profile icon (top right) → My Account Settings → Personal Access Tokens. Click 'Create a new token'. Enter a name like 'aio-builder' — this is just a label to identify the token.">?</span>
+                    </label>
+                    <input type="text" id="w-tab-pat-name" class="setup-sync" data-field="tab-pat-name" placeholder="aio-builder"
+                           value="{{ config.get('tableau', {}).get('pat_name', '') }}">
+                </div>
+                <div class="form-group">
+                    <label for="w-tab-pat-secret">
+                        PAT Secret
+                        <span class="tooltip-trigger" data-tooltip="After clicking 'Create a new token', Tableau shows the secret once. Copy it immediately — you can't view it again after closing the dialog. If you lose it, delete the token and create a new one.">?</span>
+                    </label>
+                    <input type="password" id="w-tab-pat-secret" class="setup-sync" data-field="tab-pat-secret" placeholder="Paste your Personal Access Token secret"
+                           value="{{ config.get('tableau', {}).get('pat_secret', '') }}">
+                </div>
+            </div>
+            <div class="wizard-actions">
+                <div></div>
+                <div style="display:flex; gap:8px">
+                    <button class="btn btn-secondary" onclick="saveAndTestTableau()">Test Connection</button>
+                    <button class="btn btn-primary" onclick="goSetupStep(2)">Next: Salesforce ECA &rarr;</button>
+                </div>
+            </div>
+            <div id="w-tab-result" class="test-result"></div>
+        </section>
+    </div>
+
+    <!-- Wizard Step 2: Salesforce ECA -->
+    <div class="wizard-step hidden" id="setup-step-2">
+        <section class="card">
+            <h2>Step 2: Salesforce External Client App</h2>
+            <p class="subtitle" style="margin-bottom:16px">Create an External Client App in Salesforce so AIO can access Data Cloud and Tableau Next APIs.</p>
+            <div class="form-stack">
+                <div class="form-group">
+                    <label for="w-sf-login-url">
+                        Login URL
+                        <span class="tooltip-trigger" data-tooltip="Use https://login.salesforce.com for production orgs, or https://test.salesforce.com for sandboxes. If your org uses a custom domain (e.g. mycompany.my.salesforce.com), use that instead.">?</span>
+                    </label>
+                    <input type="url" id="w-sf-login-url" class="setup-sync" data-field="sf-login-url" placeholder="https://login.salesforce.com"
+                           value="{{ config.get('salesforce', {}).get('sf_login_url', '') }}">
+                </div>
+                <div class="form-group">
+                    <label for="w-sf-client-id">
+                        Client ID (Consumer Key)
+                        <span class="tooltip-trigger" data-tooltip="In Salesforce Setup, search 'App Manager' → click 'New External Client App'. Name it 'AIO Analytics Builder', enable OAuth with callback URL http://localhost:8080/callback, and add these scopes: api, sfap_api, cdp_query_api, cdp_ingest_api, refresh_token. Under Security, check 'Enable Authorization Code and Credentials Flow'. After saving, go to the app's Settings tab → OAuth Settings → Consumer Key and Secret. Copy the Consumer Key here.">?</span>
+                    </label>
+                    <input type="text" id="w-sf-client-id" class="setup-sync" data-field="sf-client-id" placeholder="Paste Consumer Key from External Client App"
+                           value="{{ config.get('salesforce', {}).get('client_id', '') }}">
+                </div>
+                <div class="form-group">
+                    <label for="w-sf-client-secret">
+                        Client Secret (Consumer Secret)
+                        <span class="tooltip-trigger" data-tooltip="On the same page as the Consumer Key — click 'Consumer Key and Secret', verify your identity if prompted, then copy the Consumer Secret. If you can't see it, you may need to click 'Reset Consumer Secret' (this invalidates any existing tokens).">?</span>
+                    </label>
+                    <input type="password" id="w-sf-client-secret" class="setup-sync" data-field="sf-client-secret" placeholder="Paste Consumer Secret"
+                           value="{{ config.get('salesforce', {}).get('client_secret', '') }}">
+                </div>
+                <div class="eca-checklist">
+                    <h4>ECA Setup Checklist</h4>
+                    <label class="checklist-item"><input type="checkbox"> Created External Client App named "AIO Analytics Builder"</label>
+                    <label class="checklist-item"><input type="checkbox"> Callback URL set to <code>http://localhost:8080/callback</code></label>
+                    <label class="checklist-item"><input type="checkbox"> OAuth Scopes: api, sfap_api, cdp_query_api, cdp_ingest_api, refresh_token</label>
+                    <label class="checklist-item"><input type="checkbox"> "Enable Authorization Code and Credentials Flow" checked</label>
+                    <label class="checklist-item"><input type="checkbox"> PKCE can be left checked (AIO supports it)</label>
+                </div>
+            </div>
+            <div class="wizard-actions">
+                <button class="btn btn-ghost" onclick="goSetupStep(1)">&larr; Back</button>
+                <button class="btn btn-primary" onclick="saveAndGoOAuth()">Next: Run OAuth Flow &rarr;</button>
+            </div>
+            <div id="w-sf-result" class="test-result"></div>
+        </section>
+    </div>
+
+    <!-- Wizard Step 3: OAuth Flow -->
+    <div class="wizard-step hidden" id="setup-step-3">
+        <section class="card">
+            <h2>Step 3: Salesforce OAuth Authorization</h2>
+            <p class="subtitle" style="margin-bottom:16px">Click below to open a browser window where you'll log in to Salesforce and authorize AIO. The refresh token will be saved automatically.</p>
+            <div class="oauth-instructions">
+                <div class="instruction-step">
+                    <span class="instruction-num">1</span>
+                    <span>Make sure your default browser is logged into the correct Salesforce org</span>
+                </div>
+                <div class="instruction-step">
+                    <span class="instruction-num">2</span>
+                    <span>Click "Run OAuth Flow" — a browser tab will open</span>
+                </div>
+                <div class="instruction-step">
+                    <span class="instruction-num">3</span>
+                    <span>Click "Allow" on the Salesforce authorization page</span>
+                </div>
+                <div class="instruction-step">
+                    <span class="instruction-num">4</span>
+                    <span>The browser will redirect to localhost — the token is captured automatically</span>
+                </div>
+            </div>
+            <div style="margin-top:16px">
+                <button class="btn btn-primary" onclick="runOAuth()">Run OAuth Flow</button>
+            </div>
+            <div id="w-oauth-result" class="test-result"></div>
+            <div class="wizard-actions" style="margin-top:20px">
+                <button class="btn btn-ghost" onclick="goSetupStep(2)">&larr; Back</button>
+                <button class="btn btn-primary" onclick="goSetupStep(4)">Next: Verify &rarr;</button>
+            </div>
+        </section>
+    </div>
+
+    <!-- Wizard Step 4: Verify -->
+    <div class="wizard-step hidden" id="setup-step-4">
+        <section class="card">
+            <h2>Step 4: Verify Connections</h2>
+            <p class="subtitle" style="margin-bottom:16px">Test all connections to make sure everything is working.</p>
+            <div class="verify-grid">
+                <div class="verify-row">
+                    <span class="verify-label">Tableau Cloud</span>
+                    <span class="verify-status" id="v-tableau">—</span>
+                </div>
+                <div class="verify-row">
+                    <span class="verify-label">Salesforce OAuth</span>
+                    <span class="verify-status" id="v-salesforce">—</span>
+                </div>
+                <div class="verify-row">
+                    <span class="verify-label">Data Cloud</span>
+                    <span class="verify-status" id="v-datacloud">—</span>
+                </div>
+            </div>
+            <div style="margin-top:16px">
+                <button class="btn btn-primary" onclick="verifyAll()">Run All Tests</button>
+            </div>
+            <div class="wizard-actions" style="margin-top:20px">
+                <button class="btn btn-ghost" onclick="goSetupStep(3)">&larr; Back</button>
+                <a href="/connections" class="btn btn-primary">Done — View Connections &rarr;</a>
+            </div>
+        </section>
+    </div>
+</div>
+
+<!-- ===================================================================
+     FORM MODE — everything visible at once
+     =================================================================== -->
+<div id="setup-form" class="setup-sections hidden">
+    <!-- Tableau Cloud -->
+    <section class="card">
+        <div class="card-header">
+            <h2>Tableau Cloud</h2>
+            <span id="tab-status" class="badge {% if config.get('tableau', {}).get('pat_secret') %}badge-ok{% else %}badge-pending{% endif %}">
+                {% if config.get('tableau', {}).get('pat_secret') %}Connected{% else %}Not configured{% endif %}
+            </span>
+        </div>
+        <form id="tableau-form" class="form-stack">
+            <div class="form-group">
+                <label for="tab-server">
+                    Server URL
+                    <span class="tooltip-trigger" data-tooltip="Go to your Tableau Cloud site. Copy the URL up to the domain — e.g. https://us-east-1.online.tableau.com">?</span>
+                </label>
+                <input type="url" id="tab-server" class="setup-sync" data-field="tab-server" placeholder="https://10ax.online.tableau.com"
+                       value="{{ config.get('tableau', {}).get('server_url', '') }}">
+            </div>
+            <div class="form-group">
+                <label for="tab-site">
+                    Site Name
+                    <span class="tooltip-trigger" data-tooltip="The subdomain in your Tableau Cloud URL. If your URL is .../site/my-company/... then the site name is 'my-company'.">?</span>
+                </label>
+                <input type="text" id="tab-site" class="setup-sync" data-field="tab-site" placeholder="my-site"
+                       value="{{ config.get('tableau', {}).get('site_name', '') }}">
+            </div>
+            <div class="form-group">
+                <label for="tab-pat-name">
+                    PAT Name
+                    <span class="tooltip-trigger" data-tooltip="Tableau Cloud → profile icon → My Account Settings → Personal Access Tokens → Create a new token. Enter a name like 'aio-builder'.">?</span>
+                </label>
+                <input type="text" id="tab-pat-name" class="setup-sync" data-field="tab-pat-name" placeholder="aio-builder"
+                       value="{{ config.get('tableau', {}).get('pat_name', '') }}">
+            </div>
+            <div class="form-group">
+                <label for="tab-pat-secret">
+                    PAT Secret
+                    <span class="tooltip-trigger" data-tooltip="Shown once when you create the token. Copy it immediately — you can't view it again.">?</span>
+                </label>
+                <input type="password" id="tab-pat-secret" class="setup-sync" data-field="tab-pat-secret" placeholder="Enter your Personal Access Token"
+                       value="{{ config.get('tableau', {}).get('pat_secret', '') }}">
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="testTableau()">Test Connection</button>
+                <button type="button" class="btn btn-primary" onclick="saveTableau()">Save</button>
+            </div>
+            <div id="tab-result" class="test-result"></div>
+        </form>
+    </section>
+
+    <!-- Salesforce -->
+    <section class="card">
+        <div class="card-header">
+            <h2>Salesforce + Data Cloud</h2>
+            <span id="sf-status" class="badge {% if config.get('salesforce', {}).get('refresh_token') %}badge-ok{% else %}badge-pending{% endif %}">
+                {% if config.get('salesforce', {}).get('refresh_token') %}Connected{% else %}Not configured{% endif %}
+            </span>
+        </div>
+        <form id="sf-form" class="form-stack">
+            <div class="form-group">
+                <label for="sf-login-url">
+                    Login URL
+                    <span class="tooltip-trigger" data-tooltip="https://login.salesforce.com for production, https://test.salesforce.com for sandboxes, or your custom domain.">?</span>
+                </label>
+                <input type="url" id="sf-login-url" class="setup-sync" data-field="sf-login-url" placeholder="https://login.salesforce.com"
+                       value="{{ config.get('salesforce', {}).get('sf_login_url', '') }}">
+            </div>
+            <div class="form-group">
+                <label for="sf-client-id">
+                    Client ID
+                    <span class="tooltip-trigger" data-tooltip="Setup → App Manager → New External Client App. Enable OAuth, set callback to http://localhost:8080/callback, add scopes: api, sfap_api, cdp_query_api, cdp_ingest_api, refresh_token. Enable Auth Code flow. Get Consumer Key from Settings tab.">?</span>
+                </label>
+                <input type="text" id="sf-client-id" class="setup-sync" data-field="sf-client-id" placeholder="Connected App Consumer Key"
+                       value="{{ config.get('salesforce', {}).get('client_id', '') }}">
+            </div>
+            <div class="form-group">
+                <label for="sf-client-secret">
+                    Client Secret
+                    <span class="tooltip-trigger" data-tooltip="Same page as Consumer Key — click 'Consumer Key and Secret', verify identity, copy the secret.">?</span>
+                </label>
+                <input type="password" id="sf-client-secret" class="setup-sync" data-field="sf-client-secret" placeholder="Connected App Consumer Secret"
+                       value="{{ config.get('salesforce', {}).get('client_secret', '') }}">
+            </div>
+            <div class="form-group">
+                <label for="sf-refresh-token">
+                    Refresh Token
+                    <span class="tooltip-trigger" data-tooltip="Click 'Run OAuth Flow' to get this automatically. A browser tab opens, you log in and click Allow, and the token is captured. You can also paste one manually if you already have it.">?</span>
+                </label>
+                <input type="password" id="sf-refresh-token" class="setup-sync" data-field="sf-refresh-token" placeholder="OAuth refresh token"
+                       value="{{ config.get('salesforce', {}).get('refresh_token', '') }}">
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="startOAuth()">Run OAuth Flow</button>
+                <button type="button" class="btn btn-secondary" onclick="testSalesforce()">Test Connection</button>
+                <button type="button" class="btn btn-primary" onclick="saveSalesforce()">Save</button>
+            </div>
+            <div id="sf-result" class="test-result"></div>
+        </form>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ---- Mode toggle ----
+let setupMode = 'wizard';
+
+function setSetupMode(mode) {
+    setupMode = mode;
+    const track = document.getElementById('setup-mode-track');
+    document.getElementById('setup-wizard').classList.toggle('hidden', mode !== 'wizard');
+    document.getElementById('setup-form').classList.toggle('hidden', mode !== 'form');
+    document.getElementById('lbl-wizard').classList.toggle('active', mode === 'wizard');
+    document.getElementById('lbl-form').classList.toggle('active', mode === 'form');
+    if (mode === 'form') track.classList.add('on');
+    else track.classList.remove('on');
+    syncSetupFields();
+    localStorage.setItem('aio-setup-mode', mode);
+}
+function toggleSetupMode() { setSetupMode(setupMode === 'wizard' ? 'form' : 'wizard'); }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const saved = localStorage.getItem('aio-setup-mode');
+    if (saved === 'form') setSetupMode('form');
+});
+
+// ---- Field sync between wizard and form ----
+function syncSetupFields() {
+    const groups = {};
+    document.querySelectorAll('.setup-sync').forEach(el => {
+        const key = el.dataset.field;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(el);
+    });
+    for (const [key, fields] of Object.entries(groups)) {
+        const source = fields.find(f => f.value);
+        if (source) fields.forEach(f => { if (f !== source) f.value = source.value; });
+    }
+}
+document.addEventListener('input', (e) => {
+    if (!e.target.classList.contains('setup-sync')) return;
+    const key = e.target.dataset.field;
+    document.querySelectorAll(`.setup-sync[data-field="${key}"]`).forEach(f => {
+        if (f !== e.target) f.value = e.target.value;
+    });
+});
+
+// ---- Wizard navigation ----
+function goSetupStep(n) {
+    document.querySelectorAll('#setup-wizard .wizard-step').forEach(el => el.classList.add('hidden'));
+    document.getElementById('setup-step-' + n).classList.remove('hidden');
+    document.querySelectorAll('#setup-wizard .stepper .step').forEach(el => {
+        const s = parseInt(el.dataset.step);
+        el.classList.toggle('active', s === n);
+        el.classList.toggle('done', s < n);
+    });
+}
+
+// ---- Wizard actions ----
+function getSetupVal(field) {
+    const el = document.querySelector(`.setup-sync[data-field="${field}"]`);
+    return el ? el.value : '';
+}
+
+async function saveAndTestTableau() {
+    const data = {
+        tableau: {
+            server_url: getSetupVal('tab-server'),
+            site_name: getSetupVal('tab-site'),
+            pat_name: getSetupVal('tab-pat-name'),
+            pat_secret: getSetupVal('tab-pat-secret'),
+        }
+    };
+    await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
+    showResult('w-tab-result', null, 'Testing...');
+    const r = await fetch('/api/test-tableau', {method: 'POST'});
+    const j = await r.json();
+    showResult('w-tab-result', j.ok, j.ok ? `Connected to ${j.site_name} (${j.server_url})` : j.error);
+}
+
+async function saveAndGoOAuth() {
+    const data = {
+        salesforce: {
+            sf_login_url: getSetupVal('sf-login-url'),
+            client_id: getSetupVal('sf-client-id'),
+            client_secret: getSetupVal('sf-client-secret'),
+        }
+    };
+    await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
+    goSetupStep(3);
+}
+
+function runOAuth() {
+    showResult('w-oauth-result', null, 'OAuth flow not yet wired to web UI — use CLI /setup for now. Paste the refresh token in Step 2 if you have one.');
+}
+
+async function verifyAll() {
+    document.getElementById('v-tableau').innerHTML = '<span class="inline-warn">Testing...</span>';
+    document.getElementById('v-salesforce').innerHTML = '<span class="inline-warn">Testing...</span>';
+    document.getElementById('v-datacloud').innerHTML = '<span class="inline-warn">Testing...</span>';
+
+    try {
+        const r = await fetch('/api/test-tableau', {method: 'POST'});
+        const j = await r.json();
+        document.getElementById('v-tableau').innerHTML = j.ok
+            ? `<span class="inline-ok">Connected</span> — ${j.site_name}`
+            : `<span class="inline-warn">Failed</span> — ${j.error || 'unknown'}`;
+    } catch (e) {
+        document.getElementById('v-tableau').innerHTML = '<span class="inline-warn">Error</span>';
+    }
+
+    try {
+        const r = await fetch('/api/test-salesforce', {method: 'POST'});
+        const j = await r.json();
+        document.getElementById('v-salesforce').innerHTML = j.ok
+            ? `<span class="inline-ok">Connected</span> — ${j.username || j.instance}`
+            : `<span class="inline-warn">Failed</span> — ${j.error || 'unknown'}`;
+        document.getElementById('v-datacloud').innerHTML = j.data_cloud
+            ? `<span class="inline-ok">Connected</span> — ${j.dc_domain || ''}`
+            : '<span class="inline-warn">Failed</span> — token exchange error';
+    } catch (e) {
+        document.getElementById('v-salesforce').innerHTML = '<span class="inline-warn">Error</span>';
+        document.getElementById('v-datacloud').innerHTML = '<span class="inline-warn">Error</span>';
+    }
+}
+
+// ---- Form mode actions ----
+async function saveTableau() {
+    const data = {
+        tableau: {
+            server_url: getSetupVal('tab-server'),
+            site_name: getSetupVal('tab-site'),
+            pat_name: getSetupVal('tab-pat-name'),
+            pat_secret: getSetupVal('tab-pat-secret'),
+        }
+    };
+    const r = await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
+    const j = await r.json();
+    showResult('tab-result', j.ok, j.ok ? 'Saved' : j.error);
+}
+
+async function saveSalesforce() {
+    const data = {
+        salesforce: {
+            sf_login_url: getSetupVal('sf-login-url'),
+            client_id: getSetupVal('sf-client-id'),
+            client_secret: getSetupVal('sf-client-secret'),
+            refresh_token: getSetupVal('sf-refresh-token'),
+        }
+    };
+    const r = await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
+    const j = await r.json();
+    showResult('sf-result', j.ok, j.ok ? 'Saved' : j.error);
+}
+
+async function testTableau() {
+    showResult('tab-result', null, 'Testing...');
+    const r = await fetch('/api/test-tableau', {method: 'POST'});
+    const j = await r.json();
+    showResult('tab-result', j.ok, j.ok ? `Connected (site: ${j.site_name})` : j.error);
+    if (j.ok) document.getElementById('tab-status').className = 'badge badge-ok';
+}
+
+async function testSalesforce() {
+    showResult('sf-result', null, 'Testing...');
+    const r = await fetch('/api/test-salesforce', {method: 'POST'});
+    const j = await r.json();
+    showResult('sf-result', j.ok, j.ok ? `Connected (${j.instance})` : j.error);
+    if (j.ok) document.getElementById('sf-status').className = 'badge badge-ok';
+}
+
+function startOAuth() {
+    showResult('sf-result', null, 'OAuth flow not yet wired to web UI — use CLI /setup for now');
+}
+</script>
+{% endblock %}

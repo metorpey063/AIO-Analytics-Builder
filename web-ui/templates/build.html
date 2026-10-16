@@ -1,0 +1,518 @@
+{% extends "base.html" %}
+{% set active = "build" %}
+
+{% block title %}Build Demo — AIO Analytics Builder{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+    <div>
+        <h1>Build a Demo</h1>
+        <p class="subtitle">Generate a story-driven demo with engineered signals</p>
+    </div>
+    <div class="mode-toggle-bar" style="margin-bottom:0">
+        <span class="mode-label active" id="lbl-wizard" onclick="setMode('wizard')">Wizard</span>
+        <div class="toggle-track" id="mode-track" onclick="toggleMode()">
+            <div class="toggle-thumb"></div>
+        </div>
+        <span class="mode-label" id="lbl-form" onclick="setMode('form')">Form</span>
+    </div>
+</div>
+
+<!-- ===================================================================
+     WIZARD MODE
+     =================================================================== -->
+<div id="wizard-mode">
+    <!-- Step indicator -->
+    <div class="stepper">
+        <div class="step active" data-step="1"><span class="step-num">1</span> Company</div>
+        <div class="step" data-step="2"><span class="step-num">2</span> Story</div>
+        <div class="step" data-step="3"><span class="step-num">3</span> Metrics</div>
+        <div class="step" data-step="4"><span class="step-num">4</span> Output</div>
+        <div class="step" data-step="5"><span class="step-num">5</span> Build</div>
+    </div>
+
+    <!-- Step 1: Company Info -->
+    <div class="wizard-step" id="step-1">
+        <div class="card">
+            <h2>Tell us about the company</h2>
+            <div class="form-stack">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="w-company">Company Name</label>
+                        <input type="text" id="w-company" class="sync-field" data-sync="company" placeholder="Acme Corp">
+                    </div>
+                    <div class="form-group">
+                        <label for="w-industry">Industry</label>
+                        <select id="w-industry" class="sync-field" data-sync="industry">
+                            <option value="">Select...</option>
+                            <option>Healthcare</option>
+                            <option>Financial Services</option>
+                            <option>Manufacturing</option>
+                            <option>Retail</option>
+                            <option>Technology</option>
+                            <option>Insurance</option>
+                            <option>Education</option>
+                            <option>Government</option>
+                            <option>Energy</option>
+                            <option>Telecom</option>
+                            <option>Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="w-usecase">Use Case / Topic</label>
+                    <input type="text" id="w-usecase" class="sync-field" data-sync="usecase" placeholder="e.g. Employee benefits enrollment, Sales pipeline, Customer churn">
+                </div>
+                <div class="form-group">
+                    <label for="w-audience">Audience (who will see this demo?)</label>
+                    <input type="text" id="w-audience" class="sync-field" data-sync="audience" placeholder="e.g. VP of HR, Chief Data Officer, Sales Operations Manager">
+                </div>
+                <div class="form-group">
+                    <label for="w-notes">Additional Context <span class="optional">(optional)</span></label>
+                    <textarea id="w-notes" class="sync-field" data-sync="notes" rows="3" placeholder="Any specific requirements, pain points, or details about what matters to this prospect..."></textarea>
+                </div>
+            </div>
+            <div class="wizard-actions">
+                <div></div>
+                <button class="btn btn-primary" onclick="goStep(2)">Next: Generate Story &rarr;</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Story Preview (AI-generated) -->
+    <div class="wizard-step hidden" id="step-2">
+        <div class="card">
+            <h2>Demo Story</h2>
+            <p class="subtitle">AI-generated story based on your inputs. Edit anything before proceeding.</p>
+            <div id="story-loading" class="loading-state">
+                <div class="spinner"></div>
+                <p>Generating story...</p>
+            </div>
+            <div id="story-content" class="hidden">
+                <div class="form-group">
+                    <label>Story Summary</label>
+                    <textarea id="story-summary" rows="5" class="mono"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Signal Description</label>
+                    <textarea id="story-signal" rows="3" class="mono"></textarea>
+                </div>
+            </div>
+            <div class="wizard-actions">
+                <button class="btn btn-ghost" onclick="goStep(1)">&larr; Back</button>
+                <button class="btn btn-primary" onclick="goStep(3)">Next: Configure Metrics &rarr;</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Metrics Config -->
+    <div class="wizard-step hidden" id="step-3">
+        <div class="card">
+            <h2>Metrics</h2>
+            <p class="subtitle">Review and adjust the metrics that will be built.</p>
+            <div id="metrics-loading" class="loading-state">
+                <div class="spinner"></div>
+                <p>Designing metrics...</p>
+            </div>
+            <div id="metrics-content" class="hidden">
+                <table class="metrics-table">
+                    <thead>
+                        <tr><th>Metric</th><th>Type</th><th>Aggregation</th><th>Sentiment</th><th></th></tr>
+                    </thead>
+                    <tbody id="metrics-body"></tbody>
+                </table>
+                <button class="btn btn-ghost" onclick="addMetricRow()">+ Add metric</button>
+            </div>
+            <div class="wizard-actions">
+                <button class="btn btn-ghost" onclick="goStep(2)">&larr; Back</button>
+                <button class="btn btn-primary" onclick="goStep(4)">Next: Choose Output &rarr;</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 4: Output Selection -->
+    <div class="wizard-step hidden" id="step-4">
+        <div class="card">
+            <h2>Output Targets</h2>
+            <p class="subtitle">Where should we publish this demo?</p>
+            <div class="output-options">
+                <label class="output-card {% if not has_tableau %}disabled{% endif %}">
+                    <input type="checkbox" id="w-out-pulse" class="sync-field" data-sync="out-pulse" {% if has_tableau %}checked{% endif %} {% if not has_tableau %}disabled{% endif %}>
+                    <div class="output-card-inner">
+                        <strong>Tableau Pulse</strong>
+                        <p>Publish .hyper datasource + Pulse metric definitions + group subscriptions</p>
+                        {% if not has_tableau %}<span class="form-hint">Requires Tableau Cloud connection</span>{% endif %}
+                    </div>
+                </label>
+                <label class="output-card {% if not has_salesforce %}disabled{% endif %}">
+                    <input type="checkbox" id="w-out-next" class="sync-field" data-sync="out-next" {% if has_salesforce %}checked{% endif %} {% if not has_salesforce %}disabled{% endif %}>
+                    <div class="output-card-inner">
+                        <strong>Tableau Next</strong>
+                        <p>Push to Data Cloud + build SDM, metrics, visualizations, and dashboard</p>
+                        {% if not has_salesforce %}<span class="form-hint">Requires Salesforce connection</span>{% endif %}
+                    </div>
+                </label>
+                <label class="output-card">
+                    <input type="checkbox" id="w-out-csv" class="sync-field" data-sync="out-csv" checked>
+                    <div class="output-card-inner">
+                        <strong>CSV Export</strong>
+                        <p>Export the generated dataset for manual use in any viz tool</p>
+                    </div>
+                </label>
+            </div>
+            <div class="wizard-actions">
+                <button class="btn btn-ghost" onclick="goStep(3)">&larr; Back</button>
+                <button class="btn btn-primary" onclick="startBuild()">Build Demo &rarr;</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 5: Build Progress -->
+    <div class="wizard-step hidden" id="step-5">
+        <div class="card" id="build-progress-card">
+            <h2>Building Demo</h2>
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                </div>
+                <div class="progress-label" id="progress-label">Initializing...</div>
+                <div class="progress-log" id="progress-log"></div>
+            </div>
+            <div class="wizard-actions">
+                <div></div>
+                <button class="btn btn-primary hidden" id="build-done-btn" onclick="location.href='/demos'">View Demo &rarr;</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================================================================
+     FORM MODE — everything on one page
+     =================================================================== -->
+<div id="form-mode" class="hidden">
+    <div class="card">
+        <div class="form-mode-sections">
+            <!-- Company -->
+            <div>
+                <div class="form-section-header">Company</div>
+                <div class="form-stack">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="f-company">Company Name</label>
+                            <input type="text" id="f-company" class="sync-field" data-sync="company" placeholder="Acme Corp">
+                        </div>
+                        <div class="form-group">
+                            <label for="f-industry">Industry</label>
+                            <select id="f-industry" class="sync-field" data-sync="industry">
+                                <option value="">Select...</option>
+                                <option>Healthcare</option>
+                                <option>Financial Services</option>
+                                <option>Manufacturing</option>
+                                <option>Retail</option>
+                                <option>Technology</option>
+                                <option>Insurance</option>
+                                <option>Education</option>
+                                <option>Government</option>
+                                <option>Energy</option>
+                                <option>Telecom</option>
+                                <option>Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="f-usecase">Use Case / Topic</label>
+                        <input type="text" id="f-usecase" class="sync-field" data-sync="usecase" placeholder="e.g. Employee benefits enrollment, Sales pipeline, Customer churn">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="f-audience">Audience</label>
+                            <input type="text" id="f-audience" class="sync-field" data-sync="audience" placeholder="e.g. VP of HR, CDO">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="f-notes">Additional Context <span class="optional">(optional)</span></label>
+                        <textarea id="f-notes" class="sync-field" data-sync="notes" rows="2" placeholder="Pain points, specific requirements..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Output Targets -->
+            <div>
+                <div class="form-section-header">Output Targets</div>
+                <div class="output-options" style="flex-direction:row; gap:12px;">
+                    <label class="output-card" style="flex:1; {% if not has_tableau %}opacity:0.5{% endif %}">
+                        <input type="checkbox" id="f-out-pulse" class="sync-field" data-sync="out-pulse" {% if has_tableau %}checked{% endif %} {% if not has_tableau %}disabled{% endif %}>
+                        <div class="output-card-inner">
+                            <strong>Pulse</strong>
+                            {% if not has_tableau %}<p class="form-hint" style="margin:0">Not connected</p>{% endif %}
+                        </div>
+                    </label>
+                    <label class="output-card" style="flex:1; {% if not has_salesforce %}opacity:0.5{% endif %}">
+                        <input type="checkbox" id="f-out-next" class="sync-field" data-sync="out-next" {% if has_salesforce %}checked{% endif %} {% if not has_salesforce %}disabled{% endif %}>
+                        <div class="output-card-inner">
+                            <strong>Tableau Next</strong>
+                            {% if not has_salesforce %}<p class="form-hint" style="margin:0">Not connected</p>{% endif %}
+                        </div>
+                    </label>
+                    <label class="output-card" style="flex:1;">
+                        <input type="checkbox" id="f-out-csv" class="sync-field" data-sync="out-csv" checked>
+                        <div class="output-card-inner"><strong>CSV</strong></div>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="wizard-actions" style="border-top: 1px solid var(--border-light); margin-top: 24px; padding-top: 16px;">
+            <div></div>
+            <button class="btn btn-primary" onclick="startBuild()">Build Demo &rarr;</button>
+        </div>
+    </div>
+
+    <!-- Progress (shared with wizard) -->
+    <div class="hidden" id="form-progress">
+        <div class="card" style="margin-top:16px">
+            <h2>Building Demo</h2>
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="form-progress-fill" style="width: 0%"></div>
+                </div>
+                <div class="progress-label" id="form-progress-label">Initializing...</div>
+                <div class="progress-log" id="form-progress-log"></div>
+            </div>
+            <div class="wizard-actions">
+                <div></div>
+                <button class="btn btn-primary hidden" id="form-done-btn" onclick="location.href='/demos'">View Demo &rarr;</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentMode = 'wizard';
+
+function setMode(mode) {
+    currentMode = mode;
+    const track = document.getElementById('mode-track');
+    const wizardEl = document.getElementById('wizard-mode');
+    const formEl = document.getElementById('form-mode');
+    const lblW = document.getElementById('lbl-wizard');
+    const lblF = document.getElementById('lbl-form');
+
+    if (mode === 'form') {
+        track.classList.add('on');
+        wizardEl.classList.add('hidden');
+        formEl.classList.remove('hidden');
+        lblW.classList.remove('active');
+        lblF.classList.add('active');
+    } else {
+        track.classList.remove('on');
+        wizardEl.classList.remove('hidden');
+        formEl.classList.add('hidden');
+        lblW.classList.add('active');
+        lblF.classList.remove('active');
+    }
+    syncFields();
+    localStorage.setItem('aio-build-mode', mode);
+}
+
+function toggleMode() {
+    setMode(currentMode === 'wizard' ? 'form' : 'wizard');
+}
+
+// Sync field values between wizard and form modes
+function syncFields() {
+    const groups = {};
+    document.querySelectorAll('.sync-field').forEach(el => {
+        const key = el.dataset.sync;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(el);
+    });
+
+    for (const [key, fields] of Object.entries(groups)) {
+        const source = fields.find(f => f.value || f.checked);
+        if (source) {
+            fields.forEach(f => {
+                if (f !== source) {
+                    if (f.type === 'checkbox') f.checked = source.checked;
+                    else f.value = source.value;
+                }
+            });
+        }
+    }
+}
+
+// Keep fields in sync as user types
+document.addEventListener('input', (e) => {
+    if (!e.target.classList.contains('sync-field')) return;
+    const key = e.target.dataset.sync;
+    const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    document.querySelectorAll(`.sync-field[data-sync="${key}"]`).forEach(f => {
+        if (f !== e.target) {
+            if (f.type === 'checkbox') f.checked = val;
+            else f.value = val;
+        }
+    });
+});
+document.addEventListener('change', (e) => {
+    if (!e.target.classList.contains('sync-field')) return;
+    const key = e.target.dataset.sync;
+    const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    document.querySelectorAll(`.sync-field[data-sync="${key}"]`).forEach(f => {
+        if (f !== e.target) {
+            if (f.type === 'checkbox') f.checked = val;
+            else f.value = val;
+        }
+    });
+});
+
+// Restore saved mode preference
+document.addEventListener('DOMContentLoaded', () => {
+    const saved = localStorage.getItem('aio-build-mode');
+    if (saved === 'form') setMode('form');
+});
+
+// ---- Wizard navigation ----
+function goStep(n) {
+    document.querySelectorAll('.wizard-step').forEach(el => el.classList.add('hidden'));
+    document.getElementById('step-' + n).classList.remove('hidden');
+    document.querySelectorAll('.stepper .step').forEach(el => {
+        const s = parseInt(el.dataset.step);
+        el.classList.toggle('active', s === n);
+        el.classList.toggle('done', s < n);
+    });
+
+    if (n === 2) generateStory();
+    if (n === 3) generateMetrics();
+}
+
+async function generateStory() {
+    document.getElementById('story-loading').classList.remove('hidden');
+    document.getElementById('story-content').classList.add('hidden');
+    await sleep(800);
+
+    const company = getVal('company');
+    const industry = getVal('industry');
+    const usecase = getVal('usecase');
+
+    document.getElementById('story-summary').value =
+        `Story generation will be powered by the Claude API.\n\n` +
+        `Company: ${company || '(not set)'}\nIndustry: ${industry || '(not set)'}\nUse case: ${usecase || '(not set)'}\n\n` +
+        `The AI will create a narrative — what signal to engineer, which dimensions to include, and the drill-down story arc.`;
+    document.getElementById('story-signal').value =
+        'Signal: accelerating decline in primary metric over 3 months, concentrated in 1-2 segments';
+
+    document.getElementById('story-loading').classList.add('hidden');
+    document.getElementById('story-content').classList.remove('hidden');
+}
+
+async function generateMetrics() {
+    document.getElementById('metrics-loading').classList.remove('hidden');
+    document.getElementById('metrics-content').classList.add('hidden');
+    await sleep(600);
+
+    const tbody = document.getElementById('metrics-body');
+    tbody.innerHTML = '';
+    const sample = [
+        {name: 'Primary Rate', type: 'Rate', agg: 'Average', sentiment: 'Down is bad'},
+        {name: 'Supporting Volume', type: 'Flow', agg: 'Sum', sentiment: 'Down is bad'},
+        {name: 'Counter Metric', type: 'Rate', agg: 'Average', sentiment: 'Up is good'},
+    ];
+    sample.forEach(m => addMetricRow(m));
+
+    document.getElementById('metrics-loading').classList.add('hidden');
+    document.getElementById('metrics-content').classList.remove('hidden');
+}
+
+function addMetricRow(m) {
+    m = m || {name: '', type: 'Rate', agg: 'Average', sentiment: 'Down is bad'};
+    const tbody = document.getElementById('metrics-body');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td><input type="text" value="${m.name}" placeholder="Metric name" class="table-input"></td>
+        <td><select class="table-input"><option ${m.type==='Rate'?'selected':''}>Rate</option><option ${m.type==='Flow'?'selected':''}>Flow</option><option ${m.type==='Snapshot'?'selected':''}>Snapshot</option></select></td>
+        <td><select class="table-input"><option ${m.agg==='Average'?'selected':''}>Average</option><option ${m.agg==='Sum'?'selected':''}>Sum</option></select></td>
+        <td><select class="table-input"><option>Down is bad</option><option>Up is good</option></select></td>
+        <td><button class="btn-icon" onclick="this.closest('tr').remove()" title="Remove">&times;</button></td>
+    `;
+    tbody.appendChild(tr);
+}
+
+// ---- Build ----
+async function startBuild() {
+    // In wizard mode, go to step 5; in form mode, show inline progress
+    if (currentMode === 'wizard') {
+        goStep(5);
+    } else {
+        document.getElementById('form-progress').classList.remove('hidden');
+        document.getElementById('form-progress').scrollIntoView({behavior: 'smooth'});
+    }
+
+    const data = {
+        company: getVal('company'),
+        industry: getVal('industry'),
+        use_case: getVal('usecase'),
+        audience: getVal('audience'),
+        notes: getVal('notes'),
+        outputs: {
+            pulse: getChecked('out-pulse'),
+            next: getChecked('out-next'),
+            csv: getChecked('out-csv'),
+        }
+    };
+
+    const r = await fetch('/api/build/start', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    });
+    const j = await r.json();
+
+    const fillId = currentMode === 'wizard' ? 'progress-fill' : 'form-progress-fill';
+    const labelId = currentMode === 'wizard' ? 'progress-label' : 'form-progress-label';
+    const logId = currentMode === 'wizard' ? 'progress-log' : 'form-progress-log';
+    const doneId = currentMode === 'wizard' ? 'build-done-btn' : 'form-done-btn';
+
+    if (!j.ok) {
+        document.getElementById(labelId).textContent = 'Error: ' + (j.error || 'Unknown');
+        return;
+    }
+
+    const es = new EventSource('/api/build/progress/' + j.build_id);
+    es.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.stage === 'heartbeat') return;
+
+        const log = document.getElementById(logId);
+        if (msg.message) {
+            const div = document.createElement('div');
+            div.className = 'log-line';
+            div.textContent = msg.message;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+        if (msg.pct >= 0) {
+            document.getElementById(fillId).style.width = msg.pct + '%';
+        }
+        document.getElementById(labelId).textContent = msg.message;
+
+        if (msg.stage === 'done' || msg.stage === 'error') {
+            es.close();
+            document.getElementById(doneId).classList.remove('hidden');
+        }
+    };
+}
+
+// ---- Helpers ----
+function getVal(key) {
+    const el = document.querySelector(`.sync-field[data-sync="${key}"]`);
+    return el ? el.value : '';
+}
+function getChecked(key) {
+    const el = document.querySelector(`.sync-field[data-sync="${key}"]`);
+    return el ? el.checked : false;
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+{% endblock %}

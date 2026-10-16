@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% set active = "demos" %}
+
+{% block title %}My Demos — AIO Analytics Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>My Demos</h1>
+    <p class="subtitle">Previously built demos and their assets</p>
+</div>
+
+{% if demos %}
+<div class="demo-list">
+    {% for demo in demos %}
+    <div class="card demo-card">
+        <div class="demo-card-header">
+            <div>
+                <h3>{{ demo.company or demo.slug }}</h3>
+                <span class="badge badge-neutral">{{ demo.get('build_type', 'unknown') | title }}</span>
+            </div>
+            <div class="demo-actions">
+                <button class="btn btn-ghost btn-sm" title="Refresh dates">Refresh Dates</button>
+                <button class="btn btn-ghost btn-sm" title="Open folder" onclick="openFolder('{{ demo.slug }}')">Open Folder</button>
+            </div>
+        </div>
+        {% if demo.get('phases_done') %}
+        <div class="phase-badges">
+            {% for phase in demo.phases_done %}
+            <span class="badge badge-ok">{{ phase }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+    <h3>No demos yet</h3>
+    <p>Build your first demo to see it here.</p>
+    <a href="/build" class="btn btn-primary">Build a Demo</a>
+</div>
+{% endif %}
+{% endblock %}
