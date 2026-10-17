@@ -4,6 +4,31 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-10-17 — Web UI polish: frosted glass, guided setup, version checking, walkthrough links
+
+### Added
+- **Frosted glass design** — all cards, accordions, panels use translucent `backdrop-filter: blur` with 16px rounded corners; analytics background image at 50% opacity behind content
+- **Platform selection on Setup** — new Step 0 lets users choose which platforms to connect (Tableau Cloud, Tableau Next & Data Cloud, CRM Analytics) before entering credentials; stepper adapts dynamically
+- **Side-by-side setup guides** — Steps 1 (Tableau PAT) and 2 (Salesforce ECA) now show the form on the left and a scrollable step-by-step instruction panel on the right with numbered walkthrough
+- **Version checking** — `VERSION` file tracks current release; `/api/version` compares local vs `origin/main` on page load; update button turns blue with pulsing glow when outdated; red version text + dismissable banner notification when behind
+- **Update button** — refresh icon in sidebar header runs `git pull --ff-only`, prompts to reload
+- **"Ask Claude" label** — text label next to the chat bubble so new users know what it does; fades out when chat panel opens
+- **Walkthrough doc links** — My Demos page shows clickable links to each demo's `.docx` walkthrough; opens directly in Word/Pages (not browser download)
+- **Open Folder** — My Demos "Open Folder" button now actually opens the demo directory in Finder via `/api/demos/{slug}/open`
+- **Changelog panel** — home page right sidebar shows the 5 most recent changelog entries with dates and bullet points
+- **Contextual guidance** — home page header text adapts based on connection state (nothing connected → both connected) with blue hyperlinks to next action
+
+### Changed
+- **Connections page** — reorganized from per-profile accordions to platform-grouped sections (Tableau Cloud / Salesforce & Data 360 / MCP); profiles only appear under platforms they have configured
+- **Home page** — two-column layout with numbered workflow tiles (1-Setup → 2-Build → 3-Demos), Tools & Skills section, GitHub link, and expanded description
+- **Sidebar nav** — reordered with "Get Started" (1-2-3 step numbers) and "Manage" section labels; increased max content width to 1200px
+- **My Demos** — removed Refresh Dates button (self-healing dates handle this)
+
+### Fixed
+- Chat bot Bedrock gateway: switched from streaming `invoke-with-response-stream` (binary event format) to non-streaming `/invoke` to fix parsing errors
+
+---
+
 ## 2026-10-16 — AIO Web UI (v2.0)
 
 ### Added

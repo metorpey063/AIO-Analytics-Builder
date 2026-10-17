@@ -19,10 +19,25 @@
                 <span class="badge badge-neutral">{{ demo.get('build_type', 'unknown') | title }}</span>
             </div>
             <div class="demo-actions">
-                <button class="btn btn-ghost btn-sm" title="Refresh dates">Refresh Dates</button>
-                <button class="btn btn-ghost btn-sm" title="Open folder" onclick="openFolder('{{ demo.slug }}')">Open Folder</button>
+                <button class="btn btn-secondary btn-sm" title="Open folder in Finder" onclick="openFolder('{{ demo.slug }}')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px; vertical-align:-2px; margin-right:4px"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                    Open Folder
+                </button>
             </div>
         </div>
+
+        {% if demo.get('walkthroughs') %}
+        <div class="demo-walkthroughs">
+            <span class="demo-wt-label">Walkthrough:</span>
+            {% for w in demo.walkthroughs %}
+            <a href="#" onclick="event.preventDefault(); openWalkthrough('{{ w.slug }}', '{{ w.name }}')" class="demo-wt-link" title="Open {{ w.name }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px; height:13px; vertical-align:-1px; margin-right:3px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                {{ w.name | replace('_', ' ') | replace('.docx', '') }}
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         {% if demo.get('phases_done') %}
         <div class="phase-badges">
             {% for phase in demo.phases_done %}
@@ -41,4 +56,20 @@
     <a href="/build" class="btn btn-primary">Build a Demo</a>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function openFolder(slug) {
+    const r = await fetch('/api/demos/' + slug + '/open');
+    const j = await r.json();
+    if (!j.ok) alert('Could not open folder: ' + (j.error || 'unknown error'));
+}
+
+async function openWalkthrough(slug, filename) {
+    const r = await fetch('/api/demos/' + slug + '/walkthrough/' + filename);
+    const j = await r.json();
+    if (!j.ok) alert('Could not open file: ' + (j.error || 'unknown error'));
+}
+</script>
 {% endblock %}

@@ -22,108 +22,244 @@
      WIZARD MODE — step by step
      =================================================================== -->
 <div id="setup-wizard" class="setup-sections">
-    <div class="stepper" style="margin-bottom:20px">
-        <div class="step active" data-step="1"><span class="step-num">1</span> Tableau Cloud</div>
+    <div class="stepper" id="setup-stepper" style="margin-bottom:20px">
+        <div class="step active" data-step="0"><span class="step-num">&#9679;</span> Choose Platforms</div>
+        <div class="step" data-step="1"><span class="step-num">1</span> Tableau Cloud</div>
         <div class="step" data-step="2"><span class="step-num">2</span> Salesforce ECA</div>
         <div class="step" data-step="3"><span class="step-num">3</span> OAuth Flow</div>
         <div class="step" data-step="4"><span class="step-num">4</span> Verify</div>
     </div>
 
-    <!-- Wizard Step 1: Tableau Cloud PAT -->
-    <div class="wizard-step" id="setup-step-1">
+    <!-- Step 0: Platform Selection -->
+    <div class="wizard-step" id="setup-step-0">
         <section class="card">
-            <h2>Step 1: Tableau Cloud Personal Access Token</h2>
-            <p class="subtitle" style="margin-bottom:16px">Create a PAT in Tableau Cloud so AIO can publish datasources and create Pulse metrics.</p>
-            <div class="form-stack">
-                <div class="form-group">
-                    <label for="w-tab-server">
-                        Server URL
-                        <span class="tooltip-trigger" data-tooltip="Go to your Tableau Cloud site. The URL in your browser bar is the server URL — copy everything up to and including the domain (e.g. https://us-east-1.online.tableau.com). Don't include any path after the domain.">?</span>
-                    </label>
-                    <input type="url" id="w-tab-server" class="setup-sync" data-field="tab-server" placeholder="https://10ax.online.tableau.com"
-                           value="{{ config.get('tableau', {}).get('server_url', '') }}">
-                </div>
-                <div class="form-group">
-                    <label for="w-tab-site">
-                        Site Name
-                        <span class="tooltip-trigger" data-tooltip="This is the subdomain in your Tableau Cloud URL. For example, if your URL is https://10ax.online.tableau.com/#/site/my-company/home then the site name is 'my-company'. You can also find it in Settings → Site under 'Site Name'.">?</span>
-                    </label>
-                    <input type="text" id="w-tab-site" class="setup-sync" data-field="tab-site" placeholder="my-site"
-                           value="{{ config.get('tableau', {}).get('site_name', '') }}">
-                </div>
-                <div class="form-group">
-                    <label for="w-tab-pat-name">
-                        PAT Name
-                        <span class="tooltip-trigger" data-tooltip="Go to Tableau Cloud → click your profile icon (top right) → My Account Settings → Personal Access Tokens. Click 'Create a new token'. Enter a name like 'aio-builder' — this is just a label to identify the token.">?</span>
-                    </label>
-                    <input type="text" id="w-tab-pat-name" class="setup-sync" data-field="tab-pat-name" placeholder="aio-builder"
-                           value="{{ config.get('tableau', {}).get('pat_name', '') }}">
-                </div>
-                <div class="form-group">
-                    <label for="w-tab-pat-secret">
-                        PAT Secret
-                        <span class="tooltip-trigger" data-tooltip="After clicking 'Create a new token', Tableau shows the secret once. Copy it immediately — you can't view it again after closing the dialog. If you lose it, delete the token and create a new one.">?</span>
-                    </label>
-                    <input type="password" id="w-tab-pat-secret" class="setup-sync" data-field="tab-pat-secret" placeholder="Paste your Personal Access Token secret"
-                           value="{{ config.get('tableau', {}).get('pat_secret', '') }}">
-                </div>
+            <h2>What would you like to connect?</h2>
+            <p class="subtitle" style="margin-bottom:20px">Select the platforms you'll be building demos for. You can always come back and add more later.</p>
+            <div class="platform-grid">
+                <label class="platform-card" id="plat-tableau">
+                    <input type="checkbox" id="chk-tableau" checked onchange="updatePlatformSteps()">
+                    <div class="platform-card-inner">
+                        <div class="platform-icon accent-blue">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                        </div>
+                        <div>
+                            <strong>Tableau Cloud</strong>
+                            <p>Pulse metrics, datasources, workbooks</p>
+                            <span class="platform-auth">Auth: Personal Access Token (PAT)</span>
+                        </div>
+                    </div>
+                </label>
+                <label class="platform-card" id="plat-next">
+                    <input type="checkbox" id="chk-next" checked onchange="updatePlatformSteps()">
+                    <div class="platform-card-inner">
+                        <div class="platform-icon accent-green">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                        </div>
+                        <div>
+                            <strong>Tableau Next & Data Cloud</strong>
+                            <p>SDM, visualizations, dashboards, bulk ingest</p>
+                            <span class="platform-auth">Auth: Salesforce OAuth (External Client App)</span>
+                        </div>
+                    </div>
+                </label>
+                <label class="platform-card" id="plat-crma">
+                    <input type="checkbox" id="chk-crma" onchange="updatePlatformSteps()">
+                    <div class="platform-card-inner">
+                        <div class="platform-icon accent-orange">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 118 2.83"/><path d="M22 12A10 10 0 0012 2v10z"/></svg>
+                        </div>
+                        <div>
+                            <strong>CRM Analytics</strong>
+                            <p>Datasets, dashboards, SAQL queries</p>
+                            <span class="platform-auth">Auth: same Salesforce OAuth as Tableau Next</span>
+                        </div>
+                    </div>
+                </label>
             </div>
             <div class="wizard-actions">
                 <div></div>
-                <div style="display:flex; gap:8px">
-                    <button class="btn btn-secondary" onclick="saveAndTestTableau()">Test Connection</button>
-                    <button class="btn btn-primary" onclick="goSetupStep(2)">Next: Salesforce ECA &rarr;</button>
-                </div>
+                <button class="btn btn-primary" onclick="startSetupFromSelection()">Continue &rarr;</button>
             </div>
-            <div id="w-tab-result" class="test-result"></div>
         </section>
+    </div>
+
+    <!-- Wizard Step 1: Tableau Cloud PAT -->
+    <div class="wizard-step hidden" id="setup-step-1">
+        <div class="setup-split">
+            <section class="card setup-split-form">
+                <h2>Tableau Cloud: Personal Access Token</h2>
+                <p class="subtitle" style="margin-bottom:16px">Create a PAT so AIO can publish datasources and create Pulse metrics.</p>
+                <div class="form-stack">
+                    <div class="form-group">
+                        <label for="w-tab-server">Server URL</label>
+                        <input type="url" id="w-tab-server" class="setup-sync" data-field="tab-server" placeholder="https://10ax.online.tableau.com"
+                               value="{{ config.get('tableau', {}).get('server_url', '') }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="w-tab-site">Site Name</label>
+                        <input type="text" id="w-tab-site" class="setup-sync" data-field="tab-site" placeholder="my-site"
+                               value="{{ config.get('tableau', {}).get('site_name', '') }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="w-tab-pat-name">PAT Name</label>
+                        <input type="text" id="w-tab-pat-name" class="setup-sync" data-field="tab-pat-name" placeholder="aio-builder"
+                               value="{{ config.get('tableau', {}).get('pat_name', '') }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="w-tab-pat-secret">PAT Secret</label>
+                        <input type="password" id="w-tab-pat-secret" class="setup-sync" data-field="tab-pat-secret" placeholder="Paste your Personal Access Token secret"
+                               value="{{ config.get('tableau', {}).get('pat_secret', '') }}">
+                    </div>
+                </div>
+                <div class="wizard-actions">
+                    <button class="btn btn-ghost" onclick="goSetupStep(0)">&larr; Back</button>
+                    <div style="display:flex; gap:8px">
+                        <button class="btn btn-secondary" onclick="saveAndTestTableau()">Test Connection</button>
+                        <button class="btn btn-primary" onclick="nextAfterTableau()">Next &rarr;</button>
+                    </div>
+                </div>
+                <div id="w-tab-result" class="test-result"></div>
+            </section>
+            <aside class="setup-split-guide">
+                <div class="guide-panel">
+                    <h4 class="guide-title">How to create a PAT</h4>
+                    <div class="guide-steps">
+                        <div class="guide-step">
+                            <span class="guide-num">1</span>
+                            <div>
+                                <strong>Find your Server URL</strong>
+                                <p>Go to your Tableau Cloud site. The URL in your browser bar is the server URL — copy everything up to and including the domain (e.g. <code>https://us-east-1.online.tableau.com</code>). Don't include any path after the domain.</p>
+                            </div>
+                        </div>
+                        <div class="guide-step">
+                            <span class="guide-num">2</span>
+                            <div>
+                                <strong>Find your Site Name</strong>
+                                <p>Look at your Tableau Cloud URL. If it's <code>https://10ax.online.tableau.com/#/site/my-company/home</code> then your site name is <code>my-company</code>. You can also find it under Settings &rarr; Site.</p>
+                            </div>
+                        </div>
+                        <div class="guide-step">
+                            <span class="guide-num">3</span>
+                            <div>
+                                <strong>Create the token</strong>
+                                <p>Click your <strong>profile icon</strong> (top right) &rarr; <strong>My Account Settings</strong> &rarr; scroll to <strong>Personal Access Tokens</strong> &rarr; click <strong>"Create a new token"</strong>.</p>
+                            </div>
+                        </div>
+                        <div class="guide-step">
+                            <span class="guide-num">4</span>
+                            <div>
+                                <strong>Name it and copy the secret</strong>
+                                <p>Enter a name like <code>aio-builder</code>, then click Create. <strong>Copy the secret immediately</strong> — Tableau only shows it once. If you lose it, delete the token and create a new one.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
     </div>
 
     <!-- Wizard Step 2: Salesforce ECA -->
     <div class="wizard-step hidden" id="setup-step-2">
-        <section class="card">
-            <h2>Step 2: Salesforce External Client App</h2>
-            <p class="subtitle" style="margin-bottom:16px">Create an External Client App in Salesforce so AIO can access Data Cloud and Tableau Next APIs.</p>
-            <div class="form-stack">
-                <div class="form-group">
-                    <label for="w-sf-login-url">
-                        Login URL
-                        <span class="tooltip-trigger" data-tooltip="Use https://login.salesforce.com for production orgs, or https://test.salesforce.com for sandboxes. If your org uses a custom domain (e.g. mycompany.my.salesforce.com), use that instead.">?</span>
-                    </label>
-                    <input type="url" id="w-sf-login-url" class="setup-sync" data-field="sf-login-url" placeholder="https://login.salesforce.com"
-                           value="{{ config.get('salesforce', {}).get('sf_login_url', '') }}">
+        <div class="setup-split">
+            <section class="card setup-split-form">
+                <h2>Salesforce: External Client App</h2>
+                <p class="subtitle" style="margin-bottom:16px">Create an ECA so AIO can access Data Cloud and Tableau Next APIs.</p>
+                <div class="form-stack">
+                    <div class="form-group">
+                        <label for="w-sf-login-url">Login URL</label>
+                        <input type="url" id="w-sf-login-url" class="setup-sync" data-field="sf-login-url" placeholder="https://login.salesforce.com"
+                               value="{{ config.get('salesforce', {}).get('sf_login_url', '') }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="w-sf-client-id">Client ID (Consumer Key)</label>
+                        <input type="text" id="w-sf-client-id" class="setup-sync" data-field="sf-client-id" placeholder="Paste Consumer Key from External Client App"
+                               value="{{ config.get('salesforce', {}).get('client_id', '') }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="w-sf-client-secret">Client Secret (Consumer Secret)</label>
+                        <input type="password" id="w-sf-client-secret" class="setup-sync" data-field="sf-client-secret" placeholder="Paste Consumer Secret"
+                               value="{{ config.get('salesforce', {}).get('client_secret', '') }}">
+                    </div>
+                    <div class="eca-checklist">
+                        <h4>ECA Setup Checklist</h4>
+                        <label class="checklist-item"><input type="checkbox"> Created External Client App</label>
+                        <label class="checklist-item"><input type="checkbox"> Callback URL set</label>
+                        <label class="checklist-item"><input type="checkbox"> All 5 OAuth scopes added</label>
+                        <label class="checklist-item"><input type="checkbox"> Auth Code flow enabled</label>
+                        <label class="checklist-item"><input type="checkbox"> PKCE left checked</label>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="w-sf-client-id">
-                        Client ID (Consumer Key)
-                        <span class="tooltip-trigger" data-tooltip="In Salesforce Setup, search 'App Manager' → click 'New External Client App'. Name it 'AIO Analytics Builder', enable OAuth with callback URL http://localhost:8080/callback, and add these scopes: api, sfap_api, cdp_query_api, cdp_ingest_api, refresh_token. Under Security, check 'Enable Authorization Code and Credentials Flow'. After saving, go to the app's Settings tab → OAuth Settings → Consumer Key and Secret. Copy the Consumer Key here.">?</span>
-                    </label>
-                    <input type="text" id="w-sf-client-id" class="setup-sync" data-field="sf-client-id" placeholder="Paste Consumer Key from External Client App"
-                           value="{{ config.get('salesforce', {}).get('client_id', '') }}">
+                <div class="wizard-actions">
+                    <button class="btn btn-ghost" onclick="goSetupStep(1)">&larr; Back</button>
+                    <button class="btn btn-primary" onclick="saveAndGoOAuth()">Next: Run OAuth Flow &rarr;</button>
                 </div>
-                <div class="form-group">
-                    <label for="w-sf-client-secret">
-                        Client Secret (Consumer Secret)
-                        <span class="tooltip-trigger" data-tooltip="On the same page as the Consumer Key — click 'Consumer Key and Secret', verify your identity if prompted, then copy the Consumer Secret. If you can't see it, you may need to click 'Reset Consumer Secret' (this invalidates any existing tokens).">?</span>
-                    </label>
-                    <input type="password" id="w-sf-client-secret" class="setup-sync" data-field="sf-client-secret" placeholder="Paste Consumer Secret"
-                           value="{{ config.get('salesforce', {}).get('client_secret', '') }}">
+                <div id="w-sf-result" class="test-result"></div>
+            </section>
+            <aside class="setup-split-guide">
+                <div class="guide-panel">
+                    <h4 class="guide-title">How to create the ECA</h4>
+                    <div class="guide-steps">
+                        <div class="guide-step">
+                            <span class="guide-num">1</span>
+                            <div>
+                                <strong>Open App Manager</strong>
+                                <p>In Salesforce Setup, search <strong>"App Manager"</strong> &rarr; click <strong>"New External Client App"</strong> (top right).</p>
+                            </div>
+                        </div>
+                        <div class="guide-step">
+                            <span class="guide-num">2</span>
+                            <div>
+                                <strong>Name the app</strong>
+                                <p>Set the name to <code>AIO Analytics Builder</code> and enter your email as the contact.</p>
+                            </div>
+                        </div>
+                        <div class="guide-step">
+                            <span class="guide-num">3</span>
+                            <div>
+                                <strong>Enable OAuth</strong>
+                                <p>Expand <strong>"API (Enable OAuth Settings)"</strong>, check <strong>"Enable OAuth"</strong>, and set the Callback URL to:</p>
+                                <code class="guide-code">http://localhost:8080/callback</code>
+                            </div>
+                        </div>
+                        <div class="guide-step">
+                            <span class="guide-num">4</span>
+                            <div>
+                                <strong>Add OAuth Scopes</strong>
+                                <p>Under "Available OAuth Scopes", find and add each of these:</p>
+                                <ul class="guide-list">
+                                    <li><code>api</code> — Manage user data via APIs</li>
+                                    <li><code>sfap_api</code> — Access the Salesforce API Platform</li>
+                                    <li><code>cdp_query_api</code> — Perform SQL queries on Data Cloud</li>
+                                    <li><code>cdp_ingest_api</code> — Manage Data Cloud Ingestion API</li>
+                                    <li><code>refresh_token</code> — Perform requests at any time</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="guide-step">
+                            <span class="guide-num">5</span>
+                            <div>
+                                <strong>Flow Enablement</strong>
+                                <p>Under "Flow Enablement", check <strong>"Enable Authorization Code and Credentials Flow"</strong>.</p>
+                            </div>
+                        </div>
+                        <div class="guide-step">
+                            <span class="guide-num">6</span>
+                            <div>
+                                <strong>Security settings</strong>
+                                <p>Leave <strong>"Require Proof Key for Code Exchange (PKCE)"</strong> checked — AIO supports it. No other changes needed.</p>
+                            </div>
+                        </div>
+                        <div class="guide-step">
+                            <span class="guide-num">7</span>
+                            <div>
+                                <strong>Get Consumer Key &amp; Secret</strong>
+                                <p>Click <strong>Create</strong>. Then go to the app's <strong>Settings</strong> tab &rarr; <strong>OAuth Settings</strong> &rarr; <strong>"Consumer Key and Secret"</strong>. You may need to verify your identity. Copy both values and paste them in the form.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="eca-checklist">
-                    <h4>ECA Setup Checklist</h4>
-                    <label class="checklist-item"><input type="checkbox"> Created External Client App named "AIO Analytics Builder"</label>
-                    <label class="checklist-item"><input type="checkbox"> Callback URL set to <code>http://localhost:8080/callback</code></label>
-                    <label class="checklist-item"><input type="checkbox"> OAuth Scopes: api, sfap_api, cdp_query_api, cdp_ingest_api, refresh_token</label>
-                    <label class="checklist-item"><input type="checkbox"> "Enable Authorization Code and Credentials Flow" checked</label>
-                    <label class="checklist-item"><input type="checkbox"> PKCE can be left checked (AIO supports it)</label>
-                </div>
-            </div>
-            <div class="wizard-actions">
-                <button class="btn btn-ghost" onclick="goSetupStep(1)">&larr; Back</button>
-                <button class="btn btn-primary" onclick="saveAndGoOAuth()">Next: Run OAuth Flow &rarr;</button>
-            </div>
-            <div id="w-sf-result" class="test-result"></div>
-        </section>
+            </aside>
+        </div>
     </div>
 
     <!-- Wizard Step 3: OAuth Flow -->
@@ -340,6 +476,37 @@ document.addEventListener('input', (e) => {
     });
 });
 
+// ---- Platform selection ----
+let selectedPlatforms = { tableau: true, next: true, crma: false };
+
+function updatePlatformSteps() {
+    selectedPlatforms.tableau = document.getElementById('chk-tableau').checked;
+    selectedPlatforms.next = document.getElementById('chk-next').checked;
+    selectedPlatforms.crma = document.getElementById('chk-crma').checked;
+}
+
+function startSetupFromSelection() {
+    updatePlatformSteps();
+
+    const needsTableau = selectedPlatforms.tableau;
+    const needsSF = selectedPlatforms.next || selectedPlatforms.crma;
+
+    // Show/hide stepper steps based on selection
+    const stepper = document.getElementById('setup-stepper');
+    stepper.querySelector('[data-step="1"]').style.display = needsTableau ? '' : 'none';
+    stepper.querySelector('[data-step="2"]').style.display = needsSF ? '' : 'none';
+    stepper.querySelector('[data-step="3"]').style.display = needsSF ? '' : 'none';
+
+    // Navigate to the first relevant step
+    if (needsTableau) {
+        goSetupStep(1);
+    } else if (needsSF) {
+        goSetupStep(2);
+    } else {
+        goSetupStep(4);
+    }
+}
+
 // ---- Wizard navigation ----
 function goSetupStep(n) {
     document.querySelectorAll('#setup-wizard .wizard-step').forEach(el => el.classList.add('hidden'));
@@ -347,8 +514,16 @@ function goSetupStep(n) {
     document.querySelectorAll('#setup-wizard .stepper .step').forEach(el => {
         const s = parseInt(el.dataset.step);
         el.classList.toggle('active', s === n);
-        el.classList.toggle('done', s < n);
+        el.classList.toggle('done', s < n && s > 0);
     });
+    // Mark step 0 as done once past it
+    stepper0 = document.querySelector('#setup-wizard .stepper [data-step="0"]');
+    if (stepper0 && n > 0) { stepper0.classList.add('done'); stepper0.classList.remove('active'); }
+}
+
+function nextAfterTableau() {
+    const needsSF = selectedPlatforms.next || selectedPlatforms.crma;
+    goSetupStep(needsSF ? 2 : 4);
 }
 
 // ---- Wizard actions ----

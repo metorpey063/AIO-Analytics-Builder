@@ -6,41 +6,118 @@
 {% block content %}
 <div class="page-header">
     <h1>AIO Analytics Builder</h1>
-    <p class="subtitle">Build compelling demo assets for Tableau Pulse, Tableau Next, and Salesforce Data Cloud</p>
+    <p class="subtitle">
+        A Claude Code-powered toolkit for Tableau and Salesforce Solutions Engineers to rapidly build
+        compelling, story-driven demo assets across Tableau Pulse, Tableau Next, and Data Cloud.
+        <a href="https://github.com/metorpey063/AIO-Analytics-Builder" target="_blank" rel="noopener" class="repo-link">View on GitHub &rarr;</a>
+    </p>
+    <p class="subtitle" style="margin-top: 10px">
+        {% if not has_tableau and not has_salesforce %}
+            Get started by running <a href="/setup" class="guidance-link">Setup</a> to connect your Tableau Cloud and Salesforce orgs. Once connected, use <strong>Build a Demo</strong> to generate a complete, story-driven demo in minutes — then manage and refresh your demos from <strong>My Demos</strong>.
+        {% elif not has_tableau %}
+            Your Salesforce org is connected. Add a <a href="/setup" class="guidance-link">Tableau Cloud</a> connection to unlock Pulse builds, or jump straight to <a href="/build" class="guidance-link">Build a Demo</a>.
+        {% elif not has_salesforce %}
+            Your Tableau Cloud site is connected. Add a <a href="/setup" class="guidance-link">Salesforce</a> connection to unlock Tableau Next and Data Cloud builds, or jump straight to <a href="/build" class="guidance-link">Build a Demo</a>.
+        {% else %}
+            You're all set — Tableau Cloud and Salesforce are connected. <a href="/build" class="guidance-link">Build a Demo</a> to generate a complete, story-driven demo in minutes. Need help? Click <strong>Ask Claude</strong> in the bottom right.
+        {% endif %}
+    </p>
 </div>
 
-<div class="card-grid">
-    <div class="card card-action" onclick="location.href='/build'">
-        <div class="card-icon accent-blue">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+<div class="home-layout">
+    <div class="home-main">
+        <!-- Core workflow -->
+        <div class="card-grid">
+            <div class="card card-action" onclick="location.href='/setup'">
+                <div class="card-step-badge {% if has_tableau or has_salesforce %}step-done{% endif %}">
+                    {% if has_tableau or has_salesforce %}&#10003;{% else %}1{% endif %}
+                </div>
+                <h3>Setup</h3>
+                <p>Connect to Tableau Cloud and Salesforce — required before building demos</p>
+                <span class="card-cta">
+                    {% if has_tableau or has_salesforce %}Edit connections &rarr;{% else %}Get started &rarr;{% endif %}
+                </span>
+            </div>
+
+            <div class="card card-action" onclick="location.href='/build'">
+                <div class="card-step-badge">2</div>
+                <h3>Build a Demo</h3>
+                <p>Generate a story-driven demo with synthetic data, engineered signals, and published assets</p>
+                <span class="card-cta">Build &rarr;</span>
+            </div>
+
+            <div class="card card-action" onclick="location.href='/demos'">
+                <div class="card-step-badge">3</div>
+                <h3>My Demos</h3>
+                <p>View, manage, and refresh dates on previously built demos</p>
+                <span class="card-cta">View demos &rarr;</span>
+            </div>
         </div>
-        <h3>Build a Demo</h3>
-        <p>Generate a story-driven demo with synthetic data, engineered signals, and published assets</p>
-        <span class="card-cta">Get started &rarr;</span>
+
+        <!-- Tools & Skills -->
+        <div class="card-grid-section">
+            <div class="card-grid-section-label">Tools & Skills</div>
+        </div>
+        <div class="card-grid">
+            <div class="card card-action" onclick="location.href='/connections'">
+                <div class="card-icon accent-blue">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+                </div>
+                <h3>Connections</h3>
+                <p>View live status of your connected orgs, test connections, and switch profiles</p>
+                <span class="card-cta">View connections &rarr;</span>
+            </div>
+
+            <div class="card card-action">
+                <div class="card-icon accent-orange">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+                </div>
+                <h3>Transfer Assets</h3>
+                <p>Clone Tableau Next demos between orgs — SDM, vizzes, dashboards, and data</p>
+                <span class="card-cta" style="color: var(--text-light)">CLI only (/transfer-assets)</span>
+            </div>
+
+            <div class="card card-action">
+                <div class="card-icon accent-green">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+                </div>
+                <h3>Validate Pulse</h3>
+                <p>Check Pulse metric payloads against the 2026.2 API spec before creating</p>
+                <span class="card-cta" style="color: var(--text-light)">CLI only (/validate-pulse)</span>
+            </div>
+
+            <div class="card card-action">
+                <div class="card-icon accent-blue">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                </div>
+                <h3>Deploy Sales Insights</h3>
+                <p>Deploy the Sales Insights dashboard package to any Salesforce org</p>
+                <span class="card-cta" style="color: var(--text-light)">CLI only (/deploy-sales-insights)</span>
+            </div>
+        </div>
     </div>
 
-    <div class="card card-action" onclick="location.href='/demos'">
-        <div class="card-icon accent-green">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+    <!-- Changelog panel -->
+    <aside class="home-changelog">
+        <div class="changelog-panel">
+            <h3 class="changelog-title">What's New</h3>
+            {% for entry in changelog %}
+            <div class="changelog-entry">
+                <div class="changelog-date">{{ entry.date }}</div>
+                <div class="changelog-heading">{{ entry.title }}</div>
+                {% if entry.bullets %}
+                <ul class="changelog-bullets">
+                    {% for b in entry.bullets[:3] %}
+                    <li>{{ b }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% if not changelog %}
+            <p class="changelog-empty">No changelog entries found.</p>
+            {% endif %}
         </div>
-        <h3>My Demos</h3>
-        <p>View, manage, and refresh dates on previously built demos</p>
-        <span class="card-cta">View demos &rarr;</span>
-    </div>
-
-    <div class="card card-action" onclick="location.href='/setup'">
-        <div class="card-icon accent-orange">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-        </div>
-        <h3>Setup</h3>
-        <p>Connect to Tableau Cloud and Salesforce, configure your environment</p>
-        <span class="card-cta">Configure &rarr;</span>
-    </div>
+    </aside>
 </div>
-
-{% if not has_tableau and not has_salesforce %}
-<div class="banner banner-info">
-    <strong>First time?</strong> Head to <a href="/setup">Setup</a> to connect your Tableau Cloud and Salesforce orgs.
-</div>
-{% endif %}
 {% endblock %}

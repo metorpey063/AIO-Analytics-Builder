@@ -24,11 +24,16 @@ CONFIG_PATH = PROJECT_ROOT / "config.json"
 
 @app.context_processor
 def inject_connection_status():
-    """Make has_tableau / has_salesforce available in every template."""
+    """Make has_tableau / has_salesforce / version available in every template."""
     config = _load_config()
+    version = ""
+    version_path = PROJECT_ROOT / "VERSION"
+    if version_path.exists():
+        version = version_path.read_text().strip()
     return {
         "has_tableau": bool(config.get("tableau", {}).get("pat_secret")),
         "has_salesforce": bool(config.get("salesforce", {}).get("refresh_token")),
+        "app_version": version,
     }
 
 # ---------------------------------------------------------------------------
@@ -53,7 +58,9 @@ def index():
     config = _load_config()
     has_tableau = bool(config.get("tableau", {}).get("pat_secret"))
     has_salesforce = bool(config.get("salesforce", {}).get("refresh_token"))
-    return render_template("index.html", has_tableau=has_tableau, has_salesforce=has_salesforce)
+    changelog = _parse_changelog(limit=5)
+    return render_template("index.html", has_tableau=has_tableau, has_salesforce=has_salesforce,
+                           changelog=changelog)
 
 
 @app.route("/setup")
@@ -76,24 +83,34 @@ def connections():
     full = load_full_config()
     active_key = full.get("active_profile")
 
-    profiles = []
+    tableau_conns = []
+    salesforce_conns = []
     for key, p in full.get("profiles", {}).items():
         tc = p.get("tableau", {})
         sf = p.get("salesforce", {})
-        profiles.append({
+        base = {
             "key": key,
             "label": p.get("label", key),
             "active": key == active_key,
-            "has_tableau": bool(tc.get("pat_secret") and tc.get("site_name")),
-            "has_salesforce": bool(sf.get("refresh_token")),
-            "tableau_server": tc.get("server_url", ""),
-            "tableau_site": tc.get("site_name", ""),
-            "sf_login_url": sf.get("sf_login_url", ""),
-            "dc_domain": sf.get("data_cloud_domain", ""),
-            "connector_name": sf.get("ingestion_connector_name", ""),
-        })
+        }
+        if tc.get("pat_secret") and tc.get("site_name"):
+            tableau_conns.append({
+                **base,
+                "server": tc.get("server_url", ""),
+                "site": tc.get("site_name", ""),
+            })
+        if sf.get("refresh_token") and (sf.get("client_id") or sf.get("data_cloud_domain")):
+            salesforce_conns.append({
+                **base,
+                "login_url": sf.get("sf_login_url", ""),
+                "dc_domain": sf.get("data_cloud_domain", ""),
+                "connector": sf.get("ingestion_connector_name", ""),
+            })
 
-    return render_template("connections.html", profiles=profiles, active_key=active_key)
+    return render_template("connections.html",
+                           tableau_conns=tableau_conns,
+                           salesforce_conns=salesforce_conns,
+                           active_key=active_key)
 
 
 @app.route("/demos")
@@ -115,8 +132,51 @@ def demos():
                         info["company"] = d.name
                 else:
                     info["company"] = d.name
+
+                walkthroughs = sorted(d.glob("*walkthrough*.docx"))
+                info["walkthroughs"] = [{"name": w.name, "slug": d.name} for w in walkthroughs]
+
                 demo_list.append(info)
     return render_template("demos.html", demos=demo_list)
+
+
+@app.route("/api/demos/<slug>/open")
+def open_demo_folder(slug):
+    """Open a demo folder in Finder/Explorer."""
+    import subprocess, platform as plat
+    demos_dir = PROJECT_ROOT / "demos" / slug
+    if not demos_dir.exists():
+        return jsonify({"ok": False, "error": "Demo folder not found"})
+    try:
+        if plat.system() == "Darwin":
+            subprocess.Popen(["open", str(demos_dir)])
+        elif plat.system() == "Windows":
+            subprocess.Popen(["explorer", str(demos_dir)])
+        else:
+            subprocess.Popen(["xdg-open", str(demos_dir)])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/api/demos/<slug>/walkthrough/<filename>")
+def open_walkthrough(slug, filename):
+    """Open a walkthrough .docx file with the system default application."""
+    import subprocess, platform as plat
+    demos_dir = PROJECT_ROOT / "demos" / slug
+    filepath = demos_dir / filename
+    if not filepath.exists() or not filename.endswith(".docx"):
+        return jsonify({"ok": False, "error": "File not found"}), 404
+    try:
+        if plat.system() == "Darwin":
+            subprocess.Popen(["open", str(filepath)])
+        elif plat.system() == "Windows":
+            subprocess.Popen(["start", "", str(filepath)], shell=True)
+        else:
+            subprocess.Popen(["xdg-open", str(filepath)])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
 
 
 # ---------------------------------------------------------------------------
@@ -301,6 +361,65 @@ def switch_profile():
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/api/version", methods=["GET"])
+def version_check():
+    """Compare local version against remote origin/main."""
+    import subprocess
+    local_version = ""
+    version_path = PROJECT_ROOT / "VERSION"
+    if version_path.exists():
+        local_version = version_path.read_text().strip()
+
+    remote_version = local_version
+    behind = False
+    try:
+        subprocess.run(["git", "fetch", "origin", "main", "--quiet"],
+                       cwd=str(PROJECT_ROOT), capture_output=True, timeout=10)
+        result = subprocess.run(
+            ["git", "show", "origin/main:VERSION"],
+            cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            remote_version = result.stdout.strip()
+
+        rev_list = subprocess.run(
+            ["git", "rev-list", "--count", "HEAD..origin/main"],
+            cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=5,
+        )
+        if rev_list.returncode == 0:
+            behind = int(rev_list.stdout.strip()) > 0
+    except Exception:
+        pass
+
+    return jsonify({
+        "local": local_version,
+        "remote": remote_version,
+        "behind": behind,
+        "update_available": local_version != remote_version or behind,
+    })
+
+
+@app.route("/api/update", methods=["POST"])
+def update():
+    """Pull latest from git and report what changed."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["git", "pull", "--ff-only"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True, text=True, timeout=30,
+        )
+        output = (result.stdout + result.stderr).strip()
+        already_up_to_date = "Already up to date" in output or "Already up-to-date" in output
+        return jsonify({
+            "ok": result.returncode == 0,
+            "updated": not already_up_to_date,
+            "output": output,
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "updated": False, "output": str(e)})
 
 
 @app.route("/api/save-config", methods=["POST"])
@@ -518,6 +637,36 @@ def chat_status():
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _parse_changelog(limit=5) -> list:
+    """Parse CHANGELOG.md into a list of {date, title, bullets} dicts."""
+    changelog_path = PROJECT_ROOT / "CHANGELOG.md"
+    if not changelog_path.exists():
+        return []
+
+    import re
+    entries = []
+    current = None
+    for line in changelog_path.read_text().splitlines():
+        heading = re.match(r'^## (\d{4}-\d{2}-\d{2}) — (.+)$', line)
+        if heading:
+            if current:
+                entries.append(current)
+                if len(entries) >= limit:
+                    break
+            current = {"date": heading.group(1), "title": heading.group(2), "bullets": []}
+            continue
+        if current and line.startswith("- **"):
+            bullet = re.sub(r'\*\*([^*]+)\*\*', r'\1', line.lstrip("- "))
+            bullet = bullet.split(":")[0] if ":" in bullet else bullet
+            if len(bullet) > 80:
+                bullet = bullet[:77] + "..."
+            current["bullets"].append(bullet)
+
+    if current and len(entries) < limit:
+        entries.append(current)
+    return entries
+
 
 def _load_config() -> dict:
     """Load the active profile as a flat {tableau, salesforce} dict for templates."""

@@ -11,6 +11,7 @@ function toggleChat() {
     document.getElementById('chat-panel').classList.toggle('hidden', !chatOpen);
     document.getElementById('chat-fab-icon').classList.toggle('hidden', chatOpen);
     document.getElementById('chat-fab-close').classList.toggle('hidden', !chatOpen);
+    document.getElementById('chat-fab-wrapper').classList.toggle('chat-open', chatOpen);
 
     if (chatOpen) {
         document.getElementById('chat-input').focus();

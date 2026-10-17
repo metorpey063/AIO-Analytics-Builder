@@ -6,312 +6,242 @@
 {% block content %}
 <div class="page-header">
     <h1>Connections</h1>
-    <p class="subtitle">Your configured environments — click to expand details</p>
+    <p class="subtitle">Live status of your connected environments, grouped by platform</p>
 </div>
 
-<div class="accordion-list">
-    {% for p in profiles %}
-    <div class="accordion-card {% if p.active %}accordion-active{% endif %}" id="profile-{{ p.key }}">
-        <!-- Collapsed header — always visible -->
-        <div class="accordion-header" onclick="toggleAccordion('{{ p.key }}')">
-            <div class="accordion-left">
-                <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-                <div>
-                    <div class="accordion-title">
-                        {{ p.label }}
-                        {% if p.active %}<span class="badge badge-ok" style="margin-left:8px; font-size:10px;">Active</span>{% endif %}
-                    </div>
-                    <div class="accordion-summary" id="summary-{{ p.key }}">
-                        {% if p.has_tableau and p.has_salesforce %}Tableau Cloud + Salesforce
-                        {% elif p.has_tableau %}Tableau Cloud only
-                        {% elif p.has_salesforce %}Salesforce only
-                        {% else %}Not configured
-                        {% endif %}
+<!-- Tableau Cloud Connections -->
+<div class="conn-platform-section">
+    <div class="conn-platform-header">
+        <div class="conn-icon-sm accent-blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        </div>
+        <div>
+            <h2>Tableau Cloud</h2>
+            <span class="conn-platform-sub">Pulse metrics, datasources, workbooks</span>
+        </div>
+    </div>
+
+    {% if tableau_conns %}
+    <div class="conn-row-list">
+        {% for c in tableau_conns %}
+        <div class="card conn-row {% if c.active %}conn-row-active{% endif %}" id="tab-row-{{ c.key }}">
+            <div class="conn-row-header">
+                <div class="conn-row-info">
+                    <strong>{{ c.label }}</strong>
+                    {% if c.active %}<span class="badge badge-ok" style="font-size:10px; margin-left:6px">Active</span>{% endif %}
+                    <div class="conn-row-details">
+                        <span>{{ c.server }}</span>
+                        <span class="conn-row-sep">/</span>
+                        <span>{{ c.site }}</span>
                     </div>
                 </div>
+                <div class="conn-row-actions">
+                    <span class="badge badge-pending" id="tab-status-{{ c.key }}">—</span>
+                    <button class="btn btn-secondary btn-sm" onclick="testTabConn('{{ c.key }}')" id="tab-btn-{{ c.key }}">Test</button>
+                    {% if not c.active %}
+                    <button class="btn btn-ghost btn-sm" onclick="switchProfile('{{ c.key }}')">Set Active</button>
+                    {% endif %}
+                </div>
             </div>
-            <div class="accordion-badges">
-                <span class="conn-dot {% if p.has_tableau %}dot-ok{% else %}dot-off{% endif %}" title="Tableau Cloud"></span>
-                <span class="conn-dot {% if p.has_salesforce %}dot-ok{% else %}dot-off{% endif %}" title="Salesforce"></span>
+            <!-- Live details populated by JS -->
+            <div class="conn-row-live hidden" id="tab-live-{{ c.key }}">
+                <div class="detail-row" id="tab-pulse-{{ c.key }}" style="display:none">
+                    <span class="detail-label">Pulse API</span>
+                    <span class="detail-value" id="tab-pulse-val-{{ c.key }}"></span>
+                </div>
+                <div class="detail-row" id="tab-stats-{{ c.key }}" style="display:none">
+                    <span class="detail-label">Site assets</span>
+                    <span class="detail-value" id="tab-stats-val-{{ c.key }}"></span>
+                </div>
             </div>
         </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card conn-empty-card">
+        <p>No Tableau Cloud connections configured. <a href="/setup">Run Setup</a> to add one.</p>
+    </div>
+    {% endif %}
+</div>
 
-        <!-- Expanded details — hidden by default -->
-        <div class="accordion-body" id="body-{{ p.key }}">
-            <!-- Tableau Cloud section -->
-            <div class="conn-section">
-                <div class="conn-section-header">
-                    <div class="conn-icon-sm accent-blue">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                    </div>
-                    <div>
-                        <strong>Tableau Cloud</strong>
-                        <span class="conn-section-sub">Pulse metrics, datasources, workbooks</span>
-                    </div>
-                    <span class="badge {% if p.has_tableau %}badge-ok{% else %}badge-pending{% endif %}" id="tab-badge-{{ p.key }}">
-                        {% if p.has_tableau %}Configured{% else %}Not configured{% endif %}
-                    </span>
-                </div>
+<!-- Salesforce / Data 360 Connections -->
+<div class="conn-platform-section">
+    <div class="conn-platform-header">
+        <div class="conn-icon-sm accent-green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        </div>
+        <div>
+            <h2>Salesforce / Data 360</h2>
+            <span class="conn-platform-sub">Data Cloud ingest, Tableau Next REST APIs, CRM records</span>
+        </div>
+    </div>
 
-                {% if p.has_tableau %}
-                <div class="conn-detail-grid" id="tab-details-{{ p.key }}">
-                    <div class="detail-row">
-                        <span class="detail-label">Server</span>
-                        <span class="detail-value">{{ p.tableau_server }}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Site</span>
-                        <span class="detail-value">{{ p.tableau_site }}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Auth</span>
-                        <span class="detail-value">Personal Access Token (PAT)</span>
-                    </div>
-                    <div class="detail-row hidden" id="tab-pulse-{{ p.key }}">
-                        <span class="detail-label">Pulse API</span>
-                        <span class="detail-value" id="tab-pulse-val-{{ p.key }}"></span>
-                    </div>
-                    <div class="detail-row hidden" id="tab-stats-{{ p.key }}">
-                        <span class="detail-label">Site assets</span>
-                        <span class="detail-value" id="tab-stats-val-{{ p.key }}"></span>
+    {% if salesforce_conns %}
+    <div class="conn-row-list">
+        {% for c in salesforce_conns %}
+        <div class="card conn-row {% if c.active %}conn-row-active{% endif %}" id="sf-row-{{ c.key }}">
+            <div class="conn-row-header">
+                <div class="conn-row-info">
+                    <strong>{{ c.label }}</strong>
+                    {% if c.active %}<span class="badge badge-ok" style="font-size:10px; margin-left:6px">Active</span>{% endif %}
+                    <div class="conn-row-details">
+                        {% if c.dc_domain %}<span>{{ c.dc_domain }}</span>{% endif %}
+                        {% if c.connector %}<span class="conn-row-sep">·</span><span>{{ c.connector }}</span>{% endif %}
+                        {% if not c.dc_domain and not c.connector %}<span class="conn-row-muted">OAuth configured</span>{% endif %}
                     </div>
                 </div>
-                <div class="conn-section-actions">
-                    <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); testTableauProfile('{{ p.key }}')" id="tab-btn-{{ p.key }}">Test Connection</button>
-                </div>
-                <div id="tab-result-{{ p.key }}" class="test-result"></div>
-                {% else %}
-                <p class="conn-empty">No Tableau Cloud credentials configured for this profile.</p>
-                {% endif %}
-            </div>
-
-            <!-- Salesforce section -->
-            <div class="conn-section">
-                <div class="conn-section-header">
-                    <div class="conn-icon-sm accent-green">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-                    </div>
-                    <div>
-                        <strong>Salesforce</strong>
-                        <span class="conn-section-sub">Data Cloud + Tableau Next (REST ECA)</span>
-                    </div>
-                    <span class="badge {% if p.has_salesforce %}badge-ok{% else %}badge-pending{% endif %}" id="sf-badge-{{ p.key }}">
-                        {% if p.has_salesforce %}Configured{% else %}Not configured{% endif %}
-                    </span>
-                </div>
-
-                {% if p.has_salesforce %}
-                <div class="conn-detail-grid" id="sf-details-{{ p.key }}">
-                    <div class="detail-row">
-                        <span class="detail-label">Auth</span>
-                        <span class="detail-value">OAuth 2.0 (External Client App)</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Scopes</span>
-                        <span class="detail-value scope-list">
-                            <code>api</code> <code>sfap_api</code> <code>cdp_query_api</code> <code>cdp_ingest_api</code> <code>refresh_token</code>
-                        </span>
-                    </div>
-                    {% if p.dc_domain %}
-                    <div class="detail-row">
-                        <span class="detail-label">DC domain</span>
-                        <span class="detail-value">{{ p.dc_domain }}</span>
-                    </div>
+                <div class="conn-row-actions">
+                    <span class="badge badge-pending" id="sf-status-{{ c.key }}">—</span>
+                    <button class="btn btn-secondary btn-sm" onclick="testSfConn('{{ c.key }}')" id="sf-btn-{{ c.key }}">Test</button>
+                    {% if not c.active %}
+                    <button class="btn btn-ghost btn-sm" onclick="switchProfile('{{ c.key }}')">Set Active</button>
                     {% endif %}
-                    {% if p.connector_name %}
-                    <div class="detail-row">
-                        <span class="detail-label">Connector</span>
-                        <span class="detail-value">{{ p.connector_name }}</span>
-                    </div>
-                    {% endif %}
-                    <!-- Live details populated by JS -->
-                    <div class="detail-row hidden" id="sf-user-{{ p.key }}">
-                        <span class="detail-label">User</span>
-                        <span class="detail-value" id="sf-user-val-{{ p.key }}"></span>
-                    </div>
-                    <div class="detail-row hidden" id="sf-instance-{{ p.key }}">
-                        <span class="detail-label">Instance</span>
-                        <span class="detail-value" id="sf-instance-val-{{ p.key }}"></span>
-                    </div>
-                    <div class="detail-row hidden" id="sf-dc-{{ p.key }}">
-                        <span class="detail-label">Data Cloud</span>
-                        <span class="detail-value" id="sf-dc-val-{{ p.key }}"></span>
-                    </div>
-                    <div class="detail-row hidden" id="sf-assets-{{ p.key }}">
-                        <span class="detail-label">Tableau Next</span>
-                        <span class="detail-value" id="sf-assets-val-{{ p.key }}"></span>
-                    </div>
                 </div>
-                <div class="conn-section-actions">
-                    <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); testSfProfile('{{ p.key }}')" id="sf-btn-{{ p.key }}">Test Connection</button>
-                </div>
-                <div id="sf-result-{{ p.key }}" class="test-result"></div>
-                {% else %}
-                <p class="conn-empty">No Salesforce credentials configured for this profile.</p>
-                {% endif %}
             </div>
+            <!-- Live details populated by JS -->
+            <div class="conn-row-live hidden" id="sf-live-{{ c.key }}">
+                <div class="detail-row" id="sf-user-{{ c.key }}" style="display:none">
+                    <span class="detail-label">User</span>
+                    <span class="detail-value" id="sf-user-val-{{ c.key }}"></span>
+                </div>
+                <div class="detail-row" id="sf-instance-{{ c.key }}" style="display:none">
+                    <span class="detail-label">Instance</span>
+                    <span class="detail-value" id="sf-instance-val-{{ c.key }}"></span>
+                </div>
+                <div class="detail-row" id="sf-dc-{{ c.key }}" style="display:none">
+                    <span class="detail-label">Data Cloud</span>
+                    <span class="detail-value" id="sf-dc-val-{{ c.key }}"></span>
+                </div>
+                <div class="detail-row" id="sf-assets-{{ c.key }}" style="display:none">
+                    <span class="detail-label">Tableau Next</span>
+                    <span class="detail-value" id="sf-assets-val-{{ c.key }}"></span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card conn-empty-card">
+        <p>No Salesforce connections configured. <a href="/setup">Run Setup</a> to add one.</p>
+    </div>
+    {% endif %}
+</div>
 
-            <!-- Profile actions -->
-            <div class="profile-actions">
-                {% if not p.active %}
-                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); switchProfile('{{ p.key }}')">Set as Active</button>
-                {% endif %}
-                <a href="/setup" class="btn btn-ghost btn-sm">Edit in Setup</a>
+<!-- Tableau Next MCP -->
+<div class="conn-platform-section">
+    <div class="conn-platform-header">
+        <div class="conn-icon-sm accent-orange">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+        <div>
+            <h2>Tableau Next MCP <span class="badge badge-pending" style="font-size:10px; margin-left:6px">Pilot</span></h2>
+            <span class="conn-platform-sub">Model Context Protocol — separate ECA with <code>mcp_api</code> scope</span>
+        </div>
+    </div>
+
+    <div class="card conn-row" id="mcp-row">
+        <div class="conn-row-header">
+            <div class="conn-row-info">
+                <strong>MCP Server Config</strong>
+                <div class="conn-row-details">
+                    <span class="conn-row-muted" id="mcp-summary">Checking...</span>
+                </div>
+            </div>
+            <div class="conn-row-actions">
+                <span class="badge badge-pending" id="mcp-status">—</span>
+                <button class="btn btn-secondary btn-sm" onclick="testMcp()" id="mcp-btn">Check</button>
+            </div>
+        </div>
+        <div class="conn-row-live hidden" id="mcp-live">
+            <div class="detail-row" id="mcp-servers-row" style="display:none">
+                <span class="detail-label">Servers</span>
+                <span class="detail-value" id="mcp-servers-val"></span>
             </div>
         </div>
     </div>
-    {% endfor %}
-</div>
 
-<!-- MCP — global, not per-profile -->
-<div class="accordion-card" id="profile-mcp" style="margin-top:4px">
-    <div class="accordion-header" onclick="toggleAccordion('mcp')">
-        <div class="accordion-left">
-            <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-            <div>
-                <div class="accordion-title">Tableau Next MCP <span class="badge badge-pending" style="margin-left:8px; font-size:10px;">Pilot</span></div>
-                <div class="accordion-summary" id="summary-mcp">Separate ECA — optional</div>
-            </div>
-        </div>
-        <div class="accordion-badges">
-            <span class="conn-dot dot-off" id="mcp-dot"></span>
-        </div>
-    </div>
-    <div class="accordion-body" id="body-mcp">
-        <div class="conn-section">
-            <div class="conn-detail-grid">
-                <div class="detail-row">
-                    <span class="detail-label">Auth</span>
-                    <span class="detail-value">OAuth 2.0 (separate ECA)</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Scopes</span>
-                    <span class="detail-value scope-list"><code>mcp_api</code> <code>refresh_token</code></span>
-                </div>
-                <div class="detail-row hidden" id="mcp-servers-row">
-                    <span class="detail-label">Servers</span>
-                    <span class="detail-value" id="mcp-servers-val"></span>
-                </div>
-            </div>
-            <div class="scope-info" style="margin-top:12px">
-                <h4>Why a separate ECA?</h4>
-                <p class="scope-note">
-                    Conflicting security settings: MCP requires <strong>no client secret</strong>, <strong>PKCE enforced</strong>,
-                    and <strong>JWT-based tokens</strong>. The REST ECA uses secret-based auth. Can't coexist on one app.
-                </p>
-            </div>
-            <div class="conn-section-actions">
-                <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); testMcp()" id="mcp-btn">Check Status</button>
-                <a href="/setup" class="btn btn-ghost btn-sm">Setup Guide</a>
-            </div>
-            <div id="mcp-result" class="test-result"></div>
-        </div>
+    <div class="scope-info" style="margin-top:10px">
+        <h4>Why a separate ECA?</h4>
+        <p class="scope-note">
+            Conflicting security settings: MCP requires <strong>no client secret</strong>, <strong>PKCE enforced</strong>,
+            and <strong>JWT-based tokens</strong>. The REST ECA uses secret-based auth. Can't coexist on one app.
+        </p>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-// Accordion expand/collapse
-function toggleAccordion(key) {
-    const card = document.getElementById('profile-' + key);
-    card.classList.toggle('expanded');
-}
-
-// Auto-expand the active profile and test its connections on load
+// Auto-test active profile connections on load
 document.addEventListener('DOMContentLoaded', () => {
-    {% if active_key %}
-    toggleAccordion('{{ active_key }}');
-    {% for p in profiles %}
-    {% if p.active %}
-    {% if p.has_tableau %}testTableauProfile('{{ p.key }}');{% endif %}
-    {% if p.has_salesforce %}testSfProfile('{{ p.key }}');{% endif %}
-    {% endif %}
+    {% for c in tableau_conns %}
+    {% if c.active %}testTabConn('{{ c.key }}');{% endif %}
     {% endfor %}
-    {% endif %}
+    {% for c in salesforce_conns %}
+    {% if c.active %}testSfConn('{{ c.key }}');{% endif %}
+    {% endfor %}
     testMcp();
 });
 
-async function testTableauProfile(key) {
+async function testTabConn(key) {
     const btn = document.getElementById('tab-btn-' + key);
-    const badge = document.getElementById('tab-badge-' + key);
-    btn.disabled = true;
-    btn.textContent = 'Testing...';
-    badge.className = 'badge badge-pending';
-    badge.textContent = 'Checking...';
+    const status = document.getElementById('tab-status-' + key);
+    btn.disabled = true; btn.textContent = 'Testing...';
+    status.className = 'badge badge-pending'; status.textContent = 'Checking...';
 
     try {
         const r = await fetch('/api/test-tableau', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({profile_key: key}),
         });
         const j = await r.json();
-
         if (j.ok) {
-            badge.className = 'badge badge-ok';
-            badge.textContent = 'Connected';
+            status.className = 'badge badge-ok'; status.textContent = 'Connected';
+            const live = document.getElementById('tab-live-' + key);
+            live.classList.remove('hidden');
 
-            show('tab-pulse-' + key);
-            el('tab-pulse-val-' + key).innerHTML = j.pulse_api
-                ? `<span class="inline-ok">Available</span> — ${j.pulse_definitions} definition${j.pulse_definitions !== 1 ? 's' : ''}`
-                : '<span class="inline-warn">Unavailable</span>';
-
+            if (j.pulse_api !== undefined) {
+                show('tab-pulse-' + key);
+                el('tab-pulse-val-' + key).innerHTML = j.pulse_api
+                    ? `<span class="inline-ok">Available</span> — ${j.pulse_definitions} definition${j.pulse_definitions !== 1 ? 's' : ''}`
+                    : '<span class="inline-warn">Unavailable</span>';
+            }
             const stats = [];
             if (j.datasources) stats.push(`${j.datasources} datasource${j.datasources !== 1 ? 's' : ''}`);
             if (j.workbooks) stats.push(`${j.workbooks} workbook${j.workbooks !== 1 ? 's' : ''}`);
             if (j.projects) stats.push(`${j.projects} project${j.projects !== 1 ? 's' : ''}`);
-            if (stats.length) {
-                show('tab-stats-' + key);
-                el('tab-stats-val-' + key).textContent = stats.join(', ');
-            }
-
-            updateSummary(key);
-            showResult('tab-result-' + key, true, 'Authenticated — ' + j.server_url);
+            if (stats.length) { show('tab-stats-' + key); el('tab-stats-val-' + key).textContent = stats.join(', '); }
         } else {
-            badge.className = 'badge badge-pending';
-            badge.textContent = 'Error';
-            showResult('tab-result-' + key, false, j.error);
+            status.className = 'badge badge-pending'; status.textContent = 'Error';
         }
     } catch (e) {
-        badge.className = 'badge badge-pending';
-        badge.textContent = 'Error';
-        showResult('tab-result-' + key, false, 'Request failed: ' + e.message);
+        status.className = 'badge badge-pending'; status.textContent = 'Error';
     }
-
-    btn.disabled = false;
-    btn.textContent = 'Test Connection';
+    btn.disabled = false; btn.textContent = 'Test';
 }
 
-async function testSfProfile(key) {
+async function testSfConn(key) {
     const btn = document.getElementById('sf-btn-' + key);
-    const badge = document.getElementById('sf-badge-' + key);
-    btn.disabled = true;
-    btn.textContent = 'Testing...';
-    badge.className = 'badge badge-pending';
-    badge.textContent = 'Checking...';
+    const status = document.getElementById('sf-status-' + key);
+    btn.disabled = true; btn.textContent = 'Testing...';
+    status.className = 'badge badge-pending'; status.textContent = 'Checking...';
 
     try {
         const r = await fetch('/api/test-salesforce', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({profile_key: key}),
         });
         const j = await r.json();
-
         if (j.ok) {
-            badge.className = 'badge badge-ok';
-            badge.textContent = 'Connected';
+            status.className = 'badge badge-ok'; status.textContent = 'Connected';
+            const live = document.getElementById('sf-live-' + key);
+            live.classList.remove('hidden');
 
             if (j.display_name || j.username) {
                 show('sf-user-' + key);
-                el('sf-user-val-' + key).textContent =
-                    j.display_name ? `${j.display_name} (${j.username})` : j.username;
+                el('sf-user-val-' + key).textContent = j.display_name ? `${j.display_name} (${j.username})` : j.username;
             }
-            if (j.instance) {
-                show('sf-instance-' + key);
-                el('sf-instance-val-' + key).textContent = j.instance;
-            }
+            if (j.instance) { show('sf-instance-' + key); el('sf-instance-val-' + key).textContent = j.instance; }
 
             show('sf-dc-' + key);
             el('sf-dc-val-' + key).innerHTML = j.data_cloud
@@ -321,78 +251,48 @@ async function testSfProfile(key) {
             const assets = [];
             if (j.workspaces && j.workspaces.length) assets.push(`${j.workspaces.length} workspace${j.workspaces.length !== 1 ? 's' : ''}`);
             if (j.sdm_count) assets.push(`${j.sdm_count} SDM${j.sdm_count !== 1 ? 's' : ''}`);
-            if (assets.length) {
-                show('sf-assets-' + key);
-                el('sf-assets-val-' + key).textContent = assets.join(', ');
-            }
-
-            updateSummary(key);
-            showResult('sf-result-' + key, true, 'All services connected — ' + j.instance);
+            if (assets.length) { show('sf-assets-' + key); el('sf-assets-val-' + key).textContent = assets.join(', '); }
         } else {
-            badge.className = 'badge badge-pending';
-            badge.textContent = 'Error';
-            showResult('sf-result-' + key, false, j.error);
+            status.className = 'badge badge-pending'; status.textContent = 'Error';
         }
     } catch (e) {
-        badge.className = 'badge badge-pending';
-        badge.textContent = 'Error';
-        showResult('sf-result-' + key, false, 'Request failed: ' + e.message);
+        status.className = 'badge badge-pending'; status.textContent = 'Error';
     }
-
-    btn.disabled = false;
-    btn.textContent = 'Test Connection';
+    btn.disabled = false; btn.textContent = 'Test';
 }
 
 async function testMcp() {
     const btn = document.getElementById('mcp-btn');
-    const dot = document.getElementById('mcp-dot');
-    btn.disabled = true;
-    btn.textContent = 'Checking...';
+    const status = document.getElementById('mcp-status');
+    btn.disabled = true; btn.textContent = 'Checking...';
 
     try {
         const r = await fetch('/api/test-mcp', {method: 'POST'});
         const j = await r.json();
-
         if (j.ok && j.configured) {
-            dot.className = j.tableau_next_pilot ? 'conn-dot dot-ok' : 'conn-dot dot-warn';
+            status.className = j.tableau_next_pilot ? 'badge badge-ok' : 'badge badge-pending';
+            status.textContent = j.tableau_next_pilot ? 'Configured' : 'Partial';
+            el('mcp-summary').textContent = j.servers.length + ' server' + (j.servers.length !== 1 ? 's' : '') + ' configured';
 
+            const live = document.getElementById('mcp-live');
+            live.classList.remove('hidden');
             show('mcp-servers-row');
             el('mcp-servers-val').innerHTML = j.servers
                 .map(s => `<span class="server-tag ${s === 'tableau-next-pilot' ? 'tag-ok' : ''}">${s}</span>`)
                 .join(' ');
-
-            el('summary-mcp').textContent = j.servers.length + ' server' + (j.servers.length !== 1 ? 's' : '') + ' configured';
-            showResult('mcp-result', j.tableau_next_pilot, j.tableau_next_pilot
-                ? 'tableau-next-pilot available'
-                : 'tableau-next-pilot not found');
         } else {
-            dot.className = 'conn-dot dot-off';
-            el('summary-mcp').textContent = 'Not configured — optional';
-            showResult('mcp-result', null, 'Set up via /setup Step 4d');
+            status.className = 'badge badge-pending'; status.textContent = 'Not configured';
+            el('mcp-summary').textContent = 'Optional — set up via /setup Step 4d';
         }
     } catch (e) {
-        showResult('mcp-result', false, 'Request failed: ' + e.message);
+        status.className = 'badge badge-pending'; status.textContent = 'Error';
     }
-
-    btn.disabled = false;
-    btn.textContent = 'Check Status';
-}
-
-function updateSummary(key) {
-    const tabBadge = document.getElementById('tab-badge-' + key);
-    const sfBadge = document.getElementById('sf-badge-' + key);
-    const tabOk = tabBadge && tabBadge.textContent.trim() === 'Connected';
-    const sfOk = sfBadge && sfBadge.textContent.trim() === 'Connected';
-    const summary = document.getElementById('summary-' + key);
-    if (tabOk && sfOk) summary.textContent = 'Tableau Cloud + Salesforce — all connected';
-    else if (tabOk) summary.textContent = 'Tableau Cloud connected';
-    else if (sfOk) summary.textContent = 'Salesforce connected';
+    btn.disabled = false; btn.textContent = 'Check';
 }
 
 async function switchProfile(key) {
     const r = await fetch('/api/switch-profile', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({key}),
     });
     const j = await r.json();
@@ -400,7 +300,7 @@ async function switchProfile(key) {
     else alert('Failed to switch profile: ' + j.error);
 }
 
-function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function show(id) { const e = document.getElementById(id); if (e) e.style.display = ''; }
 function el(id) { return document.getElementById(id); }
 </script>
 {% endblock %}
