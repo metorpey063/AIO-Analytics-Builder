@@ -422,6 +422,43 @@ def update():
         return jsonify({"ok": False, "updated": False, "output": str(e)})
 
 
+@app.route("/api/oauth/start", methods=["POST"])
+def oauth_start():
+    """Run the Salesforce OAuth browser flow and save the refresh token."""
+    try:
+        from connections import load_full_config, save_full_config
+
+        full = load_full_config()
+        key = full.get("active_profile")
+        if not key or key not in full.get("profiles", {}):
+            return jsonify({"ok": False, "error": "No active profile. Run Setup first."})
+
+        sf = full["profiles"][key].get("salesforce", {})
+        client_id = sf.get("client_id", "")
+        client_secret = sf.get("client_secret", "")
+        sf_login_url = sf.get("sf_login_url", "https://login.salesforce.com")
+
+        if not client_id:
+            return jsonify({"ok": False,
+                            "error": "No Client ID configured. Fill in the Client ID in Step 2 first."})
+
+        from oauth_flow import get_refresh_token
+        tokens = get_refresh_token(client_id, client_secret, sf_login_url)
+
+        full["profiles"][key]["salesforce"]["refresh_token"] = tokens["refresh_token"]
+        if tokens.get("code_verifier"):
+            full["profiles"][key]["salesforce"]["code_verifier"] = tokens["code_verifier"]
+        full["profiles"][key]["salesforce"].pop("pkce_refresh_mode", None)
+        save_full_config(full)
+
+        return jsonify({
+            "ok": True,
+            "instance_url": tokens.get("instance_url", ""),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
 @app.route("/api/save-config", methods=["POST"])
 def save_config():
     """Save config.json with provided values."""
@@ -442,21 +479,49 @@ def save_config():
         return jsonify({"ok": False, "error": str(e)})
 
 
+@app.route("/api/build/generate-story", methods=["POST"])
+def build_generate_story():
+    """Use Claude API to generate story + metrics from user inputs."""
+    data = request.json or {}
+    try:
+        from builder import generate_story
+        result = generate_story(
+            company=data.get("company", ""),
+            industry=data.get("industry", ""),
+            use_case=data.get("use_case", ""),
+            audience=data.get("audience", ""),
+            notes=data.get("notes", ""),
+        )
+        return jsonify({"ok": True, **result})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)[:500]})
+
+
 @app.route("/api/build/start", methods=["POST"])
 def build_start():
-    """Kick off a demo build (placeholder — will wire to actual build logic)."""
-    data = request.json
-    build_id = data.get("company", "demo").lower().replace(" ", "_")
+    """Kick off a real demo build in a background thread."""
+    import re as _re
+    data = request.json or {}
+    company = data.get("company", "Demo")
+    build_id = _re.sub(r"[^a-z0-9]+", "_", company.lower()).strip("_")
 
     progress_queues[build_id] = queue.Queue()
 
-    def _run_build():
-        q = progress_queues[build_id]
-        # Placeholder — this is where we'll call the actual build pipeline
-        q.put({"stage": "init", "message": "Build started...", "pct": 0})
-        q.put({"stage": "done", "message": "Build pipeline not yet wired.", "pct": 100})
+    build_config = {
+        "company": company,
+        "industry": data.get("industry", ""),
+        "use_case": data.get("use_case", ""),
+        "audience": data.get("audience", ""),
+        "notes": data.get("notes", ""),
+        "story_config": data.get("story_config", {}),
+        "outputs": data.get("outputs", {"csv": True}),
+    }
 
-    t = threading.Thread(target=_run_build, daemon=True)
+    def _run():
+        from builder import run_build
+        run_build(build_id, build_config, progress_queues[build_id])
+
+    t = threading.Thread(target=_run, daemon=True)
     t.start()
 
     return jsonify({"ok": True, "build_id": build_id})

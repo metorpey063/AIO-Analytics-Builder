@@ -247,6 +247,7 @@ body::before {
 .page-header { margin-bottom: 28px; }
 .page-header h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
 .page-header .subtitle, p.subtitle { color: #fff; font-size: 14px; margin-bottom: 0; line-height: 1.6; }
+.card .subtitle { color: var(--text-muted); }
 
 .guidance-link {
     color: var(--blue);

@@ -4,6 +4,26 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-10-18 — Full build pipeline wired into Web UI (v2.2.0)
+
+### Added
+- **Build orchestrator** (`web-ui/builder.py`): complete build pipeline running in a background thread with SSE progress streaming. Supports all four output modes: CSV, Tableau Pulse, Tableau Next, and CRM Analytics.
+- **AI story generation** (`/api/build/generate-story`): Claude API generates story summary, signal design, dimensions, and full `metric_config` from company + industry + use case inputs. User reviews and edits before building.
+- **Data generation engine**: creates synthetic data with engineered signals (accelerating ramp), per-segment multipliers, counter-trends, noise scaling, and self-healing `Day_Offset` column. Cross-product of all dimension combinations ensures every filter path has data.
+- **Pulse build pipeline**: publish `.hyper` → create metrics with 2026.2 payload format → self-healing `.tdsx` conversion → group creation → subscriptions → walkthrough `.docx`
+- **Tableau Next build pipeline**: schema registration → data stream creation → DLO polling → bulk ingest → workspace + SDM + DO creation → measurement updates → Display Date calculated dimension → CLC + metric creation → viz creation (via `viz_builder`) → dashboard assembly → workspace asset linking → walkthrough `.docx`
+- **CRMA build pipeline**: dataset upload via `crma_uploader` → walkthrough `.docx`
+- **Walkthrough document generation**: creates `.docx` with Demo Scenario, Metrics Reference, and platform-specific sections (Click Path for Pulse, Concierge Prompts for Next)
+- **OAuth flow wired to web UI**: "Run OAuth Flow" button in Setup Step 3 now opens the browser, captures the auth code, exchanges tokens, and saves the refresh token — no CLI needed
+- **OAuth propagation note**: Step 3 now includes a note that new ECAs can take up to 10 minutes to become active
+
+### Changed
+- **Build wizard Steps 2-3**: now call Claude API to generate story + metrics, displayed in editable fields. Metrics table populated from AI output, fully editable before building.
+- **Build wizard Step 5**: sends real build config to `/api/build/start`, shows live SSE progress with phase names and percentages
+- **Card subtitle text**: dark gray inside glass cards for better readability
+
+---
+
 ## 2026-10-17 — Web UI polish: frosted glass, guided setup, version checking, walkthrough links
 
 ### Added

@@ -288,6 +288,9 @@
             <div style="margin-top:16px">
                 <button class="btn btn-primary" onclick="runOAuth()">Run OAuth Flow</button>
             </div>
+            <p class="form-hint" style="margin-top:10px; color:var(--text-muted)">
+                <strong>Note:</strong> It can take up to 10 minutes for a new External Client App to become active after creation. If the OAuth flow fails immediately, wait a few minutes and try again.
+            </p>
             <div id="w-oauth-result" class="test-result"></div>
             <div class="wizard-actions" style="margin-top:20px">
                 <button class="btn btn-ghost" onclick="goSetupStep(2)">&larr; Back</button>
@@ -560,8 +563,30 @@ async function saveAndGoOAuth() {
     goSetupStep(3);
 }
 
-function runOAuth() {
-    showResult('w-oauth-result', null, 'OAuth flow not yet wired to web UI — use CLI /setup for now. Paste the refresh token in Step 2 if you have one.');
+async function runOAuth() {
+    showResult('w-oauth-result', null, 'Opening browser for Salesforce authorization...');
+
+    // Save client_id/secret first
+    const data = {
+        salesforce: {
+            sf_login_url: getSetupVal('sf-login-url'),
+            client_id: getSetupVal('sf-client-id'),
+            client_secret: getSetupVal('sf-client-secret'),
+        }
+    };
+    await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
+
+    try {
+        const r = await fetch('/api/oauth/start', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
+        const j = await r.json();
+        if (j.ok) {
+            showResult('w-oauth-result', true, 'Authorization successful! Refresh token saved. Instance: ' + j.instance_url);
+        } else {
+            showResult('w-oauth-result', false, j.error);
+        }
+    } catch (e) {
+        showResult('w-oauth-result', false, 'Request failed: ' + e.message);
+    }
 }
 
 async function verifyAll() {
@@ -639,8 +664,29 @@ async function testSalesforce() {
     if (j.ok) document.getElementById('sf-status').className = 'badge badge-ok';
 }
 
-function startOAuth() {
-    showResult('sf-result', null, 'OAuth flow not yet wired to web UI — use CLI /setup for now');
+async function startOAuth() {
+    showResult('sf-result', null, 'Opening browser for Salesforce authorization...');
+
+    const data = {
+        salesforce: {
+            sf_login_url: getSetupVal('sf-login-url'),
+            client_id: getSetupVal('sf-client-id'),
+            client_secret: getSetupVal('sf-client-secret'),
+        }
+    };
+    await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
+
+    try {
+        const r = await fetch('/api/oauth/start', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
+        const j = await r.json();
+        if (j.ok) {
+            showResult('sf-result', true, 'Authorization successful! Refresh token saved.');
+        } else {
+            showResult('sf-result', false, j.error);
+        }
+    } catch (e) {
+        showResult('sf-result', false, 'Request failed: ' + e.message);
+    }
 }
 </script>
 {% endblock %}

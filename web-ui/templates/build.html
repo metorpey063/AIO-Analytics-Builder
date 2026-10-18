@@ -387,21 +387,50 @@ function goStep(n) {
     if (n === 3) generateMetrics();
 }
 
+// Store the AI-generated config so it passes through to the build
+let storyConfig = null;
+
 async function generateStory() {
     document.getElementById('story-loading').classList.remove('hidden');
     document.getElementById('story-content').classList.add('hidden');
-    await sleep(800);
 
-    const company = getVal('company');
-    const industry = getVal('industry');
-    const usecase = getVal('usecase');
+    try {
+        const r = await fetch('/api/build/generate-story', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                company: getVal('company'),
+                industry: getVal('industry'),
+                use_case: getVal('usecase'),
+                audience: getVal('audience'),
+                notes: getVal('notes'),
+            }),
+        });
+        const j = await r.json();
 
-    document.getElementById('story-summary').value =
-        `Story generation will be powered by the Claude API.\n\n` +
-        `Company: ${company || '(not set)'}\nIndustry: ${industry || '(not set)'}\nUse case: ${usecase || '(not set)'}\n\n` +
-        `The AI will create a narrative — what signal to engineer, which dimensions to include, and the drill-down story arc.`;
-    document.getElementById('story-signal').value =
-        'Signal: accelerating decline in primary metric over 3 months, concentrated in 1-2 segments';
+        if (j.ok) {
+            storyConfig = j;
+            document.getElementById('story-summary').value = j.story_summary || '';
+            document.getElementById('story-signal').value = j.signal_description || '';
+        } else {
+            document.getElementById('story-summary').value = 'Story generation failed: ' + (j.error || 'Unknown error') +
+                '\n\nYou can type your story manually and proceed.';
+            document.getElementById('story-signal').value = '';
+            storyConfig = {
+                story_summary: '', signal_description: '',
+                dimensions: ['Region', 'Category', 'Segment'],
+                metric_config: [],
+            };
+        }
+    } catch (e) {
+        document.getElementById('story-summary').value = 'Connection error: ' + e.message + '\n\nYou can type your story manually.';
+        document.getElementById('story-signal').value = '';
+        storyConfig = {
+            story_summary: '', signal_description: '',
+            dimensions: ['Region', 'Category', 'Segment'],
+            metric_config: [],
+        };
+    }
 
     document.getElementById('story-loading').classList.add('hidden');
     document.getElementById('story-content').classList.remove('hidden');
@@ -410,16 +439,22 @@ async function generateStory() {
 async function generateMetrics() {
     document.getElementById('metrics-loading').classList.remove('hidden');
     document.getElementById('metrics-content').classList.add('hidden');
-    await sleep(600);
 
     const tbody = document.getElementById('metrics-body');
     tbody.innerHTML = '';
-    const sample = [
-        {name: 'Primary Rate', type: 'Rate', agg: 'Average', sentiment: 'Down is bad'},
-        {name: 'Supporting Volume', type: 'Flow', agg: 'Sum', sentiment: 'Down is bad'},
-        {name: 'Counter Metric', type: 'Rate', agg: 'Average', sentiment: 'Up is good'},
-    ];
-    sample.forEach(m => addMetricRow(m));
+
+    // Use AI-generated metrics if available, otherwise show empty table
+    const metrics = (storyConfig && storyConfig.metric_config) ? storyConfig.metric_config : [];
+
+    if (metrics.length > 0) {
+        metrics.forEach(mc => {
+            const sent = mc.sentiment === 'up_is_good' ? 'Up is good' : 'Down is bad';
+            addMetricRow({name: mc.label, type: mc.agg === 'Sum' ? 'Flow' : 'Rate', agg: mc.agg || 'Average', sentiment: sent});
+        });
+    } else {
+        // Fallback — empty table for manual entry
+        addMetricRow({name: '', type: 'Rate', agg: 'Average', sentiment: 'Down is bad'});
+    }
 
     document.getElementById('metrics-loading').classList.add('hidden');
     document.getElementById('metrics-content').classList.remove('hidden');
@@ -440,8 +475,31 @@ function addMetricRow(m) {
 }
 
 // ---- Build ----
+function collectMetricsFromTable() {
+    const rows = document.querySelectorAll('#metrics-body tr');
+    const metrics = [];
+    rows.forEach(tr => {
+        const cells = tr.querySelectorAll('.table-input');
+        if (cells.length >= 4 && cells[0].value.trim()) {
+            const name = cells[0].value.trim();
+            const agg = cells[2].value;
+            const sent = cells[3].value.includes('Up') ? 'up_is_good' : 'down_is_bad';
+            const field = name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+            metrics.push({
+                label: name, field: field, agg: agg,
+                description: `Measures ${name.toLowerCase()}`,
+                why_it_matters: `Indicates performance trend for ${name.toLowerCase()}`,
+                singular: name.toLowerCase(), plural: name.toLowerCase() + 's',
+                sentiment: sent,
+                pulse_agg: agg === 'Sum' ? 'AGGREGATION_SUM' : 'AGGREGATION_AVERAGE',
+                is_primary: metrics.length < 2,
+            });
+        }
+    });
+    return metrics;
+}
+
 async function startBuild() {
-    // In wizard mode, go to step 5; in form mode, show inline progress
     if (currentMode === 'wizard') {
         goStep(5);
     } else {
@@ -449,12 +507,22 @@ async function startBuild() {
         document.getElementById('form-progress').scrollIntoView({behavior: 'smooth'});
     }
 
+    // Build the story config from current state (AI-generated + user edits)
+    const editedMetrics = collectMetricsFromTable();
+    const finalStoryConfig = {
+        story_summary: document.getElementById('story-summary') ? document.getElementById('story-summary').value : '',
+        signal_description: document.getElementById('story-signal') ? document.getElementById('story-signal').value : '',
+        dimensions: (storyConfig && storyConfig.dimensions) ? storyConfig.dimensions : ['Region', 'Category', 'Segment'],
+        metric_config: editedMetrics.length > 0 ? editedMetrics : (storyConfig ? storyConfig.metric_config : []),
+    };
+
     const data = {
         company: getVal('company'),
         industry: getVal('industry'),
         use_case: getVal('usecase'),
         audience: getVal('audience'),
         notes: getVal('notes'),
+        story_config: finalStoryConfig,
         outputs: {
             pulse: getChecked('out-pulse'),
             next: getChecked('out-next'),
