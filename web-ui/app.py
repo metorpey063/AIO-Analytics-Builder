@@ -124,6 +124,7 @@ def connections():
                 "has_oauth": bool(sf.get("refresh_token")),
                 "has_connector": bool(sf.get("ingestion_connector_name") or sf.get("connector_sf_id")),
                 "has_dc_domain": bool(sf.get("data_cloud_domain")),
+                "has_mcp": bool(sf.get("mcp_client_id")),
             })
 
     return render_template("connections.html",
@@ -338,6 +339,16 @@ def test_salesforce():
         except Exception:
             pass
 
+        mcp_ok = False
+        try:
+            from mcp_client import MCPClient
+            mcp = MCPClient(config)
+            if mcp.available:
+                mcp.authenticate()
+                mcp_ok = True
+        except Exception:
+            pass
+
         return jsonify({
             "ok": True,
             "instance": sf_instance,
@@ -350,6 +361,7 @@ def test_salesforce():
             "sdm_count": sdm_count,
             "connector_ok": connector_ok,
             "connector_name": connector_name,
+            "mcp_ok": mcp_ok,
         })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
@@ -365,7 +377,7 @@ def test_mcp():
                             "error": "No .mcp.json found — MCP not configured"})
         mcp = json.loads(mcp_config.read_text())
         servers = mcp.get("mcpServers", {})
-        has_next_pilot = "tableau-next-pilot" in servers
+        has_next_pilot = "tableau-next-pilot" in servers or "tableau-next-beta" in servers or "Tableau Next Beta" in servers
         has_knowledge = "tableau-knowledge" in servers
         return jsonify({
             "ok": True,
@@ -479,6 +491,38 @@ def create_profile():
         save_profile(full, key, profile)
         set_active_profile(full, key)
         return jsonify({"ok": True, "key": key, "existing": False})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/api/oauth/mcp", methods=["POST"])
+def oauth_mcp():
+    """Run OAuth flow specifically for the MCP ECA to get an MCP refresh token."""
+    try:
+        from connections import load_full_config, save_full_config
+        full = load_full_config()
+        key = full.get("active_profile")
+        if not key or key not in full.get("profiles", {}):
+            return jsonify({"ok": False, "error": "No active profile."})
+
+        sf = full["profiles"][key].get("salesforce", {})
+        mcp_client_id = sf.get("mcp_client_id", "")
+        mcp_client_secret = sf.get("mcp_client_secret", "")
+        sf_login_url = sf.get("sf_login_url", "https://login.salesforce.com")
+
+        if not mcp_client_id:
+            return jsonify({"ok": False, "error": "No MCP Consumer Key configured."})
+
+        from oauth_flow import get_refresh_token
+        tokens = get_refresh_token(mcp_client_id, mcp_client_secret, sf_login_url,
+                                   scopes="mcp_api refresh_token")
+
+        full["profiles"][key]["salesforce"]["mcp_refresh_token"] = tokens["refresh_token"]
+        if tokens.get("code_verifier"):
+            full["profiles"][key]["salesforce"]["mcp_code_verifier"] = tokens["code_verifier"]
+        save_full_config(full)
+
+        return jsonify({"ok": True, "instance_url": tokens.get("instance_url", "")})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 

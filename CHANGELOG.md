@@ -4,6 +4,28 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-10-18 — MCP integration, setup guide improvements, OAuth fixes (v2.4.0)
+
+### Added
+- **MCP HTTP client** (`web-ui/mcp_client.py`): direct HTTP connection to the Tableau Next MCP server (140 tools) — no Claude Code CLI needed. Authenticates via MCP ECA OAuth, sends JSON-RPC over Streamable HTTP, handles SSE responses and session management.
+- **MCP OAuth flow** (`/api/oauth/mcp`): separate OAuth authorization for the MCP ECA with `mcp_api refresh_token` scopes. "Authorize MCP" button in Setup with prominent blue callout box.
+- **MCP in build pipeline**: builder auto-detects MCP availability and uses it for viz/dashboard creation (slim specs, Z layout). Falls back to REST if MCP unavailable.
+- **MCP readiness check**: Connections page verifies MCP auth against the live org on Test Connection.
+- **Full MCP setup guide**: Setup wizard Step 2 and form mode Step 6 include complete MCP ECA creation instructions — every click, scope, checkbox, and security setting spelled out.
+- **Collapsible guide sections**: Steps 1-6 in the form mode guide panel are collapsible with blue/gray expand icons.
+- **Copy buttons**: copyable values (app names, callback URL, connector name) have ⧉ buttons that copy to clipboard.
+- **MCP Consumer Key + Secret fields**: added to both wizard Step 2 and form mode with tooltips.
+- **MCP checklist**: wizard Step 2 has a 3-item MCP checklist (activate server, create ECA, paste key).
+
+### Fixed
+- **OAuth scopes per ECA**: `oauth_flow.py` now accepts custom `scopes` parameter. MCP OAuth sends `mcp_api refresh_token` instead of the main ECA's 5 scopes — fixes `OAUTH_APPROVAL_ERROR_GENERIC`.
+- **OAuth port reuse**: added `SO_REUSEADDR` to the callback server — fixes `[Errno 48] Address already in use` on retry.
+- **MCP refresh token rotation**: client saves rotated tokens on each auth call so they don't expire between uses.
+- **Expand/collapse icons scoped**: only top-level step titles show expand/collapse arrows, not nested bold text.
+- **Tableau Next Beta references**: updated from `tableau-next-pilot` to `Tableau Next Beta` throughout the UI to match the current Salesforce MCP server name.
+
+---
+
 ## 2026-10-18 — Build pipeline fixes, connection management, delete demos (v2.3.0)
 
 ### Added

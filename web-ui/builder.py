@@ -863,77 +863,169 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         sf_token, sf_instance = get_sf_token(config)
         h = sf_headers(sf_token)
 
+        # Try MCP path first for higher quality dashboards
+        mcp_available = False
         try:
-            from viz_builder import build_viz_payload
-            from viz_validator import is_valid
+            from mcp_client import MCPClient
+            mcp = MCPClient(config)
+            if mcp.available:
+                mcp.authenticate()
+                mcp.initialize()
+                mcp_available = True
+                progress(q, "viz", "MCP connected — using premium dashboard builder", -1)
+        except Exception as e:
+            progress(q, "info", f"MCP not available ({e}) — using REST fallback", -1)
 
-            cp["viz_apis"] = []
+        if mcp_available:
+            # --- MCP path: slim viz specs + Z layout dashboard ---
+            try:
+                cp["viz_apis"] = []
+                SYSTEM_DIMS = {"date", "record_id", "entity_id", "day_offset", "kq_record_id",
+                               "datasourceobject", "datasource", "cdp_sys_sourceversion",
+                               "data_source_object", "data_source"}
+                user_dim_names = [k for k in cp.get("dim_field_map", {}).keys()
+                                  if k.lower().replace(" ", "_") not in SYSTEM_DIMS]
 
-            # Filter out system dimensions to get user-facing ones
-            SYSTEM_DIMS = {"date", "record_id", "entity_id", "day_offset", "kq_record_id",
+                for i, mc in enumerate(metric_config[:4]):
+                    progress(q, "viz", f"Creating viz {i+1} via MCP: {mc['label']}...", 70 + int(5 * i))
+                    dim_name = user_dim_names[i % len(user_dim_names)] if user_dim_names else "region"
+                    try:
+                        result = mcp.create_visualization(
+                            name=f"{slug}_{mc['field']}",
+                            label=mc["label"],
+                            semanticModelIdOrName=cp["sdm_api"],
+                            workspaceIdOrApiName=cp["ws_api"],
+                            description=mc.get("description", ""),
+                        )
+                        viz_api = result.get("name", "") if isinstance(result, dict) else ""
+                        if viz_api:
+                            cp["viz_apis"].append(viz_api)
+                            cp["all_viz_apis"].append(viz_api)
+                            progress(q, "viz", f"Created viz: {mc['label']}", -1)
+                    except Exception as e:
+                        progress(q, "warn", f"MCP viz {mc['label']} failed: {e}", -1)
+
+                _save_cp(cp, slug, demo_dir)
+
+                # Create dashboard with Z layout
+                progress(q, "dash", "Creating Z layout dashboard via MCP...", 80)
+                try:
+                    demo_label = build_config.get("demo_name", "") or company
+                    result = mcp.create_dashboard(
+                        name=f"{slug}_dashboard",
+                        label=f"{demo_label} Dashboard",
+                        workspaceIdOrApiName=cp["ws_api"],
+                    )
+                    dash_api = result.get("name", "") if isinstance(result, dict) else ""
+                    if dash_api:
+                        cp["dash_api"] = dash_api
+                        cp["all_dash_apis"].append(dash_api)
+
+                        # Add viz widgets and metric widgets via edit_dashboard
+                        from dashboard_builder import build_z_layout_ops
+                        metric_labels = [mc["label"] for mc in metric_config[:3]]
+                        viz_labels = [mc["label"] for mc in metric_config[:len(cp["viz_apis"])]]
+                        ops = build_z_layout_ops(
+                            page_name="Overview", title=f"{demo_label} Analytics",
+                            subtitle=story_config.get("story_summary", "")[:100],
+                            sdm_api=cp["sdm_api"], sdm_id="",
+                            metric_apis=cp.get("metric_apis", [])[:3],
+                            metric_labels=metric_labels,
+                            viz_apis=cp["viz_apis"],
+                            viz_labels=viz_labels,
+                            viz_ids=[""] * len(cp["viz_apis"]),
+                            filter_fields=user_dim_names[:3],
+                        )
+                        for op in ops:
+                            try:
+                                mcp.edit_dashboard(dashboardIdOrName=dash_api, **op)
+                            except Exception:
+                                pass
+
+                        progress(q, "dash", f"Dashboard created: {dash_api}", -1)
+                except Exception as e:
+                    progress(q, "warn", f"MCP dashboard failed: {e}", -1)
+
+                cp["viz_done"] = True
+                cp["dash_done"] = True
+                _save_cp(cp, slug, demo_dir)
+
+            except Exception as e:
+                progress(q, "warn", f"MCP viz/dash failed ({e}) — falling back to REST", -1)
+                mcp_available = False
+
+        if not mcp_available and not cp.get("viz_done"):
+            # --- REST fallback for viz creation ---
+            try:
+                from viz_builder import build_viz_payload
+                from viz_validator import is_valid
+
+                cp["viz_apis"] = []
+
+                # Filter out system dimensions to get user-facing ones
+                SYSTEM_DIMS = {"date", "record_id", "entity_id", "day_offset", "kq_record_id",
                            "datasourceobject", "datasource", "cdp_sys_sourceversion",
                            "data_source_object", "data_source"}
-            user_dim_names = [k for k in cp.get("dim_field_map", {}).keys()
-                              if k.lower().replace(" ", "_") not in SYSTEM_DIMS]
+                user_dim_names = [k for k in cp.get("dim_field_map", {}).keys()
+                                  if k.lower().replace(" ", "_") not in SYSTEM_DIMS]
 
-            # Use recommend_dashboard_vizzes if available, else manual plan
-            try:
-                from viz_templates import recommend_dashboard_vizzes
-                viz_plan = recommend_dashboard_vizzes(metric_config, user_dim_names)
-            except ImportError:
-                viz_plan = [{"template": "trend_over_time", "metric_field": mc["field"],
-                             "label": f"{mc['label']} Over Time"} for mc in metric_config[:3]]
+                # Use recommend_dashboard_vizzes if available, else manual plan
+                try:
+                    from viz_templates import recommend_dashboard_vizzes
+                    viz_plan = recommend_dashboard_vizzes(metric_config, user_dim_names)
+                except ImportError:
+                    viz_plan = [{"template": "trend_over_time", "metric_field": mc["field"],
+                                 "label": f"{mc['label']} Over Time"} for mc in metric_config[:3]]
 
-            for i, v in enumerate(viz_plan):
-                # Build field_map using BASE field names (not apiNames) — viz_builder maps them internally
-                fm = {"measure": v["metric_field"], "date": "date"}
-                template = v.get("template", "trend_over_time")
+                for i, v in enumerate(viz_plan):
+                    fm = {"measure": v["metric_field"], "date": "date"}
+                    template = v.get("template", "trend_over_time")
 
-                if template == "bar_by_category" and user_dim_names:
-                    fm = {"category": user_dim_names[i % len(user_dim_names)],
-                          "amount": v["metric_field"]}
-                elif template == "stacked_bar" and len(user_dim_names) >= 2:
-                    fm = {"category": user_dim_names[0],
-                          "stack_dim": user_dim_names[1],
-                          "amount": v["metric_field"]}
-                elif template == "donut" and user_dim_names:
-                    fm = {"category": user_dim_names[i % len(user_dim_names)],
-                          "amount": v["metric_field"]}
+                    if template == "bar_by_category" and user_dim_names:
+                        fm = {"category": user_dim_names[i % len(user_dim_names)],
+                              "amount": v["metric_field"]}
+                    elif template == "stacked_bar" and len(user_dim_names) >= 2:
+                        fm = {"category": user_dim_names[0],
+                              "stack_dim": user_dim_names[1],
+                              "amount": v["metric_field"]}
+                    elif template == "donut" and user_dim_names:
+                        fm = {"category": user_dim_names[i % len(user_dim_names)],
+                              "amount": v["metric_field"]}
 
-                viz_name = f"{slug}_{v['metric_field']}"
-                payload = build_viz_payload(
-                    template_name=template,
-                    viz_name=viz_name,
-                    viz_label=v.get("label", metric_config[0]["label"]),
-                    sdm_api=cp["sdm_api"],
-                    ws_api=cp["ws_api"],
-                    do_api=cp["do_api"],
-                    field_map=fm,
-                    dim_field_map=cp.get("dim_field_map", {}),
-                    measurements=cp.get("measurement_map", {}),
-                )
+                    viz_name = f"{slug}_{v['metric_field']}"
+                    payload = build_viz_payload(
+                        template_name=template,
+                        viz_name=viz_name,
+                        viz_label=v.get("label", metric_config[0]["label"]),
+                        sdm_api=cp["sdm_api"],
+                        ws_api=cp["ws_api"],
+                        do_api=cp["do_api"],
+                        field_map=fm,
+                        dim_field_map=cp.get("dim_field_map", {}),
+                        measurements=cp.get("measurement_map", {}),
+                    )
 
-                ok, results = is_valid(payload)
-                if not ok:
-                    progress(q, "warn", f"Viz validation failed for {v.get('label','')}: {results}", -1)
+                    ok, results = is_valid(payload)
+                    if not ok:
+                        progress(q, "warn", f"Viz validation failed for {v.get('label','')}: {results}", -1)
 
-                r_viz = req.post(
-                    f"{sf_instance}/services/data/v66.0/tableau/visualizations?minorVersion=12",
-                    headers=h, json=payload)
-                if r_viz.ok:
-                    viz_api = r_viz.json().get("name", viz_name)
-                    cp["viz_apis"].append(viz_api)
-                    cp["all_viz_apis"].append(viz_api)
-                    progress(q, "viz", f"Created viz {i+1}/{len(viz_plan)}: {v.get('label','')}", 70 + int(8 * ((i+1)/len(viz_plan))))
-                else:
-                    progress(q, "warn", f"Viz {v.get('label','')} failed: {r_viz.text[:200]}", -1)
+                    r_viz = req.post(
+                        f"{sf_instance}/services/data/v66.0/tableau/visualizations?minorVersion=12",
+                        headers=h, json=payload)
+                    if r_viz.ok:
+                        viz_api = r_viz.json().get("name", viz_name)
+                        cp["viz_apis"].append(viz_api)
+                        cp["all_viz_apis"].append(viz_api)
+                        progress(q, "viz", f"Created viz {i+1}/{len(viz_plan)}: {v.get('label','')}", 70 + int(8 * ((i+1)/len(viz_plan))))
+                    else:
+                        progress(q, "warn", f"Viz {v.get('label','')} failed: {r_viz.text[:200]}", -1)
 
+                _save_cp(cp, slug, demo_dir)
+            except ImportError as e:
+                progress(q, "warn", f"viz_builder not available ({e}) — skipping visualizations", -1)
+
+            cp["viz_done"] = True
             _save_cp(cp, slug, demo_dir)
-        except ImportError as e:
-            progress(q, "warn", f"viz_builder not available ({e}) — skipping visualizations", -1)
-
-        cp["viz_done"] = True
-        _save_cp(cp, slug, demo_dir)
 
     if not cp.get("dash_done"):
         progress(q, "dash", "Assembling dashboard...", 80)

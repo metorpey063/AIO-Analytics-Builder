@@ -68,7 +68,8 @@ class _CallbackHandler(http.server.BaseHTTPRequestHandler):
         pass  # suppress default request logging
 
 
-def run_oauth_flow(client_id: str, sf_login_url: str = "https://login.salesforce.com") -> tuple:
+def run_oauth_flow(client_id: str, sf_login_url: str = "https://login.salesforce.com",
+                   scopes: str = None) -> tuple:
     """
     Runs the full browser-based OAuth flow with PKCE.
     Returns (auth_code, code_verifier) tuple.
@@ -85,12 +86,14 @@ def run_oauth_flow(client_id: str, sf_login_url: str = "https://login.salesforce
 
     # Start local callback server
     server = http.server.HTTPServer(("localhost", CALLBACK_PORT), _CallbackHandler)
+    server.socket.setsockopt(__import__('socket').SOL_SOCKET, __import__('socket').SO_REUSEADDR, 1)
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
     server_thread.start()
 
     # Build authorization URL with PKCE
-    scopes = "api sfap_api cdp_query_api cdp_ingest_api refresh_token"
+    if scopes is None:
+        scopes = "api sfap_api cdp_query_api cdp_ingest_api refresh_token"
     auth_params = urlencode({
         "response_type": "code",
         "client_id": client_id,
@@ -146,14 +149,15 @@ def exchange_code_for_tokens(auth_code: str, client_id: str, client_secret: str,
 
 
 def get_refresh_token(client_id: str, client_secret: str,
-                       sf_login_url: str = "https://login.salesforce.com") -> dict:
+                       sf_login_url: str = "https://login.salesforce.com",
+                       scopes: str = None) -> dict:
     """
     Full OAuth flow: open browser → catch code → exchange for tokens (with PKCE).
     Returns the full token response dict (contains access_token, refresh_token, instance_url).
     Also includes 'code_verifier' in the returned dict — callers MUST save this to config
     because PKCE-enforced orgs require it on every subsequent refresh_token grant.
     """
-    auth_code, code_verifier = run_oauth_flow(client_id, sf_login_url)
+    auth_code, code_verifier = run_oauth_flow(client_id, sf_login_url, scopes=scopes)
     tokens = exchange_code_for_tokens(auth_code, client_id, client_secret, sf_login_url, code_verifier)
     tokens["code_verifier"] = code_verifier
     return tokens

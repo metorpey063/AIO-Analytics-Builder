@@ -177,7 +177,7 @@
                                value="{{ config.get('salesforce', {}).get('sf_login_url', '') }}">
                     </div>
                     <div class="form-group">
-                        <label for="w-sf-client-id">Client ID (Consumer Key)</label>
+                        <label for="w-sf-client-id">Consumer Key (Client ID)</label>
                         <input type="text" id="w-sf-client-id" class="setup-sync" data-field="sf-client-id" placeholder="Paste Consumer Key from External Client App"
                                value="{{ config.get('salesforce', {}).get('client_id', '') }}">
                     </div>
@@ -193,6 +193,26 @@
                         <label class="checklist-item"><input type="checkbox"> All 5 OAuth scopes added</label>
                         <label class="checklist-item"><input type="checkbox"> Auth Code flow enabled</label>
                         <label class="checklist-item"><input type="checkbox"> PKCE left checked</label>
+                    </div>
+
+                    <div style="margin-top:16px; padding-top:16px; border-top:1px solid rgba(0,0,0,0.06)">
+                        <h3 style="font-size:14px; margin-bottom:8px">MCP Setup <span class="optional">(optional — premium dashboards)</span></h3>
+                        <div class="form-group">
+                            <label for="w-mcp-client-id">MCP Consumer Key</label>
+                            <input type="text" id="w-mcp-client-id" placeholder="Consumer Key from MCP ECA (see guide Step 8-10)"
+                                   value="{{ config.get('salesforce', {}).get('mcp_client_id', '') }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="w-mcp-client-secret">MCP Client Secret <span class="optional">(blank for PKCE-only)</span></label>
+                            <input type="password" id="w-mcp-client-secret" placeholder="Leave blank if PKCE-only (recommended)"
+                                   value="{{ config.get('salesforce', {}).get('mcp_client_secret', '') }}">
+                        </div>
+                        <div class="eca-checklist">
+                            <h4>MCP Checklist</h4>
+                            <label class="checklist-item"><input type="checkbox"> <code>Tableau Next Beta</code> activated in Setup &rarr; MCP Servers</label>
+                            <label class="checklist-item"><input type="checkbox"> MCP ECA created with <code>mcp_api</code> scope</label>
+                            <label class="checklist-item"><input type="checkbox"> Consumer Key pasted above</label>
+                        </div>
                     </div>
                 </div>
                 <div class="wizard-actions">
@@ -269,6 +289,39 @@
                                 <p>Required for Tableau Next builds. In Salesforce Setup, search <strong>"Ingestion API"</strong> (under Data Cloud &rarr; External Integrations). Click <strong>"New"</strong>, name it:</p>
                                 <code class="guide-code">analytics_builder_demo</code>
                                 <p style="margin-top:6px">Complete any required fields and save. AIO will auto-discover this connector during builds.</p>
+                            </div>
+                        </div>
+                        <div class="guide-step" style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(0,0,0,0.06)">
+                            <span class="guide-num" style="background:var(--green)">9</span>
+                            <div>
+                                <strong>Enable Tableau Next + AI Features</strong>
+                                <p>Required before building. In Salesforce Setup:</p>
+                                <ul class="guide-list">
+                                    <li>Search <strong>"Tableau"</strong> &rarr; enable <strong>Tableau Next</strong></li>
+                                    <li>Search <strong>"Einstein"</strong> &rarr; enable <strong>Einstein Generative AI</strong></li>
+                                    <li>Enable <strong>Tableau Pulse AI</strong> if using Concierge</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="guide-step" style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(0,0,0,0.06)">
+                            <span class="guide-num" style="background:var(--blue)">10</span>
+                            <div>
+                                <strong>MCP Server Setup (optional, recommended)</strong>
+                                <p>The MCP enables high-quality dashboard creation with slim viz specs, Z layouts, and programmatic business preferences. To set up:</p>
+                                <ul class="guide-list" style="margin-bottom:8px">
+                                    <li>In Setup, search <strong>"MCP Servers"</strong> (under API Catalog) &rarr; <strong>Salesforce Servers</strong> tab &rarr; find <strong>Tableau Next Beta</strong> &rarr; click <strong>Activate</strong></li>
+                                    <li>The MCP Servers page is under Setup &rarr; API Catalog &rarr; MCP Servers</li>
+                                </ul>
+                                <p style="font-weight:600; margin-bottom:4px">Create the MCP External Client App:</p>
+                                <ul class="guide-list">
+                                    <li>Setup &rarr; <strong>External Client App Manager</strong> &rarr; <strong>New External Client App</strong></li>
+                                    <li>Name: <code>AIO MCP Client</code></li>
+                                    <li>Enable OAuth, Callback URL: <code>http://localhost:8080/callback</code></li>
+                                    <li>Scopes: <code>mcp_api</code> + <code>refresh_token</code></li>
+                                    <li><strong>Uncheck:</strong> Require secret for Web Server Flow, Require secret for Refresh Token Flow</li>
+                                    <li><strong>Check:</strong> Require PKCE, Issue JWT-based access tokens for named users</li>
+                                    <li>Copy the <strong>Consumer Key</strong> and paste it in the MCP Client ID field below</li>
+                                </ul>
                             </div>
                         </div>
                     </div>
@@ -348,6 +401,8 @@
      FORM MODE — everything visible at once
      =================================================================== -->
 <div id="setup-form" class="setup-sections hidden">
+<div class="setup-split">
+<div class="setup-split-form">
     <!-- Tableau Cloud (hidden when editing a SF-only profile) -->
     <section class="card" id="form-tableau-section" {% if edit_profile_key and not edit_has_tableau and edit_has_salesforce %}style="display:none"{% endif %}>
         <div class="card-header">
@@ -448,6 +503,22 @@
                 <span class="form-hint">Verified against the live org when you click Test Connection</span>
             </div>
             <div class="form-group">
+                <label for="sf-mcp-client-id">
+                    MCP Consumer Key <span class="optional">(optional — for premium dashboards)</span>
+                    <span class="tooltip-trigger" data-tooltip="Consumer Key from the MCP External Client App (separate from the main ECA). Required for Z layout dashboards and programmatic business preferences. See the guide panel Step 10 for setup instructions.">?</span>
+                </label>
+                <input type="text" id="sf-mcp-client-id" placeholder="Consumer Key from MCP ECA"
+                       value="{{ config.get('salesforce', {}).get('mcp_client_id', '') }}">
+            </div>
+            <div class="form-group">
+                <label for="sf-mcp-client-secret">
+                    MCP Client Secret <span class="optional">(optional — only if ECA requires it)</span>
+                    <span class="tooltip-trigger" data-tooltip="The MCP ECA is typically configured with no secret (PKCE only). If your ECA requires a secret, paste it here. Most setups leave this blank.">?</span>
+                </label>
+                <input type="password" id="sf-mcp-client-secret" placeholder="Leave blank for PKCE-only (recommended)"
+                       value="{{ config.get('salesforce', {}).get('mcp_client_secret', '') }}">
+            </div>
+            <div class="form-group">
                 <label for="sf-dc-domain">
                     Data Cloud Domain <span class="optional">(auto-detected on test)</span>
                     <span class="tooltip-trigger" data-tooltip="This is auto-filled when you run Test Connection. It's the subdomain used by the Data Cloud Bulk API (e.g. abc123.c360a.salesforce.com). You can also find it in Data Cloud Setup.">?</span>
@@ -455,6 +526,19 @@
                 <input type="text" id="sf-dc-domain" placeholder="Auto-detected on test"
                        value="{{ config.get('salesforce', {}).get('data_cloud_domain', '') }}">
             </div>
+            <div id="mcp-auth-box" class="mcp-auth-box">
+                <div class="mcp-auth-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px; height:20px"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                </div>
+                <div class="mcp-auth-content">
+                    <strong>MCP Authorization Required</strong>
+                    <p>If you added an MCP Consumer Key above, click below to authorize it. This opens a browser to authenticate with the MCP External Client App (separate from the main OAuth).</p>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="authorizeMcp()" style="margin-top:6px">
+                        Authorize MCP Connection
+                    </button>
+                </div>
+            </div>
+
             <div class="form-actions">
                 <button type="button" class="btn btn-secondary" onclick="startOAuth()">Run OAuth Flow</button>
                 <button type="button" class="btn btn-secondary" onclick="testSalesforce()">Test Connection</button>
@@ -463,6 +547,137 @@
             <div id="sf-result" class="test-result"></div>
         </form>
     </section>
+</div><!-- end setup-split-form -->
+
+<aside class="setup-split-guide">
+    <div class="guide-panel">
+        <h4 class="guide-title">Setup Guide</h4>
+        <div class="guide-steps">
+            <div class="guide-step collapsed">
+                <span class="guide-num">1</span>
+                <div>
+                    <strong>Tableau Cloud PAT</strong>
+                    <div class="guide-body">
+                        <p>Profile icon &rarr; My Account Settings &rarr; Personal Access Tokens &rarr; Create. Copy the secret immediately.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="guide-step collapsed">
+                <span class="guide-num">2</span>
+                <div>
+                    <strong>Create the Salesforce External Client App</strong>
+                    <div class="guide-body">
+                        <p>In Salesforce Setup, search <strong>"App Manager"</strong> and click <strong>"New External Client App"</strong> (top right).</p>
+                        <ul class="guide-list">
+                            <li>Set the App Name to <span class="copy-wrap"><code>AIO Analytics Builder</code><button class="copy-btn" onclick="copyText('AIO Analytics Builder',this)">⧉</button></span></li>
+                            <li>Enter your email as the Contact Email</li>
+                            <li>Expand <strong>"API (Enable OAuth Settings)"</strong></li>
+                            <li>Check <strong>"Enable OAuth"</strong></li>
+                            <li>Set Callback URL to: <span class="copy-wrap"><code>http://localhost:8080/callback</code><button class="copy-btn" onclick="copyText('http://localhost:8080/callback',this)">⧉</button></span></li>
+                            <li>Under <strong>Available OAuth Scopes</strong>, add all five:
+                                <ul class="guide-list" style="margin-top:4px">
+                                    <li><code>Manage user data via APIs (api)</code></li>
+                                    <li><code>Access the Salesforce API Platform (sfap_api)</code></li>
+                                    <li><code>Perform SQL queries on Data Cloud data (cdp_query_api)</code></li>
+                                    <li><code>Manage Data Cloud Ingestion API data (cdp_ingest_api)</code></li>
+                                    <li><code>Perform requests at any time (refresh_token)</code></li>
+                                </ul>
+                            </li>
+                            <li>Under <strong>Flow Enablement</strong>, check <strong>"Enable Authorization Code and Credentials Flow"</strong></li>
+                            <li>Under <strong>Security</strong>, leave <strong>"Require Proof Key for Code Exchange (PKCE)"</strong> checked</li>
+                            <li>Click <strong>Create</strong></li>
+                            <li>Go to the app's <strong>Settings</strong> tab &rarr; <strong>OAuth Settings</strong> &rarr; click <strong>"Consumer Key and Secret"</strong></li>
+                            <li>Copy the <strong>Consumer Key</strong> and <strong>Consumer Secret</strong> and paste them in the form</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="guide-step collapsed">
+                <span class="guide-num">3</span>
+                <div>
+                    <strong>Run the OAuth Flow</strong>
+                    <div class="guide-body">
+                        <p>Click <strong>"Run OAuth Flow"</strong> below. A browser tab will open — log into Salesforce and click <strong>Allow</strong>. The refresh token saves automatically.</p>
+                        <p style="margin-top:4px"><strong>Note:</strong> New ECAs can take up to 10 minutes to become active. If it fails immediately, wait and retry.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="guide-step collapsed">
+                <span class="guide-num" style="background:var(--orange)">4</span>
+                <div>
+                    <strong>Create Ingest API Connector</strong>
+                    <div class="guide-body">
+                        <p>Required for Tableau Next demo builds.</p>
+                        <ul class="guide-list">
+                            <li>In Salesforce Setup, search <strong>"Ingestion API"</strong> (under Data Cloud &rarr; External Integrations)</li>
+                            <li>Click <strong>"New"</strong> (top right)</li>
+                            <li>Enter the connector name: <span class="copy-wrap"><code>analytics_builder_demo</code><button class="copy-btn" onclick="copyText('analytics_builder_demo',this)">⧉</button></span></li>
+                            <li>Complete any other required fields and click <strong>Save</strong></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="guide-step collapsed">
+                <span class="guide-num" style="background:var(--green)">5</span>
+                <div>
+                    <strong>Enable Tableau Next + AI Features</strong>
+                    <div class="guide-body">
+                        <p>Required before building demos. In Salesforce Setup:</p>
+                        <ul class="guide-list">
+                            <li>Search <strong>"Tableau"</strong> &rarr; click into Tableau settings &rarr; enable <strong>Tableau Next</strong></li>
+                            <li>Search <strong>"Einstein"</strong> &rarr; enable <strong>Einstein Generative AI</strong></li>
+                            <li>Enable <strong>Tableau Pulse AI</strong> if you plan to use Concierge</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="guide-step collapsed">
+                <span class="guide-num" style="background:var(--blue)">6</span>
+                <div>
+                    <strong>MCP Setup (optional — premium dashboards)</strong>
+                    <div class="guide-body">
+                        <p>The MCP enables high-quality Z layout dashboards, programmatic business preferences, and slim viz specs.</p>
+                        <p style="font-weight:600; margin-top:8px; margin-bottom:4px">Step A — Activate the MCP server:</p>
+                        <ul class="guide-list">
+                            <li>In Setup, search <strong>"MCP Servers"</strong> (under API Catalog)</li>
+                            <li>Click the <strong>Salesforce Servers</strong> tab</li>
+                            <li>Find <strong>"Tableau Next Beta"</strong> in the list</li>
+                            <li>Click the dropdown arrow on the right &rarr; click <strong>Activate</strong></li>
+                        </ul>
+                        <p style="font-weight:600; margin-top:8px; margin-bottom:4px">Step B — Create the MCP External Client App:</p>
+                        <ul class="guide-list">
+                            <li>In Setup, go to <strong>External Client App Manager</strong> &rarr; click <strong>"New External Client App"</strong></li>
+                            <li>Set the App Name to <span class="copy-wrap"><code>AIO MCP Client</code><button class="copy-btn" onclick="copyText('AIO MCP Client',this)">⧉</button></span></li>
+                            <li>Enter your email as the Contact Email</li>
+                            <li>Expand <strong>"API (Enable OAuth Settings)"</strong> and check <strong>"Enable OAuth"</strong></li>
+                            <li>Set Callback URL to: <span class="copy-wrap"><code>http://localhost:8080/callback</code><button class="copy-btn" onclick="copyText('http://localhost:8080/callback',this)">⧉</button></span></li>
+                            <li>Under <strong>Available OAuth Scopes</strong>, add these two (search for them):
+                                <ul class="guide-list" style="margin-top:4px">
+                                    <li><code>Perform requests at any time (refresh_token, offline_access)</code></li>
+                                    <li><code>Access Salesforce Hosted MCP Servers (mcp_api)</code></li>
+                                </ul>
+                            </li>
+                            <li>Under <strong>Flow Enablement</strong>, check <strong>"Enable Authorization Code and Credentials Flow"</strong></li>
+                            <li>Under <strong>Security</strong>:
+                                <ul class="guide-list" style="margin-top:4px">
+                                    <li><strong>Uncheck:</strong> Require secret for Web Server Flow</li>
+                                    <li><strong>Uncheck:</strong> Require secret for Refresh Token Flow</li>
+                                    <li><strong>Uncheck:</strong> Enforce Refresh Token IP Allowlist</li>
+                                    <li><strong>Check:</strong> Require Proof Key for Code Exchange (PKCE)</li>
+                                    <li><strong>Check:</strong> Issue JSON Web Token (JWT)-based access tokens for named users</li>
+                                </ul>
+                            </li>
+                            <li>Click <strong>Create</strong></li>
+                            <li>Go to the app's <strong>Settings</strong> tab &rarr; <strong>OAuth Settings</strong> &rarr; <strong>"Consumer Key and Secret"</strong></li>
+                            <li>Copy the <strong>Consumer Key</strong> and paste it in the <strong>MCP Consumer Key</strong> field</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</aside>
+</div><!-- end setup-split -->
 </div>
 {% endblock %}
 
@@ -609,13 +824,18 @@ async function saveAndTestTableau() {
 }
 
 async function saveAndGoOAuth() {
-    const data = {
-        salesforce: {
-            sf_login_url: getSetupVal('sf-login-url'),
-            client_id: getSetupVal('sf-client-id'),
-            client_secret: getSetupVal('sf-client-secret'),
-        }
+    const sfData = {
+        sf_login_url: getSetupVal('sf-login-url'),
+        client_id: getSetupVal('sf-client-id'),
+        client_secret: getSetupVal('sf-client-secret'),
     };
+    // Include MCP fields if filled in
+    const mcpId = document.getElementById('w-mcp-client-id');
+    const mcpSecret = document.getElementById('w-mcp-client-secret');
+    if (mcpId && mcpId.value) sfData.mcp_client_id = mcpId.value;
+    if (mcpSecret && mcpSecret.value) sfData.mcp_client_secret = mcpSecret.value;
+
+    const data = { salesforce: sfData };
     await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
     goSetupStep(3);
 }
@@ -701,13 +921,39 @@ async function saveSalesforce() {
     // Include connector name and DC domain if filled in (form mode fields)
     const connName = document.getElementById('sf-connector-name');
     const dcDomain = document.getElementById('sf-dc-domain');
+    const mcpId = document.getElementById('sf-mcp-client-id');
     if (connName && connName.value) sfData.ingestion_connector_name = connName.value;
     if (dcDomain && dcDomain.value) sfData.data_cloud_domain = dcDomain.value;
+    if (mcpId && mcpId.value) sfData.mcp_client_id = mcpId.value;
+    const mcpSecret = document.getElementById('sf-mcp-client-secret');
+    if (mcpSecret && mcpSecret.value) sfData.mcp_client_secret = mcpSecret.value;
 
     const data = { salesforce: sfData };
     const r = await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
     const j = await r.json();
     showResult('sf-result', j.ok, j.ok ? 'Saved' : j.error);
+}
+
+async function authorizeMcp() {
+    // Save the MCP key first
+    const mcpId = document.getElementById('sf-mcp-client-id');
+    const mcpSecret = document.getElementById('sf-mcp-client-secret');
+    if (mcpId && mcpId.value) {
+        await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({salesforce: {mcp_client_id: mcpId.value, mcp_client_secret: mcpSecret ? mcpSecret.value : ''}})});
+    }
+    showResult('sf-result', null, 'Opening browser for MCP authorization...');
+    try {
+        const r = await fetch('/api/oauth/mcp', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
+        const j = await r.json();
+        if (j.ok) {
+            showResult('sf-result', true, 'MCP authorized! Token saved. Instance: ' + j.instance_url);
+        } else {
+            showResult('sf-result', false, 'MCP auth failed: ' + j.error);
+        }
+    } catch (e) {
+        showResult('sf-result', false, 'Request failed: ' + e.message);
+    }
 }
 
 async function testTableau() {

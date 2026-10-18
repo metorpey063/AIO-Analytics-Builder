@@ -9,6 +9,24 @@ function showResult(elementId, ok, message) {
     el.className = 'test-result ' + (ok === null ? 'loading' : ok ? 'ok' : 'err');
 }
 
+// Collapsible guide steps — only top-level title toggles
+document.addEventListener('click', (e) => {
+    const strong = e.target.closest('.guide-step > div > strong:first-child');
+    if (strong) {
+        const step = strong.closest('.guide-step');
+        if (step) step.classList.toggle('collapsed');
+    }
+});
+
+// Copy button
+function copyText(text, btn) {
+    navigator.clipboard.writeText(text).then(() => {
+        btn.classList.add('copied');
+        btn.textContent = '✓';
+        setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '⧉'; }, 1500);
+    });
+}
+
 // Check for updates on page load
 document.addEventListener('DOMContentLoaded', checkVersion);
 

@@ -109,6 +109,7 @@
                 <span class="conn-check {% if c.has_oauth %}check-ok{% endif %}">OAuth Token</span>
                 <span class="conn-check" id="sf-chk-connector-{{ c.key }}">Ingest API Connector</span>
                 <span class="conn-check" id="sf-chk-dc-{{ c.key }}">Data Cloud</span>
+                <span class="conn-check" id="sf-chk-mcp-{{ c.key }}">MCP (premium dashboards)</span>
             </div>
             <div class="conn-row-live hidden" id="sf-live-{{ c.key }}">
                 <div class="detail-row" id="sf-user-{{ c.key }}" style="display:none">
@@ -262,8 +263,10 @@ async function testSfConn(key) {
             // Update live checklist
             const connChk = document.getElementById('sf-chk-connector-' + key);
             const dcChk = document.getElementById('sf-chk-dc-' + key);
+            const mcpChk = document.getElementById('sf-chk-mcp-' + key);
             if (connChk) connChk.className = j.connector_ok ? 'conn-check check-ok' : 'conn-check';
             if (dcChk) dcChk.className = j.data_cloud ? 'conn-check check-ok' : 'conn-check';
+            if (mcpChk) mcpChk.className = j.mcp_ok ? 'conn-check check-ok' : 'conn-check';
 
             const assets = [];
             if (j.workspaces && j.workspaces.length) assets.push(`${j.workspaces.length} workspace${j.workspaces.length !== 1 ? 's' : ''}`);
@@ -295,7 +298,7 @@ async function testMcp() {
             live.classList.remove('hidden');
             show('mcp-servers-row');
             el('mcp-servers-val').innerHTML = j.servers
-                .map(s => `<span class="server-tag ${s === 'tableau-next-pilot' ? 'tag-ok' : ''}">${s}</span>`)
+                .map(s => `<span class="server-tag ${(s === 'tableau-next-pilot' || s === 'tableau-next-beta') ? 'tag-ok' : ''}">${s}</span>`)
                 .join(' ');
         } else {
             status.className = 'badge badge-pending'; status.textContent = 'Not configured';
