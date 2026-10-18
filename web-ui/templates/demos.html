@@ -23,6 +23,9 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px; vertical-align:-2px; margin-right:4px"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
                     Open Folder
                 </button>
+                <button class="btn btn-ghost btn-sm" style="color:var(--red)" title="Delete this demo" onclick="deleteDemo('{{ demo.slug }}', '{{ demo.company or demo.slug }}')">
+                    Delete
+                </button>
             </div>
         </div>
 
@@ -70,6 +73,17 @@ async function openWalkthrough(slug, filename) {
     const r = await fetch('/api/demos/' + slug + '/walkthrough/' + filename);
     const j = await r.json();
     if (!j.ok) alert('Could not open file: ' + (j.error || 'unknown error'));
+}
+
+async function deleteDemo(slug, name) {
+    if (!confirm(`Delete "${name}"? This removes the entire demo folder including CSV, walkthrough, and checkpoint files. This cannot be undone.`)) return;
+    const r = await fetch('/api/demos/' + slug + '/delete', {method: 'POST'});
+    const j = await r.json();
+    if (j.ok) {
+        location.reload();
+    } else {
+        alert('Could not delete: ' + (j.error || 'unknown error'));
+    }
 }
 </script>
 {% endblock %}

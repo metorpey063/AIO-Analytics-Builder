@@ -389,6 +389,63 @@ body::before {
 .accent-orange { background: var(--orange-light); color: var(--orange); }
 .card-cta { color: var(--blue); font-size: 13px; font-weight: 600; }
 
+/* Profile picker (Build page Step 4) */
+.profile-picker-list { display: flex; flex-direction: column; gap: 6px; }
+.profile-pick-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.35);
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: border-color var(--transition), background var(--transition);
+}
+.profile-pick-item:hover { background: rgba(255, 255, 255, 0.5); }
+.profile-pick-item:has(input:checked) { border-color: var(--blue); background: rgba(37, 99, 235, 0.06); }
+.profile-pick-item input[type="radio"] { accent-color: var(--blue); width: 16px; height: 16px; flex-shrink: 0; }
+.profile-pick-info { flex: 1; min-width: 0; }
+.profile-pick-info strong { font-size: 13.5px; }
+.profile-pick-details {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Demo picker (Build page — Existing Demo mode) */
+.demo-picker-list {
+    max-height: 300px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.demo-picker-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    transition: background var(--transition);
+}
+.demo-picker-item:hover { background: rgba(255, 255, 255, 0.6); }
+.demo-picker-info { flex: 1; min-width: 0; }
+.demo-picker-info strong { font-size: 13.5px; }
+.demo-picker-cols {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .card-step-badge {
     width: 28px; height: 28px;
     border-radius: 50%;
@@ -605,6 +662,27 @@ textarea.mono { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-s
 .output-card-inner strong { display: block; margin-bottom: 2px; font-size: 14px; }
 .output-card-inner p { color: var(--text-muted); font-size: 13px; margin: 0; }
 
+.output-prereqs { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.06); }
+.prereq-list {
+    list-style: none;
+    padding: 0;
+    margin: 4px 0 0;
+}
+.prereq-list li {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    padding: 2px 0 2px 16px;
+    position: relative;
+    line-height: 1.4;
+}
+.prereq-list li::before {
+    content: '○';
+    position: absolute;
+    left: 0;
+    color: var(--text-light);
+    font-size: 10px;
+}
+
 /* =========================================================================
    Progress (build step 5)
    ========================================================================= */
@@ -708,6 +786,42 @@ textarea.mono { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-s
 .conn-row-sep { margin: 0 5px; color: var(--text-light); }
 .conn-row-muted { color: var(--text-light); font-style: italic; }
 .conn-row-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+.conn-checklist {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+.conn-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    color: var(--text-light);
+    padding: 2px 0;
+}
+.conn-check::before {
+    content: '';
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    flex-shrink: 0;
+}
+.conn-check.check-ok { color: var(--green); font-weight: 500; }
+.conn-check.check-ok::before {
+    background: var(--green);
+    border-color: var(--green);
+    content: '✓';
+    color: #fff;
+    font-size: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+}
 
 .conn-row-live {
     margin-top: 10px;

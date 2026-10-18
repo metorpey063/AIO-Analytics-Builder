@@ -33,7 +33,13 @@
     <!-- Step 0: Platform Selection -->
     <div class="wizard-step" id="setup-step-0">
         <section class="card">
-            <h2>What would you like to connect?</h2>
+            <h2>Name this connection</h2>
+            <p class="subtitle" style="margin-bottom:16px">Give this connection a friendly name so you can identify it later (e.g. "Kate's Demo Org", "Production", "Tableau Next Sandbox").</p>
+            <div class="form-group" style="max-width:400px; margin-bottom:24px">
+                <label for="conn-name">Connection Name</label>
+                <input type="text" id="conn-name" placeholder="e.g. My Demo Org" value="">
+            </div>
+            <h2 style="margin-top:8px">What would you like to connect?</h2>
             <p class="subtitle" style="margin-bottom:20px">Select the platforms you'll be building demos for. You can always come back and add more later.</p>
             <div class="platform-grid">
                 <label class="platform-card" id="plat-tableau">
@@ -256,6 +262,15 @@
                                 <p>Click <strong>Create</strong>. Then go to the app's <strong>Settings</strong> tab &rarr; <strong>OAuth Settings</strong> &rarr; <strong>"Consumer Key and Secret"</strong>. You may need to verify your identity. Copy both values and paste them in the form.</p>
                             </div>
                         </div>
+                        <div class="guide-step" style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(0,0,0,0.06)">
+                            <span class="guide-num" style="background:var(--orange)">8</span>
+                            <div>
+                                <strong>Create Ingest API Connector</strong>
+                                <p>Required for Tableau Next builds. In Salesforce Setup, search <strong>"Ingestion API"</strong> (under Data Cloud &rarr; External Integrations). Click <strong>"New"</strong>, name it:</p>
+                                <code class="guide-code">analytics_builder_demo</code>
+                                <p style="margin-top:6px">Complete any required fields and save. AIO will auto-discover this connector during builds.</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </aside>
@@ -333,8 +348,8 @@
      FORM MODE — everything visible at once
      =================================================================== -->
 <div id="setup-form" class="setup-sections hidden">
-    <!-- Tableau Cloud -->
-    <section class="card">
+    <!-- Tableau Cloud (hidden when editing a SF-only profile) -->
+    <section class="card" id="form-tableau-section" {% if edit_profile_key and not edit_has_tableau and edit_has_salesforce %}style="display:none"{% endif %}>
         <div class="card-header">
             <h2>Tableau Cloud</h2>
             <span id="tab-status" class="badge {% if config.get('tableau', {}).get('pat_secret') %}badge-ok{% else %}badge-pending{% endif %}">
@@ -423,6 +438,23 @@
                 <input type="password" id="sf-refresh-token" class="setup-sync" data-field="sf-refresh-token" placeholder="OAuth refresh token"
                        value="{{ config.get('salesforce', {}).get('refresh_token', '') }}">
             </div>
+            <div class="form-group">
+                <label for="sf-connector-name">
+                    Ingest API Connector Name
+                    <span class="tooltip-trigger" data-tooltip="In Salesforce Setup, search 'Ingestion API' (under Data Cloud → External Integrations). Click 'New' to create one, or enter the name of an existing connector. Required for Tableau Next builds.">?</span>
+                </label>
+                <input type="text" id="sf-connector-name" placeholder="analytics_builder_demo"
+                       value="{{ config.get('salesforce', {}).get('ingestion_connector_name', '') }}">
+                <span class="form-hint">Verified against the live org when you click Test Connection</span>
+            </div>
+            <div class="form-group">
+                <label for="sf-dc-domain">
+                    Data Cloud Domain <span class="optional">(auto-detected on test)</span>
+                    <span class="tooltip-trigger" data-tooltip="This is auto-filled when you run Test Connection. It's the subdomain used by the Data Cloud Bulk API (e.g. abc123.c360a.salesforce.com). You can also find it in Data Cloud Setup.">?</span>
+                </label>
+                <input type="text" id="sf-dc-domain" placeholder="Auto-detected on test"
+                       value="{{ config.get('salesforce', {}).get('data_cloud_domain', '') }}">
+            </div>
             <div class="form-actions">
                 <button type="button" class="btn btn-secondary" onclick="startOAuth()">Run OAuth Flow</button>
                 <button type="button" class="btn btn-secondary" onclick="testSalesforce()">Test Connection</button>
@@ -456,6 +488,18 @@ function toggleSetupMode() { setSetupMode(setupMode === 'wizard' ? 'form' : 'wiz
 document.addEventListener('DOMContentLoaded', () => {
     const saved = localStorage.getItem('aio-setup-mode');
     if (saved === 'form') setSetupMode('form');
+
+    // If editing an existing profile, skip Step 0 and go to form mode
+    const editKey = '{{ edit_profile_key|default("") }}';
+    const editLabel = '{{ edit_profile_label|default("")|e }}';
+    if (editKey) {
+        // Pre-fill the connection name
+        const nameField = document.getElementById('conn-name');
+        if (nameField) nameField.value = editLabel;
+
+        // Jump to form mode for easy editing
+        setSetupMode('form');
+    }
 });
 
 // ---- Field sync between wizard and form ----
@@ -488,19 +532,32 @@ function updatePlatformSteps() {
     selectedPlatforms.crma = document.getElementById('chk-crma').checked;
 }
 
-function startSetupFromSelection() {
+async function startSetupFromSelection() {
     updatePlatformSteps();
+
+    const connName = document.getElementById('conn-name').value.trim();
+    if (!connName) {
+        document.getElementById('conn-name').focus();
+        document.getElementById('conn-name').style.borderColor = 'var(--red)';
+        return;
+    }
+    document.getElementById('conn-name').style.borderColor = '';
+
+    // Create or switch to this profile
+    await fetch('/api/setup/create-profile', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({label: connName}),
+    });
 
     const needsTableau = selectedPlatforms.tableau;
     const needsSF = selectedPlatforms.next || selectedPlatforms.crma;
 
-    // Show/hide stepper steps based on selection
     const stepper = document.getElementById('setup-stepper');
     stepper.querySelector('[data-step="1"]').style.display = needsTableau ? '' : 'none';
     stepper.querySelector('[data-step="2"]').style.display = needsSF ? '' : 'none';
     stepper.querySelector('[data-step="3"]').style.display = needsSF ? '' : 'none';
 
-    // Navigate to the first relevant step
     if (needsTableau) {
         goSetupStep(1);
     } else if (needsSF) {
@@ -635,14 +692,19 @@ async function saveTableau() {
 }
 
 async function saveSalesforce() {
-    const data = {
-        salesforce: {
-            sf_login_url: getSetupVal('sf-login-url'),
-            client_id: getSetupVal('sf-client-id'),
-            client_secret: getSetupVal('sf-client-secret'),
-            refresh_token: getSetupVal('sf-refresh-token'),
-        }
+    const sfData = {
+        sf_login_url: getSetupVal('sf-login-url'),
+        client_id: getSetupVal('sf-client-id'),
+        client_secret: getSetupVal('sf-client-secret'),
+        refresh_token: getSetupVal('sf-refresh-token'),
     };
+    // Include connector name and DC domain if filled in (form mode fields)
+    const connName = document.getElementById('sf-connector-name');
+    const dcDomain = document.getElementById('sf-dc-domain');
+    if (connName && connName.value) sfData.ingestion_connector_name = connName.value;
+    if (dcDomain && dcDomain.value) sfData.data_cloud_domain = dcDomain.value;
+
+    const data = { salesforce: sfData };
     const r = await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
     const j = await r.json();
     showResult('sf-result', j.ok, j.ok ? 'Saved' : j.error);
@@ -650,7 +712,7 @@ async function saveSalesforce() {
 
 async function testTableau() {
     showResult('tab-result', null, 'Testing...');
-    const r = await fetch('/api/test-tableau', {method: 'POST'});
+    const r = await fetch('/api/test-tableau', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
     const j = await r.json();
     showResult('tab-result', j.ok, j.ok ? `Connected (site: ${j.site_name})` : j.error);
     if (j.ok) document.getElementById('tab-status').className = 'badge badge-ok';
@@ -658,7 +720,7 @@ async function testTableau() {
 
 async function testSalesforce() {
     showResult('sf-result', null, 'Testing...');
-    const r = await fetch('/api/test-salesforce', {method: 'POST'});
+    const r = await fetch('/api/test-salesforce', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
     const j = await r.json();
     showResult('sf-result', j.ok, j.ok ? `Connected (${j.instance})` : j.error);
     if (j.ok) document.getElementById('sf-status').className = 'badge badge-ok';

@@ -65,8 +65,22 @@ def index():
 
 @app.route("/setup")
 def setup():
+    from connections import load_full_config, set_active_profile
+    edit_key = request.args.get("profile")
+    full = load_full_config()
+    if edit_key and edit_key in full.get("profiles", {}):
+        set_active_profile(full, edit_key)
     config = _load_config()
-    return render_template("setup.html", config=config)
+    active_key = full.get("active_profile", "")
+    active_profile = full.get("profiles", {}).get(active_key, {})
+    active_label = active_profile.get("label", "")
+    tc = active_profile.get("tableau", {})
+    sf = active_profile.get("salesforce", {})
+    return render_template("setup.html", config=config,
+                           edit_profile_key=edit_key or "",
+                           edit_profile_label=active_label,
+                           edit_has_tableau=bool(tc.get("pat_secret") and tc.get("site_name")),
+                           edit_has_salesforce=bool(sf.get("refresh_token") and sf.get("client_id")))
 
 
 @app.route("/build")
@@ -98,6 +112,7 @@ def connections():
                 **base,
                 "server": tc.get("server_url", ""),
                 "site": tc.get("site_name", ""),
+                "has_pat": bool(tc.get("pat_secret")),
             })
         if sf.get("refresh_token") and (sf.get("client_id") or sf.get("data_cloud_domain")):
             salesforce_conns.append({
@@ -105,6 +120,10 @@ def connections():
                 "login_url": sf.get("sf_login_url", ""),
                 "dc_domain": sf.get("data_cloud_domain", ""),
                 "connector": sf.get("ingestion_connector_name", ""),
+                "has_eca": bool(sf.get("client_id")),
+                "has_oauth": bool(sf.get("refresh_token")),
+                "has_connector": bool(sf.get("ingestion_connector_name") or sf.get("connector_sf_id")),
+                "has_dc_domain": bool(sf.get("data_cloud_domain")),
             })
 
     return render_template("connections.html",
@@ -138,6 +157,20 @@ def demos():
 
                 demo_list.append(info)
     return render_template("demos.html", demos=demo_list)
+
+
+@app.route("/api/demos/<slug>/delete", methods=["POST"])
+def delete_demo(slug):
+    """Delete a demo folder."""
+    import shutil
+    demos_dir = PROJECT_ROOT / "demos" / slug
+    if not demos_dir.exists():
+        return jsonify({"ok": False, "error": "Demo not found"})
+    try:
+        shutil.rmtree(str(demos_dir))
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
 
 
 @app.route("/api/demos/<slug>/open")
@@ -422,6 +455,34 @@ def update():
         return jsonify({"ok": False, "updated": False, "output": str(e)})
 
 
+@app.route("/api/setup/create-profile", methods=["POST"])
+def create_profile():
+    """Create a new connection profile (or switch to existing) with the given label."""
+    try:
+        from connections import load_full_config, save_profile, set_active_profile, make_profile_key, get_profile
+        data = request.json or {}
+        label = data.get("label", "").strip()
+        if not label:
+            return jsonify({"ok": False, "error": "Profile name is required"})
+
+        full = load_full_config()
+        key = make_profile_key(label)
+
+        if key in full.get("profiles", {}):
+            set_active_profile(full, key)
+            return jsonify({"ok": True, "key": key, "existing": True})
+
+        import copy
+        from connections import _EMPTY_PROFILE
+        profile = copy.deepcopy(_EMPTY_PROFILE)
+        profile["label"] = label
+        save_profile(full, key, profile)
+        set_active_profile(full, key)
+        return jsonify({"ok": True, "key": key, "existing": False})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
 @app.route("/api/oauth/start", methods=["POST"])
 def oauth_start():
     """Run the Salesforce OAuth browser flow and save the refresh token."""
@@ -461,22 +522,86 @@ def oauth_start():
 
 @app.route("/api/save-config", methods=["POST"])
 def save_config():
-    """Save config.json with provided values."""
+    """Save config.json — updates the active profile within the full config structure."""
     try:
+        from connections import load_full_config, save_full_config
         data = request.json
-        config = _load_config()
+        full = load_full_config()
+        key = full.get("active_profile")
+
+        if not key or key not in full.get("profiles", {}):
+            return jsonify({"ok": False, "error": "No active profile found"})
+
+        profile = full["profiles"][key]
 
         if "tableau" in data:
-            config.setdefault("tableau", {}).update(data["tableau"])
+            profile.setdefault("tableau", {}).update(data["tableau"])
         if "salesforce" in data:
-            config.setdefault("salesforce", {}).update(data["salesforce"])
+            profile.setdefault("salesforce", {}).update(data["salesforce"])
         if "anthropic" in data:
-            config.setdefault("anthropic", {}).update(data["anthropic"])
+            full.setdefault("anthropic", {}).update(data["anthropic"])
 
-        CONFIG_PATH.write_text(json.dumps(config, indent=2))
+        full["profiles"][key] = profile
+        save_full_config(full)
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/api/profiles/list", methods=["GET"])
+def profiles_list():
+    """Return connection profiles with org details for the build destination picker."""
+    from connections import load_full_config
+    full = load_full_config()
+    active_key = full.get("active_profile")
+    result = []
+    for key, p in full.get("profiles", {}).items():
+        tc = p.get("tableau", {})
+        sf = p.get("salesforce", {})
+        entry = {
+            "key": key,
+            "label": p.get("label", key),
+            "active": key == active_key,
+            "has_tableau": bool(tc.get("pat_secret") and tc.get("site_name")),
+            "has_salesforce": bool(sf.get("refresh_token") and sf.get("client_id")),
+            "tableau_site": tc.get("site_name", ""),
+            "tableau_server": tc.get("server_url", ""),
+            "sf_login_url": sf.get("sf_login_url", ""),
+            "dc_domain": sf.get("data_cloud_domain", ""),
+        }
+        result.append(entry)
+    return jsonify(result)
+
+
+@app.route("/api/demos/list", methods=["GET"])
+def demos_list_api():
+    """Return list of existing demos with metadata for the build page picker."""
+    demos_dir = PROJECT_ROOT / "demos"
+    result = []
+    if demos_dir.exists():
+        for d in sorted(demos_dir.iterdir()):
+            if not d.is_dir() or d.name.startswith("."):
+                continue
+            csv_files = sorted(d.glob("*.csv"))
+            if not csv_files:
+                continue
+            info = {"slug": d.name, "company": d.name.replace("_", " ").title()}
+            cp_file = d / f"{d.name}_checkpoint.json"
+            if cp_file.exists():
+                try:
+                    cp = json.loads(cp_file.read_text())
+                    info["company"] = cp.get("company", info["company"])
+                    info["build_type"] = cp.get("build_type", "")
+                except (json.JSONDecodeError, KeyError):
+                    pass
+            try:
+                import pandas as _pd
+                df = _pd.read_csv(str(csv_files[-1]), nrows=1)
+                info["columns"] = list(df.columns)
+            except Exception:
+                info["columns"] = []
+            result.append(info)
+    return jsonify(result)
 
 
 @app.route("/api/build/generate-story", methods=["POST"])
@@ -492,8 +617,12 @@ def build_generate_story():
             audience=data.get("audience", ""),
             notes=data.get("notes", ""),
         )
+        if not result.get("metric_config"):
+            return jsonify({"ok": False, "error": "AI returned a response but no metrics were generated. Try again with more detail about the use case."})
         return jsonify({"ok": True, **result})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"ok": False, "error": str(e)[:500]})
 
 
@@ -507,13 +636,16 @@ def build_start():
 
     progress_queues[build_id] = queue.Queue()
 
+    demo_name = data.get("demo_name", "") or company
     build_config = {
         "company": company,
+        "demo_name": demo_name,
         "industry": data.get("industry", ""),
         "use_case": data.get("use_case", ""),
         "audience": data.get("audience", ""),
         "notes": data.get("notes", ""),
         "story_config": data.get("story_config", {}),
+        "profile_key": data.get("profile_key"),
         "outputs": data.get("outputs", {"csv": True}),
     }
 

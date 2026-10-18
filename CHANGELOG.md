@@ -4,6 +4,33 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-10-18 — Build pipeline fixes, connection management, delete demos (v2.3.0)
+
+### Added
+- **Demo Name field** — Build Demo Step 1 now has a "Demo Name" field so builds create unique workspace/SDM/stream names (e.g. "Diversify UI Test" creates `diversify_ui_test` assets)
+- **New/Existing Demo toggle** — Step 1 has a toggle to select a previously built demo, auto-populating company name and notes for rebuilds
+- **Destination Org picker** — Step 4 shows all connection profiles as radio buttons so users choose which org to build to
+- **Delete button on My Demos** — each demo has a red Delete button with confirmation dialog
+- **Ingest API connector field** — Setup form mode now has Ingest API Connector Name and Data Cloud Domain fields with tooltip guidance
+- **Tableau Next prerequisites** — Step 4 output card lists required org setup (Data Cloud, Tableau Next, AI features, Ingest API connector)
+- **Connection name on Setup** — Step 0 asks users to name the connection before configuring it
+- **Profile creation API** (`/api/setup/create-profile`) — creates or switches to a named profile
+- **Edit button on Connections** — opens Setup with the profile pre-loaded in form mode, showing only relevant sections (hides Tableau Cloud for SF-only profiles)
+- **Readiness checklists** — Connections page shows green/gray checkmarks for ECA, OAuth, Ingest API, Data Cloud per profile; Ingest API and Data Cloud verified against live org on Test
+- **OAuth propagation note** — Setup Step 3 warns that new ECAs can take up to 10 minutes to become active
+
+### Fixed
+- **Config save destroying profiles** — `save_config` was writing flat dict over entire `config.json`, wiping all profiles. Now properly updates only the active profile within the profiles structure.
+- **Schema registration** — field names and labels now lowercase with no spaces; `isPrimaryKey` removed from schema fields (only valid in stream fields)
+- **Stream creation** — DLO field representations now only include PK field (other fields auto-discovered from schema); 5-second propagation delay after schema PUT
+- **Bulk Ingest object name** — was using DLO name, now correctly uses schema name
+- **Data Object creation** — added required `label` field
+- **Viz field mapping** — field_map now uses base field names (not DO apiNames); system dimensions filtered out; `recommend_dashboard_vizzes` used for template selection
+- **Form mode test buttons** — added `Content-Type: application/json` header
+- **Connector auto-discovery** — always discovers connector from live org instead of relying on stale config IDs
+
+---
+
 ## 2026-10-18 — Full build pipeline wired into Web UI (v2.2.0)
 
 ### Added

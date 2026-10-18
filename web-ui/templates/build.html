@@ -34,42 +34,70 @@
     <!-- Step 1: Company Info -->
     <div class="wizard-step" id="step-1">
         <div class="card">
-            <h2>Tell us about the company</h2>
-            <div class="form-stack">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="w-company">Company Name</label>
-                        <input type="text" id="w-company" class="sync-field" data-sync="company" placeholder="Acme Corp">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+                <h2 style="margin:0">Tell us about the company</h2>
+                <div class="mode-toggle-bar" style="margin:0">
+                    <span class="mode-label active" id="lbl-new-demo" onclick="setDemoMode('new')">New Demo</span>
+                    <div class="toggle-track" id="demo-mode-track" onclick="toggleDemoMode()">
+                        <div class="toggle-thumb"></div>
+                    </div>
+                    <span class="mode-label" id="lbl-existing-demo" onclick="setDemoMode('existing')">Existing Demo</span>
+                </div>
+            </div>
+
+            <!-- Existing demo picker -->
+            <div id="existing-demo-picker" class="hidden" style="margin-bottom:16px">
+                <p class="subtitle" style="margin-bottom:10px; color:var(--text-muted)">Select a previously built demo to rebuild or push to a different platform.</p>
+                <div id="demo-picker-list" class="demo-picker-list">
+                    <div class="loading-state" style="padding:20px 0"><div class="spinner"></div><p>Loading demos...</p></div>
+                </div>
+            </div>
+
+            <!-- New demo form -->
+            <div id="new-demo-form">
+                <div class="form-stack">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="w-company">Company Name</label>
+                            <input type="text" id="w-company" class="sync-field" data-sync="company" placeholder="Acme Corp">
+                        </div>
+                        <div class="form-group">
+                            <label for="w-demo-name">Demo Name <span class="optional">(optional)</span></label>
+                            <input type="text" id="w-demo-name" class="sync-field" data-sync="demo-name" placeholder="e.g. Diversify UI Test">
+                            <span class="form-hint">Used for workspace, SDM, and data stream names. Defaults to company name if blank.</span>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="w-industry">Industry</label>
+                            <select id="w-industry" class="sync-field" data-sync="industry">
+                                <option value="">Select...</option>
+                                <option>Healthcare</option>
+                                <option>Financial Services</option>
+                                <option>Manufacturing</option>
+                                <option>Retail</option>
+                                <option>Technology</option>
+                                <option>Insurance</option>
+                                <option>Education</option>
+                                <option>Government</option>
+                                <option>Energy</option>
+                                <option>Telecom</option>
+                                <option>Other</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label for="w-industry">Industry</label>
-                        <select id="w-industry" class="sync-field" data-sync="industry">
-                            <option value="">Select...</option>
-                            <option>Healthcare</option>
-                            <option>Financial Services</option>
-                            <option>Manufacturing</option>
-                            <option>Retail</option>
-                            <option>Technology</option>
-                            <option>Insurance</option>
-                            <option>Education</option>
-                            <option>Government</option>
-                            <option>Energy</option>
-                            <option>Telecom</option>
-                            <option>Other</option>
-                        </select>
+                        <label for="w-usecase">Use Case / Topic</label>
+                        <input type="text" id="w-usecase" class="sync-field" data-sync="usecase" placeholder="e.g. Employee benefits enrollment, Sales pipeline, Customer churn">
                     </div>
-                </div>
-                <div class="form-group">
-                    <label for="w-usecase">Use Case / Topic</label>
-                    <input type="text" id="w-usecase" class="sync-field" data-sync="usecase" placeholder="e.g. Employee benefits enrollment, Sales pipeline, Customer churn">
-                </div>
-                <div class="form-group">
-                    <label for="w-audience">Audience (who will see this demo?)</label>
-                    <input type="text" id="w-audience" class="sync-field" data-sync="audience" placeholder="e.g. VP of HR, Chief Data Officer, Sales Operations Manager">
-                </div>
-                <div class="form-group">
-                    <label for="w-notes">Additional Context <span class="optional">(optional)</span></label>
-                    <textarea id="w-notes" class="sync-field" data-sync="notes" rows="3" placeholder="Any specific requirements, pain points, or details about what matters to this prospect..."></textarea>
+                    <div class="form-group">
+                        <label for="w-audience">Audience (who will see this demo?)</label>
+                        <input type="text" id="w-audience" class="sync-field" data-sync="audience" placeholder="e.g. VP of HR, Chief Data Officer, Sales Operations Manager">
+                    </div>
+                    <div class="form-group">
+                        <label for="w-notes">Additional Context <span class="optional">(optional)</span></label>
+                        <textarea id="w-notes" class="sync-field" data-sync="notes" rows="3" placeholder="Any specific requirements, pain points, or details about what matters to this prospect..."></textarea>
+                    </div>
                 </div>
             </div>
             <div class="wizard-actions">
@@ -130,12 +158,13 @@
         </div>
     </div>
 
-    <!-- Step 4: Output Selection -->
+    <!-- Step 4: Output Selection + Destination -->
     <div class="wizard-step hidden" id="step-4">
         <div class="card">
             <h2>Output Targets</h2>
-            <p class="subtitle">Where should we publish this demo?</p>
-            <div class="output-options">
+            <p class="subtitle" style="margin-bottom:16px">Choose what to build and which org to publish to.</p>
+
+            <div class="output-options" style="margin-bottom:20px">
                 <label class="output-card {% if not has_tableau %}disabled{% endif %}">
                     <input type="checkbox" id="w-out-pulse" class="sync-field" data-sync="out-pulse" {% if has_tableau %}checked{% endif %} {% if not has_tableau %}disabled{% endif %}>
                     <div class="output-card-inner">
@@ -150,6 +179,15 @@
                         <strong>Tableau Next</strong>
                         <p>Push to Data Cloud + build SDM, metrics, visualizations, and dashboard</p>
                         {% if not has_salesforce %}<span class="form-hint">Requires Salesforce connection</span>{% endif %}
+                        <div class="output-prereqs">
+                            <span class="form-hint" style="font-weight:600; color:var(--text-muted)">Prerequisites:</span>
+                            <ul class="prereq-list">
+                                <li>Data Cloud (Data 360) enabled on the org</li>
+                                <li>Tableau Next enabled (Setup &rarr; Tableau &rarr; Tableau Next)</li>
+                                <li>AI features enabled (Einstein Generative AI, Tableau Pulse AI)</li>
+                                <li>Ingest API connector created (Setup &rarr; Ingestion API)</li>
+                            </ul>
+                        </div>
                     </div>
                 </label>
                 <label class="output-card">
@@ -160,6 +198,13 @@
                     </div>
                 </label>
             </div>
+
+            <h3 style="font-size:14px; margin-bottom:10px">Destination Org</h3>
+            <p class="subtitle" style="margin-bottom:12px">Select which connection profile to use for this build.</p>
+            <div id="profile-picker" class="profile-picker-list">
+                <div class="loading-state" style="padding:12px 0"><div class="spinner" style="width:20px; height:20px; margin-bottom:6px"></div><p style="font-size:12px">Loading profiles...</p></div>
+            </div>
+
             <div class="wizard-actions">
                 <button class="btn btn-ghost" onclick="goStep(3)">&larr; Back</button>
                 <button class="btn btn-primary" onclick="startBuild()">Build Demo &rarr;</button>
@@ -201,6 +246,12 @@
                             <label for="f-company">Company Name</label>
                             <input type="text" id="f-company" class="sync-field" data-sync="company" placeholder="Acme Corp">
                         </div>
+                        <div class="form-group">
+                            <label for="f-demo-name">Demo Name <span class="optional">(optional)</span></label>
+                            <input type="text" id="f-demo-name" class="sync-field" data-sync="demo-name" placeholder="e.g. Diversify UI Test">
+                        </div>
+                    </div>
+                    <div class="form-row">
                         <div class="form-group">
                             <label for="f-industry">Industry</label>
                             <select id="f-industry" class="sync-field" data-sync="industry">
@@ -373,6 +424,104 @@ document.addEventListener('DOMContentLoaded', () => {
     if (saved === 'form') setMode('form');
 });
 
+// ---- Demo mode toggle (New / Existing) ----
+let demoMode = 'new';
+let existingDemosLoaded = false;
+
+function setDemoMode(mode) {
+    demoMode = mode;
+    const track = document.getElementById('demo-mode-track');
+    document.getElementById('existing-demo-picker').classList.toggle('hidden', mode !== 'existing');
+    document.getElementById('new-demo-form').classList.toggle('hidden', mode === 'existing');
+    document.getElementById('lbl-new-demo').classList.toggle('active', mode === 'new');
+    document.getElementById('lbl-existing-demo').classList.toggle('active', mode === 'existing');
+    if (mode === 'existing') { track.classList.add('on'); loadExistingDemos(); }
+    else track.classList.remove('on');
+}
+
+function toggleDemoMode() { setDemoMode(demoMode === 'new' ? 'existing' : 'new'); }
+
+async function loadExistingDemos() {
+    if (existingDemosLoaded) return;
+    const container = document.getElementById('demo-picker-list');
+    try {
+        const r = await fetch('/api/demos/list');
+        const demos = await r.json();
+        existingDemosLoaded = true;
+
+        if (!demos.length) {
+            container.innerHTML = '<p style="color:var(--text-muted); font-size:13px; padding:10px 0">No existing demos found. Build your first one!</p>';
+            return;
+        }
+
+        container.innerHTML = '';
+        demos.forEach(d => {
+            const cols = (d.columns || []).filter(c => !['Record ID','Date','Day_Offset','Entity ID','Unit ID'].includes(c));
+            const badge = d.build_type ? `<span class="badge badge-neutral" style="margin-left:6px">${d.build_type}</span>` : '';
+            const el = document.createElement('div');
+            el.className = 'demo-picker-item';
+            el.innerHTML = `
+                <div class="demo-picker-info">
+                    <strong>${d.company}</strong>${badge}
+                    <div class="demo-picker-cols">${cols.slice(0, 6).join(', ')}${cols.length > 6 ? '...' : ''}</div>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="selectExistingDemo('${d.slug}', '${d.company.replace(/'/g, "\\'")}')">Use</button>
+            `;
+            container.appendChild(el);
+        });
+    } catch (e) {
+        container.innerHTML = '<p style="color:var(--red); font-size:13px">Failed to load demos</p>';
+    }
+}
+
+async function selectExistingDemo(slug, company) {
+    // Auto-populate fields from the existing demo
+    document.querySelectorAll('.sync-field[data-sync="company"]').forEach(el => el.value = company);
+    document.querySelectorAll('.sync-field[data-sync="notes"]').forEach(el =>
+        el.value = `Rebuilding from existing demo: ${slug}. Reuse the same metrics and dimensions.`);
+
+    // Switch to new demo form view with fields filled
+    setDemoMode('new');
+
+    // Highlight that fields were populated
+    document.getElementById('w-company').style.borderColor = 'var(--green)';
+    setTimeout(() => document.getElementById('w-company').style.borderColor = '', 2000);
+}
+
+// ---- Profile picker (Step 4) ----
+let selectedProfileKey = null;
+
+async function loadProfiles() {
+    const container = document.getElementById('profile-picker');
+    try {
+        const r = await fetch('/api/profiles/list');
+        const profiles = await r.json();
+
+        container.innerHTML = '';
+        profiles.forEach(p => {
+            const el = document.createElement('label');
+            el.className = 'profile-pick-item' + (p.active ? ' profile-pick-active' : '');
+            const details = [];
+            if (p.has_tableau) details.push('Tableau: ' + p.tableau_site);
+            if (p.has_salesforce) details.push('SF: ' + (p.dc_domain || p.sf_login_url || 'connected'));
+            if (!p.has_tableau && !p.has_salesforce) details.push('Not configured');
+
+            el.innerHTML = `
+                <input type="radio" name="build-profile" value="${p.key}" ${p.active ? 'checked' : ''} onchange="selectedProfileKey='${p.key}'">
+                <div class="profile-pick-info">
+                    <strong>${p.label}</strong>
+                    ${p.active ? '<span class="badge badge-ok" style="font-size:9px; margin-left:4px">Active</span>' : ''}
+                    <div class="profile-pick-details">${details.join(' · ')}</div>
+                </div>
+            `;
+            container.appendChild(el);
+            if (p.active) selectedProfileKey = p.key;
+        });
+    } catch (e) {
+        container.innerHTML = '<p style="color:var(--red); font-size:12px">Failed to load profiles</p>';
+    }
+}
+
 // ---- Wizard navigation ----
 function goStep(n) {
     document.querySelectorAll('.wizard-step').forEach(el => el.classList.add('hidden'));
@@ -385,6 +534,7 @@ function goStep(n) {
 
     if (n === 2) generateStory();
     if (n === 3) generateMetrics();
+    if (n === 4) loadProfiles();
 }
 
 // Store the AI-generated config so it passes through to the build
@@ -412,6 +562,26 @@ async function generateStory() {
             storyConfig = j;
             document.getElementById('story-summary').value = j.story_summary || '';
             document.getElementById('story-signal').value = j.signal_description || '';
+
+            // Auto-fill empty fields from AI suggestions
+            if (j.suggestions) {
+                if (!getVal('industry') && j.suggestions.industry) {
+                    document.querySelectorAll('.sync-field[data-sync="industry"]').forEach(el => {
+                        // For select elements, try to match an option or add one
+                        if (el.tagName === 'SELECT') {
+                            const opt = Array.from(el.options).find(o => o.value === j.suggestions.industry);
+                            if (opt) { el.value = j.suggestions.industry; }
+                            else { el.insertAdjacentHTML('beforeend', `<option selected>${j.suggestions.industry}</option>`); }
+                        } else { el.value = j.suggestions.industry; }
+                    });
+                }
+                if (!getVal('usecase') && j.suggestions.use_case) {
+                    document.querySelectorAll('.sync-field[data-sync="usecase"]').forEach(el => el.value = j.suggestions.use_case);
+                }
+                if (!getVal('audience') && j.suggestions.audience) {
+                    document.querySelectorAll('.sync-field[data-sync="audience"]').forEach(el => el.value = j.suggestions.audience);
+                }
+            }
         } else {
             document.getElementById('story-summary').value = 'Story generation failed: ' + (j.error || 'Unknown error') +
                 '\n\nYou can type your story manually and proceed.';
@@ -518,11 +688,13 @@ async function startBuild() {
 
     const data = {
         company: getVal('company'),
+        demo_name: getVal('demo-name') || getVal('company'),
         industry: getVal('industry'),
         use_case: getVal('usecase'),
         audience: getVal('audience'),
         notes: getVal('notes'),
         story_config: finalStoryConfig,
+        profile_key: selectedProfileKey,
         outputs: {
             pulse: getChecked('out-pulse'),
             next: getChecked('out-next'),

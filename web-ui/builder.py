@@ -41,8 +41,21 @@ def progress(q, stage, message, pct=-1):
 STORY_SYSTEM_PROMPT = """You are a data analytics demo designer for Tableau and Salesforce.
 Given a company name, industry, use case, audience, and optional notes, generate a complete demo configuration.
 
+CRITICAL RULES:
+- ALWAYS return valid JSON. Never ask clarifying questions. Never explain or discuss.
+- If the user references a prior demo or existing work, infer reasonable defaults from the company name, industry, and use case — do NOT ask for more information.
+- If details are vague, make your best judgment and generate a complete configuration.
+- Your entire response must be a single JSON object. No text before or after it.
+
+If ANY of the user fields are empty or vague (industry, use case, audience), infer the best fit from the company name and fill them in. Include a "suggestions" object with your inferred values so the UI can auto-populate empty fields.
+
 Return ONLY valid JSON with this exact structure:
 {
+  "suggestions": {
+    "industry": "inferred industry if user left it blank",
+    "use_case": "inferred use case if user left it blank",
+    "audience": "inferred audience if user left it blank"
+  },
   "story_summary": "2-3 sentence narrative describing the company context and the analytical story",
   "signal_description": "1 sentence describing the engineered signal (e.g., 'accelerating decline in X over 3 months, concentrated in Y segment')",
   "dimensions": ["Region", "Department", "Category"],
@@ -74,6 +87,37 @@ Rules:
 """
 
 
+def _find_existing_demo(company):
+    """Look for a previously built demo matching this company name."""
+    demos_dir = PROJECT_ROOT / "demos"
+    if not demos_dir.exists():
+        return None
+
+    company_lower = company.lower().replace(" ", "_").replace("'", "")
+    for d in demos_dir.iterdir():
+        if not d.is_dir() or d.name.startswith("."):
+            continue
+        if company_lower in d.name.lower() or d.name.lower() in company_lower:
+            csv_files = sorted(d.glob("*.csv"))
+            if csv_files:
+                try:
+                    df = pd.read_csv(str(csv_files[-1]), nrows=3)
+                    cp_file = d / f"{d.name}_checkpoint.json"
+                    cp = {}
+                    if cp_file.exists():
+                        cp = json.loads(cp_file.read_text())
+                    return {
+                        "slug": d.name,
+                        "columns": list(df.columns),
+                        "sample_row": df.iloc[0].to_dict() if len(df) > 0 else {},
+                        "build_type": cp.get("build_type", "unknown"),
+                        "company": cp.get("company", d.name),
+                    }
+                except Exception:
+                    pass
+    return None
+
+
 def generate_story(company, industry, use_case, audience, notes=""):
     """Call Claude API to generate story + metrics. Returns dict."""
     from app import _get_chat_config, CHAT_MODEL
@@ -82,11 +126,27 @@ def generate_story(company, industry, use_case, audience, notes=""):
     if not cfg:
         raise RuntimeError("No API key configured for AI generation")
 
+    prior_context = ""
+    existing = _find_existing_demo(company)
+    if existing:
+        cols = existing["columns"]
+        metric_cols = [c for c in cols if c not in ("Record ID", "Date", "Day_Offset", "Entity ID", "Unit ID")]
+        prior_context = f"""
+IMPORTANT — A demo was previously built for this company. Here is the prior configuration:
+- Demo slug: {existing['slug']}
+- Previous build type: {existing['build_type']}
+- Columns in the dataset: {', '.join(cols)}
+- Metric/dimension columns: {', '.join(metric_cols)}
+- Sample row: {json.dumps(existing['sample_row'], default=str)}
+
+Reuse the same metrics, dimensions, and field names from the prior build. Match the column names exactly so the new build is consistent with the existing data. Adapt for the requested output platform if different."""
+
     user_msg = f"""Company: {company}
 Industry: {industry}
 Use case / topic: {use_case}
 Audience: {audience}
-Additional context: {notes or 'None'}"""
+Additional context: {notes or 'None'}
+{prior_context}"""
 
     if cfg["mode"] == "bedrock_gateway":
         import requests as req
@@ -116,10 +176,25 @@ Additional context: {notes or 'None'}"""
         )
         text = resp.content[0].text
 
+    # Strip markdown code fences if present
+    text = re.sub(r'```json\s*', '', text)
+    text = re.sub(r'```\s*', '', text)
+    text = text.strip()
+
+    # Try parsing the full text first, then fall back to extracting JSON block
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
     match = re.search(r'\{[\s\S]*\}', text)
     if not match:
-        raise RuntimeError("AI did not return valid JSON")
-    return json.loads(match.group())
+        raise RuntimeError(f"AI did not return valid JSON. Response: {text[:300]}")
+
+    try:
+        return json.loads(match.group())
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"AI returned malformed JSON: {e}. Response: {text[:300]}")
 
 
 # ---------------------------------------------------------------------------
@@ -422,7 +497,7 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
 # Tableau Next build
 # ---------------------------------------------------------------------------
 
-def next_build(build_id, df, slug, company, config, metric_config, story_config, demo_dir, q, cp):
+def next_build(build_id, df, slug, company, config, metric_config, story_config, demo_dir, q, cp, build_config=None):
     import requests as req
     from connections import get_sf_token, get_dc_token, sf_headers, dc_headers
 
@@ -440,16 +515,29 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         progress(q, "schema", "Registering schema with Data Cloud...", 10)
         connector_name = sf.get("ingestion_connector_name", "analytics_builder_demo")
         connector_id = sf.get("connector_sf_id", "")
+        connector_uuid = sf.get("connector_uuid_name", "")
 
+        # Always auto-discover the connector on the CURRENT org (config may have stale IDs from a different org)
+        r = req.get(f"{sf_instance}/services/data/v62.0/ssot/connections",
+                    headers=h, params={"connectorType": "IngestApi", "limit": 100})
+        conns = r.json().get("connections", []) if r.ok else []
+        connector_id = ""
+        connector_uuid = ""
+        for c in conns:
+            cname = c.get("name", "")
+            if connector_name and connector_name in cname:
+                connector_id = c.get("id", "")
+                connector_uuid = cname
+                break
+        if not connector_id and conns:
+            connector_id = conns[0].get("id", "")
+            connector_uuid = conns[0].get("name", "")
+            progress(q, "info", f"Using connector: {connector_uuid}", -1)
         if not connector_id:
-            r = req.get(f"{sf_instance}/services/data/v62.0/ssot/connections",
-                        headers=h, params={"connectorType": "IngestApi", "limit": 100})
-            for c in r.json().get("connections", []):
-                if connector_name in c.get("name", ""):
-                    connector_id = c["id"]
-                    break
-            if not connector_id:
-                raise RuntimeError(f"Ingest connector '{connector_name}' not found")
+            raise RuntimeError(
+                f"No Ingest API connector found on this org ({sf_instance}). "
+                "Create one in Salesforce Setup → Data Cloud → External Integrations → Ingestion API → New."
+            )
 
         schema_name = slug.replace("-", "_")
         fields = [{"name": "Record ID", "dataType": "Text", "isPrimaryKey": True}]
@@ -461,72 +549,99 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         for mc in metric_config:
             fields.append({"name": mc["label"], "dataType": "Number"})
 
-        schema_fields = [{"name": f["name"], "label": f["name"],
-                          "dataType": f["dataType"], "isPrimaryKey": f.get("isPrimaryKey", False)}
+        # Schema fields: no isPrimaryKey, no spaces, all lowercase names
+        schema_fields = [{"name": f["name"].replace(" ", "_").lower(),
+                          "label": f["name"].replace(" ", "_").lower(),
+                          "dataType": f["dataType"]}
                          for f in fields]
 
+        # Check if schema already exists — if so, skip PUT entirely
         r_schema = req.get(f"{sf_instance}/services/data/v62.0/ssot/connections/{connector_id}/schema", headers=h)
         existing = r_schema.json() if r_schema.ok else {"schemas": []}
-        schemas = [s for s in existing.get("schemas", []) if s.get("name") != schema_name]
-        schemas.append({"name": schema_name, "label": schema_name.replace("_", " ").title(),
-                        "schemaType": "IngestApi", "fields": schema_fields})
-        req.put(f"{sf_instance}/services/data/v62.0/ssot/connections/{connector_id}/schema",
-                headers=h, json={"schemas": schemas})
+        existing_schemas = existing.get("schemas", []) if isinstance(existing, dict) else []
+        schema_exists = any(s.get("name") == schema_name for s in existing_schemas)
+
+        if not schema_exists:
+            # Strip platform-injected fields from existing schemas before re-submitting
+            STRIP_KEYS = {"availabilityStatus"}
+            clean_existing = []
+            for s in existing_schemas:
+                clean = {k: v for k, v in s.items() if k not in STRIP_KEYS}
+                if "fields" in clean:
+                    clean["fields"] = [{fk: fv for fk, fv in f.items() if fk not in STRIP_KEYS}
+                                       for f in clean["fields"]]
+                clean_existing.append(clean)
+
+            new_schema = {"name": schema_name, "label": schema_name,
+                          "schemaType": "IngestApi", "fields": schema_fields}
+            r_put = req.put(f"{sf_instance}/services/data/v62.0/ssot/connections/{connector_id}/schema",
+                            headers=h, json={"schemas": clean_existing + [new_schema]})
+            if not r_put.ok:
+                progress(q, "warn", f"Schema PUT failed: {r_put.text[:200]} — retrying with new schema only", -1)
+                r_put2 = req.put(f"{sf_instance}/services/data/v62.0/ssot/connections/{connector_id}/schema",
+                                 headers=h, json={"schemas": [new_schema]})
+                if not r_put2.ok:
+                    progress(q, "warn", f"Schema registration failed: {r_put2.text[:200]}", -1)
+        else:
+            progress(q, "info", f"Schema '{schema_name}' already exists — reusing", -1)
 
         progress(q, "stream", "Creating data stream...", 15)
-        connector_uuid = sf.get("connector_uuid_name", "")
-        if not connector_uuid:
-            r_conns = req.get(f"{sf_instance}/services/data/v62.0/ssot/connections",
-                              headers=h, params={"connectorType": "IngestApi", "limit": 100})
-            for c in r_conns.json().get("connections", []):
-                if connector_name in c.get("name", ""):
-                    connector_uuid = c.get("name", "")
-                    break
+        time.sleep(5)  # Schema propagation delay — stream creation fails without this
+        # connector_uuid already resolved above
 
-        stream_fields = [{"name": f["name"], "label": f["name"], "dataType": f["dataType"],
-                          "isPrimaryKey": f.get("isPrimaryKey", False)} for f in fields]
-        dlo_fields = [{"name": f["name"].replace(" ", "_").lower() + "__c", "label": f["name"],
-                       "dataType": f["dataType"], "isPrimaryKey": f.get("isPrimaryKey", False)}
-                      for f in fields]
-
-        mappings = [{"sourceFieldName": f["name"], "targetFieldName": f["name"].replace(" ", "_").lower() + "__c"}
-                    for f in fields]
-
+        # Stream creation: only include the PK field in DLO — other fields auto-discovered from schema
+        pk_field = fields[0]  # Record ID is always first
         stream_payload = {
-            "name": schema_name, "label": schema_name.replace("_", " ").title(),
+            "name": schema_name, "label": schema_name,
+            "datasource": connector_uuid[:10],
             "datastreamType": "INGESTAPI",
-            "connectorInfo": {"connectorType": "IngestApiConnector",
-                              "connectorDetails": {"name": connector_uuid}},
-            "schemaInfo": {"schemaName": schema_name},
+            "connectorInfo": {"connectorType": "IngestApi",
+                              "connectorDetails": {"name": connector_uuid,
+                                                   "events": [schema_name]}},
             "dataLakeObjectInfo": {
-                "name": schema_name + "__dll", "label": schema_name.replace("_", " ").title(),
+                "label": schema_name,
                 "category": "Other",
                 "dataspaceInfo": [{"name": "default"}],
-                "fields": dlo_fields,
+                "dataLakeFieldInputRepresentations": [
+                    {"name": pk_field["name"].replace(" ", "_").lower(),
+                     "label": pk_field["name"].replace(" ", "_").lower(),
+                     "dataType": "Text", "isPrimaryKey": True},
+                ],
+                "eventDateTimeFieldName": "",
+                "recordModifiedFieldName": "",
             },
-            "sourceFieldInputRepresentations": stream_fields,
-            "dataLakeFieldInputRepresentations": dlo_fields,
-            "mappings": mappings,
+            "mappings": [],
         }
 
         r_stream = req.post(f"{sf_instance}/services/data/v62.0/ssot/data-streams",
                             headers=h, json=stream_payload)
         if r_stream.status_code not in (200, 201):
-            sr = r_stream.json() if r_stream.headers.get("content-type", "").startswith("application/json") else {}
-            existing_stream = sr.get("errorCode") == "DUPLICATE_VALUE" or "already exists" in r_stream.text.lower()
-            if existing_stream:
-                r_list = req.get(f"{sf_instance}/services/data/v62.0/ssot/data-streams", headers=h)
-                for s in r_list.json().get("data", []):
-                    if schema_name in s.get("name", ""):
-                        cp["stream_name"] = s["name"]
-                        cp["dlo_name"] = s.get("dataLakeObjectInfo", {}).get("name", "")
-                        break
-            else:
-                raise RuntimeError(f"Stream creation failed: {r_stream.status_code} {r_stream.text[:300]}")
+            # Try to find an existing stream — creation failures often mean it already exists
+            progress(q, "stream", f"Stream creation returned {r_stream.status_code} — checking for existing stream...", -1)
+            r_list = req.get(f"{sf_instance}/services/data/v62.0/ssot/data-streams", headers=h)
+            streams = r_list.json()
+            stream_list = streams.get("dataStreams", []) if isinstance(streams, dict) else streams
+            found = False
+            for s in stream_list:
+                if isinstance(s, dict) and schema_name in s.get("name", ""):
+                    cp["stream_name"] = s["name"]
+                    dlo_info = s.get("dataLakeObjectInfo", {})
+                    if isinstance(dlo_info, dict):
+                        cp["dlo_name"] = dlo_info.get("name", "")
+                    progress(q, "stream", f"Found existing stream: {cp['stream_name']}", -1)
+                    found = True
+                    break
+            if not found:
+                raise RuntimeError(f"Stream creation failed and no existing stream found: {r_stream.status_code} {r_stream.text[:300]}")
         else:
             resp = r_stream.json()
+            if isinstance(resp, list):
+                resp = resp[0] if resp else {}
             cp["stream_name"] = resp.get("name", schema_name)
-            cp["dlo_name"] = resp.get("dataLakeObjectInfo", {}).get("name", schema_name + "__dll")
+            dlo_info = resp.get("dataLakeObjectInfo", {})
+            if isinstance(dlo_info, list):
+                dlo_info = dlo_info[0] if dlo_info else {}
+            cp["dlo_name"] = dlo_info.get("name", schema_name + "__dll")
 
         progress(q, "stream", "Waiting for DLO to become active...", 20)
         for attempt in range(30):
@@ -551,9 +666,10 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         dc_token, dc_domain = get_dc_token(sf_token, sf_instance)
         dch = dc_headers(dc_token)
         connector_name = sf.get("ingestion_connector_name", "analytics_builder_demo")
+        schema_name = slug  # same as what was registered in Phase 2
 
         job_payload = {
-            "object": cp.get("dlo_name", slug + "__dll").replace("__dll", ""),
+            "object": schema_name,
             "sourceName": connector_name,
             "operation": "upsert",
         }
@@ -591,14 +707,16 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         sf_token, sf_instance = get_sf_token(config)
         h = sf_headers(sf_token)
 
-        ws_label = f"{company} Analytics"
+        build_config = build_config or {}
+        demo_label = build_config.get("demo_name", "") or company
+        ws_label = f"{demo_label} Analytics"
         r_ws = req.post(f"{sf_instance}/services/data/v65.0/tableau/workspaces",
                         headers=h, json={"label": ws_label})
         r_ws.raise_for_status()
         cp["ws_api"] = r_ws.json().get("name", "")
         cp["all_ws_apis"].append(cp["ws_api"])
 
-        sdm_label = f"{company} Analytics"
+        sdm_label = f"{demo_label} Analytics"
         r_sdm = req.post(f"{sf_instance}/services/data/v65.0/ssot/semantic/models",
                          headers=h, json={"label": sdm_label, "dataspace": "default"})
         r_sdm.raise_for_status()
@@ -607,9 +725,11 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
         progress(q, "sdm", "Adding data object to semantic model...", 40)
         dlo_name = cp.get("dlo_name", slug + "__dll")
+        demo_label = build_config.get("demo_name", "") or company
         r_do = req.post(f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{cp['sdm_api']}/data-objects",
                         headers=h, json={
                             "dataLakeObjectName": dlo_name, "dataObjectName": dlo_name,
+                            "label": f"{demo_label} Fact",
                             "dataObjectType": "dlo", "shouldIncludeAllFields": True,
                         })
         r_do.raise_for_status()
@@ -748,30 +868,54 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
             from viz_validator import is_valid
 
             cp["viz_apis"] = []
-            templates = ["trend_over_time", "bar_by_category", "stacked_bar"]
-            for i, mc in enumerate(metric_config[:3]):
-                template = templates[i % len(templates)]
-                meas_api = cp.get("measurement_map", {}).get(mc["field"], "")
-                date_api = cp.get("dim_field_map", {}).get("date", "")
-                first_dim = next((v for k, v in cp.get("dim_field_map", {}).items()
-                                  if k.lower() not in ("date", "record_id", "entity_id", "day_offset", "record id", "entity id")), "")
 
-                field_map = {"measure": meas_api, "date": date_api}
-                if template != "trend_over_time":
-                    field_map["dimension"] = first_dim
+            # Filter out system dimensions to get user-facing ones
+            SYSTEM_DIMS = {"date", "record_id", "entity_id", "day_offset", "kq_record_id",
+                           "datasourceobject", "datasource", "cdp_sys_sourceversion",
+                           "data_source_object", "data_source"}
+            user_dim_names = [k for k in cp.get("dim_field_map", {}).keys()
+                              if k.lower().replace(" ", "_") not in SYSTEM_DIMS]
 
-                viz_name = f"{slug}_{mc['field']}"
+            # Use recommend_dashboard_vizzes if available, else manual plan
+            try:
+                from viz_templates import recommend_dashboard_vizzes
+                viz_plan = recommend_dashboard_vizzes(metric_config, user_dim_names)
+            except ImportError:
+                viz_plan = [{"template": "trend_over_time", "metric_field": mc["field"],
+                             "label": f"{mc['label']} Over Time"} for mc in metric_config[:3]]
+
+            for i, v in enumerate(viz_plan):
+                # Build field_map using BASE field names (not apiNames) — viz_builder maps them internally
+                fm = {"measure": v["metric_field"], "date": "date"}
+                template = v.get("template", "trend_over_time")
+
+                if template == "bar_by_category" and user_dim_names:
+                    fm = {"category": user_dim_names[i % len(user_dim_names)],
+                          "amount": v["metric_field"]}
+                elif template == "stacked_bar" and len(user_dim_names) >= 2:
+                    fm = {"category": user_dim_names[0],
+                          "stack_dim": user_dim_names[1],
+                          "amount": v["metric_field"]}
+                elif template == "donut" and user_dim_names:
+                    fm = {"category": user_dim_names[i % len(user_dim_names)],
+                          "amount": v["metric_field"]}
+
+                viz_name = f"{slug}_{v['metric_field']}"
                 payload = build_viz_payload(
                     template_name=template,
                     viz_name=viz_name,
-                    viz_label=mc["label"],
+                    viz_label=v.get("label", metric_config[0]["label"]),
                     sdm_api=cp["sdm_api"],
                     ws_api=cp["ws_api"],
                     do_api=cp["do_api"],
-                    field_map=field_map,
+                    field_map=fm,
                     dim_field_map=cp.get("dim_field_map", {}),
                     measurements=cp.get("measurement_map", {}),
                 )
+
+                ok, results = is_valid(payload)
+                if not ok:
+                    progress(q, "warn", f"Viz validation failed for {v.get('label','')}: {results}", -1)
 
                 r_viz = req.post(
                     f"{sf_instance}/services/data/v66.0/tableau/visualizations?minorVersion=12",
@@ -780,13 +924,13 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                     viz_api = r_viz.json().get("name", viz_name)
                     cp["viz_apis"].append(viz_api)
                     cp["all_viz_apis"].append(viz_api)
-                    progress(q, "viz", f"Created viz {i+1}: {mc['label']}", 70 + int(5 * (i+1)))
+                    progress(q, "viz", f"Created viz {i+1}/{len(viz_plan)}: {v.get('label','')}", 70 + int(8 * ((i+1)/len(viz_plan))))
                 else:
-                    progress(q, "warn", f"Viz {mc['label']} failed: {r_viz.text[:200]}", -1)
+                    progress(q, "warn", f"Viz {v.get('label','')} failed: {r_viz.text[:200]}", -1)
 
             _save_cp(cp, slug, demo_dir)
-        except ImportError:
-            progress(q, "warn", "viz_builder not available — skipping visualizations", -1)
+        except ImportError as e:
+            progress(q, "warn", f"viz_builder not available ({e}) — skipping visualizations", -1)
 
         cp["viz_done"] = True
         _save_cp(cp, slug, demo_dir)
@@ -894,7 +1038,8 @@ def run_build(build_id, build_config, progress_queue):
     q = progress_queue
     try:
         company = build_config["company"]
-        slug = re.sub(r"[^a-z0-9]+", "_", company.lower()).strip("_")
+        demo_name = build_config.get("demo_name", "") or company
+        slug = re.sub(r"[^a-z0-9]+", "_", demo_name.lower()).strip("_")
         story_config = build_config["story_config"]
         metric_config = story_config["metric_config"]
         outputs = build_config.get("outputs", {})
@@ -909,8 +1054,13 @@ def run_build(build_id, build_config, progress_queue):
         else:
             cp = {"all_ws_apis": [], "all_sdm_apis": [], "all_viz_apis": [], "all_dash_apis": []}
 
-        from connections import load_config
-        config = load_config()
+        from connections import load_config, load_full_config, set_active_profile
+        profile_key = build_config.get("profile_key")
+        if profile_key:
+            full = load_full_config()
+            if profile_key in full.get("profiles", {}):
+                set_active_profile(full, profile_key)
+        config = load_config(profile_key)
 
         progress(q, "init", "Generating data...", 0)
         df = generate_data(story_config, q)
@@ -924,7 +1074,7 @@ def run_build(build_id, build_config, progress_queue):
 
         if outputs.get("next"):
             progress(q, "next", "Starting Tableau Next build...", 10)
-            next_build(build_id, df, slug, company, config, metric_config, story_config, demo_dir, q, cp)
+            next_build(build_id, df, slug, company, config, metric_config, story_config, demo_dir, q, cp, build_config)
 
         if outputs.get("crma"):
             progress(q, "crma", "Starting CRM Analytics build...", 10)
