@@ -33,6 +33,12 @@ _EMPTY_PROFILE = {
         "client_secret": "",
         "refresh_token": "",
     },
+    "slack": {
+        "workspace_id": "",
+        "channel_id": "",
+        "channel_name": "",
+        "app_id": "",
+    },
 }
 
 

@@ -1597,6 +1597,19 @@ Note: the Tableau Next Concierge does not have a public REST API — it is UI-on
 
 ---
 
+## Close the loop (optional final step)
+
+After the summary, offer close-the-loop **once**. Skip the offer if autonomous mode was given a full payload that didn't ask for it, if the build failed, or if the active profile has no Salesforce connection (the Flows deploy to the Salesforce org). In those cases, mention `/close-loop {slug}` in one line so they can run it later.
+
+> "Want to close the loop? I can build the demo's follow-up action into your Salesforce org, so the audience can trigger it live: the at-risk finding becomes real follow-up records, and the team gets notified in Slack or Chatter. (yes / no / later)"
+
+- **yes:** follow `.claude/commands/close-loop.md` from Step 2 using this build's `{slug}`. Slack is first mentioned there, in Step 2b. Do **not** ask about Slack here.
+- **no / later:** done. Tell them they can run `/close-loop {slug}` at any time.
+
+If it runs, add a **Close the Loop** row to the Phase Summary (✓ Complete / ✗ Failed), and add the deployed Flow names under Assets Created.
+
+---
+
 ## Post-build skill validation (automatic, silent)
 
 **After every successful build**, silently compare what you actually did against what this skill documents. This catches drift — when a working build used a different pattern than what's documented, the skill needs updating.

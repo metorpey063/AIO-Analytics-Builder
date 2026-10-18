@@ -65,6 +65,16 @@ def ensure_external_id_field(sf_token, sf_instance, sobject_type, field_name,
         print(f"  External ID field {sobject_type}.{field_name} already exists")
         return False
 
+    # A new custom field gets no FLS for the running user, so describe and the
+    # upsert endpoint treat it as nonexistent (404). Check Tooling before creating.
+    tq = requests.get(f"{sf_instance}/services/data/{API_VERSION}/tooling/query", headers=h,
+                      params={"q": f"SELECT Id FROM CustomField WHERE TableEnumOrId='{sobject_type}' "
+                                   f"AND DeveloperName='{field_name.replace('__c', '')}'"})
+    if tq.ok and tq.json().get("records"):
+        print(f"  External ID field {sobject_type}.{field_name} exists but is hidden — granting access")
+        grant_field_access(sf_token, sf_instance, sobject_type, field_name)
+        return False
+
     full_name = f"{sobject_type}.{field_name}"
     payload = {
         "FullName": full_name,
@@ -85,6 +95,7 @@ def ensure_external_id_field(sf_token, sf_instance, sobject_type, field_name,
 
     if r.status_code == 201:
         print(f"  Created External ID field {sobject_type}.{field_name}")
+        grant_field_access(sf_token, sf_instance, sobject_type, field_name)
         print(f"  Waiting 30s for field metadata propagation...")
         time.sleep(30)
         return True
@@ -95,6 +106,43 @@ def ensure_external_id_field(sf_token, sf_instance, sobject_type, field_name,
 
     r.raise_for_status()
     return True
+
+
+FIELD_ACCESS_PERMSET = "AIO_Demo_Field_Access"
+
+
+def grant_field_access(sf_token, sf_instance, sobject_type, field_name):
+    """Give the running user read/edit on a field via the AIO_Demo_Field_Access permission set.
+
+    Creates the permission set and assignment if missing. Idempotent.
+    """
+    h = sf_headers(sf_token)
+    base = f"{sf_instance}/services/data/{API_VERSION}"
+    q = lambda soql: requests.get(f"{base}/query", headers=h, params={"q": soql}).json().get("records", [])
+
+    ps = q(f"SELECT Id FROM PermissionSet WHERE Name='{FIELD_ACCESS_PERMSET}'")
+    if ps:
+        ps_id = ps[0]["Id"]
+    else:
+        r = requests.post(f"{base}/sobjects/PermissionSet", headers=h, json={
+            "Name": FIELD_ACCESS_PERMSET, "Label": "AIO Demo Field Access",
+            "Description": "Read/edit on AIO Analytics Builder demo External ID fields"})
+        r.raise_for_status()
+        ps_id = r.json()["id"]
+
+    full = f"{sobject_type}.{field_name}"
+    if not q(f"SELECT Id FROM FieldPermissions WHERE ParentId='{ps_id}' AND Field='{full}'"):
+        r = requests.post(f"{base}/sobjects/FieldPermissions", headers=h, json={
+            "ParentId": ps_id, "SobjectType": sobject_type, "Field": full,
+            "PermissionsRead": True, "PermissionsEdit": True})
+        r.raise_for_status()
+
+    user_id = requests.get(f"{sf_instance}/services/oauth2/userinfo", headers=h).json()["user_id"]
+    if not q(f"SELECT Id FROM PermissionSetAssignment WHERE PermissionSetId='{ps_id}' AND AssigneeId='{user_id}'"):
+        r = requests.post(f"{base}/sobjects/PermissionSetAssignment", headers=h,
+                          json={"PermissionSetId": ps_id, "AssigneeId": user_id})
+        r.raise_for_status()
+    print(f"  Granted field access to {full} ({FIELD_ACCESS_PERMSET})")
 
 
 def upsert_crm_records(sf_token, sf_instance, sobject_type, external_id_field,

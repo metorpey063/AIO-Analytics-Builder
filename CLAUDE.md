@@ -27,6 +27,7 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
 2. **Where is it worst?** — Dimensions like Vertical, Region, Size Band let the presenter filter to the segment driving the decline
 3. **Why is it happening?** — Supporting metrics and category breakdowns explain the cause (e.g. voluntary plan enrollment drops before overall enrollment — cost sensitivity)
 4. **Who is most at risk?** — Fine-grained dimensions (Plan Cost Tier, Workforce Type, State) let the audience identify specific clients or groups to act on
+5. **What do we do now?** *(optional — only when the demo includes close-the-loop)* — `/close-loop` turns the at-risk finding into a live follow-up in the org (Tasks / Case / Campaign via Flows) with a Slack or Chatter notification the audience triggers during the meeting
 
 **Dimension design rules:**
 - Always denormalize categorical dimensions into the fact table (IngestAPI DLO joins silently drop criteria — see Known Pitfalls). Every field the audience might filter by must be a column on the fact row.
@@ -106,6 +107,7 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
   1. **Tableau Pulse** — publishes a .hyper datasource and creates Pulse metric definitions + group subscriptions
   2. **Tableau Next** — pushes data to Data Cloud, builds a Semantic Data Model, metrics, visualizations, and dashboard
   3. **CSV export** — exports the generated dataset for manual use in any viz tool
+- **/close-loop** — Optional final step (offered at the end of `/build-demo`, or run standalone on any `demos/{slug}/`): deploys Flows that create the story's follow-up records and notify the team in Slack (or Chatter). Slack is configured here only, never in `/setup`
 
 ## Project structure
 
@@ -125,6 +127,9 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
 - `twb_builder.py` — Tableau Desktop workbook (.twb) generator: creates worksheets (bar, line, multi-line, dual-axis) + dashboard with Pulse metric tiles, publishes via TSC
 - `prep_flow_builder.py` — Tableau Prep flow generator for auto-refreshing Pulse dates (builds .tflx with embedded CSV + DATEADD(Day_Offset, TODAY()) calc + PublishExtract output)
 - `crm_upserter.py` — Salesforce CRM record upsert (External ID field creation via Tooling API, batch upsert via Composite Collections API, SOQL query helper)
+- `close_loop.py` — /close-loop engine: story analysis → action/trigger plan → Flow generation → Metadata API deploy → activate → walkthrough Section 7. CLI: `preflight | slack-check | plan | build | test | reset | remove`
+- `close_loop_flows.py` — Flow metadata XML generators (follow-up, notify, alert, screen, signal) + `package.xml`
+- `setup_slack.py` — saves Slack IDs to `profiles.{key}.slack` and runs the read-only Slack check; called by /close-loop only when the user picks Slack
 
 ## CRM actionability (Tableau Next)
 
@@ -215,6 +220,17 @@ Every demo build generates a `{slug}_demo_walkthrough.docx` file. **All walkthro
   - `# ANSWER STYLE` — "Lead with the answer, then supporting data. Do not open with questions back to the user."
   - `# TIME CONTEXT` — default comparison period
 
+### Section 7 — Close the Loop (only if /close-loop was built)
+- **H1:** "Close the Loop"
+- Written by `close_loop.py build` (replaces any earlier version) — never hand-write it
+- Intro paragraph: the action, why it fits the story, and the trigger
+- **H2** per demo step (e.g. The alert lands / Close the loop / Owners act), each with:
+  - **"Say:"** (bold) — the talk track: the line the presenter speaks, built from the story (worst segment, leading signal, counter-trend, owner)
+  - **"Trigger:"** (bold) — what the presenter does to fire the action
+  - **"Result:"** (bold) — what Salesforce / Slack does in response
+- Also adds a bold **"Next — close the loop:"** hand-off line at the end of Section 3, pointing the presenter to Section 7
+- Preview it before deploying with `python close_loop.py plan --slug {slug}` (no org or .docx changes)
+
 ### Summary of sections by build type
 
 | Section | Pulse | Tableau Next | CRMA |
@@ -225,10 +241,12 @@ Every demo build generates a `{slug}_demo_walkthrough.docx` file. **All walkthro
 | 4. Pulse Discover Questions | ✓ | — | — |
 | 5. Setting Up Goal Lines | ✓ (if goals) | — | — |
 | 6. Business Preferences (SDM) | — | ✓ | — |
+| 7. Close the Loop | ✓ (if built) | ✓ (if built) | ✓ (if built) |
 
 **Label rules — do NOT mix these:**
 - **"Action:" / "Audience sees:"** → for UI navigation sections (Demo Click Path). Describes what to click and what the data shows visually.
 - **"Ask:" / "Expected response:"** → for AI Q&A sections (Concierge Prompts, Pulse Discover Questions). Describes questions asked to an AI and the AI's responses.
+- **"Say:" / "Trigger:" / "Result:"** → for the Close the Loop section only. What the presenter says, what fires the follow-up, and what the org does.
 
 ## Visualization building (Tableau Next)
 
@@ -606,3 +624,11 @@ BRAND = {
   - **Brief response**: Success returns 201 with `{"markup": "..."}`. The `markup` field contains HTML spans (`<span data-type="metric">...</span>`), bold markers (`**...**`), markdown headers, and reference links (`[[1]](uuid|metric_id)`). Strip these for clean text: `re.sub(r'<span[^>]*>(.*?)</span>', r'\1', markup)` then `re.sub(r'\[\[\d+\]\]\([^)]+\)', '', text)` then `re.sub(r'\*\*', '', text)`.
   - **Save def_ids**: During Pulse metric creation, save both `pulse_metric_ids` AND `pulse_def_ids` to the checkpoint so the insights phase can look them up.
   - **generativeAiPulse**: The REST API GET on the site may incorrectly return `False` for this flag even when it's enabled via the Tableau Cloud UI. If all insight endpoints return 400 "Bad Request" with `validation_code: 400952`, ask the user to enable Pulse AI in Tableau Cloud Settings → AI Features. The `pulsePremiumInsightsEnabled: true` and `pulsePremiumGAIEnabled: true` flags in `siteSettings` are the authoritative indicator.
+- Close the loop: **Flow API names can't contain `__` or end in `_`** — Salesforce reserves double underscores for namespaces and custom-object suffixes, and a deploy fails on them. Slugs like `barrett_distribution_demand_forecasting`, truncated to 28 characters, end in `_` and then gain `__Followup`. `close_loop.flow_names()` strips any trailing `_` after truncating. Never build Flow names by hand.
+- Close the loop: **`slackPostMessage` can be usable in Flows while missing from `/actions/standard`.** In some orgs (e.g. Slack demo-bundle orgs), `GET /actions/standard/slackPostMessage` returns 404 "Invalid Action Type", yet an Active Flow using it deploys fine. `preflight()` falls back to a check-only deploy of a probe Flow (`_slack_action_deployable`) and then uses `SLACK_FLOW_INPUTS`. All four inputs are required: `slackAppIdForToken` (an `A…` app ID, not the Slack `E…` Enterprise ID in `Slack__mdt`), `slackWorkspaceIdForToken` (a `T…` team ID), `slackConversationId` (`C…`), `slackMessage`. The fastest way to find the right app and workspace IDs is an existing Flow built in Flow Builder: `SELECT Id FROM Flow WHERE Status='Active'` via Tooling, then read `Metadata.actionCalls[].inputParameters` where `actionType` contains `slack`. Draft Flows skip input validation, so always probe with `<status>Active</status>`.
+- Close the loop: **Callouts can't share a transaction with the record DML.** The Slack post (`slackPostMessage`) is a callout, so it can't run in the same synchronous transaction that created the Tasks/Case/Campaign. That's why the Notify Flow is record-triggered on an `AsyncAfterCommit` scheduled path and isn't a step inside the follow-up Flow. Keep the follow-up Flow DML-only.
+- CRM upsert: **A new External ID field gets no field-level security for the running user.** The Tooling API creates `Account.Demo_External_ID__c`, but describe hides it and `PATCH /composite/sobjects/Account/Demo_External_ID__c` returns 404 forever (no amount of propagation wait helps). `ensure_external_id_field()` now calls `grant_field_access()`, which creates and assigns the `AIO_Demo_Field_Access` permission set with read/edit on the field. It also detects a field that exists in Tooling but is hidden from describe, and grants access instead of re-creating it.
+- Semantics: **`OutlierDetection` and `RecordLevelTable` insight types need an identifying dimension.** Enabling either on a metric's `insightsSettings.insightTypes` causes 400 "You must define an identifying dimension when the RecordLevelTable or OutlierDetection insight types are enabled." Leave both out of the insight types list.
+- Semantics: **Dimension `description` has a length limit (~200 chars after HTML encoding).** The API double-encodes `&` as `&amp;amp;` before checking, so a description with ampersands overflows sooner than its raw length suggests. The PUT returns 400 "data value too large". Keep dimension descriptions short and avoid `&`.
+- Workspace share: **`{"shareWith": "ALL_USERS", "accessLevel": "View"}` is rejected** with 400 `Unrecognized field "shareWith"` on `/tableau/records/{ws}/shares`. GET on that endpoint needs the workspace record ID (`1Dy…`, from `GET /tableau/workspaces/{api}`), not its apiName. The working POST schema isn't known yet; share in the UI (Share → All Internal Users → View) until it's found.
+- Close the loop: **Pin the story with `cp["story"]` when the analysis picks the wrong drill path.** `analyze_story()` takes the single worst segment across all text columns, so a dimension that tracks the intended one (e.g. Account Size vs Location Count Band) can take over the talk track, and `metrics[1:4]` can name a lagging metric as the "leading signal". Set `story.dimensions` (leave out the duplicate dimension) and `story.supporting_metrics` (labels, leading indicator first) in the demo's docs phase.

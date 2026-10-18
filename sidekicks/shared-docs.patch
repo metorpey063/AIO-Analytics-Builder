@@ -1,0 +1,545 @@
+diff --git a/.claude/commands/build-demo.md b/.claude/commands/build-demo.md
+index 9840e05..01df6ad 100644
+--- a/.claude/commands/build-demo.md
++++ b/.claude/commands/build-demo.md
+@@ -2,6 +2,12 @@
+ 
+ Build a complete demo for a prospect or use case. This command generates synthetic data with an engineered story signal, then lets you choose which outputs to create.
+ 
++**Related commands** (each also runs on its own against an existing `demos/{slug}/`):
++- `/setup`: one-time connections (run first)
++- `/studio {slug}`: generate the Tableau Studio Agent skills (aio-story, aio-autobuilder, aio-audience) for a demo. Used by the Studio add-on in Step 5a
++- `/close-loop {slug}`: build the follow-up action into the org. Used by Step 5c and the Close-Loop Build phase
++- `/refresh-dates`, `/validate-pulse`, `/transfer-assets`, `/update`
++
+ ---
+ 
+ ## Core design principle — conversational analytics
+@@ -344,33 +350,285 @@ Update the `signal_ramp` function to accept `onset`, `shape`, and `duration` par
+ 
+ ---
+ 
+-### 5. Output mode
+-Choose one or more:
+-- `pulse` — Tableau Pulse metrics
+-- `next` — Tableau Next + Data Cloud
+-- `crma` — CRM Analytics (Wave) dataset + dashboard
+-- `csv` — CSV export only
+-- `all` — all of the above
++### 5. Output mode (core platform)
++
++Ask the user which demo platform(s) to build for:
++
++> "Which platform(s) would you like the demo on?
++> 1. **Tableau Pulse** — metrics + datasource, best for real-time executive briefings
++> 2. **Tableau Next** — full semantic layer + dashboard + Concierge, best for interactive deep-dives
++> 3. **CRM Analytics (Wave)** — dashboard on Wave platform
++> 4. **All platforms** — one build, three outputs
++> 5. **CSV export only** — just the dataset, no publishing"
++
++Store as `output_modes` (list of platform names). Continue to Step 5a after this is answered.
++
++---
++
++### 5a. Tableau Studio skills (optional add-on to any core output)
++
++After selecting the core output mode(s), ask:
++
++> "Would you also like me to generate **Tableau Studio Agent skills** for this demo? These are AI-powered guided builders and interpreters (aio-story, aio-autobuilder, aio-audience) pre-loaded with this demo's story. They help presenters and audiences explore the data using natural language.
++>
++> **What they do:**
++> - **aio-story:** Guided builder that walks through the 4-question narrative
++> - **aio-autobuilder:** One-prompt builder (e.g., 'build the demo') that auto-generates worksheets + dashboard
++> - **aio-audience:** Interpreter skill for presenters/viewers to ask 'why did this move?' and get AI answers
++> 
++> (yes / no)"
++
++- If **yes**: add `studio` to `output_modes`. Studio skills will be generated alongside the core platforms.
++- If **no**: skip studio skills entirely.
++
++**Important notes on Tableau Studio:**
++- Studio skills are an **optional add-on** to any core output mode (Pulse, Next, CRMA, CSV)
++- Studio skills have no separate datasource — they use the same CSV and story context from Phase 1
++- Installation is one-time per Tableau workspace; skills are then reusable across all future demos
++- Studio skills require a Tableau Studio license but do not require Tableau Next or Pulse
++
++---
++
++### 5b. Studio skills installation (only if user selected studio output)
++
++After Studio output is selected, ask:
++
++> "I'll generate the Tableau Agent skills pre-loaded with this demo's story (primary metric, culprit segment, counter-trend, root cause). Install them into your Tableau workspace automatically when the build finishes? (yes / no)"
++
++- If **yes**: after the build, run `/studio {slug} --install` and confirm all three skills appear after `/reload-skills`.
++- If **no**: just generate the files (`/studio {slug}`); print the manual install command in the final summary.
++
++Generation is the same standalone `/studio` command (`.claude/commands/studio.md`), so Studio skills can also be created later for any demo without re-running a build.
++
++---
++
++### 5c. Close the loop (optional for Pulse/Next/CRMA builds)
++
++Every demo can end with an action, not just an insight. `close_loop.py` reads the story (from the generated data) and **builds ONE follow-up into the demo org**: Flows the audience fires during the meeting. Claude Code is not running at demo time. A follow-up = a **record action** + **one trigger**.
++
++| Story signal | Action | What the follow-up creates |
++|---|---|---|
++| Named at-risk entities (default) | `task` | One `AiO Alert:` Task per top-N at-risk entity (due today+2) |
++| Operational failure (stockout, SLA, defect, route, quality…) | `case` | One escalation Case with the drill path and at-risk list |
++| Segment-wide behavior change (enrollment, participation, adoption…) | `campaign` | One recovery Campaign targeting the culprit segment |
++
++| Trigger | How it's fired in the demo | Default for |
++|---|---|---|
++| `slack_button` | Insight card in Slack → **Create follow-ups** link → confirmation screen | `task` / `campaign` |
++| `record_triggered` | A Task with Subject `AiO Signal: {Metric} …` (a threshold breach) runs it automatically | `case` |
++
++When the follow-up runs, a Notify Flow posts an "action taken" card to Slack through Salesforce's native Slack action. If the org has no Slack connection, it posts to Chatter instead.
++
++First, ask if the user wants close-loop at all:
++
++> "Would you like to build a **close-the-loop follow-up** into the demo? This creates a Salesforce Flow that fires when the audience clicks a button during the demo, triggering at-risk account tasks/cases and notifying the team. This makes the demo actionable, not just informative. (yes / no)"
++
++- If **no**: skip close-loop entirely. Omit Section 7 of the walkthrough. Build only the demo itself.
++- If **yes**: continue to Step 5c.1 (Close-Loop Intake).
++
++---
++
++#### Close-Loop Intake (Step 5c.1 — Action, Trigger, \& Notification Channel)
++
++After the user chooses to include close-loop, ask once (after the story is designed, so you can name the recommendation):
++
++> "To close the loop, I'll build one follow-up into the org. First, which **action** should trigger when the audience clicks?
++> 1. **Create Tasks** — one task per at-risk account for follow-up (recommended, fastest)
++> 2. **Create a Case** — escalation case with drill path and at-risk list
++> 3. **Create a Campaign** — recovery campaign targeting the culprit segment"
++
++After they choose the action, ask:
++
++> "And where should the team be **notified** about this action?
++> 1. **Slack** — Real-time alert in a team channel (recommended for live demos with Slack)
++> 2. **Chatter** — Notification in Salesforce Chatter (works in any org, fallback option)"
++
++Store as `close_loop_action` and `close_loop_notification`.
++
++**If the user chooses Slack:**
++
++Continue to **Step 5c.2 (Slack Configuration Verification)** immediately. Do NOT proceed to the build phase without verifying Slack connectivity.
++
++**If the user chooses Chatter:**
++
++Proceed directly to Step 5c.4 (Final Acceptance & Build).
++
++---
++
++#### Close-Loop Intake (Step 5c.2 — Slack Configuration Verification) **[Only if user chose Slack]**
++
++Before building the close-loop Flow with Slack notifications, verify that the Salesforce org has a working Slack integration. Run the preflight check:
++
++```bash
++python3 << 'EOF'
++import sys
++sys.path.insert(0, '.')
++from close_loop import preflight
++from connections import get_sf_token, sf_headers, load_config
++
++config = load_config(profile_key='PROFILE_KEY_HERE')
++sf_token, sf_instance = get_sf_token(config, profile_key='PROFILE_KEY_HERE')
++headers = sf_headers(sf_token)
++
++slack_ready, workspace_id, channel_name = preflight(sf_instance, headers)
++
++print(f"Slack integration ready: {slack_ready}")
++print(f"Workspace ID: {workspace_id}")
++print(f"Channel: {channel_name}")
++
++if not slack_ready:
++    print("\n⚠️  Slack is not configured. See steps below.")
++EOF
++```
++
++**Possible outcomes:**
++
++| Outcome | What it means | Next step |
++|---------|---------------|-----------|
++| `Slack integration ready: True` | Slack is connected and ready | ✓ Proceed to Step 5c.4 (Final Acceptance) |
++| `Workspace ID: None` | Slack is connected but workspace ID is missing or wrong | → Continue to Step 5c.3 |
++| `Channel: None` | Workspace ID is set but the channel doesn't exist or isn't accessible | → Continue to Step 5c.3 |
++| `Slack integration ready: False` | Slack is not configured at all | → Continue to Step 5c.3 |
++
++---
++
++#### Close-Loop Intake (Step 5c.3 — Slack Configuration Setup) **[Only if preflight failed]**
+ 
+-### 5a. Dashboard follow-up (only if output is `pulse`)
++If the preflight check shows Slack is not ready, walk the user through setup:
+ 
+-When the user selects `pulse` as the output mode, immediately follow up:
++> "Slack notifications are not yet configured. I'll help you set this up. This takes about 5 minutes and happens one time in your org — future demos will reuse this configuration."
++
++**Step 1 — Verify Slack is installed in Salesforce**
++
++Ask the user:
+ 
+-> "Would you like me to also create a Tableau Dashboard with charts and embedded Pulse metric tiles? (yes / no)"
++> "In Salesforce Setup, search for **'Slack'** in the Quick Find box. Do you see a **'Slack Setup'** option (or similar)?"
++
++- If **no**: Tell them "Slack integration is not installed in this org. Contact your Salesforce admin to install the Slack integration package from AppExchange. Once installed, come back here."
++- If **yes**: Continue.
++
++**Step 2 — Log in to Slack and get the workspace ID**
++
++> "You need your Slack workspace ID. Here's how to get it:
++> 
++> 1. Open your Slack workspace in a browser
++> 2. Look at the URL bar — it should look like: `https://MY-WORKSPACE-NAME.slack.com`
++> 3. Your workspace ID is the part after `https://` — write it down: `MY-WORKSPACE-NAME`
++> 
++> Now, also get your Slack admin to confirm you have permission to authorize apps. You should see a **'⚙ Manage apps'** link in Slack (in the sidebar under 'Browse Slack').
++> 
++> Paste your workspace name/ID here:"
++
++Have the user paste the workspace ID, then continue.
++
++**Step 3 — Authorize Salesforce in Slack**
++
++> "Now I need you to authorize the Salesforce connection in Slack. Go to:
++> 
++> https://MY-WORKSPACE-NAME.slack.com/apps/manage
++> 
++> (Replace `MY-WORKSPACE-NAME` with the ID you just gave me.)
++> 
++> Look for **'Salesforce'** in the list of installed apps. If you don't see it:
++> 1. Click **'Browse Slack App Directory'** (top left)
++> 2. Search for **'Salesforce CRM'**
++> 3. Click **'Add to Slack'**
++> 4. Follow the prompts to authorize
++> 
++> If you see Salesforce is already installed, click it and make sure the connection is **Active**. If it shows **'Reconnect'**, click that button.
++> 
++> When done, come back here."
++
++Then use `AskUserQuestion` with options: `"Salesforce is authorized in Slack"` / `"I need help"`.
++
++**Step 4 — Configure the Slack channel**
++
++> "Now I need to know which Slack channel should receive the demo follow-up notifications. 
++> 
++> Which channel would you like to use? (e.g., `#sales-ops`, `#revenue-alerts`, `#cro-alerts`)"
++
++Have the user provide a channel name, then continue.
++
++**Step 5 — Test the connection**
++
++> "Testing the Slack connection..."
++
++Run the preflight check again:
++
++```bash
++python3 << 'EOF'
++import sys
++sys.path.insert(0, '.')
++from close_loop import preflight
++from connections import get_sf_token, sf_headers, load_config
++
++config = load_config(profile_key='PROFILE_KEY_HERE')
++sf_token, sf_instance = get_sf_token(config, profile_key='PROFILE_KEY_HERE')
++headers = sf_headers(sf_token)
++
++slack_ready, workspace_id, channel_name = preflight(sf_instance, headers)
++print(json.dumps({"ready": slack_ready, "workspace": workspace_id, "channel": channel_name}))
++EOF
++```
++
++- If `ready: true`: tell the user "✓ Slack is configured and ready. Your notifications will post to Slack during the demo."
++- If `ready: false` still: tell the user "Slack is still not connecting. This may be a permissions issue or the Slack integration needs to be reauthorized. Please contact your Salesforce admin to verify the Slack integration is working, then we'll retry."
++
++---
++
++#### Close-Loop Intake (Step 5c.4 — Final Acceptance & Build)
++
++Once Slack is verified (or the user chose Chatter), ask:
++
++> "To close the loop, I'll build one follow-up into the org:
++> - **Action:** {action} (create at-risk account {tasks/cases/campaigns})
++> - **Notification:** {Slack or Chatter}
++> - **When it fires:** when the audience clicks the button during the demo
++>
++> Accept these settings, change something, or skip close-loop?"
++
++**Options:**
++- **Accept** — run the Close-Loop Build phase with the recommended settings
++- **Change** — ask which setting to change (action or notification method) and offer alternatives
++- **Skip** — omit the close-loop phase and Section 7 of the walkthrough
++
++**In autonomous mode:** Accept the recommendation (assuming Slack passes preflight or user chose Chatter).
++
++---
++
++#### Close-Loop Build Phase
++
++When the user accepts (or in autonomous mode), run `/close-loop {slug}` (see `.claude/commands/close-loop.md`): its **Plan** step, then its **Build** step, passing the accepted `--action` / `--trigger` / `--profile` overrides. In autonomous mode the Build confirmation is already given. `close-loop.md` is the single source of truth for what the build does (preflight, Flow generation and deploy, activation, checkpoint tracking, walkthrough Section 7), so don't restate those mechanics here.
++
++`/close-loop` also works on its own against any existing `demos/{slug}/` folder, so a skipped or failed close-loop can be picked up later.
++
++**Requirements:**
++- Salesforce credentials must be configured (run `/setup` first if missing). This applies to Pulse-only builds too, since close-loop always deploys Flows via the Metadata API regardless of which platform the metrics live on
++- If credentials are missing at build time, run only the Plan step (`python close_loop.py plan --slug {slug}`, offline), still write Section 7 from the plan, and tell the user in the summary that `/setup` then `/close-loop {slug}` are needed to install it
++
++**Only one follow-up per demo** unless the user explicitly asks for more.
++
++---
++
++### 5d. Dashboard follow-up (only if `pulse` is in output_modes)
++
++After confirming close-loop choices (or skipping close-loop), ask:
++
++> "Would you like me to also create a **Tableau Dashboard** with charts and embedded Pulse metric tiles? This gives you an interactive visual alongside the metrics. (yes / no)"
+ 
+ - If **yes**: include the Tableau Dashboard phase (Phase 5 in the Pulse build process) using `twb_builder.py`
+-- If **no**: skip the dashboard phase entirely
++- If **no**: skip the dashboard phase — only create metrics and datasource
+ 
+-This question is asked during the input-gathering phase (before the build starts), not after the build completes.
++---
+ 
+-### 5b. Brand colors (only ask if output includes `next` or `all`, and only for real companies)
++### 5e. Brand colors (only ask if `next` is in output_modes, and only for real companies)
+ 
+ > "Would you like me to look up {Company}'s brand guidelines and apply their official colors to the Tableau Next dashboard? (yes / no)"
+ 
+-- If **yes**: include brand color research as step 4 of the Company Research section (search `{Company} brand guidelines color palette`). Define a `BRAND` dict at the top of the script and apply colors to the dashboard background, gutter, and viz shading/fonts as described in the Brand colors section below.
+-- If **no**: skip brand research entirely. Use the default neutral palette (`dash_bg: "#F3F3F3"`, `chart_bg: "#FFFFFF"`, `text: "#2E2E2E"`) and omit the `BRAND` dict from the script.
++- If **yes**: include brand color research as step 4 of the Company Research section (search `{Company} brand guidelines color palette`). Define a `BRAND` dict at the top of the script and apply colors to the dashboard background, gutter, and viz shading/fonts.
++- If **no**: skip brand research entirely. Use the default neutral palette (`#F3F3F3` background, `#2E2E2E` text).
+ 
+-Do not ask this question for fictitious companies or for CSV/Pulse-only builds.
++Do not ask this question for fictitious companies or when `next` is not selected.
+ 
+ ---
+ 
+@@ -431,7 +689,7 @@ Use these findings to:
+ - **Define goal/threshold values** for each metric and include constant target columns in the datasource (e.g. `Attendance Target = 0.85`) — these enable one-click goal setup in the Pulse UI
+ - Apply brand colors in the Tableau Next dashboard (see Brand colors section below)
+ 
+-### Brand colors (Tableau Next only — only if user said yes in step 5b)
++### Brand colors (Tableau Next only — only if user said yes in step 5e)
+ 
+ After finding the brand colors, define a `BRAND` dict at the top of the script with primary, secondary, and background colors:
+ 
+@@ -641,6 +899,16 @@ Clean the response markup: strip `<span>`, `<llm_value>`, other HTML tags, `[[N]
+ 
+ Save the questions and responses to the checkpoint as `discover_results` (list of `{question, response}` dicts).
+ 
++**Phase 4c — Close-Loop Build** (Pulse and Next builds, unless skipped in step 5c; runs AFTER the walkthrough is written, since it appends Section 7 to the .docx)
++
++Run `/close-loop {slug}` Plan + Build (`.claude/commands/close-loop.md`) with the settings accepted in step 5c. Build the follow-up into the org; do NOT fire it, the audience fires it during the demo. The demo script should call `close_loop.cmd_build(SLUG, action=..., trigger=...)` as a checkpointed phase (`if not cp.get("close_loop_built")`). The follow-up is derived from the generated CSV, so it always matches the real data.
++
++Also make the last Click Path / Concierge step ("Action") point at Section 7. For example:
++- slack_button: Action "Click *Create follow-ups* in the Slack alert"
++- record_triggered: Action "Log the breach signal"
++
++In both cases, Audience sees: "Follow-ups land in Salesforce and the team is told in Slack."
++
+ **Phase 5 — Tableau Dashboard (optional, prompt user)**
+ 
+ After Pulse metrics and group are created, ask:
+@@ -1139,6 +1407,8 @@ This ensures only one complete, working set of assets survives each run.
+ 
+ **Phase 6 — Walkthrough document + post-build steps**
+ 
++(After writing the doc, run **Close-Loop Build**, the same step as Pulse Phase 4c, if it isn't already marked `close_loop_built`. It appends Section 7.)
++
+ Generate the walkthrough `.docx` using python-docx. **Follow the standard structure from CLAUDE.md "Walkthrough document format (.docx)" exactly.** The sections included depend on the build type:
+ 
+ **For Pulse builds, the .docx must contain (in this order):**
+@@ -1154,9 +1424,16 @@ Generate the walkthrough `.docx` using python-docx. **Follow the standard struct
+ 3. **Concierge Prompts** — H1 with H2 per step. Labels: **"Ask:"** (bold) + **"Expected response:"** (bold). These are AI Q&A pairs.
+ 4. **Business Preferences (SDM)** — H1 with copy-paste instructions and `#`-prefixed text block
+ 
++**All builds with a close-the-loop follow-up — append last (written by `close_loop.write_walkthrough`, don't hand-write it):**
++7. **Close the Loop**: an H1, then an intro paragraph naming the action, the reason and the trigger. Then H2 steps from the plan's `demo_steps`, each labelled **"Trigger:"** (bold) + **"Result:"** (bold).
++   - slack_button steps: "The alert lands" → "Close the loop" (click *Create follow-ups*) → "Owners act"
++   - record_triggered steps: "The signal fires" → "The team is told" → "Owners act"
++   - Re-running `build` replaces the section rather than duplicating it.
++
+ **Label rules (critical — do not mix):**
+ - **"Action:" / "Audience sees:"** → UI navigation (Demo Click Path)
+ - **"Ask:" / "Expected response:"** → AI Q&A (Concierge Prompts, Pulse Discover Questions)
++- **"Trigger:" / "Result:"** → live business actions (Close the Loop)
+ 
+ **Additional post-build steps:**
+ - Create a dedicated subfolder: `demos/{company_slug}_{use_case_slug}/`
+@@ -1249,6 +1526,52 @@ This uses Salesforce's built-in Smart Templates which produce polished, professi
+ - Export to `demos/{company_slug}_{use_case_slug}/{company_slug}_{use_case_slug}_{date}.csv`
+ - Print the file path
+ 
++### For Tableau Studio skills output:
++
++**Prerequisite:** Studio skills output requires Phase 1 (data generation + story metadata) to be complete. The story metadata (primary metric, culprit/counter-trend segments, root cause dimension, supporting metrics + lag) is already finalized when `METRIC_CONFIG` and multiplier tables are defined.
++
++**Phase: Studio skills generation** (runs after data generation, only if `studio` output is selected)
++
++1. **Assemble story metadata into a checkpoint dict** (during Phase 1, save this alongside the generated CSV):
++   ```python
++   story = {
++       "company": COMPANY,
++       "primary_metric": METRIC_CONFIG[0]["label"],  # first metric in config
++       "dimensions": DIMENSIONS,  # list of dimension field names
++       "culprit_segments": [
++           {"name": "Segment Name", "dimension": "which_dimension", "multiplier": 1.8},
++           ...
++       ],
++       "moderate_segments": [
++           {"name": "Segment Name", "multiplier": 1.0},
++           ...
++       ],
++       "counter_trend_segment": {"name": "Segment Name", "multiplier": -0.08},
++       "root_cause_dimension": "Plan Tier",  # the dimension that explains why
++       "supporting_metrics": [
++           {"name": "Case Resolution Time", "lag_ratio": 0.7},
++           ...
++       ],
++       "signal_onset_months_ago": SIGNAL_ONSET,  # number of months before today
++       "signal_shape": SIGNAL_SHAPE,  # "accelerating" / "ramp" / "step"
++       "entity_field": "Client Name",  # finest-grain name column for the Q4 at-risk list
++       "date_field": "Date",
++       "aggregations": {m["label"]: ("AVG" if "AVERAGE" in m["pulse_agg"] else "SUM") for m in METRIC_CONFIG},
++       "headline": "One-line story headline, e.g. 'Closed-won isn't billed'",
++       "datasource": f"demos/{slug}/{csv_filename}",  # CSV to connect in Studio (plus published .hyper name if Pulse ran)
++   }
++   save_cp(cp, "story", story)
++   save_cp(cp, "studio_skills_generated", False)
++   ```
++
++2. **Generate the skills by running `/studio {slug}`'s Steps 2–8** (see `.claude/commands/studio.md`). The story dict above is already saved in the checkpoint, so `/studio` skips its story questions and: renders `demo-story.md`, copies the three skill folders into `demos/{slug}/studio_skills/`, generates `install.sh` and `README.md`, and updates the checkpoint (`studio_skills_generated`). Do not restate those mechanics here; `studio.md` is the single source of truth.
++
++3. **Install only if the user answered yes in step 5b** (pass `--install`, or run `bash demos/{slug}/studio_skills/install.sh`).
++
++4. **Run this phase AFTER Close-Loop Build** when both are selected, so `/studio` can append the "Close the Loop" section to `demo-story.md` for `aio-audience`. If Studio was generated first, re-run `/studio {slug}` after close-loop.
++
++5. **Summary output** (include in final "After the build" section): print the skills path and whether auto-install ran, as `/studio` Step 8 does.
++
+ ---
+ 
+ ## Naming conventions
+@@ -1302,6 +1625,7 @@ Print the following structured summary when the build completes. Use clean markd
+ > 
+ > For Pulse builds, phases are: Data Generation, Datasource Publish, Metric Creation, Group + Subscriptions, Pulse Discover Questions, Walkthrough Document
+ > For Next builds, phases are: Data Generation, Schema + Streams, Bulk Ingest, Workspace + SDM, Calculated Measurements, Metrics, Field Descriptions, Business Preferences, Visualizations, Dashboard, Walkthrough Document
++> Add **Close-Loop Build** after Walkthrough Document for any build where step 5c wasn't skipped.
+ > For CRMA builds, phases are: Data Generation, Dataset Upload, Dashboard Creation, Walkthrough Document
+ > For CSV-only: Data Generation, CSV Export
+ > 
+@@ -1343,6 +1667,11 @@ Print the following structured summary when the build completes. Use clean markd
+ > **Do:** Toggle ON
+ > **Why:** Required for Concierge to serve answers from this SDM.
+ 
++> ### 5. Rehearse the Close the Loop follow-up (only if built)
++> **Where:** Claude Code, before the meeting
++> **Do:** `/close-loop {slug} --test`, click through the trigger once, then `/close-loop {slug} --reset`. Installed: **{action}** fired by **{trigger_label}**. Notify: {Slack #channel / Chatter fallback}
++> **Why:** The follow-up runs in the org during the demo, so prove it once before going live. For slack_button, post the alert card (`--test`) shortly before the meeting so it's at the top of the channel.
++
+ **Rules for the Actions Required section:**
+ - Only include actions relevant to the build type (don't show Next actions for Pulse-only builds)
+ - Action 1 (schedule flow) is ALWAYS present for Pulse builds
+diff --git a/CLAUDE.md b/CLAUDE.md
+index ec6bf0a..c9b9876 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -27,6 +27,7 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
+ 2. **Where is it worst?** — Dimensions like Vertical, Region, Size Band let the presenter filter to the segment driving the decline
+ 3. **Why is it happening?** — Supporting metrics and category breakdowns explain the cause (e.g. voluntary plan enrollment drops before overall enrollment — cost sensitivity)
+ 4. **Who is most at risk?** — Fine-grained dimensions (Plan Cost Tier, Workforce Type, State) let the audience identify specific clients or groups to act on
++5. **What do we do now?** — Close the loop: ONE follow-up is **built into the demo org** and **fired by the audience** during the meeting (Claude Code isn't involved at demo time). The Q4 finding becomes story-derived Salesforce records (Tasks per at-risk entity / an escalation Case / a recovery Campaign) via a Flow, triggered by a Slack "Create follow-ups" button or a record-triggered breach signal, and a Notify Flow tells the team in Slack (native Slack action; Chatter fallback). Built by `close_loop.py build` (or `/close-loop` for demos that already exist), rehearsed with `test` / `reset`, undeployed with `remove`.
+ 
+ **Dimension design rules:**
+ - Always denormalize categorical dimensions into the fact table (IngestAPI DLO joins silently drop criteria — see Known Pitfalls). Every field the audience might filter by must be a column on the fact row.
+@@ -106,12 +107,16 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
+   1. **Tableau Pulse** — publishes a .hyper datasource and creates Pulse metric definitions + group subscriptions
+   2. **Tableau Next** — pushes data to Data Cloud, builds a Semantic Data Model, metrics, visualizations, and dashboard
+   3. **CSV export** — exports the generated dataset for manual use in any viz tool
++- **/studio** — Generates the three Tableau Studio Agent skills (aio-story, aio-autobuilder, aio-audience) pre-loaded with a demo's story. Runs standalone (asks the story questions) or from an existing demo's checkpoint; install is optional (`--install`). `/build-demo` calls it for the Studio add-on
++- **/close-loop** — Builds the demo's follow-up action into the org. Runs standalone against any existing `demos/{slug}/`, and is the single source of truth that `/build-demo`'s Close-Loop Build phase defers to
+ 
+ ## Project structure
+ 
+ - `connections.py` — all auth logic; import this everywhere, never inline credentials
+ - `oauth_flow.py` — Salesforce OAuth browser flow (port 8080 callback)
+ - `setup.py` — setup wizard logic called by /setup
++- `close_loop.py` — close-the-loop builder: derives the drill path + at-risk list from the demo CSV, recommends ONE follow-up (task/case/campaign × slack_button/record_triggered trigger), generates Flows, deploys them via the Metadata API (`metadata/deployRequest`), activates them, and writes walkthrough Section 7. CLI: `preflight | plan | build | test | reset | remove`. Used by `/close-loop` and the build's Close-Loop Build phase
++- `close_loop_flows.py` — Flow metadata XML generators (follow-up, notify, alert, screen, signal) + `package.xml`
+ - `config.json` — per-SE credentials (gitignored, never commit)
+ - `config.json.template` — safe to commit, shows required fields
+ - `demos/` — generated demo scripts and exports land here
+@@ -124,6 +129,13 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
+ - `crma_dashboard_builder.py` — CRMA dashboard state builder (SAQL steps + chart widgets + layout)
+ - `twb_builder.py` — Tableau Desktop workbook (.twb) generator: creates worksheets (bar, line, multi-line, dual-axis) + dashboard with Pulse metric tiles, publishes via TSC
+ - `prep_flow_builder.py` — Tableau Prep flow generator for auto-refreshing Pulse dates (builds .tflx with embedded CSV + DATEADD(Day_Offset, TODAY()) calc + PublishExtract output)
++- `tableau_agent_skills/` — Tableau Agent skills for natural-language authoring in Tableau Studio
++  - `aio-story/` — Builder skill: guides SEs through creating the four-question story worksheets
++  - `aio-autobuilder/` — One-prompt builder: "build the demo" creates Q1–Q4 worksheets + story dashboard on the connected datasource using Tableau Agent's native tools
++  - `aio-audience/` — Interpreter skill: helps audiences understand and act on the demo story
++  - See `docs/v2/studio-skills-design.md` for full design and trigger phrases
++  - Install with: `bash scripts/install_studio_skills.sh`
++  - Generate demo-specific copies (with the story baked in) with `/studio {slug}`
+ 
+ ## Walkthrough document format (.docx)
+ 
+@@ -198,6 +210,15 @@ Every demo build generates a `{slug}_demo_walkthrough.docx` file. **All walkthro
+   - `# ANSWER STYLE` — "Lead with the answer, then supporting data. Do not open with questions back to the user."
+   - `# TIME CONTEXT` — default comparison period
+ 
++### Section 7 — Close the Loop (ALL builds with a close-the-loop follow-up)
++- Written by `close_loop.write_walkthrough()` during `build`; re-running replaces it
++- **H1:** "Close the Loop"
++- Intro paragraph: "The demo ends with an action. The follow-up is built into the org — {action reason}. Trigger: {trigger}."
++- **H2** per step, from the plan's `demo_steps`, with **"Trigger:"** (bold) and **"Result:"** (bold):
++  - slack_button: "The alert lands" → "Close the loop" (click *Create follow-ups*) → "Owners act"
++  - record_triggered: "The signal fires" → "The team is told" → "Owners act"
++- Content comes from `demos/{slug}/{slug}_close_loop_payload.json`
++
+ ### Summary of sections by build type
+ 
+ | Section | Pulse | Tableau Next | CRMA |
+@@ -208,10 +229,12 @@ Every demo build generates a `{slug}_demo_walkthrough.docx` file. **All walkthro
+ | 4. Pulse Discover Questions | ✓ | — | — |
+ | 5. Setting Up Goal Lines | ✓ (if goals) | — | — |
+ | 6. Business Preferences (SDM) | — | ✓ | — |
++| 7. Close the Loop | ✓ (if built) | ✓ (if built) | ✓ (if built) |
+ 
+ **Label rules — do NOT mix these:**
+ - **"Action:" / "Audience sees:"** → for UI navigation sections (Demo Click Path). Describes what to click and what the data shows visually.
+ - **"Ask:" / "Expected response:"** → for AI Q&A sections (Concierge Prompts, Pulse Discover Questions). Describes questions asked to an AI and the AI's responses.
++- **"Trigger:" / "Result:"** → for live business actions (Close the Loop). Describes what the audience/presenter does in the demo to fire the installed follow-up, and what lands in Salesforce/Slack.
+ 
+ ## Visualization building (Tableau Next)
+ 
+@@ -486,6 +509,7 @@ BRAND = {
+ - SDM replication: **Auto-generated field apiNames change on SDM recreation** — if an SDM is deleted and recreated with the same DOs, the field apiNames get different numeric suffixes (e.g. `FullName1` → `FullName2`). Never cache field maps across SDM deletions. Always read the CURRENT SDM state via `GET /ssot/semantic/models/{sdm}?includeModelContent=true`.
+ - SDM replication: **HTML entity encoding in expressions** — expressions returned by the SDM GET API are HTML-encoded (`&gt;` for `>`, `&#39;` for `'`, `&quot;` for `"`). Must call `html.unescape()` before POSTing to create calc fields. Without this, ~90% of calc fields fail with "token recognition error at: '&'".
+ - SDM replication: **Parameters must be created before calc fields** — calc dimensions/measurements that reference `[Parameters].[param_name]` fail if the parameter doesn't exist yet. Create all parameters first, then calc dims, then calc meas, then metrics, then relationships.
++- Data Cloud: **Bulk Ingest `POST /api/v1/ingest/jobs` 404s tenant-wide on trial orgs** — if `GET /api/v1/ingest/jobs` returns `200 {"data":[]}` (route reachable, connector authorized) but `POST` to the identical path returns 404 with a spec-matching payload, and this reproduces across multiple connectors, multiple OAuth flows (refresh_token AND client_credentials), and multiple Connected Apps with confirmed `cdp_ingest_api` scope in the token — stop debugging payloads/connectors and check the org type first: `SELECT Name, OrganizationType, TrialExpirationDate FROM Organization` via `GET /services/data/v62.0/query`. A `TrialExpirationDate` value (and a `Name` like "Salesforce Trial Org Request & Manage") means it's a Trailhead trial/signup org, not a provisioned CDO/SDO — trial orgs support Data Cloud reads but lack the Bulk Ingestion API write entitlement. There is no config fix; request a real CDO/SDO from SE resources (see Prerequisites in the `/build-demo` skill) and re-run `/setup` against it. Run this Organization query as a first-pass sanity check on any new org before spending time on connector/payload diagnosis.
+ - Pulse: **2026.2 payload validation changes** — `POST /api/-/pulse/definitions` now requires fields that were previously optional and enforces aggregation/format consistency. Missing any of these causes a generic 400 "Invalid request" with no detail. Required fields as of 2026.2: (1) `insights_options` key must be present (can be `{"show_insights": true, "settings": []}`); (2) `comparisons` key must be present (can be `{"comparisons": [{"compare_config": {"comparison": "TIME_COMPARISON_PREVIOUS_PERIOD", "comparison_period_override": []}, "index": "0"}]}`); (3) `AGGREGATION_AVERAGE` requires `is_running_total: false` — combining AVERAGE with `is_running_total: true` returns 400; (4) `NUMBER_FORMAT_TYPE_PERCENTAGE` cannot be used programmatically at all — both POST and PATCH reject it with 400 "Invalid request" regardless of aggregation type (tested with AVERAGE, SUM, and COUNT on us-east-1 and 10ax pods as of 2026.2). Workaround: create metrics with `NUMBER_FORMAT_TYPE_NUMBER`, store values as decimals (0.62 = 62%), then manually change Number Format to "Percentage" in the Pulse UI (Edit → Core Definition → Number format → Percentage). The UI handles the ×100 display automatically. Always set `is_running_total: false` for rate/average metrics and `true` only for flow/sum metrics that accumulate over time.
+ - Pulse: **Self-healing date pattern (`.hyper` → metrics → `.tdsx` overwrite)** — Pulse does NOT index `.tdsx` packages published cold (from scratch). However, if you first publish a `.hyper` with a stored `Date` column (indexes in seconds), create metrics against it, and THEN overwrite with a `.tdsx` containing a calculated `Date = DATEADD('day', [Day_Offset], TODAY())`, the metrics survive and the calc Date resolves — self-healing forever with no Prep flow or scheduling. The key: metrics must be created BETWEEN the `.hyper` publish and the `.tdsx` overwrite. Use `tdsx_builder.py`: `publish_hyper_for_indexing()` → create metrics → `convert_to_self_healing()`. The `.tds` inside the `.tdsx` must set `name='[Date]'` on the calc column so Pulse resolves `time_dimension.field = "Date"` correctly.
+ - Pulse: **Default time filter (Month to Date) cannot be changed via API** — the `measurement_period.granularity` field on the metric spec appears settable (putting `GRANULARITY_BY_YEAR` first in `allowed_granularities` causes the API to return `GRANULARITY_BY_YEAR` in the metric's `measurement_period`), but the Pulse UI always defaults to "Month to Date" regardless. This is a UI-level user preference — each user must manually select "Year to Date" in the Filter dropdown on first view. Document this in the walkthrough as a first-time setup step. There is no known API workaround as of 2026.2.
+@@ -518,7 +542,10 @@ BRAND = {
+ - Bulk Ingest: Only `upsert` and `delete` operations are supported — `insert` causes 400. For daily-grain fact tables where the natural key is non-unique (e.g. `client_id` alone), add a surrogate `record_id` column (`date_clientid`) and use it as the stream PK. Set it as the `isPrimaryKey` field in the stream's `dataLakeFieldInputRepresentations` and insert it as the first column of the fact DataFrame.
+ - Schema registration: PUT payload uses key `"schemas"` (not `"objects"`). Each schema needs `name`, `label`, `schemaType: "IngestApi"`, and fields with `dataType` (not `type`). Field dataType values: `"Text"`, `"Number"`, `"Date"`.
+ - Stream creation: requires full nested payload — `connectorInfo.connectorDetails.name` must be the UUID connector name (not short name). Capture `dataLakeObjectInfo.name` from the POST response — it's the auto-generated DLO name (e.g. `trinet_benefits_fact_trinet_ben_D5EE9465__dll`), not the schema name.
+-- DO creation: POST to `/ssot/semantic/models/{sdm}/data-objects` requires both `dataLakeObjectName` AND `dataObjectName` (set both to the DLO name). Missing `dataObjectName` causes 400.
++- DO creation: POST to `/ssot/semantic/models/{sdm}/data-objects` requires `dataLakeObjectName`, `dataObjectName` (both set to the DLO name), AND `label`. Missing `dataObjectName` causes 400 "Creation of semantic entity null failed"; missing `label` causes 400 "SemanticDataObject Label is required and cannot be empty".
++- Metrics list endpoint: `GET /ssot/semantic/models/{sdm}/metrics` returns the array under key `"metrics"`, not `"items"` — unlike calculated-measurements/calculated-dimensions list endpoints, which do use `"items"`.
++- Metric creation via calculated dimension time reference (e.g. self-healing Display Date): `timeDimensionReference: {"calculatedFieldApiName": "..."}` works fine alongside `additionalDimensions`/`insightsSettings.insightsDimensionsReferences` built from `tableFieldReference` entries — the time dimension and additional dimensions can mix calculated-dimension and table-field-reference styles in the same metric payload without error.
++- Visualizations CANNOT reference SDM-level calculated dimensions (e.g. the self-healing `Display Date` calc dim) as chart fields — every viz `fields` entry using `{"type": "Field", "objectName": ..., "fieldName": "<calc_dim_apiName>"}` returns 400 `"F1" isn't a valid field in the semantic model`, regardless of whether `objectName` is set to the DO apiName or the SDM apiName, and regardless of whether a `DatePartYear`/`DatePartMonth` function is attached. This reproduces identically for both objectName variants and with/without the date-part function, so it's a hard platform limitation, not a payload mistake. Metrics and Concierge CAN reference calculated dimensions fine (see above) — only the Visualizations API rejects them. Workaround: build charts against the raw stored DO-level date field instead (e.g. `Date`/`Date1`) — this means chart axes show the literal dates baked into the source data at build time and will NOT self-heal as time passes, even though Concierge answers about the same data will self-heal via the metric's calculated time dimension. Document this discrepancy in the walkthrough if the demo is expected to be used long after the build date.
+ - Measurement PUT: requires `label` field in the body alongside `apiName`, `dataObjectFieldName`, `aggregationType`. Missing `label` causes 500.
+ - CLC creation: minimal payload causes 500. Required fields: `apiName`, `label`, `aggregationType: "UserAgg"`, `dataType: "Number"`, `decimalPlace: 4`, `directionality: "Up"`, `displayCategory: "Continuous"`, `expression`, `filters: []`, `isOverrideBase: False`, `isVisible: True`, `level: "AggregateFunction"`, `overriddenProperties: []`, `semanticDataType: "None"`.
+ - Metric creation: requires `timeDimensionReference.tableFieldReference` with `fieldApiName` (date dimension's auto-generated apiName, e.g. `date1`) and `tableApiName` (DO apiName). Also requires `timeGrains`, `aggregationType: "UserAgg"`. Build `dim_field_map` by iterating `semanticDimensions` — strip `__c` from `dataObjectFieldName` to get the base name key; value is the dimension `apiName`.
+@@ -586,3 +613,8 @@ BRAND = {
+   - **Brief response**: Success returns 201 with `{"markup": "..."}`. The `markup` field contains HTML spans (`<span data-type="metric">...</span>`), bold markers (`**...**`), markdown headers, and reference links (`[[1]](uuid|metric_id)`). Strip these for clean text: `re.sub(r'<span[^>]*>(.*?)</span>', r'\1', markup)` then `re.sub(r'\[\[\d+\]\]\([^)]+\)', '', text)` then `re.sub(r'\*\*', '', text)`.
+   - **Save def_ids**: During Pulse metric creation, save both `pulse_metric_ids` AND `pulse_def_ids` to the checkpoint so the insights phase can look them up.
+   - **generativeAiPulse**: The REST API GET on the site may incorrectly return `False` for this flag even when it's enabled via the Tableau Cloud UI. If all insight endpoints return 400 "Bad Request" with `validation_code: 400952`, ask the user to enable Pulse AI in Tableau Cloud Settings → AI Features. The `pulsePremiumInsightsEnabled: true` and `pulsePremiumGAIEnabled: true` flags in `siteSettings` are the authoritative indicator.
++  - **Live Insight text can assert the wrong trend direction — verify before embedding in a walkthrough**: The Brief endpoint can return confident, well-formatted prose that contradicts the actual data (e.g. "Relationship NPS is still trending upward" when the real monthly average dropped from +26 to -14; "ARR At Risk has been trending downward... moving in the right direction" when it actually spiked from ~$700K to $1.4M). This isn't a payload/format bug — it returns 201 with plausible-sounding text that's simply factually wrong about direction. Never embed Brief text into a customer-facing walkthrough without cross-checking it against the ground-truth data first: compute the metric's actual trend from the source DataFrame (e.g. mean of first 3 months vs. last month) and compare against a keyword-based direction read of the brief text (up-words: upward/increasing/increase/improv/climbing/rising/higher/accelerat; down-words: downward/decreasing/decline/declining/dropping/drop/lower/falling/eroding — first keyword hit wins). If they disagree, drop that Live Insight line from the doc rather than showing it (silently showing wrong sentiment about the demo's own headline metric is worse than omitting the AI color entirely). Note the keyword heuristic itself isn't perfect (e.g. "limited upward momentum" reads as a false-positive "up" claim) — when in doubt, exclude rather than guess.
++- Data Cloud: **Bulk Ingest job creation (`POST /api/v1/ingest/jobs`) can 404 even when everything else about the connector checks out** — if this returns 404 "The requested resource doesn't exist" with a payload that exactly matches the documented format (`object`/`sourceName`/`operation`, ~50-100 bytes), do NOT assume it's a payload, connector, or size problem before checking this: run `GET` on the exact same path with the same token. If GET returns `200 {"data": []}` while POST 404s, the route itself is reachable and authorized for reads — the write/job-creation capability specifically is not entitled on this tenant. Confirm by testing against a freshly created second connector (Setup → Data Cloud → External Integrations → Ingestion API → New) with a different name — if the identical 404 reproduces on a brand-new, fully `CONNECTED` connector whose schema GET also succeeds, the connector is definitively not the cause and recreating it again will not help. This points to a missing Data Cloud permission set license or Bulk API feature entitlement on the org — escalate to Salesforce or check Setup → Permission Sets for a Data Cloud Ingestion/Bulk API license rather than continuing to iterate on connector config.
++- Close the loop: **Flow API names can't contain `__` or end in `_`** — Salesforce reserves double underscores for namespaces and custom-object suffixes, and a deploy fails on them. Slugs like `barrett_distribution_demand_forecasting`, truncated to 28 characters, end in `_` and then gain `__Followup`. `close_loop.flow_names()` strips any trailing `_` after truncating. Never build Flow names by hand.
++- Close the loop: **`slackPostMessage` can be usable in Flows while missing from `/actions/standard`.** In some orgs (e.g. Slack demo-bundle orgs), `GET /actions/standard/slackPostMessage` returns 404 "Invalid Action Type", yet an Active Flow using it deploys fine. `preflight()` falls back to a check-only deploy of a probe Flow (`_slack_action_deployable`) and then uses `SLACK_FLOW_INPUTS`. All four inputs are required: `slackAppIdForToken` (an `A…` app ID, not the Slack `E…` Enterprise ID in `Slack__mdt`), `slackWorkspaceIdForToken` (a `T…` team ID), `slackConversationId` (`C…`), `slackMessage`. The fastest way to find the right app and workspace IDs is an existing Flow built in Flow Builder: `SELECT Id FROM Flow WHERE Status='Active'` via Tooling, then read `Metadata.actionCalls[].inputParameters` where `actionType` contains `slack`. Draft Flows skip input validation, so always probe with `<status>Active</status>`.
++- Close the loop: **Callouts can't share a transaction with the record DML.** The Slack post (`slackPostMessage`) is a callout, so it can't run in the same synchronous transaction that created the Tasks/Case/Campaign. That's why the Notify Flow is record-triggered on an `AsyncAfterCommit` scheduled path and isn't a step inside the follow-up Flow. Keep the follow-up Flow DML-only.
