@@ -29,9 +29,17 @@ TODAY = date.today()
 # Progress helper
 # ---------------------------------------------------------------------------
 
+_build_log_file = None
+
 def progress(q, stage, message, pct=-1):
     if q:
         q.put({"stage": stage, "message": message, "pct": pct})
+    if _build_log_file:
+        try:
+            with open(_build_log_file, "a") as f:
+                f.write(f"[{stage}] {message}\n")
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -1380,6 +1388,7 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
 
 def run_build(build_id, build_config, progress_queue):
     """Main entry point — called from background thread."""
+    global _build_log_file
     q = progress_queue
     try:
         company = build_config["company"]
@@ -1391,6 +1400,10 @@ def run_build(build_id, build_config, progress_queue):
 
         demo_dir = str(PROJECT_ROOT / "demos" / slug)
         os.makedirs(demo_dir, exist_ok=True)
+
+        _build_log_file = os.path.join(demo_dir, f"{slug}_build.log")
+        with open(_build_log_file, "w") as f:
+            f.write(f"=== AIO Build Log — {company} — {TODAY.isoformat()} ===\n")
 
         cp_path = os.path.join(demo_dir, f"{slug}_checkpoint.json")
         if os.path.exists(cp_path):

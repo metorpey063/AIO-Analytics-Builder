@@ -193,6 +193,15 @@ def open_demo_folder(slug):
         return jsonify({"ok": False, "error": str(e)})
 
 
+@app.route("/api/demos/<slug>/build-log")
+def view_build_log(slug):
+    """Return the build log as plain text."""
+    log_path = PROJECT_ROOT / "demos" / slug / f"{slug}_build.log"
+    if not log_path.exists():
+        return "No build log found for this demo.", 404
+    return Response(log_path.read_text(), mimetype="text/plain")
+
+
 @app.route("/api/demos/<slug>/walkthrough/<filename>")
 def open_walkthrough(slug, filename):
     """Open a walkthrough .docx file with the system default application."""
