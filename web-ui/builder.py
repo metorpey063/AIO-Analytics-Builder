@@ -724,10 +724,9 @@ def _validate_next_build(config, cp, metric_config, q):
 
         if first_meas and do_api:
             query_body = {
-                "queryLanguage": "SQL",
-                "query": f'SELECT COUNT(*) as cnt FROM "{do_api}"',
+                "sql": f'SELECT COUNT(*) as cnt FROM {do_api}',
             }
-            r = req.post(f"{sf_instance}/services/data/v65.0/ssot/queryv2",
+            r = req.post(f"{sf_instance}/services/data/v62.0/ssot/queryv2",
                          headers=h, json=query_body, timeout=30)
             if r.ok:
                 data = r.json().get("data", [])
