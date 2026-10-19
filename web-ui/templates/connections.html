@@ -266,7 +266,10 @@ async function testSfConn(key) {
             const mcpChk = document.getElementById('sf-chk-mcp-' + key);
             if (connChk) connChk.className = j.connector_ok ? 'conn-check check-ok' : 'conn-check';
             if (dcChk) dcChk.className = j.data_cloud ? 'conn-check check-ok' : 'conn-check';
-            if (mcpChk) mcpChk.className = j.mcp_ok ? 'conn-check check-ok' : 'conn-check';
+            if (mcpChk) {
+                mcpChk.className = j.mcp_ok ? 'conn-check check-ok' : 'conn-check';
+                if (!j.mcp_ok && j.mcp_error) mcpChk.title = j.mcp_error;
+            }
 
             const assets = [];
             if (j.workspaces && j.workspaces.length) assets.push(`${j.workspaces.length} workspace${j.workspaces.length !== 1 ? 's' : ''}`);

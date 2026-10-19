@@ -340,14 +340,17 @@ def test_salesforce():
             pass
 
         mcp_ok = False
+        mcp_error = ""
         try:
             from mcp_client import MCPClient
             mcp = MCPClient(config)
             if mcp.available:
                 mcp.authenticate()
                 mcp_ok = True
-        except Exception:
-            pass
+            else:
+                mcp_error = "No mcp_client_id in profile"
+        except Exception as e:
+            mcp_error = str(e)[:200]
 
         return jsonify({
             "ok": True,
@@ -362,6 +365,7 @@ def test_salesforce():
             "connector_ok": connector_ok,
             "connector_name": connector_name,
             "mcp_ok": mcp_ok,
+            "mcp_error": mcp_error,
         })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
