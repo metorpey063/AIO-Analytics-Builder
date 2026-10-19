@@ -88,8 +88,10 @@ Rules:
 - Primary metrics show the "uh oh" moment. Supporting metrics explain why or show consequences.
 - Include at least one counter-trend metric (one that improves while others decline).
 - Dimensions should enable drill-down: at least one "where" dimension (Region, Location), one "what" dimension (Category, Type), one "who" dimension (Team, Rep).
-- Field names use snake_case with no spaces.
+- Field names use snake_case with no spaces. Keep field names SHORT — max 35 characters.
+- Metric LABELS should be short and business-focused (max 5 words). Example: "Client Retention Rate" not "Salesforce CRM Client Retention Tracking Rate".
 - Sentiment: "up_is_good" or "down_is_good".
+- CRITICAL: Metrics must be about the CUSTOMER'S BUSINESS, not about Salesforce/Tableau platform features. If uploaded documents mention Salesforce reports, dashboards, or platform features, IGNORE those — focus on the customer's industry KPIs (revenue, retention, efficiency, satisfaction, etc.).
 - All metrics should be rates/averages stored as decimals (0.0-1.0 range) OR flow metrics stored as raw numbers.
 - pulse_agg: "AGGREGATION_AVERAGE" for rates, "AGGREGATION_SUM" for flows/counts.
 """
