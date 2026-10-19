@@ -60,6 +60,27 @@ if [ "$(uname)" = "Darwin" ]; then
     xattr -cr "$INSTALL_DIR" 2>/dev/null || true
 fi
 
+# Look for existing config.json in common locations and copy it over
+if [ ! -f "config.json" ] || [ "$(python3 -c "import json; print(len(json.loads(open('config.json').read()).get('profiles',{})))" 2>/dev/null)" = "0" ]; then
+    SEARCH_PATHS=(
+        "$HOME/Desktop/AIO Analytics Builder/config.json"
+        "$HOME/Desktop/AIO-Analytics-Builder/config.json"
+        "$HOME/Documents/AIO Analytics Builder/config.json"
+        "$HOME/AIO Analytics Builder/config.json"
+    )
+    for sp in "${SEARCH_PATHS[@]}"; do
+        if [ -f "$sp" ] && [ "$sp" != "$INSTALL_DIR/config.json" ]; then
+            PROFILE_COUNT=$(python3 -c "import json; print(len(json.loads(open('$sp').read()).get('profiles',{})))" 2>/dev/null)
+            if [ "$PROFILE_COUNT" -gt 0 ] 2>/dev/null; then
+                log "Found existing config with $PROFILE_COUNT profiles at: $sp"
+                cp "$sp" "$INSTALL_DIR/config.json"
+                log "Connection profiles restored!"
+                break
+            fi
+        fi
+    done
+fi
+
 # Create venv + install deps
 if [ ! -d ".venv" ]; then
     log "Creating virtual environment..."
