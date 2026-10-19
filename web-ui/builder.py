@@ -904,7 +904,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 "Create one in Salesforce Setup → Data Cloud → External Integrations → Ingestion API → New."
             )
 
-        schema_name = slug.replace("-", "_")
+        schema_name = re.sub(r"[^a-z0-9_]", "", slug.replace("-", "_")).strip("_")
         fields = [{"name": "Record ID", "dataType": "Text", "isPrimaryKey": True}]
         fields.append({"name": "Date", "dataType": "Date"})
         fields.append({"name": "Day_Offset", "dataType": "Number"})
@@ -914,9 +914,14 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         for mc in metric_config:
             fields.append({"name": mc["label"], "dataType": "Number"})
 
-        # Schema fields: no isPrimaryKey, no spaces, all lowercase names
-        schema_fields = [{"name": f["name"].replace(" ", "_").lower(),
-                          "label": f["name"].replace(" ", "_").lower(),
+        def _clean_field_name(name):
+            """Sanitize field name for Data Cloud schema: lowercase, underscores, alphanumeric only."""
+            clean = re.sub(r"[^a-z0-9_]", "", name.lower().replace(" ", "_"))
+            clean = re.sub(r"_+", "_", clean).strip("_")
+            return clean or "field"
+
+        schema_fields = [{"name": _clean_field_name(f["name"]),
+                          "label": _clean_field_name(f["name"]),
                           "dataType": f["dataType"]}
                          for f in fields]
 
@@ -1033,6 +1038,14 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         connector_name = sf.get("ingestion_connector_name", "analytics_builder_demo")
         schema_name = slug  # same as what was registered in Phase 2
 
+        # Rename columns to match sanitized schema field names
+        col_rename = {}
+        for col in df.columns:
+            clean = re.sub(r"[^a-z0-9_]", "", col.lower().replace(" ", "_"))
+            clean = re.sub(r"_+", "_", clean).strip("_") or "field"
+            col_rename[col] = clean
+        df_ingest = df.rename(columns=col_rename)
+
         job_payload = {
             "object": schema_name,
             "sourceName": connector_name,
@@ -1043,7 +1056,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         job_id = r_job.json()["id"]
 
         csv_buf = io.StringIO()
-        df.to_csv(csv_buf, index=False)
+        df_ingest.to_csv(csv_buf, index=False)
         csv_bytes = csv_buf.getvalue().encode("utf-8")
         req.put(f"https://{dc_domain}/api/v1/ingest/jobs/{job_id}/batches",
                 headers={"Authorization": f"Bearer {dc_token}", "Content-Type": "text/csv"},
