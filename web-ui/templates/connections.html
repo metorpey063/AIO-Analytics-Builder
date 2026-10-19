@@ -267,8 +267,8 @@ async function testSfConn(key) {
             if (connChk) connChk.className = j.connector_ok ? 'conn-check check-ok' : 'conn-check check-fail';
             if (dcChk) dcChk.className = j.data_cloud ? 'conn-check check-ok' : 'conn-check check-fail';
             if (mcpChk) {
-                mcpChk.className = j.mcp_ok ? 'conn-check check-ok' : (j.mcp_error ? 'conn-check check-fail' : 'conn-check');
-                if (j.mcp_error) mcpChk.title = j.mcp_error;
+                mcpChk.className = j.mcp_ok ? 'conn-check check-ok' : 'conn-check check-fail';
+                mcpChk.title = j.mcp_ok ? 'MCP connected' : (j.mcp_error || 'MCP auth failed');
             }
 
             const assets = [];
