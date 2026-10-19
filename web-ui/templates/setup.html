@@ -846,14 +846,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const saved = localStorage.getItem('aio-setup-mode');
     if (saved === 'form') setSetupMode('form');
 
-    // If editing an existing profile, pre-fill name and skip to Step 1
+    // If editing an existing profile, pre-fill name and configure stepper
     const editKey = '{{ edit_profile_key|default("") }}';
     const editLabel = '{{ edit_profile_label|default("")|e }}';
+    const editHasTableau = {{ 'true' if edit_has_tableau else 'false' }};
+    const editHasSF = {{ 'true' if edit_has_salesforce else 'false' }};
     if (editKey) {
         const nameField = document.getElementById('conn-name');
         if (nameField) nameField.value = editLabel;
-        // Skip Step 0 (platform selection) and go straight to credentials
-        goSetupStep(1);
+
+        // Set platform checkboxes to match what this profile has
+        if (editHasTableau) document.getElementById('chk-tableau').checked = true;
+        if (editHasSF) {
+            document.getElementById('chk-next').checked = true;
+        }
+        updatePlatformSteps();
+
+        // Show/hide stepper steps
+        const stepper = document.getElementById('setup-stepper');
+        stepper.querySelector('[data-step="1"]').style.display = editHasTableau ? '' : 'none';
+        stepper.querySelector('[data-step="2"]').style.display = editHasSF ? '' : 'none';
+        stepper.querySelector('[data-step="3"]').style.display = editHasSF ? '' : 'none';
+
+        // Jump to the first relevant step
+        goSetupStep(editHasTableau ? 1 : (editHasSF ? 2 : 1));
     }
 });
 
