@@ -730,8 +730,9 @@ def _validate_next_build(config, cp, metric_config, q):
             r = req.post(f"{sf_instance}/services/data/v62.0/ssot/queryv2",
                          headers=h, json=query_body, timeout=30)
             if r.ok:
-                data = r.json().get("data", [])
-                row_count = data[0].get("cnt", 0) if data else 0
+                resp = r.json()
+                data = resp.get("data", resp) if isinstance(resp, dict) else resp
+                row_count = data[0].get("cnt", 0) if data and isinstance(data[0], dict) else 0
                 if row_count and int(row_count) > 0:
                     progress(q, "validate", f"✓ SDM query returned {row_count} rows", -1)
                     checks_passed += 1
