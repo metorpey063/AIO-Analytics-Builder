@@ -9,7 +9,8 @@
         <h1>Setup</h1>
         <p class="subtitle">Connect your Tableau Cloud and Salesforce environments</p>
     </div>
-    <div class="mode-toggle-bar" style="margin-bottom:0">
+    <!-- Mode toggle hidden — wizard only for now -->
+    <div class="mode-toggle-bar" style="display:none">
         <span class="mode-label active" id="lbl-wizard" onclick="setSetupMode('wizard')">Wizard</span>
         <div class="toggle-track" id="setup-mode-track" onclick="toggleSetupMode()">
             <div class="toggle-thumb"></div>
@@ -845,16 +846,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const saved = localStorage.getItem('aio-setup-mode');
     if (saved === 'form') setSetupMode('form');
 
-    // If editing an existing profile, skip Step 0 and go to form mode
+    // If editing an existing profile, pre-fill name and skip to Step 1
     const editKey = '{{ edit_profile_key|default("") }}';
     const editLabel = '{{ edit_profile_label|default("")|e }}';
     if (editKey) {
-        // Pre-fill the connection name
         const nameField = document.getElementById('conn-name');
         if (nameField) nameField.value = editLabel;
-
-        // Jump to form mode for easy editing
-        setSetupMode('form');
+        // Skip Step 0 (platform selection) and go straight to credentials
+        goSetupStep(1);
     }
 });
 
