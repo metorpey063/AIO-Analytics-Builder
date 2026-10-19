@@ -76,6 +76,39 @@ if [ ! -f "config.json" ] && [ -f "config.json.template" ]; then
     log "Created config.json"
 fi
 
+# Create double-click launcher
+LAUNCHER="$INSTALL_DIR/AIO Builder.command"
+cat > "$LAUNCHER" << 'SCRIPT'
+#!/bin/bash
+cd "$(dirname "$0")"
+if [ ! -d ".venv" ]; then
+    echo "Virtual environment not found. Run the installer first."
+    read -p "Press Enter to exit..."
+    exit 1
+fi
+source .venv/bin/activate
+echo ""
+echo "  AIO Analytics Builder"
+echo "  Starting web server..."
+echo ""
+python3 web-ui/app.py
+SCRIPT
+chmod +x "$LAUNCHER"
+log "Created 'AIO Builder.command' — double-click to launch next time"
+
+# Create a Desktop shortcut so it's easy to find
+DESKTOP_SHORTCUT="$HOME/Desktop/AIO Builder.command"
+if [ ! -f "$DESKTOP_SHORTCUT" ]; then
+    cat > "$DESKTOP_SHORTCUT" << SHORTCUT
+#!/bin/bash
+cd "$INSTALL_DIR"
+source .venv/bin/activate
+python3 web-ui/app.py
+SHORTCUT
+    chmod +x "$DESKTOP_SHORTCUT"
+    log "Added 'AIO Builder' shortcut to Desktop"
+fi
+
 log "Setup complete!"
 echo ""
 echo -e "  ${GREEN}${BOLD}✓ AIO Analytics Builder is ready${RESET}"
@@ -84,7 +117,7 @@ echo "  Opening Web UI at http://localhost:5050"
 echo "  Press Ctrl+C to stop the server."
 echo ""
 echo -e "  ${BOLD}To launch again later:${RESET}"
-echo "    cd $INSTALL_DIR && .venv/bin/python web-ui/app.py"
+echo "    Double-click 'AIO Builder' on your Desktop"
 echo ""
 
 # Launch

@@ -22,6 +22,7 @@ All notable changes to AIO Analytics Builder are documented here.
 - Signal ramp now supports all three shapes: `accelerating` (quadratic), `ramp` (linear), and `step` (threshold at 30%).
 - Data generation uses configurable onset/duration instead of hardcoded `-3`/`3`.
 - **macOS Gatekeeper**: one-line remote installer (`curl | bash`) bypasses Gatekeeper entirely. `QUICK_START.txt` always opens (no quarantine on `.txt`). `Install AIO.command` auto-strips quarantine from all files on first run. Three install paths documented: one-liner, zip + Terminal, VS Code CLI.
+- **Remote installer creates launcher**: `install_remote.sh` now creates `AIO Builder.command` in the install directory AND a Desktop shortcut so users can relaunch with a double-click.
 
 ---
 
