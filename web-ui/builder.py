@@ -915,10 +915,10 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
             fields.append({"name": mc["label"], "dataType": "Number"})
 
         def _clean_field_name(name):
-            """Sanitize field name for Data Cloud schema: lowercase, underscores, alphanumeric only."""
+            """Sanitize field name for Data Cloud schema: lowercase, underscores, alphanumeric only, max 40 chars."""
             clean = re.sub(r"[^a-z0-9_]", "", name.lower().replace(" ", "_"))
             clean = re.sub(r"_+", "_", clean).strip("_")
-            return clean or "field"
+            return (clean[:40] if clean else "field")
 
         schema_fields = [{"name": _clean_field_name(f["name"]),
                           "label": _clean_field_name(f["name"]),
@@ -932,14 +932,18 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         schema_exists = any(s.get("name") == schema_name for s in existing_schemas)
 
         if not schema_exists:
-            # Strip platform-injected fields from existing schemas before re-submitting
+            # Strip platform-injected reserved fields from existing schemas before re-submitting
             STRIP_KEYS = {"availabilityStatus"}
+            RESERVED_FIELDS = {"DataSourceId", "DataSourceObjectId"}
             clean_existing = []
             for s in existing_schemas:
                 clean = {k: v for k, v in s.items() if k not in STRIP_KEYS}
                 if "fields" in clean:
-                    clean["fields"] = [{fk: fv for fk, fv in f.items() if fk not in STRIP_KEYS}
-                                       for f in clean["fields"]]
+                    clean["fields"] = [
+                        {fk: fv for fk, fv in f.items() if fk not in STRIP_KEYS}
+                        for f in clean["fields"]
+                        if f.get("name") not in RESERVED_FIELDS
+                    ]
                 clean_existing.append(clean)
 
             new_schema = {"name": schema_name, "label": schema_name,
