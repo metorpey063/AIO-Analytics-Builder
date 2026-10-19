@@ -338,6 +338,67 @@ body::before {
 }
 .changelog-empty { font-size: 12px; color: var(--text-light); }
 
+/* Collapsible panels (Getting Started, What's New) */
+.collapsible-header {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+    transition: color var(--transition);
+}
+.collapsible-header:hover { color: var(--text); }
+.collapsible-chevron {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-right: 2px solid var(--text-light);
+    border-bottom: 2px solid var(--text-light);
+    transform: rotate(45deg);
+    transition: transform 200ms ease;
+    flex-shrink: 0;
+}
+.collapsible-panel:not(.expanded) .collapsible-chevron {
+    transform: rotate(-45deg);
+}
+.collapsible-panel:not(.expanded) .collapsible-body {
+    display: none;
+}
+
+/* Getting Started steps */
+.getting-started-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.gs-step {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+}
+.gs-num {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--blue);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+.gs-step strong {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 2px;
+}
+.gs-step p {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin: 0;
+}
+
 @media (max-width: 900px) {
     .home-layout { flex-direction: column; }
     .home-changelog { width: 100%; position: static; }
@@ -1770,26 +1831,7 @@ textarea.mono { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-s
 .chat-send-btn:disabled { background: var(--border); cursor: not-allowed; }
 .chat-send-btn svg { width: 18px; height: 18px; }
 
-.chat-key-banner {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 14px;
-    background: var(--orange-light);
-    border-top: 1px solid var(--border-light);
-    font-size: 12.5px;
-    color: var(--orange);
-    flex-shrink: 0;
-}
-.chat-key-banner.hidden { display: none; }
-.chat-key-input {
-    flex: 1;
-    padding: 5px 8px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    font-size: 12px;
-    font-family: inherit;
-}
+/* chat-key-banner removed — API key is configured in Setup */
 
 .chat-messages::-webkit-scrollbar { width: 5px; }
 .chat-messages::-webkit-scrollbar-track { background: transparent; }

@@ -15,33 +15,19 @@ function toggleChat() {
 
     if (chatOpen) {
         document.getElementById('chat-input').focus();
-        checkChatAvailability();
     }
 }
 
-async function checkChatAvailability() {
+async function initChatFab() {
+    // Show the chat FAB only if an API key (or Bedrock gateway) is configured
     try {
         const r = await fetch('/api/chat/status');
         const j = await r.json();
-        document.getElementById('chat-key-banner').classList.toggle('hidden', j.available);
+        if (j.available) {
+            document.getElementById('chat-fab-wrapper').classList.remove('hidden');
+        }
     } catch (e) {
-        // ignore
-    }
-}
-
-async function saveApiKey() {
-    const key = document.getElementById('chat-api-key').value.trim();
-    if (!key) return;
-
-    try {
-        await fetch('/api/save-config', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({anthropic: {api_key: key}}),
-        });
-        document.getElementById('chat-key-banner').classList.add('hidden');
-    } catch (e) {
-        // fall through
+        // FAB stays hidden if status check fails
     }
 }
 
@@ -82,10 +68,6 @@ async function sendChat() {
         if (!r.ok) {
             const err = await r.json();
             textEl.textContent = err.error || 'Something went wrong.';
-
-            if (err.error && err.error.includes('API key')) {
-                document.getElementById('chat-key-banner').classList.remove('hidden');
-            }
             chatStreaming = false;
             document.getElementById('chat-send-btn').disabled = false;
             return;
@@ -178,4 +160,5 @@ function autoResizeInput() {
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('chat-input');
     if (input) input.addEventListener('input', autoResizeInput);
+    initChatFab();
 });

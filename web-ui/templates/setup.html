@@ -547,6 +547,28 @@
             <div id="sf-result" class="test-result"></div>
         </form>
     </section>
+
+    <!-- AI Assistant (global setting) -->
+    <section class="card">
+        <div class="card-header">
+            <h2>AI Assistant <span class="optional">(optional)</span></h2>
+            <span id="ai-status" class="badge badge-pending" style="display:none">Not configured</span>
+        </div>
+        <p class="subtitle" style="margin-bottom:14px">Enter an Anthropic API key to enable the AI chat assistant (the "Ask Claude" button). This is a global setting, not tied to a connection profile.</p>
+        <div class="form-stack">
+            <div class="form-group">
+                <label for="ai-api-key">
+                    Anthropic API Key
+                    <span class="tooltip-trigger" data-tooltip="Get an API key from console.anthropic.com. This powers the chat assistant in the bottom-right corner. The key is stored locally in config.json and never sent anywhere except the Anthropic API.">?</span>
+                </label>
+                <input type="password" id="ai-api-key" placeholder="sk-ant-..." value="">
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-primary" onclick="saveAiKey()">Save</button>
+            </div>
+            <div id="ai-result" class="test-result"></div>
+        </div>
+    </section>
 </div><!-- end setup-split-form -->
 
 <aside class="setup-split-guide">
@@ -996,5 +1018,49 @@ async function startOAuth() {
         showResult('sf-result', false, 'Request failed: ' + e.message);
     }
 }
+
+// ---- AI Assistant key ----
+async function saveAiKey() {
+    const key = document.getElementById('ai-api-key').value.trim();
+    if (!key) {
+        showResult('ai-result', false, 'Please enter an API key');
+        return;
+    }
+    showResult('ai-result', null, 'Saving...');
+    try {
+        const r = await fetch('/api/chat/save-key', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({api_key: key}),
+        });
+        const j = await r.json();
+        if (j.ok) {
+            showResult('ai-result', true, 'API key saved. The Ask Claude button will appear on your next page load.');
+        } else {
+            showResult('ai-result', false, j.error || 'Failed to save');
+        }
+    } catch (e) {
+        showResult('ai-result', false, 'Request failed: ' + e.message);
+    }
+}
+
+// Load existing AI key status on page load
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const r = await fetch('/api/chat/status');
+        const j = await r.json();
+        const badge = document.getElementById('ai-status');
+        if (badge) {
+            badge.style.display = '';
+            if (j.available) {
+                badge.className = 'badge badge-ok';
+                badge.textContent = 'Configured';
+            } else {
+                badge.className = 'badge badge-pending';
+                badge.textContent = 'Not configured';
+            }
+        }
+    } catch (e) { /* ignore */ }
+});
 </script>
 {% endblock %}

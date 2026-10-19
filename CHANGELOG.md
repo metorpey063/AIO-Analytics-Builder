@@ -25,6 +25,10 @@ All notable changes to AIO Analytics Builder are documented here.
 - **Remote installer creates launcher**: `install_remote.sh` now creates `AIO Builder.command` in the install directory AND a Desktop shortcut so users can relaunch with a double-click.
 - **Chat API key save without profile**: the Anthropic API key (for the Ask Claude chat) can now be saved even before creating any connection profiles — new users no longer get "No active profile found" when entering their API key.
 - **Auto-restart on update**: clicking the update button now automatically restarts the server after pulling new code. The UI shows "Restarting..." and auto-reloads when the server is back — no manual Ctrl+C needed.
+- **Chat widget auto-hides**: the Ask Claude button is hidden until an API key is configured. No more broken chat state for new users.
+- **AI Assistant API key in Setup**: Anthropic API key field added to the Setup page under an "AI Assistant" section with save + status badge.
+- **Getting Started guide**: new collapsible panel on the home page walking users through the 3 steps (Setup → Build → Present).
+- **Collapsible "What's New"**: the changelog panel is now collapsible to save space on the home page.
 
 ---
 

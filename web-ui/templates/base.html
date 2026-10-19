@@ -56,8 +56,8 @@
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Chat bot widget -->
-    <div class="chat-fab-wrapper" id="chat-fab-wrapper">
+    <!-- Chat bot widget (hidden until API key is confirmed available) -->
+    <div class="chat-fab-wrapper hidden" id="chat-fab-wrapper">
         <span class="chat-fab-label" id="chat-fab-label">Ask Claude</span>
         <div id="chat-fab" class="chat-fab" onclick="toggleChat()" title="Ask Claude">
             <svg id="chat-fab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
@@ -74,11 +74,6 @@
             <div class="chat-msg chat-msg-bot">
                 <div class="chat-bubble">Hi! I can help with AIO Analytics Builder — ask me about building demos, connecting orgs, Tableau Pulse, Tableau Next, or anything else.</div>
             </div>
-        </div>
-        <div id="chat-key-banner" class="chat-key-banner hidden">
-            <span>API key needed.</span>
-            <input type="password" id="chat-api-key" placeholder="Anthropic API key" class="chat-key-input">
-            <button class="btn btn-primary btn-sm" onclick="saveApiKey()">Save</button>
         </div>
         <div class="chat-input-row">
             <textarea id="chat-input" class="chat-input" rows="1" placeholder="Ask a question..." onkeydown="chatKeydown(event)"></textarea>

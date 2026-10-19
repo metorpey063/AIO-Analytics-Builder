@@ -942,6 +942,23 @@ def chat_status():
     return jsonify({"available": _get_chat_config() is not None})
 
 
+@app.route("/api/chat/save-key", methods=["POST"])
+def chat_save_key():
+    """Save Anthropic API key to config.json (global, not per-profile)."""
+    try:
+        from connections import load_full_config, save_full_config
+        data = request.json or {}
+        api_key = data.get("api_key", "").strip()
+        if not api_key:
+            return jsonify({"ok": False, "error": "No API key provided"})
+        full = load_full_config()
+        full.setdefault("anthropic", {})["api_key"] = api_key
+        save_full_config(full)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

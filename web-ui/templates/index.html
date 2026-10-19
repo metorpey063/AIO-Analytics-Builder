@@ -97,27 +97,75 @@
         </div>
     </div>
 
-    <!-- Changelog panel -->
+    <!-- Right side panels -->
     <aside class="home-changelog">
-        <div class="changelog-panel">
-            <h3 class="changelog-title">What's New</h3>
-            {% for entry in changelog %}
-            <div class="changelog-entry">
-                <div class="changelog-date">{{ entry.date }}</div>
-                <div class="changelog-heading">{{ entry.title }}</div>
-                {% if entry.bullets %}
-                <ul class="changelog-bullets">
-                    {% for b in entry.bullets[:3] %}
-                    <li>{{ b }}</li>
-                    {% endfor %}
-                </ul>
+        <!-- Getting Started -->
+        <div class="changelog-panel collapsible-panel expanded" id="panel-getting-started">
+            <h3 class="changelog-title collapsible-header" onclick="togglePanel('panel-getting-started')">
+                Getting Started
+                <span class="collapsible-chevron"></span>
+            </h3>
+            <div class="collapsible-body">
+                <div class="getting-started-steps">
+                    <div class="gs-step">
+                        <span class="gs-num">1</span>
+                        <div>
+                            <strong>Set Up Connections</strong>
+                            <p>Connect to your Tableau Cloud and/or Salesforce org. Click <a href="/setup" class="guidance-link" style="color:var(--blue)">Setup</a> in the left nav to get started.</p>
+                        </div>
+                    </div>
+                    <div class="gs-step">
+                        <span class="gs-num">2</span>
+                        <div>
+                            <strong>Build a Demo</strong>
+                            <p>Enter a company name and use case. AIO generates synthetic data with an engineered story signal and publishes it to your chosen platform.</p>
+                        </div>
+                    </div>
+                    <div class="gs-step">
+                        <span class="gs-num">3</span>
+                        <div>
+                            <strong>Present</strong>
+                            <p>Open <a href="/demos" class="guidance-link" style="color:var(--blue)">My Demos</a> to find your walkthrough document and published assets. The walkthrough guides you through the demo story step by step.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Changelog -->
+        <div class="changelog-panel collapsible-panel expanded" id="panel-whats-new" style="margin-top:12px">
+            <h3 class="changelog-title collapsible-header" onclick="togglePanel('panel-whats-new')">
+                What's New
+                <span class="collapsible-chevron"></span>
+            </h3>
+            <div class="collapsible-body">
+                {% for entry in changelog %}
+                <div class="changelog-entry">
+                    <div class="changelog-date">{{ entry.date }}</div>
+                    <div class="changelog-heading">{{ entry.title }}</div>
+                    {% if entry.bullets %}
+                    <ul class="changelog-bullets">
+                        {% for b in entry.bullets[:3] %}
+                        <li>{{ b }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                {% if not changelog %}
+                <p class="changelog-empty">No changelog entries found.</p>
                 {% endif %}
             </div>
-            {% endfor %}
-            {% if not changelog %}
-            <p class="changelog-empty">No changelog entries found.</p>
-            {% endif %}
         </div>
     </aside>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function togglePanel(panelId) {
+    const panel = document.getElementById(panelId);
+    if (panel) panel.classList.toggle('expanded');
+}
+</script>
 {% endblock %}
