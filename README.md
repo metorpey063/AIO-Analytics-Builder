@@ -48,6 +48,21 @@ A Claude Code tool for Salesforce/Tableau Solutions Engineers to rapidly build c
 
 ## Getting started
 
+### Option A — Web UI (recommended for most users)
+
+1. Unzip `AIO Analytics Builder.zip` wherever you want to keep it
+2. Double-click **`Install AIO.command`**
+
+> **macOS Gatekeeper warning?** If you see *"Install AIO.command cannot be opened because it is from an unidentified developer"*, **right-click** the file → **Open** → click **Open** in the dialog. You only need to do this once — macOS remembers the approval. Alternatively, run this in Terminal first:
+> ```bash
+> xattr -cr ~/Desktop/AIO\ Analytics\ Builder
+> ```
+
+3. The installer sets up Python, installs dependencies, and launches the Web UI at `http://localhost:5050`
+4. Follow the guided Setup wizard to connect your orgs, then Build Demo to create assets
+
+### Option B — VS Code + Claude Code CLI
+
 ### Step 1 — Unzip and open the folder
 
 Unzip `AIO Analytics Builder.zip` wherever you want to keep it. Then open the folder in VS Code:

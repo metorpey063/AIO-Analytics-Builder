@@ -21,6 +21,7 @@ All notable changes to AIO Analytics Builder are documented here.
 ### Fixed
 - Signal ramp now supports all three shapes: `accelerating` (quadratic), `ramp` (linear), and `step` (threshold at 30%).
 - Data generation uses configurable onset/duration instead of hardcoded `-3`/`3`.
+- **macOS Gatekeeper**: README now includes right-click → Open workaround and `xattr -cr` command for the installer `.command` files. Web UI is the recommended install path for non-CLI users.
 
 ---
 
