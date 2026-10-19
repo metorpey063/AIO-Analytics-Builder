@@ -115,34 +115,40 @@ def grant_field_access(sf_token, sf_instance, sobject_type, field_name):
     """Give the running user read/edit on a field via the AIO_Demo_Field_Access permission set.
 
     Creates the permission set and assignment if missing. Idempotent.
+    Non-fatal: if the grant fails (e.g. user lacks Manage Users), prints a warning
+    and lets the upsert try anyway -- worst case is the same 404 as before this fix.
     """
-    h = sf_headers(sf_token)
-    base = f"{sf_instance}/services/data/{API_VERSION}"
-    q = lambda soql: requests.get(f"{base}/query", headers=h, params={"q": soql}).json().get("records", [])
+    try:
+        h = sf_headers(sf_token)
+        base = f"{sf_instance}/services/data/{API_VERSION}"
+        q = lambda soql: requests.get(f"{base}/query", headers=h, params={"q": soql}).json().get("records", [])
 
-    ps = q(f"SELECT Id FROM PermissionSet WHERE Name='{FIELD_ACCESS_PERMSET}'")
-    if ps:
-        ps_id = ps[0]["Id"]
-    else:
-        r = requests.post(f"{base}/sobjects/PermissionSet", headers=h, json={
-            "Name": FIELD_ACCESS_PERMSET, "Label": "AIO Demo Field Access",
-            "Description": "Read/edit on AIO Analytics Builder demo External ID fields"})
-        r.raise_for_status()
-        ps_id = r.json()["id"]
+        ps = q(f"SELECT Id FROM PermissionSet WHERE Name='{FIELD_ACCESS_PERMSET}'")
+        if ps:
+            ps_id = ps[0]["Id"]
+        else:
+            r = requests.post(f"{base}/sobjects/PermissionSet", headers=h, json={
+                "Name": FIELD_ACCESS_PERMSET, "Label": "AIO Demo Field Access",
+                "Description": "Read/edit on AIO Analytics Builder demo External ID fields"})
+            r.raise_for_status()
+            ps_id = r.json()["id"]
 
-    full = f"{sobject_type}.{field_name}"
-    if not q(f"SELECT Id FROM FieldPermissions WHERE ParentId='{ps_id}' AND Field='{full}'"):
-        r = requests.post(f"{base}/sobjects/FieldPermissions", headers=h, json={
-            "ParentId": ps_id, "SobjectType": sobject_type, "Field": full,
-            "PermissionsRead": True, "PermissionsEdit": True})
-        r.raise_for_status()
+        full = f"{sobject_type}.{field_name}"
+        if not q(f"SELECT Id FROM FieldPermissions WHERE ParentId='{ps_id}' AND Field='{full}'"):
+            r = requests.post(f"{base}/sobjects/FieldPermissions", headers=h, json={
+                "ParentId": ps_id, "SobjectType": sobject_type, "Field": full,
+                "PermissionsRead": True, "PermissionsEdit": True})
+            r.raise_for_status()
 
-    user_id = requests.get(f"{sf_instance}/services/oauth2/userinfo", headers=h).json()["user_id"]
-    if not q(f"SELECT Id FROM PermissionSetAssignment WHERE PermissionSetId='{ps_id}' AND AssigneeId='{user_id}'"):
-        r = requests.post(f"{base}/sobjects/PermissionSetAssignment", headers=h,
-                          json={"PermissionSetId": ps_id, "AssigneeId": user_id})
-        r.raise_for_status()
-    print(f"  Granted field access to {full} ({FIELD_ACCESS_PERMSET})")
+        user_id = requests.get(f"{sf_instance}/services/oauth2/userinfo", headers=h).json()["user_id"]
+        if not q(f"SELECT Id FROM PermissionSetAssignment WHERE PermissionSetId='{ps_id}' AND AssigneeId='{user_id}'"):
+            r = requests.post(f"{base}/sobjects/PermissionSetAssignment", headers=h,
+                              json={"PermissionSetId": ps_id, "AssigneeId": user_id})
+            r.raise_for_status()
+        print(f"  Granted field access to {full} ({FIELD_ACCESS_PERMSET})")
+    except Exception as e:
+        print(f"  ⚠ Could not grant field access to {sobject_type}.{field_name}: {e}")
+        print(f"    The upsert will try anyway — if it 404s, grant access manually in Setup → Permission Sets.")
 
 
 def upsert_crm_records(sf_token, sf_instance, sobject_type, external_id_field,

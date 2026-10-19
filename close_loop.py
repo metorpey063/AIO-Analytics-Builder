@@ -875,21 +875,8 @@ def write_walkthrough(slug, cp, payload):
     for p in doc.paragraphs:
         if p.style.name == "Heading 1":
             drop = p.text.strip() == "Close the Loop"
-        if drop or p.text.startswith(HANDOFF_LABEL):  # earlier Section 7 and hand-off line
+        if drop:
             p._element.getparent().remove(p._element)
-
-    # Hand-off at the end of Section 3 (Click Path / Concierge Prompts), just before the next H1
-    paras = doc.paragraphs
-    s3 = next((i for i, p in enumerate(paras) if p.style.name == "Heading 1"
-               and p.text.strip() in ("Demo Click Path", "Concierge Prompts")), None)
-    if s3 is not None:
-        nxt = next((p for p in paras[s3 + 1:] if p.style.name == "Heading 1"), None)
-        h = doc.add_paragraph()
-        h.add_run(HANDOFF_LABEL).bold = True
-        h.add_run(f" Once the audience knows who is most at risk, ask \"so what do we do?\" and move to "
-                  f"Close the Loop at the end of this document — the follow-up runs live in Salesforce.")
-        if nxt is not None:
-            nxt._p.addprevious(h._p)
 
     intro, steps = section7(payload)
     doc.add_heading("Close the Loop", level=1)
@@ -902,9 +889,6 @@ def write_walkthrough(slug, cp, payload):
             p.add_run(s[key])
     doc.save(path)
     return path
-
-
-HANDOFF_LABEL = "Next — close the loop:"
 
 
 # ── Commands ───────────────────────────────────────────────────────────────────

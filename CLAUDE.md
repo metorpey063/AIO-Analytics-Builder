@@ -231,7 +231,6 @@ Every demo build generates a `{slug}_demo_walkthrough.docx` file. **All walkthro
   - **"Say:"** (bold) — the talk track: the line the presenter speaks, built from the story (worst segment, leading signal, counter-trend, owner)
   - **"Trigger:"** (bold) — what the presenter does to fire the action
   - **"Result:"** (bold) — what Salesforce / Slack does in response
-- Also adds a bold **"Next — close the loop:"** hand-off line at the end of Section 3, pointing the presenter to Section 7
 - Preview it before deploying with `python close_loop.py plan --slug {slug}` (no org or .docx changes)
 
 ### Section 8 — Tableau Studio Skills (only if /studio was generated)

@@ -88,7 +88,7 @@ When you invoke `/build-demo`, Claude will ask you the following questions one a
   - What was built (metrics, assets, output modes)
   - What the user mentioned wanting to add/change
   - Any open issues from last time
-  - Then ask: "What would you like to do next — add metrics, tweak the data, rebuild a specific phase, add Tableau Studio skills (`/studio {slug}`), or something else?"
+  - Then ask: "What would you like to do next — add metrics, tweak the data, rebuild a specific phase, or something else?"
   - Use the checkpoint file referenced in the session summary to skip already-completed phases.
 
 ### -1. Pulse API validation (weekly, automatic)
@@ -1611,31 +1611,13 @@ Note: the Tableau Next Concierge does not have a public REST API — it is UI-on
 
 ---
 
-## Close the loop (optional final step)
+## Optional add-ons (post-build mention)
 
-After the summary, offer close-the-loop **once**. Skip the offer if autonomous mode was given a full payload that didn't ask for it, if the build failed, or if the active profile has no Salesforce connection (the Flows deploy to the Salesforce org). In those cases, mention `/close-loop {slug}` in one line so they can run it later.
+After a successful build, mention the standalone commands available for this demo in one line. Do NOT ask questions or add steps to the build flow:
 
-> "Want to close the loop? I can build the demo's follow-up action into your Salesforce org, so the audience can trigger it live: the at-risk finding becomes real follow-up records, and the team gets notified in Slack or Chatter. (yes / no / later)"
+> Optional: run `/close-loop {slug}` to deploy follow-up Flows (Tasks/Case/Campaign + Slack/Chatter) for this demo, or `/studio {slug}` to generate Tableau Studio Agent skills pre-loaded with this story.
 
-- **yes:** follow `.claude/commands/close-loop.md` from Step 2 using this build's `{slug}`. Slack is first mentioned there, in Step 2b. Do **not** ask about Slack here.
-- **no / later:** done. Tell them they can run `/close-loop {slug}` at any time.
-
-If it runs, add a **Close the Loop** row to the Phase Summary (✓ Complete / ✗ Failed), and add the deployed Flow names under Assets Created.
-
----
-
-## Tableau Studio skills (optional, after close-loop)
-
-After the close-loop offer has been answered, offer Studio skills **once**. They need no org, so offer them for every successful build, including CSV-only builds. Skip the offer if autonomous mode was given a full payload that didn't ask for it, or if the build failed. In those cases, mention `/studio {slug}` in one line.
-
-> "Want Tableau Studio skills for this demo? I'll generate Tableau Agent skills that already know this story. 'build the demo' creates the four story worksheets and dashboard in Studio, and the audience can ask 'why did this move?' I can also write a custom skill if you have one in mind. (yes / no / later)"
-
-- **yes:** follow `.claude/commands/studio.md` from Step 1.4: confirm the story summary, then generate. Offer the custom skill and install steps as written there.
-- **no / later:** done. Tell them they can run `/studio {slug}` at any time. It also works on demos built outside AIO.
-
-Keep this order: close-loop first, then studio, so `demo-story.md` includes the Close the Loop step. If close-loop is built later, re-run `/studio {slug}`.
-
-If it runs, add a **Tableau Studio Skills** row to the Phase Summary (✓ Generated / ✓ Installed / ✗ Failed), and add `demos/{slug}/studio_skills/` under Assets Created.
+For Tableau Next builds where the user selected CRM Actionability, close-loop Flows are already deployed as part of that flow. The standalone `/close-loop` command is for Pulse, CSV, or any demo where CRM Actionability wasn't selected during the build.
 
 ---
 
