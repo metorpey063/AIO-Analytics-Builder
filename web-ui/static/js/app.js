@@ -77,12 +77,20 @@ async function runUpdate() {
 
         if (j.ok && j.updated) {
             btn.className = 'update-btn update-success';
-            document.getElementById('brand-version').textContent = 'Updated!';
-            setTimeout(() => {
-                if (confirm('AIO has been updated. Reload the page to see changes?')) {
-                    location.reload();
+            document.getElementById('brand-version').textContent = 'Restarting...';
+            // Server restarts automatically — wait for it to come back, then reload
+            async function waitForServer() {
+                for (let i = 0; i < 15; i++) {
+                    await new Promise(r => setTimeout(r, 1000));
+                    try {
+                        const ping = await fetch('/api/version', {signal: AbortSignal.timeout(2000)});
+                        if (ping.ok) { location.reload(); return; }
+                    } catch (e) { /* server still restarting */ }
                 }
-            }, 500);
+                document.getElementById('brand-version').textContent = 'Restart timed out';
+                if (confirm('Server restart took too long. Reload manually?')) location.reload();
+            }
+            waitForServer();
         } else if (j.ok) {
             btn.className = 'update-btn update-btn-gray';
             btn.disabled = true;

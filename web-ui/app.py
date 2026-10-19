@@ -448,7 +448,7 @@ def version_check():
 
 @app.route("/api/update", methods=["POST"])
 def update():
-    """Pull latest from git and report what changed."""
+    """Pull latest from git, restart server if code changed."""
     import subprocess
     try:
         result = subprocess.run(
@@ -458,13 +458,25 @@ def update():
         )
         output = (result.stdout + result.stderr).strip()
         already_up_to_date = "Already up to date" in output or "Already up-to-date" in output
+        updated = result.returncode == 0 and not already_up_to_date
+
+        if updated:
+            # Schedule server restart so the response gets sent first
+            def _restart():
+                import time, signal
+                time.sleep(1)
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+            t = threading.Thread(target=_restart, daemon=True)
+            t.start()
+
         return jsonify({
             "ok": result.returncode == 0,
-            "updated": not already_up_to_date,
+            "updated": updated,
+            "restarting": updated,
             "output": output,
         })
     except Exception as e:
-        return jsonify({"ok": False, "updated": False, "output": str(e)})
+        return jsonify({"ok": False, "updated": False, "restarting": False, "output": str(e)})
 
 
 @app.route("/api/setup/create-profile", methods=["POST"])
