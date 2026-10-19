@@ -359,13 +359,15 @@ def test_salesforce():
         try:
             from mcp_client import MCPClient
             mcp = MCPClient(config)
+            mcp_error = f"available={mcp.available}, client_id={bool(mcp.mcp_client_id)}, refresh={bool(mcp.sf.get('mcp_refresh_token'))}"
             if mcp.available:
                 mcp.authenticate()
                 mcp_ok = True
+                mcp_error = ""
             else:
-                mcp_error = "No mcp_client_id in profile"
+                mcp_error = f"No mcp_client_id in profile. Keys: {list(config.get('salesforce', {}).keys())[:8]}"
         except Exception as e:
-            mcp_error = str(e)[:200]
+            mcp_error = f"Auth failed: {str(e)[:200]}"
 
         return jsonify({
             "ok": True,

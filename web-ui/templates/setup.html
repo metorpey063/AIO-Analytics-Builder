@@ -462,17 +462,21 @@
             <h2>Step 4: Verify Connections</h2>
             <p class="subtitle" style="margin-bottom:16px">Test all connections to make sure everything is working.</p>
             <div class="verify-grid">
-                <div class="verify-row">
+                <div class="verify-row" id="v-row-tableau">
                     <span class="verify-label">Tableau Cloud</span>
                     <span class="verify-status" id="v-tableau">—</span>
                 </div>
-                <div class="verify-row">
+                <div class="verify-row" id="v-row-salesforce">
                     <span class="verify-label">Salesforce OAuth</span>
                     <span class="verify-status" id="v-salesforce">—</span>
                 </div>
-                <div class="verify-row">
+                <div class="verify-row" id="v-row-datacloud">
                     <span class="verify-label">Data Cloud</span>
                     <span class="verify-status" id="v-datacloud">—</span>
+                </div>
+                <div class="verify-row" id="v-row-mcp" style="display:none">
+                    <span class="verify-label">MCP (premium dashboards)</span>
+                    <span class="verify-status" id="v-mcp">—</span>
                 </div>
             </div>
             <div style="margin-top:16px">
@@ -1095,29 +1099,48 @@ async function verifyAll() {
     document.getElementById('v-datacloud').innerHTML = '<span class="inline-warn">Testing...</span>';
 
     const jsonHeaders = {'Content-Type': 'application/json'};
+    const needsTableau = selectedPlatforms.tableau;
+    const needsSF = selectedPlatforms.next || selectedPlatforms.crma;
+    const hasMcp = !!(document.getElementById('w-mcp-client-id')?.value.trim());
 
-    try {
-        const r = await fetch('/api/test-tableau', {method: 'POST', headers: jsonHeaders, body: '{}'});
-        const j = await r.json();
-        document.getElementById('v-tableau').innerHTML = j.ok
-            ? `<span class="inline-ok">Connected</span> — ${j.site_name}`
-            : `<span class="inline-warn">Failed</span> — ${j.error || 'unknown'}`;
-    } catch (e) {
-        document.getElementById('v-tableau').innerHTML = '<span class="inline-warn">Error</span>';
+    // Show/hide rows based on what this profile needs
+    document.getElementById('v-row-tableau').style.display = needsTableau ? '' : 'none';
+    document.getElementById('v-row-salesforce').style.display = needsSF ? '' : 'none';
+    document.getElementById('v-row-datacloud').style.display = needsSF ? '' : 'none';
+    document.getElementById('v-row-mcp').style.display = hasMcp ? '' : 'none';
+
+    if (needsTableau) {
+        document.getElementById('v-tableau').innerHTML = '<span class="inline-warn">Testing...</span>';
+        try {
+            const r = await fetch('/api/test-tableau', {method: 'POST', headers: jsonHeaders, body: '{}'});
+            const j = await r.json();
+            document.getElementById('v-tableau').innerHTML = j.ok
+                ? `<span class="inline-ok">Connected</span> — ${j.site_name}`
+                : `<span class="inline-warn">Failed</span> — ${j.error || 'unknown'}`;
+        } catch (e) {
+            document.getElementById('v-tableau').innerHTML = '<span class="inline-warn">Error</span>';
+        }
     }
 
-    try {
-        const r = await fetch('/api/test-salesforce', {method: 'POST', headers: jsonHeaders, body: '{}'});
-        const j = await r.json();
-        document.getElementById('v-salesforce').innerHTML = j.ok
-            ? `<span class="inline-ok">Connected</span> — ${j.username || j.instance}`
-            : `<span class="inline-warn">Failed</span> — ${j.error || 'unknown'}`;
-        document.getElementById('v-datacloud').innerHTML = j.data_cloud
-            ? `<span class="inline-ok">Connected</span> — ${j.dc_domain || ''}`
-            : '<span class="inline-warn">Failed</span> — token exchange error';
-    } catch (e) {
-        document.getElementById('v-salesforce').innerHTML = '<span class="inline-warn">Error</span>';
-        document.getElementById('v-datacloud').innerHTML = '<span class="inline-warn">Error</span>';
+    if (needsSF) {
+        try {
+            const r = await fetch('/api/test-salesforce', {method: 'POST', headers: jsonHeaders, body: '{}'});
+            const j = await r.json();
+            document.getElementById('v-salesforce').innerHTML = j.ok
+                ? `<span class="inline-ok">Connected</span> — ${j.username || j.instance}`
+                : `<span class="inline-warn">Failed</span> — ${j.error || 'unknown'}`;
+            document.getElementById('v-datacloud').innerHTML = j.data_cloud
+                ? `<span class="inline-ok">Connected</span> — ${j.dc_domain || ''}`
+                : '<span class="inline-warn">Failed</span> — token exchange error';
+            if (hasMcp) {
+                document.getElementById('v-mcp').innerHTML = j.mcp_ok
+                    ? '<span class="inline-ok">Connected</span>'
+                    : `<span class="inline-warn">Failed</span> — ${j.mcp_error || 'unknown'}`;
+            }
+        } catch (e) {
+            document.getElementById('v-salesforce').innerHTML = '<span class="inline-warn">Error</span>';
+            document.getElementById('v-datacloud').innerHTML = '<span class="inline-warn">Error</span>';
+        }
     }
 }
 
