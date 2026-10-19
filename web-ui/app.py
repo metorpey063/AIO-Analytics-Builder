@@ -892,6 +892,8 @@ def chat():
 
     if cfg["mode"] == "bedrock_gateway":
         return _chat_via_bedrock_gateway(cfg, messages, system_prompt)
+    elif cfg.get("api_key", "").startswith("sk-ant-oat"):
+        return _chat_via_bearer_token(cfg, messages, system_prompt)
     else:
         return _chat_via_anthropic_sdk(cfg, messages, system_prompt)
 
@@ -924,6 +926,42 @@ def _chat_via_bedrock_gateway(cfg, messages, system_prompt):
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
             else:
                 yield f"data: {json.dumps({'type': 'error', 'text': r.text[:300]})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'text': str(e)[:300]})}\n\n"
+
+    return Response(stream(), mimetype="text/event-stream")
+
+
+def _chat_via_bearer_token(cfg, messages, system_prompt):
+    """Chat via raw HTTP with Bearer auth (for OAuth tokens from claude setup-token)."""
+    import requests as req
+
+    url = "https://api.anthropic.com/v1/messages"
+    headers = {
+        "Authorization": f"Bearer {cfg['api_key']}",
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+    }
+    body = {
+        "model": CHAT_MODEL,
+        "max_tokens": 1024,
+        "system": system_prompt,
+        "messages": messages,
+    }
+
+    def stream():
+        try:
+            r = req.post(url, headers=headers, json=body, timeout=60)
+            if r.status_code == 200:
+                resp = r.json()
+                text = ""
+                for block in resp.get("content", []):
+                    if block.get("type") == "text":
+                        text += block["text"]
+                yield f"data: {json.dumps({'type': 'text', 'text': text})}\n\n"
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            else:
+                yield f"data: {json.dumps({'type': 'error', 'text': f'Error code: {r.status_code} - {r.text[:300]}'})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'text': str(e)[:300]})}\n\n"
 

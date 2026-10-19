@@ -176,6 +176,26 @@ Additional context: {notes or 'None'}
         for block in r.json().get("content", []):
             if block.get("type") == "text":
                 text += block["text"]
+    elif cfg.get("api_key", "").startswith("sk-ant-oat"):
+        import requests as req
+        url = "https://api.anthropic.com/v1/messages"
+        headers = {
+            "Authorization": f"Bearer {cfg['api_key']}",
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+        body = {
+            "model": CHAT_MODEL,
+            "max_tokens": 2048,
+            "system": STORY_SYSTEM_PROMPT,
+            "messages": [{"role": "user", "content": user_msg}],
+        }
+        r = req.post(url, headers=headers, json=body, timeout=60)
+        r.raise_for_status()
+        text = ""
+        for block in r.json().get("content", []):
+            if block.get("type") == "text":
+                text += block["text"]
     else:
         import anthropic
         client = anthropic.Anthropic(api_key=cfg["api_key"])
