@@ -1094,8 +1094,10 @@ async function verifyAll() {
     document.getElementById('v-salesforce').innerHTML = '<span class="inline-warn">Testing...</span>';
     document.getElementById('v-datacloud').innerHTML = '<span class="inline-warn">Testing...</span>';
 
+    const jsonHeaders = {'Content-Type': 'application/json'};
+
     try {
-        const r = await fetch('/api/test-tableau', {method: 'POST'});
+        const r = await fetch('/api/test-tableau', {method: 'POST', headers: jsonHeaders, body: '{}'});
         const j = await r.json();
         document.getElementById('v-tableau').innerHTML = j.ok
             ? `<span class="inline-ok">Connected</span> — ${j.site_name}`
@@ -1105,7 +1107,7 @@ async function verifyAll() {
     }
 
     try {
-        const r = await fetch('/api/test-salesforce', {method: 'POST'});
+        const r = await fetch('/api/test-salesforce', {method: 'POST', headers: jsonHeaders, body: '{}'});
         const j = await r.json();
         document.getElementById('v-salesforce').innerHTML = j.ok
             ? `<span class="inline-ok">Connected</span> — ${j.username || j.instance}`
