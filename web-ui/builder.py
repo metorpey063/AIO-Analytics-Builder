@@ -1484,8 +1484,9 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                                      "cdp_sys_sourceversion", "datasource", "datasourceobject",
                                      "data_source", "data_source_object", "kq_record_id")][:3]):
                                 fn = f"filter_{fi}"
+                                flabel = dname.replace("_", " ").title()
                                 ops.append({"operation": "upsert_filter_widget",
-                                    "widget": {"type": "filter", "name": fn,
+                                    "widget": {"type": "filter", "name": fn, "label": flabel,
                                         "source": {"name": cp["sdm_api"]},
                                         "parameters": {"isLabelHidden": False,
                                             "filterOption": {"objectName": cp["do_api"], "fieldName": dapi}}}})
