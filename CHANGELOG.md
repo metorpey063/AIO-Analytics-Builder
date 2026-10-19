@@ -4,6 +4,37 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-10-19 — MCP dashboard builder, installer UX, build pipeline fixes (v2.6.0)
+
+### Added
+- **Full MCP dashboard builder**: vizzes created via MCP slim spec (line, bar, multi-line with proper field bindings), dashboard assembled with upsert + place_widget_on_page pattern (metrics, filters, vizzes in Z layout)
+- **Dashboard filters**: 3 auto-selected dimension filters with labels, placed via MCP
+- **Post-build validation**: 7 checks verify SDM data, metrics, Display Date, vizzes, dashboard, data object after every Tableau Next build
+- **Build log persistence**: every build writes a `_build.log` file; "Log" button on My Demos opens it
+- **Delete with remote cleanup**: checkbox to delete Tableau Cloud/Next assets alongside local folder
+- **Restart button**: in-app server restart next to update button — no Terminal needed
+- **Flask auto-reloader**: server auto-restarts on code changes after git pull
+- **One-line installer**: `curl | bash` with Desktop shortcut and Gatekeeper bypass
+- **Getting Started guide**: collapsible panel on home page with 3-step walkthrough
+- **AI Configuration in Setup**: required field with `claude setup-token` instructions, OAuth token (Bearer) support
+- **File upload**: PDFs, DOCX, TXT, CSV, screenshots extracted and fed to AI story generation
+- **Input limits**: demo name 40 chars, field names 40 chars (Data Cloud limit)
+- **Retry + Back buttons**: on build progress step for error recovery
+
+### Fixed
+- **MCP viz UNKNOWN_EXCEPTION**: was using wrong param names (`semanticModelIdOrName` → `semanticModelName` + `semanticModelLabel`), calc dim `Display_Date` as DO field (needs raw date), and `legends` in spec (server auto-handles)
+- **MCP response parsing**: double-nested JSON (`defaultExc` containing JSON string) now correctly unwrapped
+- **MCP dashboard widgets**: `upsert_*_widget` only creates definition — must follow with `place_widget_on_page` to position on canvas
+- **MCP auth refresh**: removed `code_verifier` from refresh token grants (was causing "unexpected code verifier" 400)
+- **OAuth token support**: `sk-ant-oat01-*` tokens route to `Authorization: Bearer` header, not `x-api-key`
+- **Schema field names**: truncated to 40 chars, reserved prefixes stripped (`salesforce_`, `tableau_`, etc.), special characters removed
+- **Schema PUT**: skip existing schemas entirely (reserved field double-bind), always submit new schema only
+- **Duplicate profiles**: fixed apostrophe slug difference creating two profiles with same label
+- **Setup wizard**: form mode hidden, edit loads correct profile, MCP auth in Step 3, smart verify hides irrelevant tests
+- **Connection checks**: red/green/gray states with MCP error tooltips
+
+---
+
 ## 2026-10-19 — Feature parity: Advanced Mode, Research Depth, full output options (v2.5.0)
 
 ### Added
