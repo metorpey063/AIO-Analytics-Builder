@@ -2,9 +2,16 @@
 # ──────────────────────────────────────────
 # AIO Analytics Builder — One-Click Install
 # Double-click this file to set up AIO.
+#
+# GATEKEEPER: If macOS blocks this file, right-click
+# → Open, or run in Terminal:
+#   xattr -cr "path/to/AIO Analytics Builder"
 # ──────────────────────────────────────────
 
 cd "$(dirname "$0")"
+
+# Strip quarantine from all files so the launcher works later
+xattr -cr . 2>/dev/null
 
 echo ""
 echo "  ┌─────────────────────────────────────────┐"

@@ -1,0 +1,46 @@
+═══════════════════════════════════════════════════════
+  AIO Analytics Builder — Quick Start
+═══════════════════════════════════════════════════════
+
+  OPTION 1: One-Line Install (easiest)
+  ─────────────────────────────────────
+  Open Terminal (Spotlight → type "Terminal" → Enter)
+  and paste this single line:
+
+    curl -sL https://raw.githubusercontent.com/metorpey063/AIO-Analytics-Builder/main/install_remote.sh | bash
+
+  That's it. It downloads everything, installs
+  dependencies, and opens the Web UI automatically.
+
+
+  OPTION 2: Already downloaded the zip?
+  ──────────────────────────────────────
+  Open Terminal and paste these two lines:
+
+    cd "DRAG_FOLDER_HERE"
+    xattr -cr . && python3 install.py
+
+  TIP: Type  cd  then drag the AIO folder from
+  Finder into the Terminal window — it fills in
+  the path automatically.
+
+
+  OPTION 3: Fix the Gatekeeper popup
+  ───────────────────────────────────
+  If "Install AIO.command" shows a security warning,
+  open Terminal and paste:
+
+    xattr -cr ~/Downloads/AIO-Analytics-Builder
+
+  (adjust the path to wherever you unzipped it)
+  Then double-click "Install AIO.command" again.
+
+
+  WHAT THIS SETS UP
+  ─────────────────
+  • Python virtual environment with all dependencies
+  • Web UI at http://localhost:5050
+  • Guided setup wizard for Tableau Cloud + Salesforce
+  • One-click demo builder for Pulse, Next, and CRMA
+
+═══════════════════════════════════════════════════════

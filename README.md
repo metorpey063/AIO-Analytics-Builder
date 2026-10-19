@@ -48,20 +48,25 @@ A Claude Code tool for Salesforce/Tableau Solutions Engineers to rapidly build c
 
 ## Getting started
 
-### Option A — Web UI (recommended for most users)
+### Option A — One-Line Install (fastest)
 
-1. Unzip `AIO Analytics Builder.zip` wherever you want to keep it
-2. Double-click **`Install AIO.command`**
+Open **Terminal** (Spotlight → type "Terminal") and paste:
 
-> **macOS Gatekeeper warning?** If you see *"Install AIO.command cannot be opened because it is from an unidentified developer"*, **right-click** the file → **Open** → click **Open** in the dialog. You only need to do this once — macOS remembers the approval. Alternatively, run this in Terminal first:
-> ```bash
-> xattr -cr ~/Desktop/AIO\ Analytics\ Builder
-> ```
+```bash
+curl -sL https://raw.githubusercontent.com/metorpey063/AIO-Analytics-Builder/main/install_remote.sh | bash
+```
 
-3. The installer sets up Python, installs dependencies, and launches the Web UI at `http://localhost:5050`
-4. Follow the guided Setup wizard to connect your orgs, then Build Demo to create assets
+That's it — it downloads everything, installs dependencies, and opens the Web UI at `http://localhost:5050`. No zip to download, no Gatekeeper popups, no manual steps.
 
-### Option B — VS Code + Claude Code CLI
+### Option B — Install from zip
+
+1. Unzip `AIO Analytics Builder.zip`
+2. Open **Terminal**, type `cd ` then **drag the folder into Terminal** (fills in the path)
+3. Paste: `xattr -cr . && python3 install.py`
+
+> **Why `xattr -cr`?** macOS quarantines files downloaded from the internet. This command removes the quarantine flag so the installer and launcher work without Gatekeeper popups.
+
+### Option C — VS Code + Claude Code CLI
 
 ### Step 1 — Unzip and open the folder
 
