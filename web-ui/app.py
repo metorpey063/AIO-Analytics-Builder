@@ -68,14 +68,20 @@ def setup():
     from connections import load_full_config, set_active_profile
     edit_key = request.args.get("profile")
     full = load_full_config()
+
     if edit_key and edit_key in full.get("profiles", {}):
         set_active_profile(full, edit_key)
-    config = _load_config()
-    active_key = full.get("active_profile", "")
-    active_profile = full.get("profiles", {}).get(active_key, {})
-    active_label = active_profile.get("label", "")
-    tc = active_profile.get("tableau", {})
-    sf = active_profile.get("salesforce", {})
+        config = _load_config()
+        active_profile = full["profiles"][edit_key]
+        active_label = active_profile.get("label", "")
+        tc = active_profile.get("tableau", {})
+        sf = active_profile.get("salesforce", {})
+    else:
+        config = {"tableau": {}, "salesforce": {}}
+        active_label = ""
+        tc = {}
+        sf = {}
+
     return render_template("setup.html", config=config,
                            edit_profile_key=edit_key or "",
                            edit_profile_label=active_label,
