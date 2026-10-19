@@ -554,27 +554,63 @@
             <h2>AI Assistant <span class="optional">(optional)</span></h2>
             <span id="ai-status" class="badge badge-pending" style="display:none">Not configured</span>
         </div>
-        <p class="subtitle" style="margin-bottom:14px">Enter an Anthropic API key to enable the AI chat assistant (the "Ask Claude" button). This is optional — all build features work without it.</p>
-        <div class="form-stack">
-            <div class="form-group">
-                <label for="ai-api-key">
-                    Anthropic API Key
-                    <span class="tooltip-trigger" data-tooltip="This powers the chat assistant in the bottom-right corner. The key is stored locally in config.json and never sent anywhere except the Anthropic API.">?</span>
-                </label>
-                <div style="margin-bottom:10px; padding:10px 14px; background:var(--blue-light); border-radius:8px; font-size:12.5px; line-height:1.6; color:var(--text)">
-                    <strong>How to get a key:</strong><br>
-                    1. Go to <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--blue); font-weight:600">console.anthropic.com/settings/keys</a><br>
-                    2. Sign in (or create a free account)<br>
-                    3. Click <strong>Create Key</strong>, give it a name, and copy the key<br>
-                    4. Paste it below — it starts with <code style="font-size:11.5px; background:#e5e7eb; padding:1px 4px; border-radius:3px">sk-ant-...</code>
+        <p class="subtitle" style="margin-bottom:14px">Powers the "Ask Claude" chat assistant. Choose your auth method below. This is optional — all build features work without it.</p>
+
+        <!-- Mode toggle -->
+        <div style="display:flex; gap:8px; margin-bottom:14px">
+            <label class="output-card" style="flex:1; padding:10px 14px; cursor:pointer">
+                <input type="radio" name="ai-mode" value="bedrock" checked onchange="toggleAiMode()" style="accent-color:var(--blue)">
+                <div class="output-card-inner" style="gap:4px">
+                    <strong style="font-size:13px">Salesforce Bedrock Gateway</strong>
+                    <p style="font-size:11px">For Salesforce employees (uses corporate proxy)</p>
                 </div>
+            </label>
+            <label class="output-card" style="flex:1; padding:10px 14px; cursor:pointer">
+                <input type="radio" name="ai-mode" value="anthropic" onchange="toggleAiMode()" style="accent-color:var(--blue)">
+                <div class="output-card-inner" style="gap:4px">
+                    <strong style="font-size:13px">Anthropic API Key</strong>
+                    <p style="font-size:11px">Direct API access (personal or team key)</p>
+                </div>
+            </label>
+        </div>
+
+        <!-- Bedrock mode -->
+        <div id="ai-bedrock-fields" class="form-stack">
+            <div style="margin-bottom:10px; padding:10px 14px; background:var(--blue-light); border-radius:8px; font-size:12.5px; line-height:1.6; color:var(--text)">
+                <strong>How to get your auth token:</strong><br>
+                1. Open a <strong>Claude Code</strong> terminal session<br>
+                2. Run: <code style="font-size:11.5px; background:#e5e7eb; padding:1px 4px; border-radius:3px">echo $ANTHROPIC_AUTH_TOKEN</code><br>
+                3. Copy the token and paste it below
+            </div>
+            <div class="form-group">
+                <label for="ai-bedrock-url">Gateway URL</label>
+                <input type="text" id="ai-bedrock-url" value="https://eng-ai-model-gateway.sfproxy.devx-preprod.aws-esvc1-useast2.aws.sfdc.cl/bedrock" style="font-size:11.5px">
+            </div>
+            <div class="form-group">
+                <label for="ai-bedrock-token">Auth Token</label>
+                <input type="password" id="ai-bedrock-token" placeholder="Paste token from echo $ANTHROPIC_AUTH_TOKEN">
+            </div>
+        </div>
+
+        <!-- Anthropic mode -->
+        <div id="ai-anthropic-fields" class="form-stack" style="display:none">
+            <div style="margin-bottom:10px; padding:10px 14px; background:var(--blue-light); border-radius:8px; font-size:12.5px; line-height:1.6; color:var(--text)">
+                <strong>How to get a key:</strong><br>
+                1. Go to <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--blue); font-weight:600">console.anthropic.com/settings/keys</a><br>
+                2. Sign in (or create a free account)<br>
+                3. Click <strong>Create Key</strong>, give it a name, and copy the key<br>
+                4. Paste it below — it starts with <code style="font-size:11.5px; background:#e5e7eb; padding:1px 4px; border-radius:3px">sk-ant-...</code>
+            </div>
+            <div class="form-group">
+                <label for="ai-api-key">Anthropic API Key</label>
                 <input type="password" id="ai-api-key" placeholder="sk-ant-..." value="">
             </div>
-            <div class="form-actions">
-                <button type="button" class="btn btn-primary" onclick="saveAiKey()">Save</button>
-            </div>
-            <div id="ai-result" class="test-result"></div>
         </div>
+
+        <div class="form-actions" style="margin-top:12px">
+            <button type="button" class="btn btn-primary" onclick="saveAiKey()">Save</button>
+        </div>
+        <div id="ai-result" class="test-result"></div>
     </section>
 </div><!-- end setup-split-form -->
 
@@ -1026,23 +1062,46 @@ async function startOAuth() {
     }
 }
 
-// ---- AI Assistant key ----
+// ---- AI Assistant ----
+function toggleAiMode() {
+    const mode = document.querySelector('input[name="ai-mode"]:checked').value;
+    document.getElementById('ai-bedrock-fields').style.display = mode === 'bedrock' ? '' : 'none';
+    document.getElementById('ai-anthropic-fields').style.display = mode === 'anthropic' ? '' : 'none';
+}
+
 async function saveAiKey() {
-    const key = document.getElementById('ai-api-key').value.trim();
-    if (!key) {
-        showResult('ai-result', false, 'Please enter an API key');
-        return;
+    const mode = document.querySelector('input[name="ai-mode"]:checked').value;
+    let body;
+
+    if (mode === 'bedrock') {
+        const url = document.getElementById('ai-bedrock-url').value.trim();
+        const token = document.getElementById('ai-bedrock-token').value.trim();
+        if (!url || !token) {
+            showResult('ai-result', false, 'Both Gateway URL and Auth Token are required');
+            return;
+        }
+        body = {mode: 'bedrock', base_url: url, auth_token: token};
+    } else {
+        const key = document.getElementById('ai-api-key').value.trim();
+        if (!key) {
+            showResult('ai-result', false, 'Please enter an API key');
+            return;
+        }
+        body = {mode: 'anthropic', api_key: key};
     }
+
     showResult('ai-result', null, 'Saving...');
     try {
         const r = await fetch('/api/chat/save-key', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({api_key: key}),
+            body: JSON.stringify(body),
         });
         const j = await r.json();
         if (j.ok) {
-            showResult('ai-result', true, 'API key saved. The Ask Claude button will appear on your next page load.');
+            showResult('ai-result', true, 'Saved! The Ask Claude button will appear on your next page load.');
+            const badge = document.getElementById('ai-status');
+            if (badge) { badge.style.display = ''; badge.className = 'badge badge-ok'; badge.textContent = 'Configured'; }
         } else {
             showResult('ai-result', false, j.error || 'Failed to save');
         }
