@@ -79,14 +79,46 @@ async function openWalkthrough(slug, filename) {
 }
 
 async function deleteDemo(slug, name) {
-    if (!confirm(`Delete "${name}"? This removes the entire demo folder including CSV, walkthrough, and checkpoint files. This cannot be undone.`)) return;
-    const r = await fetch('/api/demos/' + slug + '/delete', {method: 'POST'});
-    const j = await r.json();
-    if (j.ok) {
-        location.reload();
-    } else {
-        alert('Could not delete: ' + (j.error || 'unknown error'));
-    }
+    // Show a custom dialog with remote delete option
+    const dialog = document.createElement('div');
+    dialog.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+    dialog.innerHTML = `
+        <div style="background:white;border-radius:12px;padding:24px;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+            <h3 style="margin:0 0 8px;font-size:16px">Delete "${name}"?</h3>
+            <p style="margin:0 0 16px;font-size:13px;color:#6B7280">This removes the local demo folder (CSV, walkthrough, checkpoint). This cannot be undone.</p>
+            <label style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;cursor:pointer;margin-bottom:16px">
+                <input type="checkbox" id="del-remote-chk" style="margin-top:2px;accent-color:#DC2626">
+                <div>
+                    <strong style="font-size:13px;color:#DC2626">Also delete remote assets</strong>
+                    <p style="margin:2px 0 0;font-size:11.5px;color:#6B7280">Remove dashboards, visualizations, SDMs, and workspaces from Tableau Cloud / Tableau Next</p>
+                </div>
+            </label>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+                <button onclick="this.closest('div[style]').remove()" class="btn btn-ghost">Cancel</button>
+                <button id="del-confirm-btn" class="btn" style="background:#DC2626;color:white;border:none;padding:8px 20px;border-radius:8px;cursor:pointer;font-weight:600">Delete</button>
+            </div>
+        </div>`;
+    document.body.appendChild(dialog);
+    dialog.querySelector('#del-confirm-btn').onclick = async () => {
+        const deleteRemote = dialog.querySelector('#del-remote-chk').checked;
+        const btn = dialog.querySelector('#del-confirm-btn');
+        btn.textContent = deleteRemote ? 'Deleting remote assets...' : 'Deleting...';
+        btn.disabled = true;
+        const r = await fetch('/api/demos/' + slug + '/delete', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({delete_remote: deleteRemote}),
+        });
+        const j = await r.json();
+        dialog.remove();
+        if (j.ok) {
+            if (j.remote_results && j.remote_results.length) {
+                alert('Remote cleanup results:\n' + j.remote_results.join('\n'));
+            }
+            location.reload();
+        } else {
+            alert('Could not delete: ' + (j.error || 'unknown error'));
+        }
+    };
 }
 </script>
 {% endblock %}

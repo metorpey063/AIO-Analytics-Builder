@@ -168,16 +168,86 @@ def demos():
 
 @app.route("/api/demos/<slug>/delete", methods=["POST"])
 def delete_demo(slug):
-    """Delete a demo folder."""
+    """Delete a demo folder and optionally clean up remote assets."""
     import shutil
     demos_dir = PROJECT_ROOT / "demos" / slug
     if not demos_dir.exists():
         return jsonify({"ok": False, "error": "Demo not found"})
+
+    data = request.json or {}
+    delete_remote = data.get("delete_remote", False)
+    remote_results = []
+
+    if delete_remote:
+        cp_path = demos_dir / f"{slug}_checkpoint.json"
+        if cp_path.exists():
+            try:
+                cp = json.loads(cp_path.read_text())
+                remote_results = _delete_remote_assets(cp)
+            except Exception as e:
+                remote_results.append(f"Error reading checkpoint: {e}")
+
     try:
         shutil.rmtree(str(demos_dir))
-        return jsonify({"ok": True})
+        return jsonify({"ok": True, "remote_results": remote_results})
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)})
+        return jsonify({"ok": False, "error": str(e), "remote_results": remote_results})
+
+
+def _delete_remote_assets(cp):
+    """Delete remote assets from Tableau Cloud or Tableau Next based on checkpoint."""
+    import requests as req
+    results = []
+    build_type = cp.get("build_type", "")
+
+    if build_type == "pulse":
+        try:
+            from connections import get_tableau_token, tableau_headers, tableau_pulse_headers
+            server, auth_token, site_id = get_tableau_token()
+            base = server.server_address.rstrip("/")
+            h_pulse = {"x-tableau-auth": auth_token, "Accept": "application/json", "Content-Type": "application/json"}
+
+            for def_id in cp.get("pulse_def_ids", []):
+                r = req.delete(f"{base}/api/-/pulse/definitions/{def_id}", headers=h_pulse)
+                results.append(f"Pulse definition {def_id}: {'deleted' if r.ok else r.status_code}")
+
+            if cp.get("pulse_project_id"):
+                import tableauserverclient as TSC
+                try:
+                    server.projects.delete(cp["pulse_project_id"])
+                    results.append(f"Project {cp.get('pulse_project_name', '')}: deleted")
+                except Exception as e:
+                    results.append(f"Project delete failed: {e}")
+
+            server.auth.sign_out()
+        except Exception as e:
+            results.append(f"Pulse cleanup error: {e}")
+
+    elif build_type == "next":
+        try:
+            from connections import get_sf_token, sf_headers
+            sf_token, sf_instance = get_sf_token()
+            h = sf_headers(sf_token)
+
+            for dash in cp.get("all_dash_apis", []):
+                r = req.delete(f"{sf_instance}/services/data/v66.0/tableau/dashboards/{dash}?minorVersion=12", headers=h)
+                results.append(f"Dashboard {dash}: {'deleted' if r.ok else r.status_code}")
+
+            for viz in cp.get("all_viz_apis", []):
+                r = req.delete(f"{sf_instance}/services/data/v66.0/tableau/visualizations/{viz}?minorVersion=12", headers=h)
+                results.append(f"Viz {viz}: {'deleted' if r.ok else r.status_code}")
+
+            for sdm in cp.get("all_sdm_apis", []):
+                r = req.delete(f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{sdm}", headers=h)
+                results.append(f"SDM {sdm}: {'deleted' if r.ok else r.status_code}")
+
+            for ws in cp.get("all_ws_apis", []):
+                r = req.delete(f"{sf_instance}/services/data/v65.0/tableau/workspaces/{ws}", headers=h)
+                results.append(f"Workspace {ws}: {'deleted' if r.ok else r.status_code}")
+        except Exception as e:
+            results.append(f"Next cleanup error: {e}")
+
+    return results
 
 
 @app.route("/api/demos/<slug>/open")
