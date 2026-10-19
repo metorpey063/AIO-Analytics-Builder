@@ -409,8 +409,11 @@
                 <div id="summary-items" style="font-size:13px; line-height:1.8; color:var(--text-secondary)"></div>
             </div>
             <div class="wizard-actions">
-                <div></div>
-                <button class="btn btn-primary hidden" id="build-done-btn" onclick="location.href='/demos'">View Demo &rarr;</button>
+                <button class="btn btn-ghost" onclick="goStep(4)">&larr; Back to Options</button>
+                <div style="display:flex; gap:8px">
+                    <button class="btn btn-secondary hidden" id="build-retry-btn" onclick="startBuild()">Retry Build</button>
+                    <button class="btn btn-primary hidden" id="build-done-btn" onclick="location.href='/demos'">View Demo &rarr;</button>
+                </div>
             </div>
         </div>
     </div>
@@ -929,6 +932,15 @@ function collectMetricsFromTable() {
 }
 
 async function startBuild() {
+    // Reset progress UI for retries
+    document.getElementById('progress-fill').style.width = '0%';
+    document.getElementById('progress-label').textContent = 'Initializing...';
+    document.getElementById('progress-log').innerHTML = '';
+    document.getElementById('build-done-btn').classList.add('hidden');
+    document.getElementById('build-retry-btn').classList.add('hidden');
+    const summaryEl = document.getElementById('build-summary');
+    if (summaryEl) summaryEl.classList.add('hidden');
+
     if (currentMode === 'wizard') {
         goStep(5);
     } else {
@@ -1032,6 +1044,7 @@ async function startBuild() {
         }
         if (msg.stage === 'error') {
             es.close();
+            document.getElementById('build-retry-btn').classList.remove('hidden');
             document.getElementById(doneId).classList.remove('hidden');
         }
     };
