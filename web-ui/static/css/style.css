@@ -743,20 +743,20 @@ textarea.mono { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-s
     display: flex;
     align-items: center;
     gap: 6px;
-    background: none;
-    border: 1px solid rgba(0,0,0,0.08);
+    background: rgba(37, 99, 235, 0.08);
+    border: 1px solid rgba(37, 99, 235, 0.25);
     border-radius: 8px;
     padding: 8px 14px;
     font-size: 13px;
     font-weight: 600;
-    color: var(--text-muted);
+    color: var(--blue);
     cursor: pointer;
     width: 100%;
     text-align: left;
     font-family: inherit;
     transition: background var(--transition);
 }
-.advanced-toggle:hover { background: rgba(0,0,0,0.03); }
+.advanced-toggle:hover { background: rgba(37, 99, 235, 0.14); }
 .advanced-arrow { font-size: 10px; transition: transform 200ms ease; }
 .advanced-section.expanded .advanced-arrow { transform: rotate(90deg); }
 .advanced-body {

@@ -911,9 +911,13 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
             fields.append({"name": mc["label"], "dataType": "Number"})
 
         def _clean_field_name(name):
-            """Sanitize field name for Data Cloud schema: lowercase, underscores, alphanumeric only, max 40 chars."""
+            """Sanitize field name for Data Cloud schema: lowercase, underscores, alphanumeric only, max 40 chars.
+            Also strips reserved prefixes (salesforce, tableau, data_cloud)."""
             clean = re.sub(r"[^a-z0-9_]", "", name.lower().replace(" ", "_"))
             clean = re.sub(r"_+", "_", clean).strip("_")
+            for prefix in ("salesforce_", "tableau_", "data_cloud_", "sfdc_"):
+                if clean.startswith(prefix):
+                    clean = clean[len(prefix):]
             return (clean[:40] if clean else "field")
 
         schema_fields = [{"name": _clean_field_name(f["name"]),
