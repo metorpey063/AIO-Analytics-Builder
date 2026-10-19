@@ -86,68 +86,24 @@
 
             <!-- AI Assistant (optional, inline in Step 0) -->
             <div style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border)">
-                <h2 style="margin-bottom:4px">AI Assistant <span class="optional">(optional)</span></h2>
-                <p class="subtitle" style="margin-bottom:14px">Enable the "Ask Claude" chat button for in-app help. You can skip this and set it up later.</p>
+                <h2 style="margin-bottom:4px">AI Configuration <span style="color:var(--red); font-size:12px; font-weight:600">Required</span></h2>
+                <p class="subtitle" style="margin-bottom:14px">AIO uses Claude AI to generate demo stories, metrics, and the chat assistant. A key is required to build demos.</p>
 
-                <div style="display:flex; gap:8px; margin-bottom:12px">
-                    <label class="output-card" style="flex:1; padding:8px 12px; cursor:pointer">
-                        <input type="radio" name="wiz-ai-mode" value="bedrock" checked onchange="toggleWizAiMode()" style="accent-color:var(--blue)">
-                        <div class="output-card-inner" style="gap:2px">
-                            <strong style="font-size:12.5px">Salesforce Bedrock Gateway</strong>
-                            <p style="font-size:10.5px">For Salesforce employees</p>
-                        </div>
-                    </label>
-                    <label class="output-card" style="flex:1; padding:8px 12px; cursor:pointer">
-                        <input type="radio" name="wiz-ai-mode" value="anthropic" onchange="toggleWizAiMode()" style="accent-color:var(--blue)">
-                        <div class="output-card-inner" style="gap:2px">
-                            <strong style="font-size:12.5px">Anthropic API Key</strong>
-                            <p style="font-size:10.5px">Direct API access</p>
-                        </div>
-                    </label>
-                    <label class="output-card" style="flex:1; padding:8px 12px; cursor:pointer">
-                        <input type="radio" name="wiz-ai-mode" value="skip" onchange="toggleWizAiMode()" style="accent-color:var(--blue)">
-                        <div class="output-card-inner" style="gap:2px">
-                            <strong style="font-size:12.5px">Skip</strong>
-                            <p style="font-size:10.5px">Set up later</p>
-                        </div>
-                    </label>
-                </div>
-
-                <div id="wiz-ai-bedrock" class="form-stack" style="gap:8px">
-                    <div style="padding:8px 12px; background:var(--blue-light); border-radius:8px; font-size:12px; line-height:1.5; color:var(--text)">
-                        <strong>How to get your token:</strong> Open a Claude Code terminal → run <code style="font-size:11px; background:#e5e7eb; padding:1px 4px; border-radius:3px">echo $ANTHROPIC_AUTH_TOKEN</code> → paste below
+                <div class="form-stack" style="gap:8px">
+                    <div style="padding:10px 14px; background:var(--blue-light); border-radius:8px; font-size:12.5px; line-height:1.6; color:var(--text)">
+                        <strong>How to get your key:</strong><br>
+                        1. Open <strong>Terminal</strong> and run: <code style="font-size:11.5px; background:#e5e7eb; padding:1px 5px; border-radius:3px">claude setup-token</code><br>
+                        2. Copy the <code style="font-size:11.5px; background:#e5e7eb; padding:1px 5px; border-radius:3px">sk-ant-...</code> token it generates (valid for 1 year)<br>
+                        3. Paste it below
                     </div>
                     <div class="form-group" style="margin-bottom:0">
-                        <label style="font-size:12px">Gateway URL</label>
-                        <input type="text" id="wiz-bedrock-url" value="https://eng-ai-model-gateway.sfproxy.devx-preprod.aws-esvc1-useast2.aws.sfdc.cl/bedrock" style="font-size:11px">
-                    </div>
-                    <div class="form-group" style="margin-bottom:0">
-                        <label style="font-size:12px">Auth Token</label>
-                        <div style="display:flex; gap:4px">
-                            <input type="password" id="wiz-bedrock-token" placeholder="Paste from echo $ANTHROPIC_AUTH_TOKEN" style="flex:1">
-                            <button type="button" class="btn btn-ghost btn-sm" onclick="togglePwdVis('wiz-bedrock-token', this)" title="Show/hide" style="padding:4px 8px; font-size:16px">👁</button>
-                        </div>
-                    </div>
-                    <button class="btn btn-primary btn-sm" onclick="saveWizAiKey()" style="align-self:flex-start">Save</button>
-                </div>
-
-                <div id="wiz-ai-anthropic" class="form-stack" style="display:none; gap:8px">
-                    <div style="padding:8px 12px; background:var(--blue-light); border-radius:8px; font-size:12px; line-height:1.5; color:var(--text)">
-                        <strong>Recommended for Salesforce employees:</strong> Open Terminal → run <code style="font-size:11px; background:#e5e7eb; padding:1px 4px; border-radius:3px">claude setup-token</code> → copy the <code style="font-size:11px; background:#e5e7eb; padding:1px 4px; border-radius:3px">sk-ant-...</code> token → paste below.<br>
-                        <span style="color:var(--text-muted)">Or get a key from <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--blue)">console.anthropic.com/settings/keys</a></span>
-                    </div>
-                    <div class="form-group" style="margin-bottom:0">
-                        <label style="font-size:12px">API Key / Token</label>
+                        <label style="font-size:12px">Claude API Key</label>
                         <div style="display:flex; gap:4px">
                             <input type="password" id="wiz-api-key" placeholder="sk-ant-..." style="flex:1">
                             <button type="button" class="btn btn-ghost btn-sm" onclick="togglePwdVis('wiz-api-key', this)" title="Show/hide" style="padding:4px 8px; font-size:16px">👁</button>
                         </div>
                     </div>
-                    <button class="btn btn-primary btn-sm" onclick="saveWizAiKey()" style="align-self:flex-start">Save</button>
-                </div>
-
-                <div id="wiz-ai-skip" style="display:none">
-                    <p class="form-hint">No problem — you can configure this anytime in Setup (form mode) or Connections.</p>
+                    <button class="btn btn-primary btn-sm" onclick="saveWizAiKeySimple()" style="align-self:flex-start">Save</button>
                 </div>
 
                 <div id="wiz-ai-result" class="test-result" style="font-size:12px"></div>
@@ -644,7 +600,7 @@
     <!-- AI Assistant (global setting) -->
     <section class="card">
         <div class="card-header">
-            <h2>AI Assistant <span class="optional">(optional)</span></h2>
+            <h2>AI Configuration <span style="color:var(--red); font-size:12px; font-weight:600">Required</span></h2>
             <span id="ai-status" class="badge badge-pending" style="display:none">Not configured</span>
         </div>
         <p class="subtitle" style="margin-bottom:14px">Powers the "Ask Claude" chat assistant. Choose your auth method below. This is optional — all build features work without it.</p>
@@ -1294,35 +1250,18 @@ async function saveAiKey() {
 }
 
 // ---- Wizard AI Assistant (Step 0) ----
-function toggleWizAiMode() {
-    const mode = document.querySelector('input[name="wiz-ai-mode"]:checked').value;
-    document.getElementById('wiz-ai-bedrock').style.display = mode === 'bedrock' ? '' : 'none';
-    document.getElementById('wiz-ai-anthropic').style.display = mode === 'anthropic' ? '' : 'none';
-    document.getElementById('wiz-ai-skip').style.display = mode === 'skip' ? '' : 'none';
-}
-
-async function saveWizAiKey() {
-    const mode = document.querySelector('input[name="wiz-ai-mode"]:checked').value;
-    let body;
-    if (mode === 'bedrock') {
-        const url = document.getElementById('wiz-bedrock-url').value.trim();
-        const token = document.getElementById('wiz-bedrock-token').value.trim();
-        if (!url || !token) { showResult('wiz-ai-result', false, 'Both fields required'); return; }
-        body = {mode: 'bedrock', base_url: url, auth_token: token};
-    } else if (mode === 'anthropic') {
-        const key = document.getElementById('wiz-api-key').value.trim();
-        if (!key) { showResult('wiz-ai-result', false, 'Enter an API key'); return; }
-        body = {mode: 'anthropic', api_key: key};
-    } else { return; }
+async function saveWizAiKeySimple() {
+    const key = document.getElementById('wiz-api-key').value.trim();
+    if (!key) { showResult('wiz-ai-result', false, 'Paste your Claude API key (run "claude setup-token" in Terminal to get one)'); return; }
 
     showResult('wiz-ai-result', null, 'Saving...');
     try {
         const r = await fetch('/api/chat/save-key', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(body),
+            body: JSON.stringify({mode: 'anthropic', api_key: key}),
         });
         const j = await r.json();
-        showResult('wiz-ai-result', j.ok, j.ok ? 'Saved! Ask Claude will appear after setup.' : (j.error || 'Failed'));
+        showResult('wiz-ai-result', j.ok, j.ok ? 'Saved! AI is ready for story generation and chat.' : (j.error || 'Failed'));
     } catch (e) {
         showResult('wiz-ai-result', false, e.message);
     }
