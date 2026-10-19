@@ -431,6 +431,24 @@
                 <strong>Note:</strong> It can take up to 10 minutes for a new External Client App to become active after creation. If the OAuth flow fails immediately, wait a few minutes and try again.
             </p>
             <div id="w-oauth-result" class="test-result"></div>
+
+            <!-- MCP Authorization (only if MCP Consumer Key was entered in Step 2) -->
+            <div id="w-mcp-auth-section" style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border); display:none">
+                <h3 style="font-size:15px; margin-bottom:8px">MCP Authorization</h3>
+                <p class="subtitle" style="margin-bottom:12px">If you entered an MCP Consumer Key in Step 2, authorize it separately here. This uses the MCP ECA (different from the main OAuth above).</p>
+                <div class="mcp-auth-box" style="margin-bottom:12px">
+                    <div style="display:flex; align-items:center; gap:10px">
+                        <span style="font-size:20px">🔐</span>
+                        <div>
+                            <strong>MCP Authorization Required</strong>
+                            <p class="form-hint" style="margin:2px 0 0">Opens a browser to authenticate with the MCP External Client App (separate from the main OAuth).</p>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" style="margin-top:10px" onclick="runMcpOAuth()">Authorize MCP Connection</button>
+                </div>
+                <div id="w-mcp-oauth-result" class="test-result"></div>
+            </div>
+
             <div class="wizard-actions" style="margin-top:20px">
                 <button class="btn btn-ghost" onclick="goSetupStep(2)">&larr; Back</button>
                 <button class="btn btn-primary" onclick="goSetupStep(4)">Next: Verify &rarr;</button>
@@ -950,6 +968,8 @@ function goSetupStep(n) {
     // Mark step 0 as done once past it
     stepper0 = document.querySelector('#setup-wizard .stepper [data-step="0"]');
     if (stepper0 && n > 0) { stepper0.classList.add('done'); stepper0.classList.remove('active'); }
+    // Show MCP auth section in Step 3 if MCP key was entered
+    if (n === 3) checkMcpAuthNeeded();
 }
 
 function nextAfterTableau() {
@@ -1031,6 +1051,41 @@ async function runOAuth() {
         }
     } catch (e) {
         showResult('w-oauth-result', false, 'Request failed: ' + e.message);
+    }
+}
+
+async function runMcpOAuth() {
+    showResult('w-mcp-oauth-result', null, 'Opening browser for MCP authorization...');
+
+    // Save MCP client_id/secret first
+    const mcpId = document.getElementById('w-mcp-client-id')?.value.trim() || '';
+    const mcpSecret = document.getElementById('w-mcp-client-secret')?.value.trim() || '';
+    if (mcpId) {
+        await fetch('/api/save-config', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({salesforce: {mcp_client_id: mcpId, mcp_client_secret: mcpSecret}}),
+        });
+    }
+
+    try {
+        const r = await fetch('/api/oauth/mcp', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
+        const j = await r.json();
+        if (j.ok) {
+            showResult('w-mcp-oauth-result', true, 'MCP authorized! Token saved. Instance: ' + (j.instance_url || ''));
+        } else {
+            showResult('w-mcp-oauth-result', false, j.error);
+        }
+    } catch (e) {
+        showResult('w-mcp-oauth-result', false, 'Request failed: ' + e.message);
+    }
+}
+
+// Show MCP auth section in Step 3 if MCP Consumer Key was entered
+function checkMcpAuthNeeded() {
+    const mcpKey = document.getElementById('w-mcp-client-id')?.value.trim() || '';
+    const mcpSection = document.getElementById('w-mcp-auth-section');
+    if (mcpSection) {
+        mcpSection.style.display = mcpKey ? '' : 'none';
     }
 }
 
