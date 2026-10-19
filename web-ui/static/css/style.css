@@ -756,6 +756,41 @@ textarea.mono { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-s
 }
 .build-summary h3 { color: var(--green) !important; }
 
+/* File upload */
+.file-upload-area {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.uploaded-files-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+.uploaded-file-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: var(--blue-light);
+    border: 1px solid var(--blue);
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--blue);
+}
+.uploaded-file-chip button {
+    background: none;
+    border: none;
+    color: var(--blue);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0 2px;
+    opacity: 0.7;
+}
+.uploaded-file-chip button:hover { opacity: 1; }
+
 /* =========================================================================
    Metrics table
    ========================================================================= */

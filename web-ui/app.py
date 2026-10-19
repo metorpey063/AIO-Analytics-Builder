@@ -648,6 +648,55 @@ def demos_list_api():
     return jsonify(result)
 
 
+@app.route("/api/build/upload", methods=["POST"])
+def build_upload():
+    """Extract text from uploaded files (PDF, DOCX, TXT, CSV, images)."""
+    if "file" not in request.files:
+        return jsonify({"ok": False, "error": "No file provided"})
+    f = request.files["file"]
+    if not f.filename:
+        return jsonify({"ok": False, "error": "Empty filename"})
+
+    fname = f.filename.lower()
+    try:
+        if fname.endswith(".txt") or fname.endswith(".md"):
+            text = f.read().decode("utf-8", errors="replace")
+        elif fname.endswith(".csv"):
+            text = f.read().decode("utf-8", errors="replace")
+            lines = text.strip().split("\n")
+            if len(lines) > 50:
+                text = "\n".join(lines[:50]) + f"\n... ({len(lines)} total rows)"
+        elif fname.endswith(".pdf"):
+            import PyPDF2
+            reader = PyPDF2.PdfReader(f)
+            pages = []
+            for page in reader.pages[:20]:
+                pages.append(page.extract_text() or "")
+            text = "\n".join(pages)
+        elif fname.endswith(".docx"):
+            import docx
+            doc = docx.Document(f)
+            text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+        elif fname.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
+            import base64
+            data = f.read()
+            b64 = base64.b64encode(data).decode("ascii")
+            ext = fname.rsplit(".", 1)[-1]
+            mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                    "gif": "image/gif", "webp": "image/webp"}.get(ext, "image/png")
+            return jsonify({"ok": True, "filename": f.filename, "type": "image",
+                            "data_url": f"data:{mime};base64,{b64}"})
+        else:
+            text = f.read().decode("utf-8", errors="replace")
+
+        if len(text) > 15000:
+            text = text[:15000] + "\n... (truncated)"
+
+        return jsonify({"ok": True, "filename": f.filename, "type": "text", "text": text})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Failed to read {f.filename}: {str(e)[:200]}"})
+
+
 @app.route("/api/build/generate-story", methods=["POST"])
 def build_generate_story():
     """Use Claude API to generate story + metrics from user inputs."""

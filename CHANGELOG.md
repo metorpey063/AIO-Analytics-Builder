@@ -16,6 +16,7 @@ All notable changes to AIO Analytics Builder are documented here.
 - **CRMA output**: checkbox uploads dataset to CRM Analytics via `crma_uploader.py`.
 - **Build summary panel**: green success panel on completion with checklist of all outputs created.
 - **Enriched walkthrough .docx**: full CLAUDE.md format — Demo Scenario (About + Audience & Story), Metrics Reference (What it measures + Why it matters), Click Path or Concierge Prompts with drill-down steps, Goal Lines (Pulse), Business Preferences (Next).
+- **File upload**: upload call transcripts, meeting notes, screenshots, PDFs, or any supporting documents. Extracted text is passed to AI story generation for context-aware demo design. Supports PDF, DOCX, TXT, CSV, and image files.
 
 ### Fixed
 - Signal ramp now supports all three shapes: `accelerating` (quadratic), `ramp` (linear), and `step` (threshold at 30%).
