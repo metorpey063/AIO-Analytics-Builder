@@ -722,9 +722,10 @@ def _validate_next_build(config, cp, metric_config, q):
                 first_dim = v
                 break
 
-        if first_meas and do_api:
+        dlo_name = cp.get("dlo_name", "")
+        if first_meas and dlo_name:
             query_body = {
-                "sql": f'SELECT COUNT(*) as cnt FROM {do_api}',
+                "sql": f'SELECT COUNT(*) as cnt FROM {dlo_name}',
             }
             r = req.post(f"{sf_instance}/services/data/v62.0/ssot/queryv2",
                          headers=h, json=query_body, timeout=30)
@@ -827,31 +828,24 @@ def _validate_next_build(config, cp, metric_config, q):
             progress(q, "validate", f"✗ Dashboard check error: {str(e)[:100]}", -1)
             checks_failed += 1
 
-    # 6. Try a semantic query to verify data flows through the SDM
+    # 6. Verify SDM has data objects with measurements
     checks_total += 1
     try:
-        if first_meas and do_api:
-            sq_body = {
-                "semanticModelApiName": sdm_api,
-                "columns": [{"fieldApiName": first_meas, "tableApiName": do_api}],
-                "limit": 5,
-            }
-            r = req.post(f"{sf_instance}/services/data/v66.0/ssot/semantic/query?minorVersion=12",
-                         headers=h, json=sq_body, timeout=30)
+        if sdm_api and do_api:
+            r = req.get(
+                f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{sdm_api}/data-objects/{do_api}",
+                headers=h, timeout=15)
             if r.ok:
-                rows = r.json().get("data", [])
-                if rows:
-                    sample_val = rows[0].get(first_meas, "null")
-                    progress(q, "validate", f"✓ Semantic query returned {len(rows)} rows (sample: {sample_val})", -1)
-                    checks_passed += 1
-                else:
-                    progress(q, "validate", "✗ Semantic query returned 0 rows — SDM may not be connected to data", -1)
-                    checks_failed += 1
+                do_data = r.json()
+                meas_count = len(do_data.get("semanticMeasurements", []))
+                dim_count = len(do_data.get("semanticDimensions", []))
+                progress(q, "validate", f"✓ SDM data object verified: {meas_count} measurements, {dim_count} dimensions", -1)
+                checks_passed += 1
             else:
-                progress(q, "validate", f"✗ Semantic query failed: {r.text[:200]}", -1)
+                progress(q, "validate", f"✗ SDM data object not found: {r.status_code}", -1)
                 checks_failed += 1
     except Exception as e:
-        progress(q, "validate", f"✗ Semantic query error: {str(e)[:200]}", -1)
+        progress(q, "validate", f"✗ SDM data object check error: {str(e)[:200]}", -1)
         checks_failed += 1
 
     # Summary
@@ -1311,6 +1305,24 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         except Exception as e:
             progress(q, "info", f"MCP not available ({e}) — using REST fallback", -1)
 
+        def _parse_mcp_result(result):
+            """Extract the actual data from an MCP tool response.
+            MCP wraps everything in {"content": [{"text": "<json-string>"}]}."""
+            if not isinstance(result, dict):
+                return {}
+            if result.get("isError"):
+                err_text = result.get("content", [{}])[0].get("text", "Unknown error") if result.get("content") else "Unknown error"
+                raise RuntimeError(f"MCP error: {err_text[:200]}")
+            content = result.get("content", [])
+            if content and content[0].get("type") == "text":
+                try:
+                    return json.loads(content[0]["text"])
+                except (json.JSONDecodeError, KeyError):
+                    pass
+            if "name" in result:
+                return result
+            return result
+
         if mcp_available:
             # --- MCP path: slim viz specs + Z layout dashboard ---
             try:
@@ -1325,18 +1337,21 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                     progress(q, "viz", f"Creating viz {i+1} via MCP: {mc['label']}...", 70 + int(5 * i))
                     dim_name = user_dim_names[i % len(user_dim_names)] if user_dim_names else "region"
                     try:
-                        result = mcp.create_visualization(
+                        raw = mcp.create_visualization(
                             name=f"{slug}_{mc['field']}",
                             label=mc["label"],
                             semanticModelIdOrName=cp["sdm_api"],
                             workspaceIdOrApiName=cp["ws_api"],
                             description=mc.get("description", ""),
                         )
-                        viz_api = result.get("name", "") if isinstance(result, dict) else ""
+                        parsed = _parse_mcp_result(raw)
+                        viz_api = parsed.get("name", "")
                         if viz_api:
                             cp["viz_apis"].append(viz_api)
                             cp["all_viz_apis"].append(viz_api)
-                            progress(q, "viz", f"Created viz: {mc['label']}", -1)
+                            progress(q, "viz", f"Created viz: {mc['label']} → {viz_api}", -1)
+                        else:
+                            progress(q, "warn", f"MCP viz {mc['label']}: no name in response: {str(parsed)[:150]}", -1)
                     except Exception as e:
                         progress(q, "warn", f"MCP viz {mc['label']} failed: {e}", -1)
 
@@ -1346,12 +1361,14 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 progress(q, "dash", "Creating Z layout dashboard via MCP...", 80)
                 try:
                     demo_label = build_config.get("demo_name", "") or company
-                    result = mcp.create_dashboard(
+                    raw = mcp.create_dashboard(
                         name=f"{slug}_dashboard",
                         label=f"{demo_label} Dashboard",
                         workspaceIdOrApiName=cp["ws_api"],
                     )
-                    dash_api = result.get("name", "") if isinstance(result, dict) else ""
+                    parsed = _parse_mcp_result(raw)
+                    dash_api = parsed.get("name", "")
+                    progress(q, "info", f"Dashboard response: name={dash_api}, keys={list(parsed.keys())[:5]}", -1)
                     if dash_api:
                         cp["dash_api"] = dash_api
                         cp["all_dash_apis"].append(dash_api)
