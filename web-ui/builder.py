@@ -1308,7 +1308,8 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
         def _parse_mcp_result(result):
             """Extract the actual data from an MCP tool response.
-            MCP wraps everything in {"content": [{"text": "<json-string>"}]}."""
+            MCP wraps in {"content": [{"text": "<json>"}]}.
+            Viz creation returns {"defaultExc": "<nested-json>", "responseCode": 201}."""
             if not isinstance(result, dict):
                 return {}
             if result.get("isError"):
@@ -1317,15 +1318,22 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
             content = result.get("content", [])
             if content and content[0].get("type") == "text":
                 try:
-                    return json.loads(content[0]["text"])
+                    outer = json.loads(content[0]["text"])
                 except (json.JSONDecodeError, KeyError):
-                    pass
-            if "name" in result:
-                return result
+                    return result
+                if isinstance(outer, list):
+                    return outer[0] if outer else {}
+                # Handle double-nested: {"defaultExc": "<json>", "responseCode": 201}
+                if isinstance(outer, dict) and "defaultExc" in outer:
+                    try:
+                        return json.loads(outer["defaultExc"])
+                    except (json.JSONDecodeError, KeyError):
+                        pass
+                return outer
             return result
 
         if mcp_available:
-            # --- MCP path: slim viz specs + Z layout dashboard ---
+            # --- MCP path: slim viz specs (fields + chart type) + dashboard ---
             try:
                 cp["viz_apis"] = []
                 SYSTEM_DIMS = {"date", "record_id", "entity_id", "day_offset", "kq_record_id",
@@ -1333,28 +1341,116 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                                "data_source_object", "data_source"}
                 user_dim_names = [k for k in cp.get("dim_field_map", {}).keys()
                                   if k.lower().replace(" ", "_") not in SYSTEM_DIMS]
+                do_api = cp["do_api"]
+                dd_api = cp.get("display_date_api", "Display_Date")
+                meas_map = cp.get("measurement_map", {})
 
+                # Get workspace ID and SDM label (MCP needs these exact params)
+                r_ws_info = req.get(f"{sf_instance}/services/data/v65.0/tableau/workspaces/{cp['ws_api']}", headers=h)
+                ws_id = r_ws_info.json().get("id", "") if r_ws_info.ok else ""
+                r_sdm_info = req.get(f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{cp['sdm_api']}", headers=h)
+                sdm_label = r_sdm_info.json().get("label", "") if r_sdm_info.ok else ""
+
+                # Build viz plan: alternate between trend line and bar chart
+                viz_plan = []
                 for i, mc in enumerate(metric_config[:4]):
-                    progress(q, "viz", f"Creating viz {i+1} via MCP: {mc['label']}...", 70 + int(5 * i))
-                    dim_name = user_dim_names[i % len(user_dim_names)] if user_dim_names else "region"
+                    meas_api = meas_map.get(mc["field"], "")
+                    if not meas_api:
+                        continue
+                    dim = user_dim_names[i % len(user_dim_names)] if user_dim_names else None
+                    dim_api = cp.get("dim_field_map", {}).get(dim, "") if dim else ""
+                    is_rate = mc.get("agg", "Average") == "Average"
+                    func = "Avg" if is_rate else "Sum"
+                    fmt = "Percent" if is_rate else "Number"
+
+                    if i == 0:
+                        # First viz: trend line over time
+                        viz_plan.append({
+                            "label": f"{mc['label']} Over Time",
+                            "name": f"{slug}_{mc['field']}_trend",
+                            "fields": {
+                                "F1": {"objectName": do_api, "fieldName": dd_api,
+                                        "displayCategory": "Discrete", "function": "DateTruncMonth"},
+                                "F2": {"objectName": do_api, "fieldName": meas_api,
+                                        "displayCategory": "Continuous", "function": func,
+                                        "numberFormat": fmt},
+                            },
+                            "spec": {"layout": "Vizql", "columns": ["F1"], "rows": ["F2"],
+                                     "marks": {"panes": {"type": "Line"}}},
+                        })
+                    elif i == 1 and dim_api:
+                        # Second viz: bar by dimension
+                        viz_plan.append({
+                            "label": f"{mc['label']} by {dim}",
+                            "name": f"{slug}_{mc['field']}_bar",
+                            "fields": {
+                                "F1": {"objectName": do_api, "fieldName": dim_api,
+                                        "displayCategory": "Discrete"},
+                                "F2": {"objectName": do_api, "fieldName": meas_api,
+                                        "displayCategory": "Continuous", "function": func,
+                                        "numberFormat": fmt},
+                            },
+                            "spec": {"layout": "Vizql", "columns": ["F1"], "rows": ["F2"],
+                                     "marks": {"panes": {"type": "Bar"}}},
+                            "sortIntent": "MeasureDescending",
+                        })
+                    elif dim_api:
+                        # Multi-line by dimension
+                        viz_plan.append({
+                            "label": f"{mc['label']} by {dim}",
+                            "name": f"{slug}_{mc['field']}_multi",
+                            "fields": {
+                                "F1": {"objectName": do_api, "fieldName": dd_api,
+                                        "displayCategory": "Discrete", "function": "DateTruncMonth"},
+                                "F2": {"objectName": do_api, "fieldName": meas_api,
+                                        "displayCategory": "Continuous", "function": func,
+                                        "numberFormat": fmt},
+                                "F3": {"objectName": do_api, "fieldName": dim_api,
+                                        "displayCategory": "Discrete"},
+                            },
+                            "spec": {"layout": "Vizql", "columns": ["F1", "F3"], "rows": ["F2"],
+                                     "marks": {"panes": {"type": "Line",
+                                               "encodings": [{"fieldKey": "F3", "type": "Color"}]}}},
+                        })
+                    else:
+                        # Fallback: simple trend
+                        viz_plan.append({
+                            "label": f"{mc['label']} Trend",
+                            "name": f"{slug}_{mc['field']}_trend",
+                            "fields": {
+                                "F1": {"objectName": do_api, "fieldName": dd_api,
+                                        "displayCategory": "Discrete", "function": "DateTruncMonth"},
+                                "F2": {"objectName": do_api, "fieldName": meas_api,
+                                        "displayCategory": "Continuous", "function": func,
+                                        "numberFormat": fmt},
+                            },
+                            "spec": {"layout": "Vizql", "columns": ["F1"], "rows": ["F2"],
+                                     "marks": {"panes": {"type": "Line"}}},
+                        })
+
+                for i, vp in enumerate(viz_plan):
+                    progress(q, "viz", f"Creating viz {i+1}/{len(viz_plan)} via MCP: {vp['label']}...", 70 + int(5 * i))
                     try:
                         raw = mcp.create_visualization(
-                            name=f"{slug}_{mc['field']}",
-                            label=mc["label"],
-                            semanticModelIdOrName=cp["sdm_api"],
-                            workspaceIdOrApiName=cp["ws_api"],
-                            description=mc.get("description", ""),
+                            label=vp["label"],
+                            workspaceId=ws_id,
+                            workspaceName=cp["ws_api"],
+                            semanticModelName=cp["sdm_api"],
+                            semanticModelLabel=sdm_label,
+                            fields=vp["fields"],
+                            visualSpecification=vp["spec"],
+                            sortIntent=vp.get("sortIntent", "None"),
                         )
                         parsed = _parse_mcp_result(raw)
                         viz_api = parsed.get("name", "")
                         if viz_api:
                             cp["viz_apis"].append(viz_api)
                             cp["all_viz_apis"].append(viz_api)
-                            progress(q, "viz", f"Created viz: {mc['label']} → {viz_api}", -1)
+                            progress(q, "viz", f"Created viz: {vp['label']} → {viz_api}", -1)
                         else:
-                            progress(q, "warn", f"MCP viz {mc['label']}: no name in response: {str(parsed)[:150]}", -1)
+                            progress(q, "warn", f"MCP viz {vp['label']}: no name in response: {str(parsed)[:150]}", -1)
                     except Exception as e:
-                        progress(q, "warn", f"MCP viz {mc['label']} failed: {e}", -1)
+                        progress(q, "warn", f"MCP viz {vp['label']} failed: {e}", -1)
 
                 _save_cp(cp, slug, demo_dir)
 
@@ -1363,9 +1459,9 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 try:
                     demo_label = build_config.get("demo_name", "") or company
                     raw = mcp.create_dashboard(
-                        name=f"{slug}_dashboard",
                         label=f"{demo_label} Dashboard",
-                        workspaceIdOrApiName=cp["ws_api"],
+                        workspaceId=ws_id,
+                        workspaceName=cp["ws_api"],
                     )
                     parsed = _parse_mcp_result(raw)
                     dash_api = parsed.get("name", "")
