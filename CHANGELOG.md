@@ -29,6 +29,8 @@ All notable changes to AIO Analytics Builder are documented here.
 - **AI Assistant API key in Setup**: Anthropic API key field added to the Setup page under an "AI Assistant" section with save + status badge.
 - **Getting Started guide**: new collapsible panel on the home page walking users through the 3 steps (Setup → Build → Present).
 - **Collapsible "What's New"**: the changelog panel is now collapsible to save space on the home page.
+- **Post-build validation** (Phase 8): after Tableau Next builds, automatically verifies SDM data query (row count), each metric exists, Display Date calc dim is present, each viz has a valid dataSource, dashboard exists, and runs a semantic query to confirm data flows end-to-end. Results logged with ✓/✗ in the build log.
+- **Persistent build log**: every build writes a `{slug}_build.log` file. "Log" button on My Demos page opens it in a new tab for debugging.
 
 ---
 

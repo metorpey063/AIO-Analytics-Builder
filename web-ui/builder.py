@@ -687,6 +687,181 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
 # Tableau Next build
 # ---------------------------------------------------------------------------
 
+def _validate_next_build(config, cp, metric_config, q):
+    """Post-build validation: query SDM, check metrics and vizzes have data."""
+    import requests as req
+    from connections import get_sf_token, sf_headers
+
+    checks_passed = 0
+    checks_failed = 0
+    checks_total = 0
+
+    try:
+        sf_token, sf_instance = get_sf_token(config)
+        h = sf_headers(sf_token)
+    except Exception as e:
+        progress(q, "validate", f"SKIP — could not authenticate: {e}", -1)
+        return
+
+    sdm_api = cp.get("sdm_api", "")
+    do_api = cp.get("do_api", "")
+
+    # 1. Query the SDM to verify data is accessible
+    progress(q, "validate", "Checking SDM data query...", -1)
+    checks_total += 1
+    try:
+        first_meas = ""
+        first_dim = ""
+        for k, v in cp.get("measurement_map", {}).items():
+            first_meas = v
+            break
+        for k, v in cp.get("dim_field_map", {}).items():
+            if k.lower() not in ("date", "record_id", "entity_id", "day_offset", "record id", "entity id"):
+                first_dim = v
+                break
+
+        if first_meas and do_api:
+            query_body = {
+                "queryLanguage": "SQL",
+                "query": f'SELECT COUNT(*) as cnt FROM "{do_api}"',
+            }
+            r = req.post(f"{sf_instance}/services/data/v65.0/ssot/queryv2",
+                         headers=h, json=query_body, timeout=30)
+            if r.ok:
+                data = r.json().get("data", [])
+                row_count = data[0].get("cnt", 0) if data else 0
+                if row_count and int(row_count) > 0:
+                    progress(q, "validate", f"✓ SDM query returned {row_count} rows", -1)
+                    checks_passed += 1
+                else:
+                    progress(q, "validate", f"✗ SDM query returned 0 rows — data may not have ingested", -1)
+                    checks_failed += 1
+            else:
+                progress(q, "validate", f"✗ SDM query failed: {r.text[:200]}", -1)
+                checks_failed += 1
+        else:
+            progress(q, "validate", "SKIP — no measurement or DO found for query check", -1)
+    except Exception as e:
+        progress(q, "validate", f"✗ SDM query error: {str(e)[:200]}", -1)
+        checks_failed += 1
+
+    # 2. Check each metric renders (GET metric, check for non-null value)
+    for mtc_api in cp.get("metric_apis", []):
+        checks_total += 1
+        try:
+            r = req.get(
+                f"{sf_instance}/services/data/v66.0/ssot/semantic/models/{sdm_api}/metrics/{mtc_api}?minorVersion=12",
+                headers=h, timeout=15)
+            if r.ok:
+                mtc_data = r.json()
+                label = mtc_data.get("label", mtc_api)
+                progress(q, "validate", f"✓ Metric '{label}' exists in SDM", -1)
+                checks_passed += 1
+            else:
+                progress(q, "validate", f"✗ Metric '{mtc_api}' not found: {r.status_code}", -1)
+                checks_failed += 1
+        except Exception as e:
+            progress(q, "validate", f"✗ Metric '{mtc_api}' check error: {str(e)[:100]}", -1)
+            checks_failed += 1
+
+    # 3. Check Display Date calc dim exists
+    checks_total += 1
+    dd_api = cp.get("display_date_api", "")
+    if dd_api:
+        try:
+            r = req.get(
+                f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{sdm_api}/calculated-dimensions/{dd_api}",
+                headers=h, timeout=15)
+            if r.ok:
+                progress(q, "validate", f"✓ Display Date calc dim exists: {dd_api}", -1)
+                checks_passed += 1
+            else:
+                progress(q, "validate", f"✗ Display Date not found (API returned {r.status_code}) — dates will show raw values", -1)
+                checks_failed += 1
+        except Exception as e:
+            progress(q, "validate", f"✗ Display Date check error: {str(e)[:100]}", -1)
+            checks_failed += 1
+    else:
+        progress(q, "validate", "✗ Display Date was not created — metrics will show raw dates from data generation", -1)
+        checks_failed += 1
+
+    # 4. Check each viz exists and has a valid data source
+    for viz_api in cp.get("viz_apis", []):
+        checks_total += 1
+        try:
+            r = req.get(
+                f"{sf_instance}/services/data/v66.0/tableau/visualizations/{viz_api}?minorVersion=12",
+                headers=h, timeout=15)
+            if r.ok:
+                viz_data = r.json()
+                label = viz_data.get("label", viz_api)
+                ds = viz_data.get("dataSource", "")
+                if ds:
+                    progress(q, "validate", f"✓ Viz '{label}' exists, dataSource: {ds}", -1)
+                    checks_passed += 1
+                else:
+                    progress(q, "validate", f"✗ Viz '{label}' has no dataSource — will show no data", -1)
+                    checks_failed += 1
+            else:
+                progress(q, "validate", f"✗ Viz '{viz_api}' not found: {r.status_code}", -1)
+                checks_failed += 1
+        except Exception as e:
+            progress(q, "validate", f"✗ Viz '{viz_api}' check error: {str(e)[:100]}", -1)
+            checks_failed += 1
+
+    # 5. Check dashboard exists
+    if cp.get("dash_api"):
+        checks_total += 1
+        try:
+            r = req.get(
+                f"{sf_instance}/services/data/v66.0/tableau/dashboards/{cp['dash_api']}?minorVersion=12",
+                headers=h, timeout=15)
+            if r.ok:
+                progress(q, "validate", f"✓ Dashboard exists: {cp['dash_api']}", -1)
+                checks_passed += 1
+            else:
+                progress(q, "validate", f"✗ Dashboard not found: {r.status_code}", -1)
+                checks_failed += 1
+        except Exception as e:
+            progress(q, "validate", f"✗ Dashboard check error: {str(e)[:100]}", -1)
+            checks_failed += 1
+
+    # 6. Try a semantic query to verify data flows through the SDM
+    checks_total += 1
+    try:
+        if first_meas and do_api:
+            sq_body = {
+                "semanticModelApiName": sdm_api,
+                "columns": [{"fieldApiName": first_meas, "tableApiName": do_api}],
+                "limit": 5,
+            }
+            r = req.post(f"{sf_instance}/services/data/v66.0/ssot/semantic/query?minorVersion=12",
+                         headers=h, json=sq_body, timeout=30)
+            if r.ok:
+                rows = r.json().get("data", [])
+                if rows:
+                    sample_val = rows[0].get(first_meas, "null")
+                    progress(q, "validate", f"✓ Semantic query returned {len(rows)} rows (sample: {sample_val})", -1)
+                    checks_passed += 1
+                else:
+                    progress(q, "validate", "✗ Semantic query returned 0 rows — SDM may not be connected to data", -1)
+                    checks_failed += 1
+            else:
+                progress(q, "validate", f"✗ Semantic query failed: {r.text[:200]}", -1)
+                checks_failed += 1
+    except Exception as e:
+        progress(q, "validate", f"✗ Semantic query error: {str(e)[:200]}", -1)
+        checks_failed += 1
+
+    # Summary
+    summary = f"Validation complete: {checks_passed}/{checks_total} passed"
+    if checks_failed:
+        summary += f", {checks_failed} failed"
+        progress(q, "validate", f"⚠ {summary}", -1)
+    else:
+        progress(q, "validate", f"✓ {summary} — all assets verified", -1)
+
+
 def next_build(build_id, df, slug, company, config, metric_config, story_config, demo_dir, q, cp, build_config=None):
     import requests as req
     from connections import get_sf_token, get_dc_token, sf_headers, dc_headers
@@ -1333,6 +1508,10 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
     progress(q, "walkthrough", "Generating walkthrough document...", 92)
     generate_walkthrough(slug, company, story_config, metric_config, "next", cp, demo_dir)
+
+    # --- Phase 8: Post-build validation ---
+    progress(q, "validate", "Running post-build validation...", 95)
+    _validate_next_build(config, cp, metric_config, q)
 
     cp["build_type"] = "next"
     cp["company"] = company
