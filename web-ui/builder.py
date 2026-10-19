@@ -1328,7 +1328,9 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 user_dim_names = [k for k in cp.get("dim_field_map", {}).keys()
                                   if k.lower().replace(" ", "_") not in SYSTEM_DIMS]
                 do_api = cp["do_api"]
-                dd_api = cp.get("display_date_api", "Display_Date")
+                # MCP vizzes use the raw date field (not Display_Date calc dim)
+                # because calc dims are model-level and can't have objectName
+                date_field_api = cp.get("dim_field_map", {}).get("date", "")
                 meas_map = cp.get("measurement_map", {})
 
                 # Get workspace ID and SDM label (MCP needs these exact params)
@@ -1355,7 +1357,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                             "label": f"{mc['label']} Over Time",
                             "name": f"{slug}_{mc['field']}_trend",
                             "fields": {
-                                "F1": {"objectName": do_api, "fieldName": dd_api,
+                                "F1": {"objectName": do_api, "fieldName": date_field_api,
                                         "displayCategory": "Discrete", "function": "DateTruncMonth"},
                                 "F2": {"objectName": do_api, "fieldName": meas_api,
                                         "displayCategory": "Continuous", "function": func,
@@ -1386,7 +1388,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                             "label": f"{mc['label']} by {dim}",
                             "name": f"{slug}_{mc['field']}_multi",
                             "fields": {
-                                "F1": {"objectName": do_api, "fieldName": dd_api,
+                                "F1": {"objectName": do_api, "fieldName": date_field_api,
                                         "displayCategory": "Discrete", "function": "DateTruncMonth"},
                                 "F2": {"objectName": do_api, "fieldName": meas_api,
                                         "displayCategory": "Continuous", "function": func,
@@ -1404,7 +1406,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                             "label": f"{mc['label']} Trend",
                             "name": f"{slug}_{mc['field']}_trend",
                             "fields": {
-                                "F1": {"objectName": do_api, "fieldName": dd_api,
+                                "F1": {"objectName": do_api, "fieldName": date_field_api,
                                         "displayCategory": "Discrete", "function": "DateTruncMonth"},
                                 "F2": {"objectName": do_api, "fieldName": meas_api,
                                         "displayCategory": "Continuous", "function": func,
