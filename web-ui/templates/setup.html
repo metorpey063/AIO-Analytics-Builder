@@ -92,9 +92,11 @@
                 <div class="form-stack" style="gap:8px">
                     <div style="padding:10px 14px; background:var(--blue-light); border-radius:8px; font-size:12.5px; line-height:1.6; color:var(--text)">
                         <strong>How to get your key:</strong><br>
-                        1. Open <strong>Terminal</strong> and run: <code style="font-size:11.5px; background:#e5e7eb; padding:1px 5px; border-radius:3px">claude setup-token</code><br>
-                        2. Copy the <code style="font-size:11.5px; background:#e5e7eb; padding:1px 5px; border-radius:3px">sk-ant-...</code> token it generates (valid for 1 year)<br>
-                        3. Paste it below
+                        1. Open <strong>Terminal</strong> (Spotlight → type "Terminal")<br>
+                        2. Run: <code style="font-size:11.5px; background:#e5e7eb; padding:1px 5px; border-radius:3px">claude setup-token</code><br>
+                        3. A browser window will open — <strong>sign in to your Anthropic account</strong> and click <strong>Allow</strong><br>
+                        4. Return to Terminal — your key will be displayed (starts with <code style="font-size:11.5px; background:#e5e7eb; padding:1px 5px; border-radius:3px">sk-ant-...</code>)<br>
+                        5. Copy the key and paste it below (it's valid for 1 year)
                     </div>
                     <div class="form-group" style="margin-bottom:0">
                         <label style="font-size:12px">Claude API Key</label>
@@ -647,11 +649,12 @@
         <!-- Anthropic mode -->
         <div id="ai-anthropic-fields" class="form-stack" style="display:none">
             <div style="margin-bottom:10px; padding:10px 14px; background:var(--blue-light); border-radius:8px; font-size:12.5px; line-height:1.6; color:var(--text)">
-                <strong>Recommended for Salesforce employees:</strong><br>
-                1. Open Terminal and run: <code style="font-size:11.5px; background:#e5e7eb; padding:1px 4px; border-radius:3px">claude setup-token</code><br>
-                2. Copy the <code style="font-size:11.5px; background:#e5e7eb; padding:1px 4px; border-radius:3px">sk-ant-...</code> token it generates (valid for 1 year)<br>
-                3. Paste it below<br>
-                <span style="color:var(--text-muted)">Or get a key from <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--blue)">console.anthropic.com/settings/keys</a></span>
+                <strong>How to get your key:</strong><br>
+                1. Open <strong>Terminal</strong> (Spotlight → type "Terminal")<br>
+                2. Run: <code style="font-size:11.5px; background:#e5e7eb; padding:1px 5px; border-radius:3px">claude setup-token</code><br>
+                3. A browser window will open — <strong>sign in to your Anthropic account</strong> and click <strong>Allow</strong><br>
+                4. Return to Terminal — your key will be displayed (starts with <code style="font-size:11.5px; background:#e5e7eb; padding:1px 5px; border-radius:3px">sk-ant-...</code>)<br>
+                5. Copy the key and paste it below (valid for 1 year)
             </div>
             <div class="form-group">
                 <label for="ai-api-key">API Key / Token</label>
