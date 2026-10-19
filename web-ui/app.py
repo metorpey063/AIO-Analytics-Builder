@@ -461,11 +461,12 @@ def update():
         updated = result.returncode == 0 and not already_up_to_date
 
         if updated:
-            # Schedule server restart so the response gets sent first
             def _restart():
-                import time, signal
-                time.sleep(1)
-                os.execv(sys.executable, [sys.executable] + sys.argv)
+                import time
+                time.sleep(1.5)
+                python = sys.executable
+                app_path = str(Path(__file__).resolve())
+                os.execv(python, [python, app_path])
             t = threading.Thread(target=_restart, daemon=True)
             t.start()
 
