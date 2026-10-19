@@ -458,6 +458,15 @@ def test_salesforce():
         return jsonify({"ok": False, "error": str(e)})
 
 
+@app.route("/api/restart", methods=["POST"])
+def restart_server():
+    """Trigger Flask reloader by touching a .py file."""
+    import pathlib
+    trigger = pathlib.Path(__file__).resolve()
+    trigger.touch()
+    return jsonify({"ok": True, "message": "Restart triggered"})
+
+
 @app.route("/api/test-mcp", methods=["POST"])
 def test_mcp():
     """Check if Tableau Next MCP server is configured and reachable."""

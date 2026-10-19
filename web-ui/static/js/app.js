@@ -66,6 +66,24 @@ async function checkVersion() {
     }
 }
 
+async function restartServer() {
+    const btn = document.querySelector('.restart-btn');
+    btn.disabled = true;
+    document.getElementById('brand-version').textContent = 'Restarting...';
+    try {
+        await fetch('/api/restart', {method: 'POST'});
+    } catch (e) { /* server is restarting */ }
+    await new Promise(r => setTimeout(r, 2000));
+    for (let i = 0; i < 10; i++) {
+        try {
+            const ping = await fetch('/api/version', {signal: AbortSignal.timeout(2000)});
+            if (ping.ok) { location.reload(); return; }
+        } catch (e) { /* still restarting */ }
+        await new Promise(r => setTimeout(r, 1000));
+    }
+    location.reload();
+}
+
 async function runUpdate() {
     const btn = document.getElementById('update-btn');
     btn.classList.add('spinning');

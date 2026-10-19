@@ -129,6 +129,20 @@ body {
 .update-btn.update-success { color: var(--green) !important; background: rgba(22,163,74,0.15) !important; }
 .update-btn.update-error { color: var(--red) !important; }
 
+.restart-btn {
+    width: 28px; height: 28px;
+    border: none;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.6);
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition);
+}
+.restart-btn:hover { background: rgba(255,255,255,0.25); color: #fff; }
+
 /* Gray state — up to date, not clickable */
 .update-btn-gray {
     background: rgba(255,255,255,0.06);
