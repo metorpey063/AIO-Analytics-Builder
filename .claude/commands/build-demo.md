@@ -1050,9 +1050,13 @@ do_api = r.json().get("apiName")
 r = requests.get(f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{sdm_api}/data-objects/{do_api}", headers=h)
 measurements = r.json().get("semanticMeasurements", [])
 dimensions = r.json().get("semanticDimensions", [])
-# Build maps: field_name (without __c) → apiName
+# Build maps: field_name (without __c) → apiName, and → real dataObjectFieldName (for PUT payloads)
 dim_field_map = {d["dataObjectFieldName"].replace("__c", ""): d["apiName"] for d in dimensions}
+dim_dof_map = {d["dataObjectFieldName"].replace("__c", ""): d["dataObjectFieldName"] for d in dimensions}
 measurement_map = {m["dataObjectFieldName"].replace("__c", ""): m["apiName"] for m in measurements}
+measurement_dof_map = {m["dataObjectFieldName"].replace("__c", ""): m["dataObjectFieldName"] for m in measurements}
+# CRITICAL: use *_dof_map values (the real dataObjectFieldName) in measurement/dimension PUT payloads.
+# Do NOT use apiName + "__c" — the apiName has a numeric suffix (e.g. "rate1") that doesn't match the DLO field.
 ```
 
 **Phase 4a — Add CRM Account DMO + relationship** (only if `crm_actionable`)
@@ -1148,15 +1152,16 @@ After the DO is created and field apiNames are known, PUT a `description` on eve
 **Measurements** — include `description` in the same PUT already made for `aggregationType`. No extra round-trip needed:
 
 ```python
+m_dof = measurement_dof_map.get(field_name)  # e.g. "platform_utilization_rate__c"
 requests.put(
     f'{sf_instance}/services/data/v65.0/ssot/semantic/models/{sdm}/data-objects/{do}/measurements/{m_api}',
     headers=h,
     json={
         'apiName': m_api,
         'label': mc['label'],
-        'dataObjectFieldName': m_field,
+        'dataObjectFieldName': m_dof,        # ← real DLO field name from GET, NOT apiName + "__c"
         'aggregationType': mc['agg'],
-        'description': mc['description'],   # ← add this
+        'description': mc['description'],
     }
 )
 ```
@@ -1168,15 +1173,16 @@ Required body fields: `apiName`, `label`, `dataObjectFieldName`, `description`. 
 ```python
 for field_name, dim_api in dim_field_map.items():
     desc = DIM_DESCRIPTIONS.get(field_name)
-    if not desc:
+    d_dof = dim_dof_map.get(field_name)  # e.g. "team__c"
+    if not desc or not d_dof:
         continue
     requests.put(
         f'{sf_instance}/services/data/v65.0/ssot/semantic/models/{sdm}/data-objects/{do}/dimensions/{dim_api}',
         headers=h,
         json={
             'apiName': dim_api,
-            'label': dim_api.replace('_', ' ').title(),
-            'dataObjectFieldName': dim_api + '__c',
+            'label': field_name.replace('_', ' ').title(),
+            'dataObjectFieldName': d_dof,    # real DLO field name from GET, NOT dim_api + "__c"
             'description': desc,
         }
     )
