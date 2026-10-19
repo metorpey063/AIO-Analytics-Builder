@@ -955,6 +955,18 @@ textarea.mono { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-s
     justify-content: center;
     font-weight: 700;
 }
+.conn-check.check-fail { color: var(--red); font-weight: 500; }
+.conn-check.check-fail::before {
+    background: var(--red);
+    border-color: var(--red);
+    content: '✗';
+    color: #fff;
+    font-size: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+}
 
 .conn-row-live {
     margin-top: 10px;
