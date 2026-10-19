@@ -9,7 +9,7 @@
         <h1>Build a Demo</h1>
         <p class="subtitle">Generate a story-driven demo with engineered signals</p>
     </div>
-    <div class="mode-toggle-bar" style="margin-bottom:0">
+    <div class="mode-toggle-bar" style="margin-bottom:0; display:none">
         <span class="mode-label active" id="lbl-wizard" onclick="setMode('wizard')">Wizard</span>
         <div class="toggle-track" id="mode-track" onclick="toggleMode()">
             <div class="toggle-thumb"></div>
@@ -614,10 +614,9 @@ document.addEventListener('change', (e) => {
     });
 });
 
-// Restore saved mode preference
+// Always use wizard mode
 document.addEventListener('DOMContentLoaded', () => {
-    const saved = localStorage.getItem('aio-build-mode');
-    if (saved === 'form') setMode('form');
+    setMode('wizard');
 });
 
 // ---- Demo mode toggle (New / Existing) ----
