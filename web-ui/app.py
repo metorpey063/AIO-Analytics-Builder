@@ -571,21 +571,22 @@ def save_config():
         from connections import load_full_config, save_full_config
         data = request.json
         full = load_full_config()
-        key = full.get("active_profile")
 
-        if not key or key not in full.get("profiles", {}):
-            return jsonify({"ok": False, "error": "No active profile found"})
-
-        profile = full["profiles"][key]
-
-        if "tableau" in data:
-            profile.setdefault("tableau", {}).update(data["tableau"])
-        if "salesforce" in data:
-            profile.setdefault("salesforce", {}).update(data["salesforce"])
+        # Anthropic API key is global (not per-profile) — save it even without a profile
         if "anthropic" in data:
             full.setdefault("anthropic", {}).update(data["anthropic"])
 
-        full["profiles"][key] = profile
+        key = full.get("active_profile")
+        if key and key in full.get("profiles", {}):
+            profile = full["profiles"][key]
+            if "tableau" in data:
+                profile.setdefault("tableau", {}).update(data["tableau"])
+            if "salesforce" in data:
+                profile.setdefault("salesforce", {}).update(data["salesforce"])
+            full["profiles"][key] = profile
+        elif "tableau" in data or "salesforce" in data:
+            return jsonify({"ok": False, "error": "No active profile found. Create a connection in Setup first."})
+
         save_full_config(full)
         return jsonify({"ok": True})
     except Exception as e:
