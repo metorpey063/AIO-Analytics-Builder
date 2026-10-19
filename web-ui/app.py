@@ -1167,4 +1167,4 @@ if __name__ == "__main__":
     print(f"\n  AIO Analytics Builder")
     print(f"  http://localhost:{port}\n")
     webbrowser.open(f"http://localhost:{port}")
-    app.run(host="127.0.0.1", port=port, debug=True, use_reloader=False)
+    app.run(host="127.0.0.1", port=port, debug=True, use_reloader=True)
