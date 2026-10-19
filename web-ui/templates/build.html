@@ -59,11 +59,12 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label for="w-company">Company Name</label>
-                            <input type="text" id="w-company" class="sync-field" data-sync="company" placeholder="Acme Corp">
+                            <input type="text" id="w-company" class="sync-field" data-sync="company" placeholder="Acme Corp" maxlength="50">
                         </div>
                         <div class="form-group">
                             <label for="w-demo-name">Demo Name <span class="optional">(optional)</span></label>
-                            <input type="text" id="w-demo-name" class="sync-field" data-sync="demo-name" placeholder="e.g. Diversify UI Test">
+                            <input type="text" id="w-demo-name" class="sync-field" data-sync="demo-name" placeholder="e.g. Diversify UI Test" maxlength="40">
+                            <span class="form-hint">Max 40 characters. Used for workspace, SDM, and data stream names.</span>
                             <span class="form-hint">Used for workspace, SDM, and data stream names. Defaults to company name if blank.</span>
                         </div>
                     </div>
@@ -88,11 +89,11 @@
                     </div>
                     <div class="form-group">
                         <label for="w-usecase">Use Case / Topic</label>
-                        <input type="text" id="w-usecase" class="sync-field" data-sync="usecase" placeholder="e.g. Employee benefits enrollment, Sales pipeline, Customer churn">
+                        <input type="text" id="w-usecase" class="sync-field" data-sync="usecase" placeholder="e.g. Employee benefits enrollment, Sales pipeline, Customer churn" maxlength="100">
                     </div>
                     <div class="form-group">
                         <label for="w-audience">Audience (who will see this demo?)</label>
-                        <input type="text" id="w-audience" class="sync-field" data-sync="audience" placeholder="e.g. VP of HR, Chief Data Officer, Sales Operations Manager">
+                        <input type="text" id="w-audience" class="sync-field" data-sync="audience" placeholder="e.g. VP of HR, Chief Data Officer, Sales Operations Manager" maxlength="100">
                     </div>
                     <div class="form-group">
                         <label for="w-notes">Additional Context <span class="optional">(optional)</span></label>
