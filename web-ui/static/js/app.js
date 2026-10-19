@@ -77,20 +77,12 @@ async function runUpdate() {
 
         if (j.ok && j.updated) {
             btn.className = 'update-btn update-success';
-            document.getElementById('brand-version').textContent = 'Restarting...';
-            // Server restarts automatically — wait for it to come back, then reload
-            async function waitForServer() {
-                for (let i = 0; i < 15; i++) {
-                    await new Promise(r => setTimeout(r, 1000));
-                    try {
-                        const ping = await fetch('/api/version', {signal: AbortSignal.timeout(2000)});
-                        if (ping.ok) { location.reload(); return; }
-                    } catch (e) { /* server still restarting */ }
-                }
-                document.getElementById('brand-version').textContent = 'Restart timed out';
-                if (confirm('Server restart took too long. Reload manually?')) location.reload();
-            }
-            waitForServer();
+            document.getElementById('brand-version').textContent = 'Updated!';
+            // Show restart notice
+            const notice = document.createElement('div');
+            notice.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:12px 20px;background:#2563EB;color:white;text-align:center;font-size:14px;font-weight:600;z-index:9999;display:flex;align-items:center;justify-content:center;gap:12px';
+            notice.innerHTML = 'Code updated! Restart the server to apply changes. <button onclick="location.reload()" style="background:white;color:#2563EB;border:none;padding:6px 16px;border-radius:6px;font-weight:600;cursor:pointer">Reload Page</button>';
+            document.body.prepend(notice);
         } else if (j.ok) {
             btn.className = 'update-btn update-btn-gray';
             btn.disabled = true;

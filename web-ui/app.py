@@ -464,20 +464,9 @@ def update():
         already_up_to_date = "Already up to date" in output or "Already up-to-date" in output
         updated = result.returncode == 0 and not already_up_to_date
 
-        if updated:
-            def _restart():
-                import time
-                time.sleep(1.5)
-                python = sys.executable
-                app_path = str(Path(__file__).resolve())
-                os.execv(python, [python, app_path])
-            t = threading.Thread(target=_restart, daemon=True)
-            t.start()
-
         return jsonify({
             "ok": result.returncode == 0,
             "updated": updated,
-            "restarting": updated,
             "output": output,
         })
     except Exception as e:
