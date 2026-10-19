@@ -143,7 +143,9 @@
                         <div class="advanced-body">
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label for="w-history">Data History</label>
+                                    <label for="w-history">Data History
+                                        <span class="tooltip-trigger" data-tooltip="How far back to generate data. 24 months is ideal for most demos — gives enough history for YoY comparisons. Use 12 months for fast-moving metrics or 36 for long-cycle industries like insurance or construction.">?</span>
+                                    </label>
                                     <select id="w-history" class="sync-field" data-sync="history">
                                         <option value="6">6 months</option>
                                         <option value="12">12 months</option>
@@ -152,7 +154,9 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label for="w-grain">Time Grain</label>
+                                    <label for="w-grain">Time Grain
+                                        <span class="tooltip-trigger" data-tooltip="How often data points are generated. Monthly works for most KPIs (retention, enrollment, revenue). Use weekly for operational metrics (ticket volume, pipeline) or daily for high-frequency data (web traffic, transactions). More granular = more rows = longer ingest.">?</span>
+                                    </label>
                                     <select id="w-grain" class="sync-field" data-sync="grain">
                                         <option value="daily">Daily</option>
                                         <option value="weekly">Weekly</option>
@@ -162,7 +166,9 @@
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label for="w-severity">Signal Severity</label>
+                                    <label for="w-severity">Signal Severity
+                                        <span class="tooltip-trigger" data-tooltip="How dramatic the metric decline is. Subtle (15%) requires careful analysis to spot — good for sophisticated audiences. Moderate (25%) is visible but not alarming. Severe (40%) creates an unmissable 'uh oh' moment — recommended for most demos so the story lands in the first 10 seconds.">?</span>
+                                    </label>
                                     <select id="w-severity" class="sync-field" data-sync="severity">
                                         <option value="0.15">Subtle (15%)</option>
                                         <option value="0.25">Moderate (25%)</option>
@@ -171,7 +177,9 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label for="w-onset">Signal Onset</label>
+                                    <label for="w-onset">Signal Onset
+                                        <span class="tooltip-trigger" data-tooltip="When the decline started. 3 months ago creates urgency — 'this is happening now.' 6 months shows a developing trend the audience missed. 9 months makes the case that this has been building for a while and needs immediate action. Earlier onset + accelerating shape = more dramatic recent decline.">?</span>
+                                    </label>
                                     <select id="w-onset" class="sync-field" data-sync="onset">
                                         <option value="-3" selected>3 months ago</option>
                                         <option value="-6">6 months ago</option>
@@ -181,7 +189,9 @@
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label for="w-shape">Signal Shape</label>
+                                    <label for="w-shape">Signal Shape
+                                        <span class="tooltip-trigger" data-tooltip="How the decline progresses over time. Accelerating (recommended): slow at first, steeper recently — mirrors how real problems manifest. Gradual ramp: steady linear decline, easier to read but less realistic. Step change: sudden drop at a point in time — good for 'something broke' stories like a policy change or system migration.">?</span>
+                                    </label>
                                     <select id="w-shape" class="sync-field" data-sync="shape">
                                         <option value="accelerating" selected>Accelerating (default)</option>
                                         <option value="ramp">Gradual ramp</option>
@@ -189,7 +199,9 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label for="w-supporting">Supporting Metric Strength</label>
+                                    <label for="w-supporting">Supporting Metric Strength
+                                        <span class="tooltip-trigger" data-tooltip="How strongly the secondary metrics follow the primary decline. Supporting metrics (like redemption rate, points per rep) should lag the primary signal to create a narrative sequence: lead metric drops first → supporting metrics follow → consequence metrics confirm. Subtle (8%) keeps them nearly flat. Strong (18%) makes the correlation obvious.">?</span>
+                                    </label>
                                     <select id="w-supporting" class="sync-field" data-sync="supporting">
                                         <option value="0.08">Subtle (8%)</option>
                                         <option value="0.12" selected>Moderate (12%)</option>
