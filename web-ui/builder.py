@@ -1442,50 +1442,91 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
                 _save_cp(cp, slug, demo_dir)
 
-                # Create dashboard with Z layout
-                progress(q, "dash", "Creating Z layout dashboard via MCP...", 80)
-                try:
-                    demo_label = build_config.get("demo_name", "") or company
-                    raw = mcp.create_dashboard(
-                        label=f"{demo_label} Dashboard",
-                        workspaceId=ws_id,
-                        workspaceName=cp["ws_api"],
-                    )
-                    parsed = _parse_mcp_result(raw)
-                    dash_api = parsed.get("name", "")
-                    progress(q, "info", f"Dashboard response: name={dash_api}, keys={list(parsed.keys())[:5]}", -1)
-                    if dash_api:
-                        cp["dash_api"] = dash_api
-                        cp["all_dash_apis"].append(dash_api)
-
-                        # Add viz widgets and metric widgets via edit_dashboard
-                        from dashboard_builder import build_z_layout_ops
-                        metric_labels = [mc["label"] for mc in metric_config[:3]]
-                        viz_labels = [mc["label"] for mc in metric_config[:len(cp["viz_apis"])]]
-                        ops = build_z_layout_ops(
-                            page_name="Overview", title=f"{demo_label} Analytics",
-                            subtitle=story_config.get("story_summary", "")[:100],
-                            sdm_api=cp["sdm_api"], sdm_id="",
-                            metric_apis=cp.get("metric_apis", [])[:3],
-                            metric_labels=metric_labels,
-                            viz_apis=cp["viz_apis"],
-                            viz_labels=viz_labels,
-                            viz_ids=[""] * len(cp["viz_apis"]),
-                            filter_fields=user_dim_names[:3],
-                        )
-                        for op in ops:
-                            try:
-                                mcp.edit_dashboard(dashboardIdOrName=dash_api, **op)
-                            except Exception:
-                                pass
-
-                        progress(q, "dash", f"Dashboard created: {dash_api}", -1)
-                except Exception as e:
-                    progress(q, "warn", f"MCP dashboard failed: {e}", -1)
-
+                # MCP vizzes done — now create dashboard via MCP with upsert + place pattern
                 if cp["viz_apis"]:
                     cp["viz_done"] = True
-                    cp["dash_done"] = True
+                    progress(q, "viz", f"Created {len(cp['viz_apis'])} vizzes via MCP", -1)
+                    _save_cp(cp, slug, demo_dir)
+
+                    progress(q, "dash", "Creating dashboard via MCP...", 80)
+                    try:
+                        demo_label = build_config.get("demo_name", "") or company
+                        raw = mcp.create_dashboard(
+                            name=f"{slug}_dashboard",
+                            label=f"{demo_label} Dashboard",
+                            workspaceIdOrApiName=cp["ws_api"],
+                            minorVersion=-1,
+                        )
+                        parsed = _parse_mcp_result(raw)
+                        dash_api = parsed.get("name", "")
+                        if dash_api:
+                            cp["dash_api"] = dash_api
+                            cp["all_dash_apis"].append(dash_api)
+
+                            # Build operations: upsert widgets + place on page
+                            ops = []
+
+                            # Metric widgets across top
+                            for mi, mtc in enumerate(cp.get("metric_apis", [])[:3]):
+                                wn = f"kpi_{mi}"
+                                ops.append({"operation": "upsert_metric_widget",
+                                    "widget": {"type": "metric", "name": wn,
+                                        "source": {"name": mtc},
+                                        "parameters": {"metricOption": {"sdmApiName": cp["sdm_api"]}}}})
+                                ops.append({"operation": "place_widget_on_page",
+                                    "pageName": "page_1",
+                                    "placement": {"name": wn, "row": 0, "column": mi * 16, "rowspan": 6, "colspan": 16}})
+
+                            # Filter widgets
+                            for fi, (dname, dapi) in enumerate(
+                                [(k, v) for k, v in cp.get("dim_field_map", {}).items()
+                                 if k.lower() not in ("date", "record_id", "entity_id", "day_offset",
+                                     "cdp_sys_sourceversion", "datasource", "datasourceobject",
+                                     "data_source", "data_source_object", "kq_record_id")][:3]):
+                                fn = f"filter_{fi}"
+                                ops.append({"operation": "upsert_filter_widget",
+                                    "widget": {"type": "filter", "name": fn,
+                                        "source": {"name": cp["sdm_api"]},
+                                        "parameters": {"isLabelHidden": False,
+                                            "filterOption": {"objectName": cp["do_api"], "fieldName": dapi}}}})
+                                ops.append({"operation": "place_widget_on_page",
+                                    "pageName": "page_1",
+                                    "placement": {"name": fn, "row": 6, "column": fi * 16, "rowspan": 1, "colspan": 16}})
+
+                            # Viz widgets in Z layout
+                            z_layouts = [
+                                {"row": 8, "col": 0, "rs": 12, "cs": 48},
+                                {"row": 21, "col": 0, "rs": 12, "cs": 23},
+                                {"row": 21, "col": 25, "rs": 12, "cs": 23},
+                                {"row": 34, "col": 0, "rs": 12, "cs": 48},
+                            ]
+                            for vi, vapi in enumerate(cp["viz_apis"][:4]):
+                                wn = f"viz_{vi}"
+                                ops.append({"operation": "upsert_visualization_widget",
+                                    "widget": {"type": "visualization", "name": wn,
+                                        "source": {"name": vapi}}})
+                                if vi < len(z_layouts):
+                                    zl = z_layouts[vi]
+                                    ops.append({"operation": "place_widget_on_page",
+                                        "pageName": "page_1",
+                                        "placement": {"name": wn, "row": zl["row"], "column": zl["col"],
+                                                     "rowspan": zl["rs"], "colspan": zl["cs"]}})
+
+                            ops.append({"operation": "save_dashboard"})
+
+                            raw2 = mcp.edit_dashboard(
+                                dashboardIdOrApiName=dash_api, minorVersion=-1,
+                                autosave=False, operations=ops)
+                            if not raw2.get("isError"):
+                                cp["dash_done"] = True
+                                progress(q, "dash", f"Dashboard created with {len(ops)} ops: {dash_api}", -1)
+                            else:
+                                progress(q, "warn", f"Dashboard ops failed: {raw2.get('content', [{}])[0].get('text', '')[:200]}", -1)
+                        else:
+                            progress(q, "warn", f"Dashboard creation returned no name", -1)
+                    except Exception as e:
+                        progress(q, "warn", f"MCP dashboard failed: {e}", -1)
+
                     _save_cp(cp, slug, demo_dir)
                 else:
                     progress(q, "warn", "All MCP vizzes failed — falling back to REST", -1)
