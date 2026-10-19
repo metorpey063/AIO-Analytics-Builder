@@ -554,13 +554,20 @@
             <h2>AI Assistant <span class="optional">(optional)</span></h2>
             <span id="ai-status" class="badge badge-pending" style="display:none">Not configured</span>
         </div>
-        <p class="subtitle" style="margin-bottom:14px">Enter an Anthropic API key to enable the AI chat assistant (the "Ask Claude" button). This is a global setting, not tied to a connection profile.</p>
+        <p class="subtitle" style="margin-bottom:14px">Enter an Anthropic API key to enable the AI chat assistant (the "Ask Claude" button). This is optional — all build features work without it.</p>
         <div class="form-stack">
             <div class="form-group">
                 <label for="ai-api-key">
                     Anthropic API Key
-                    <span class="tooltip-trigger" data-tooltip="Get an API key from console.anthropic.com. This powers the chat assistant in the bottom-right corner. The key is stored locally in config.json and never sent anywhere except the Anthropic API.">?</span>
+                    <span class="tooltip-trigger" data-tooltip="This powers the chat assistant in the bottom-right corner. The key is stored locally in config.json and never sent anywhere except the Anthropic API.">?</span>
                 </label>
+                <div style="margin-bottom:10px; padding:10px 14px; background:var(--blue-light); border-radius:8px; font-size:12.5px; line-height:1.6; color:var(--text)">
+                    <strong>How to get a key:</strong><br>
+                    1. Go to <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--blue); font-weight:600">console.anthropic.com/settings/keys</a><br>
+                    2. Sign in (or create a free account)<br>
+                    3. Click <strong>Create Key</strong>, give it a name, and copy the key<br>
+                    4. Paste it below — it starts with <code style="font-size:11.5px; background:#e5e7eb; padding:1px 4px; border-radius:3px">sk-ant-...</code>
+                </div>
                 <input type="password" id="ai-api-key" placeholder="sk-ant-..." value="">
             </div>
             <div class="form-actions">
