@@ -991,7 +991,17 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         progress(q, "sdm", "Creating self-healing Display Date...", 50)
         build_date_str = TODAY.strftime("%Y-%m-%d")
         date_field_api = dim_field_map.get("date") or dim_field_map.get("Date", "")
+        if not date_field_api:
+            all_dim_keys = list(dim_field_map.keys())
+            progress(q, "warn", f"No 'date' dimension found in field map. Keys: {all_dim_keys[:10]}", -1)
+            for k, v in dim_field_map.items():
+                if "date" in k.lower():
+                    date_field_api = v
+                    progress(q, "info", f"Using '{k}' → '{v}' as date dimension", -1)
+                    break
+
         expression = f'DATEADD("day", DATEDIFF("day", #{build_date_str}#, [{cp["do_api"]}].[{date_field_api}]), TODAY())'
+        progress(q, "info", f"Display Date expression: {expression}", -1)
         r_dd = req.post(
             f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{cp['sdm_api']}/calculated-dimensions",
             headers=h, json={
@@ -1000,9 +1010,10 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
             })
         if r_dd.ok:
             cp["display_date_api"] = r_dd.json().get("apiName", "Display_Date")
+            progress(q, "info", f"Display Date created: {cp['display_date_api']}", -1)
         else:
             cp["display_date_api"] = ""
-            progress(q, "warn", f"Display Date creation failed: {r_dd.text[:200]}", -1)
+            progress(q, "warn", f"Display Date creation failed: {r_dd.text[:300]}", -1)
 
         cp["build_date"] = build_date_str
         cp["sdm_done"] = True
@@ -1045,9 +1056,13 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 continue
 
             mtc_api = f"{field_key}_mtc"
-            time_ref = {"calculatedFieldApiName": cp.get("display_date_api", "Display_Date")} \
-                if cp.get("display_date_api") else \
-                {"tableFieldReference": {"fieldApiName": cp.get("dim_field_map", {}).get("date", ""), "tableApiName": cp["do_api"]}}
+            dd_api = cp.get("display_date_api", "")
+            if dd_api:
+                time_ref = {"calculatedFieldApiName": dd_api}
+            else:
+                raw_date_api = cp.get("dim_field_map", {}).get("date", "")
+                time_ref = {"tableFieldReference": {"fieldApiName": raw_date_api, "tableApiName": cp["do_api"]}}
+                progress(q, "warn", f"No Display Date — metric '{mc['label']}' using raw date field '{raw_date_api}'", -1)
 
             dim_refs = [{"tableFieldReference": {"fieldApiName": dapi, "tableApiName": cp["do_api"]}}
                         for dname, dapi in cp.get("dim_field_map", {}).items()
