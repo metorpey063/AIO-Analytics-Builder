@@ -1211,92 +1211,126 @@ After all metrics are created, PUT each metric back with natural-language nouns 
 - Good noun examples: `"deal closed"` / `"deals closed"`, `"in-person sales activity"` / `"in-person sales activities"`
 - Sentiment: `"SentimentTypeUpIsGood"` or `"SentimentTypeUpIsBad"`
 
-**Phase 5 — Visualizations + Dashboard (use template library)**
+**Phase 5 — Visualizations + Dashboard**
 
-**ALWAYS build the dashboard.** Do not ask the user whether to create it — every Tableau Next demo must have visualizations and a dashboard so assets appear in the workspace. Without vizzes, the workspace appears empty and the SDM is only accessible through Data 360.
+**ALWAYS build the dashboard.** Do not ask the user whether to create it — every Tableau Next demo must have visualizations and a dashboard so assets appear in the workspace.
 
-**Step 5a — Present the visualization plan:**
+**Step 5a — Choose dashboard template:**
 
-```python
-from viz_templates import recommend_dashboard_vizzes
-from dashboard_builder import format_layout_preview
+Ask the user which layout to use via `AskUserQuestion`:
 
-# Auto-recommend chart types from METRIC_CONFIG
-viz_plan = recommend_dashboard_vizzes(METRIC_CONFIG, list(DIM_DESCRIPTIONS.keys()))
+- **Z Layout** (Recommended) — Filters → 6 KPI cards → hero viz → 3-up detail → full-width bottom. Rounded containers, section headers. Best for demos with 4+ metrics.
+- **Performance Overview** — Title + filters → hero metric (sparkline) + 4 BANs → 2 side-by-side vizzes → full-width bottom. Best for executive dashboards with one primary KPI.
+- **Standard (legacy)** — 3 metrics + 2×2 viz grid. REST-based, no containers. Fallback for orgs without MCP.
 
-# Show ASCII preview
-metric_labels = [mc['label'] for mc in METRIC_CONFIG[:3]]
-viz_labels = [f"{v['label']} ({v['template'].replace('_', ' ').title()})" for v in viz_plan]
-preview = format_layout_preview(metric_labels, viz_labels)
+Default to **Z Layout** when MCP `tableau-next-pilot` is connected. Fall back to **Standard** without MCP.
+
+**Step 5b — Pre-flight: check SDM relationships:**
+
+Before creating vizzes, check for broken relationships:
+
+```
+list_semantic_model_relationships(modelApiNameOrId=sdm_api)
 ```
 
-Print the preview and ask the user: **"Here's the dashboard I'll build — approve or edit?"**
+If any relationship has `criteria: []`, delete it — it poisons every query against the SDM. Known Pitfall: IngestAPI DLO relationships silently drop join criteria.
 
-- If **approve** (or user says nothing / "looks good" / "go"): build as shown
-- If **edit**: user can change chart types, swap metrics, add/remove vizzes
+**Step 5c — Create visualizations via MCP:**
 
-Once approved, build each visualization using the template library:
+When using Z Layout or Performance Overview, create vizzes via MCP `create_visualization` (not `build_viz_payload` REST). MCP vizzes render correctly in MCP dashboards.
+
+MCP chart type mapping:
+- `trend_over_time` → `type: "Line"`, date columns, measure rows
+- `bar_by_category` → `type: "Bar"`, dim columns, measure rows, `sortIntent: "MeasureDescending"`
+- `horizontal_bar` → `type: "Bar"`, measure columns, dim rows
+- `multi_series_line` → `type: "Line"`, Color encoding on dim
+- `donut` → `layout: "Radial"`, `type: "Donut"`, Angle + Color encodings
+- `scatter` → `type: "Circle"`, measure each axis, Color on dim
+- `heatmap` → `type: "Square"`, Color encoding on measure
+
+Capture both `name` and `id` from each response.
+
+**Step 5d — Assemble dashboard:**
+
+1. Create empty dashboard via MCP `create_dashboard`
+2. Extract `page_name` from `layouts[0].pages[0].name`
+3. Generate operations:
+
+```python
+from dashboard_builder import build_z_layout_ops, build_perf_overview_ops
+
+# Z Layout
+ops = build_z_layout_ops(
+    page_name=page_name,
+    title=f"{company} {use_case}",
+    subtitle="Description",
+    sdm_api=sdm_api, sdm_id=sdm_id,
+    metric_apis=[m["api"] for m in metrics],
+    metric_labels=[m["label"] for m in metrics],
+    viz_apis=[v["name"] for v in vizzes],
+    viz_labels=[v["label"] for v in vizzes],
+    viz_ids=[v["id"] for v in vizzes],
+    filter_fields=[{"fieldName": d, "objectName": do_api, "label": l} for d, l in dims],
+    brand_colors={"title_color": BRAND.get("primary", "#03234d")},
+    grid_columns=48,
+)
+
+# OR Performance Overview
+ops = build_perf_overview_ops(
+    page_name=page_name,
+    title=f"{company} {use_case}",
+    sdm_api=sdm_api, sdm_id=sdm_id,
+    hero_metric_api=metrics[0]["api"], hero_metric_label=metrics[0]["label"],
+    ban_metric_apis=[m["api"] for m in metrics[1:5]],
+    ban_metric_labels=[m["label"] for m in metrics[1:5]],
+    viz_left_api=vizzes[0]["name"], viz_left_label=vizzes[0]["label"], viz_left_id=vizzes[0]["id"],
+    viz_right_api=vizzes[1]["name"], viz_right_label=vizzes[1]["label"], viz_right_id=vizzes[1]["id"],
+    viz_bottom_api=vizzes[2]["name"], viz_bottom_label=vizzes[2]["label"], viz_bottom_id=vizzes[2]["id"],
+    filter_fields=[...],
+    grid_columns=48,
+)
+```
+
+4. Send ops via MCP `edit_dashboard` with `autosave: true`
+5. Verify: `render_dashboard` → check all widget statuses are `Ok`
+
+**Critical MCP dashboard rules:**
+- **Always pass viz `id` AND `name`** in widget sources
+- **Never send `metricOption.layout.componentVisibility`** — causes embeddedMetric crash
+- **48-col scaling is automatic** — builders handle it via `grid_columns=48`
+- **Create vizzes via MCP** when building MCP dashboards
+- **Check relationships pre-flight** — empty `criteria` breaks everything
+
+**Step 5e — Fallback to REST (no MCP):**
 
 ```python
 from viz_builder import build_viz_payload
+from dashboard_builder import build_dashboard_payload
 
 payload = build_viz_payload(
-    template_name=rec["template"],       # e.g. "trend_over_time"
+    template_name=rec["template"],
     viz_name=f"{slug}_{rec['metric_field']}",
     viz_label=rec["label"],
-    sdm_api=sdm_api,
-    ws_api=ws_api,
-    do_api=do_api,
+    sdm_api=sdm_api, ws_api=ws_api, do_api=do_api,
     field_map={"measure": rec["metric_field"], "date": "date"},
-    dim_field_map=dim_field_map,
-    measurements=measurements,
-    style_overrides=BRAND,               # brand colors (if defined)
+    dim_field_map=dim_field_map, measurements=measurements,
+    style_overrides=BRAND,
 )
-# Validation runs automatically — will print failures before POST
 r = requests.post(f"{VIZ_API_BASE}/tableau/visualizations",
                   headers=SF_HDR, params=VIZ_PARAMS, json=payload)
-```
-
-Available templates: `trend_over_time`, `multi_series_line`, `bar_by_category`, `stacked_bar`, `horizontal_bar`, `donut`, `scatter`, `heatmap`, `funnel`
-
-After all vizzes are created, assemble the dashboard:
-
-```python
-from dashboard_builder import build_dashboard_payload
 
 dash_payload = build_dashboard_payload(
     dash_name=f"{slug}_dashboard",
     dash_label=f"{company} {use_case} Dashboard",
-    ws_api=ws_api,
-    sdm_api=sdm_api,
+    ws_api=ws_api, sdm_api=sdm_api,
     metric_apis=list(metric_api_map.values()),
     viz_apis=list(viz_apis.values()),
-    layout="auto",                       # or "standard", "story_flow", etc.
+    layout="auto",
     style_overrides={"dashboard_bg": BRAND.get("dashboard_bg", "#F3F3F3")},
 )
 r = requests.post(f"{VIZ_API_BASE}/tableau/dashboards",
                   headers=SF_HDR, params=VIZ_PARAMS, json=dash_payload)
 ```
-
-Layout patterns available: `standard` (3 metrics + 2×2 vizzes), `metrics_heavy` (6 metrics + 3 vizzes), `story_flow` (3 metrics + wide hero + 2-up), `wide_viz` (3 metrics + 2 full-width)
-
-After dashboard creation, share the workspace with all users:
-
-```python
-# Share workspace with all org users
-share_url = f"{sf_instance}/services/data/v66.0/tableau/records/{ws_api}/shares?minorVersion=12"
-share_payload = {"shareWith": "ALL_USERS", "accessLevel": "View"}
-r = requests.post(share_url, headers=SF_HDR, json=share_payload)
-if r.status_code in (200, 201):
-    print("  Workspace shared with all users.")
-```
-
-**Key rules still apply:**
-- Dashboard page `name` must be a UUID string
-- `widgets` must be a dict, not a list
-- Widget `source` must have only `"name"` key (no type/label)
-- Metric widgets need `parameters.metricOption.sdmApiName`
-- Container widgets must be in `widgets_dict` with `type: "container"`
 
 **Retry cleanup — apply to EVERY phase that creates assets:**
 
