@@ -1399,9 +1399,13 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 except Exception as e:
                     progress(q, "warn", f"MCP dashboard failed: {e}", -1)
 
-                cp["viz_done"] = True
-                cp["dash_done"] = True
-                _save_cp(cp, slug, demo_dir)
+                if cp["viz_apis"]:
+                    cp["viz_done"] = True
+                    cp["dash_done"] = True
+                    _save_cp(cp, slug, demo_dir)
+                else:
+                    progress(q, "warn", "All MCP vizzes failed — falling back to REST", -1)
+                    mcp_available = False
 
             except Exception as e:
                 progress(q, "warn", f"MCP viz/dash failed ({e}) — falling back to REST", -1)
