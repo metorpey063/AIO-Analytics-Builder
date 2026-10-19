@@ -12,7 +12,7 @@ Generates three **Tableau Studio Agent skills**, pre-loaded with a demo's story,
 |---|---|
 | `skills/` | Generic skills (work without a demo; each asks for the story if `references/demo-story.md` is missing) |
 | `install_studio_skills.sh` | Installs the generic skills into Tableau Studio |
-| `COMMAND.md` | The `/studio` instructions (story intake, `demo-story.md` rendering, per-demo copies, `install.sh`) |
+| `COMMAND.md` | Pointer. The command is now `.claude/commands/studio.md` and the engine is `studio_skills.py` (repo root) |
 | `docs/` | Design doc (`studio-skills-design.md`), Studio guide, external API reference, v2 notes |
 | `INTEGRATION.md`, `studio.patch` | How to merge this into core later |
 

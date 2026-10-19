@@ -1,3 +1,5 @@
+> **Status (2026-10-18): merged.** Engine `studio_skills.py`, command `.claude/commands/studio.md`, `/build-demo` offer after close-loop, `cp["story"]` saved in Phase 1, walkthrough Section 8, CLAUDE.md entries. The templates stay in `sidekicks/studio/skills/`. Still open: checklist item 7 (whether the Studio guide and external API reference may be shared upstream).
+
 # Integrating studio into core
 
 ## What it does, and why it belongs in core

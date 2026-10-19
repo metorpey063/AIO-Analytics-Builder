@@ -108,6 +108,7 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
   2. **Tableau Next** — pushes data to Data Cloud, builds a Semantic Data Model, metrics, visualizations, and dashboard
   3. **CSV export** — exports the generated dataset for manual use in any viz tool
 - **/close-loop** — Optional final step (offered at the end of `/build-demo`, or run standalone on any `demos/{slug}/`): deploys Flows that create the story's follow-up records and notify the team in Slack (or Chatter). Slack is configured here only, never in `/setup`
+- **/studio** — Tableau Studio Agent skills pre-loaded with the demo's story (aio-story, aio-autobuilder, aio-audience, plus custom skills Claude writes on request). Offered after close-loop at the end of `/build-demo`, or run standalone on any `demos/{slug}/`, an outside CSV/.hyper/.tdsx, or a published Tableau datasource. Needs no org
 
 ## Project structure
 
@@ -130,6 +131,8 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
 - `close_loop.py` — /close-loop engine: story analysis → action/trigger plan → Flow generation → Metadata API deploy → activate → walkthrough Section 7. CLI: `preflight | slack-check | plan | build | test | reset | remove`
 - `close_loop_flows.py` — Flow metadata XML generators (follow-up, notify, alert, screen, signal) + `package.xml`
 - `setup_slack.py` — saves Slack IDs to `profiles.{key}.slack` and runs the read-only Slack check; called by /close-loop only when the user picks Slack
+- `studio_skills.py` — /studio engine: story derivation (reuses `close_loop.analyze_story`) → `demo-story.md` → skill folders + `install.sh` + README → walkthrough Section 8. Also imports outside sources and validates custom skills. CLI: `story | generate | custom | install | status`
+- `sidekicks/studio/skills/` — the three Tableau Studio skill templates (generic; each falls back to asking for the story if `references/demo-story.md` is missing). Design: `sidekicks/studio/docs/studio-skills-design.md`
 
 ## CRM actionability (Tableau Next)
 
@@ -231,6 +234,14 @@ Every demo build generates a `{slug}_demo_walkthrough.docx` file. **All walkthro
 - Also adds a bold **"Next — close the loop:"** hand-off line at the end of Section 3, pointing the presenter to Section 7
 - Preview it before deploying with `python close_loop.py plan --slug {slug}` (no org or .docx changes)
 
+### Section 8 — Tableau Studio Skills (only if /studio was generated)
+- **H1:** "Tableau Studio Skills"
+- Written by `studio_skills.py generate` / `custom` (replaces any earlier version). Never hand-write it.
+- Intro paragraph: what the skills are, the install command, `/reload-skills`, and the datasource to connect
+- **H2** per skill (aio-autobuilder, aio-story, aio-audience, then any custom skills), each with:
+  - **"Ask:"** (bold): the quoted example prompts
+  - **"Expected response:"** (bold): what the skill does, in terms of this demo's story
+
 ### Summary of sections by build type
 
 | Section | Pulse | Tableau Next | CRMA |
@@ -242,10 +253,11 @@ Every demo build generates a `{slug}_demo_walkthrough.docx` file. **All walkthro
 | 5. Setting Up Goal Lines | ✓ (if goals) | — | — |
 | 6. Business Preferences (SDM) | — | ✓ | — |
 | 7. Close the Loop | ✓ (if built) | ✓ (if built) | ✓ (if built) |
+| 8. Tableau Studio Skills | ✓ (if generated) | ✓ (if generated) | ✓ (if generated) |
 
 **Label rules — do NOT mix these:**
 - **"Action:" / "Audience sees:"** → for UI navigation sections (Demo Click Path). Describes what to click and what the data shows visually.
-- **"Ask:" / "Expected response:"** → for AI Q&A sections (Concierge Prompts, Pulse Discover Questions). Describes questions asked to an AI and the AI's responses.
+- **"Ask:" / "Expected response:"** → for AI Q&A sections (Concierge Prompts, Pulse Discover Questions, Tableau Studio Skills). Describes questions asked to an AI and the AI's responses.
 - **"Say:" / "Trigger:" / "Result:"** → for the Close the Loop section only. What the presenter says, what fires the follow-up, and what the org does.
 
 ## Visualization building (Tableau Next)
@@ -632,3 +644,6 @@ BRAND = {
 - Semantics: **Dimension `description` has a length limit (~200 chars after HTML encoding).** The API double-encodes `&` as `&amp;amp;` before checking, so a description with ampersands overflows sooner than its raw length suggests. The PUT returns 400 "data value too large". Keep dimension descriptions short and avoid `&`.
 - Workspace share: **`{"shareWith": "ALL_USERS", "accessLevel": "View"}` is rejected** with 400 `Unrecognized field "shareWith"` on `/tableau/records/{ws}/shares`. GET on that endpoint needs the workspace record ID (`1Dy…`, from `GET /tableau/workspaces/{api}`), not its apiName. The working POST schema isn't known yet; share in the UI (Share → All Internal Users → View) until it's found.
 - Close the loop: **Pin the story with `cp["story"]` when the analysis picks the wrong drill path.** `analyze_story()` takes the single worst segment across all text columns, so a dimension that tracks the intended one (e.g. Account Size vs Location Count Band) can take over the talk track, and `metrics[1:4]` can name a lagging metric as the "leading signal". Set `story.dimensions` (leave out the duplicate dimension) and `story.supporting_metrics` (labels, leading indicator first) in the demo's docs phase.
+- Studio: **Run `/studio` after `/close-loop`, or re-run it.** `demo-story.md` gets its Close the Loop section only if `{slug}_close_loop_payload.json` exists at generate time. Installed copies in Tableau Studio don't update either, so re-run `install` (then `/reload-skills`) after regenerating.
+- Studio: **Self-healing `.tdsx` has no stored Date.** Its Date is a calc on `Day_Offset`, so the extract only has `Day_Offset`. `studio_skills.py` rebuilds `Date` from `Day_Offset` when importing a `.hyper`/`.tdsx`/published datasource. Outside sources without a date column need `--set date_field=...`.
+- Studio: **Outside data has no `METRIC_CONFIG`.** `analyze_story` falls back to the first numeric column, which is often a count. Always confirm `primary_metric` and `entity_field` with `--set` for CSV/.hyper/datasource sources.

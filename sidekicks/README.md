@@ -5,7 +5,7 @@ Optional add-ons for the AIO Analytics Builder. Each one runs on its own against
 | Sidekick | Command | What it adds | Needs |
 |---|---|---|---|
 | [close-loop/](close-loop/README.md) | `/close-loop {slug}` | ONE follow-up action built into the Salesforce org (Flows), fired by the audience; Slack or Chatter notify; walkthrough Section 7 | Salesforce org (from `/setup`); Slack optional |
-| [studio/](studio/README.md) | `/studio {slug}` | Three Tableau Studio Agent skills pre-loaded with the demo's story | Tableau Studio (only to install/use) |
+| [studio/](studio/README.md) | `/studio {slug}` | Tableau Studio Agent skills pre-loaded with the demo's story, plus custom skills on request. **Merged into core:** `studio_skills.py` + `.claude/commands/studio.md`; templates stay in `studio/skills/` | Tableau Studio (only to install/use) |
 
 **Order when used together:** close-loop first, then studio. That way the Studio skills' `demo-story.md` includes the Close the Loop step.
 
