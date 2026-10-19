@@ -4,6 +4,30 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-10-19 — /close-loop + /studio integration, measurement PUT fix
+
+### Added
+- **`/close-loop` command**: deploys Salesforce Flows that create follow-up records (Tasks/Case/Campaign) from a demo's at-risk finding, with Slack or Chatter notifications. The audience fires it during the demo — Claude Code isn't involved at demo time. Lifecycle: preflight → plan → build → test → reset → remove
+- **`/studio` command**: generates Tableau Studio Agent skills (aio-story, aio-autobuilder, aio-audience) pre-loaded with a demo's story. Works on any AIO demo, outside CSV, .hyper/.tdsx, or published datasource. Standalone — no org needed
+- **`studio_skills.py`**: engine for /studio — story derivation (reuses close_loop.analyze_story), demo-story.md rendering, skill folders + install.sh, walkthrough Section 8, custom-skill validation
+- **`close_loop.py` + `close_loop_flows.py`**: engine for /close-loop — story analysis, Flow XML generation, Metadata API deploy, walkthrough Section 7
+- **`setup_slack.py`**: Slack ID configuration for /close-loop (per-profile, IDs only, no secrets)
+- **`ROADMAP.md`**: tracks planned work (Web UI wiring, CRM Actionability integration, Agentforce trigger, studio build-flow integration)
+- **`cp["story"]` saved on every build**: all output modes now save story metadata to the checkpoint so /close-loop and /studio work later without re-asking
+- **`sidekicks/studio/skills/`**: three Tableau Studio Agent skill templates with reference docs
+
+### Fixed
+- **Measurement/dimension PUT 400**: was using `apiName + "__c"` as `dataObjectFieldName` but the apiName has a numeric suffix that doesn't match the DLO field. Now stores the real `dataObjectFieldName` from the DO GET response in `measurement_dof_map` / `dim_dof_map` and uses those in PUT payloads. Fixed in both demo scripts and `build-demo.md`
+- **CRM upserter FLS**: new External ID fields get no field-level security for the running user. `grant_field_access()` now creates a Permission Set to fix it, but is non-fatal — warns on failure and lets the upsert try anyway
+
+### Integration decisions (from jzitko handoff)
+- Close-loop: will integrate into CRM Actionability question for Tableau Next builds (future)
+- Studio: standalone command only, not wired into /build-demo flow yet
+- Walkthrough Sections 1-6 untouched (no hand-off line in Section 3)
+- Slack config stored per-profile (same as Tableau/Salesforce credentials)
+
+---
+
 ## 2026-10-19 — MCP dashboard builder, installer UX, build pipeline fixes (v2.6.0)
 
 ### Added
