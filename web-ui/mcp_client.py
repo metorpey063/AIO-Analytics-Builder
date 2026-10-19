@@ -51,8 +51,6 @@ class MCPClient:
             "refresh_token": refresh_token,
             "client_id": self.mcp_client_id,
         }
-        if self.sf.get("mcp_code_verifier"):
-            data["code_verifier"] = self.sf["mcp_code_verifier"]
 
         r = requests.post(f"{self.sf_login_url}/services/oauth2/token", data=data)
         if r.status_code != 200:
