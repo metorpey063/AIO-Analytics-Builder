@@ -932,30 +932,12 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         schema_exists = any(s.get("name") == schema_name for s in existing_schemas)
 
         if not schema_exists:
-            # Strip platform-injected reserved fields from existing schemas before re-submitting
-            STRIP_KEYS = {"availabilityStatus"}
-            RESERVED_FIELDS = {"DataSourceId", "DataSourceObjectId"}
-            clean_existing = []
-            for s in existing_schemas:
-                clean = {k: v for k, v in s.items() if k not in STRIP_KEYS}
-                if "fields" in clean:
-                    clean["fields"] = [
-                        {fk: fv for fk, fv in f.items() if fk not in STRIP_KEYS}
-                        for f in clean["fields"]
-                        if f.get("name") not in RESERVED_FIELDS
-                    ]
-                clean_existing.append(clean)
-
             new_schema = {"name": schema_name, "label": schema_name,
                           "schemaType": "IngestApi", "fields": schema_fields}
             r_put = req.put(f"{sf_instance}/services/data/v62.0/ssot/connections/{connector_id}/schema",
-                            headers=h, json={"schemas": clean_existing + [new_schema]})
+                            headers=h, json={"schemas": [new_schema]})
             if not r_put.ok:
-                progress(q, "warn", f"Schema PUT failed: {r_put.text[:200]} — retrying with new schema only", -1)
-                r_put2 = req.put(f"{sf_instance}/services/data/v62.0/ssot/connections/{connector_id}/schema",
-                                 headers=h, json={"schemas": [new_schema]})
-                if not r_put2.ok:
-                    progress(q, "warn", f"Schema registration failed: {r_put2.text[:200]}", -1)
+                raise RuntimeError(f"Schema registration failed: {r_put.text[:300]}")
         else:
             progress(q, "info", f"Schema '{schema_name}' already exists — reusing", -1)
 
