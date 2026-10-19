@@ -660,6 +660,7 @@ def build_generate_story():
             use_case=data.get("use_case", ""),
             audience=data.get("audience", ""),
             notes=data.get("notes", ""),
+            research_depth=data.get("research_depth", "quick"),
         )
         if not result.get("metric_config"):
             return jsonify({"ok": False, "error": "AI returned a response but no metrics were generated. Try again with more detail about the use case."})
@@ -688,9 +689,13 @@ def build_start():
         "use_case": data.get("use_case", ""),
         "audience": data.get("audience", ""),
         "notes": data.get("notes", ""),
+        "research_depth": data.get("research_depth", "quick"),
         "story_config": data.get("story_config", {}),
         "profile_key": data.get("profile_key"),
+        "advanced": data.get("advanced", {}),
         "outputs": data.get("outputs", {"csv": True}),
+        "dashboard_template": data.get("dashboard_template", "z_layout"),
+        "brand": data.get("brand", {}),
     }
 
     def _run():

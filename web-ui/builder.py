@@ -118,7 +118,7 @@ def _find_existing_demo(company):
     return None
 
 
-def generate_story(company, industry, use_case, audience, notes=""):
+def generate_story(company, industry, use_case, audience, notes="", research_depth="quick"):
     """Call Claude API to generate story + metrics. Returns dict."""
     from app import _get_chat_config, CHAT_MODEL
 
@@ -141,11 +141,22 @@ IMPORTANT — A demo was previously built for this company. Here is the prior co
 
 Reuse the same metrics, dimensions, and field names from the prior build. Match the column names exactly so the new build is consistent with the existing data. Adapt for the requested output platform if different."""
 
+    depth_context = ""
+    if research_depth == "detailed":
+        depth_context = """
+RESEARCH DEPTH: DETAILED
+Go deep on this company's actual business model, industry dynamics, and real KPIs. Use real department names, real product lines, real geographic footprint where possible. The story should reference plausible industry benchmarks and use terminology the audience would recognize from their day-to-day work. Generate 5 metrics (not 3). Include dimension values that match the company's real operations (e.g. actual regions they operate in, actual product categories they sell)."""
+    else:
+        depth_context = """
+RESEARCH DEPTH: QUICK
+Generate a solid demo configuration using reasonable industry defaults. 3-4 metrics is fine. Use generic but realistic dimension values."""
+
     user_msg = f"""Company: {company}
 Industry: {industry}
 Use case / topic: {use_case}
 Audience: {audience}
 Additional context: {notes or 'None'}
+{depth_context}
 {prior_context}"""
 
     if cfg["mode"] == "bedrock_gateway":
@@ -211,17 +222,22 @@ def signal_ramp(d, onset=-3, shape="accelerating", duration=3):
     progress_val = min(1.0, months_from_onset / duration)
     if shape == "accelerating":
         return progress_val ** 2
+    if shape == "step":
+        return 1.0 if progress_val >= 0.3 else 0.0
     return progress_val
 
 
-def generate_data(story_config, q=None):
+def generate_data(story_config, q=None, advanced=None):
     """Generate synthetic data from story config. Returns DataFrame."""
     metric_config = story_config["metric_config"]
     dimensions = story_config.get("dimensions", ["Region", "Category", "Segment"])
+    advanced = advanced or {}
 
-    history_months = 24
-    signal_magnitude = 0.45
-    supporting_magnitude = 0.30
+    history_months = advanced.get("history_months", 24)
+    signal_magnitude = advanced.get("signal_magnitude", 0.40)
+    supporting_magnitude = advanced.get("supporting_magnitude", 0.12)
+    signal_onset = advanced.get("signal_onset", -3)
+    signal_shape = advanced.get("signal_shape", "accelerating")
 
     dim_values = {}
     for dim in dimensions:
@@ -247,8 +263,12 @@ def generate_data(story_config, q=None):
         random.shuffle(mults)
         segment_mults[dim] = dict(zip(vals, mults))
 
+    grain = advanced.get("grain", "monthly")
+    freq_map = {"daily": "D", "weekly": "W-MON", "monthly": "MS"}
+    freq = freq_map.get(grain, "MS")
+
     start_date = TODAY - relativedelta(months=history_months)
-    dates = pd.date_range(start_date, TODAY, freq="MS").date.tolist()
+    dates = pd.date_range(start_date, TODAY, freq=freq).date.tolist()
 
     n_entities = 2
     from itertools import product as cartprod
@@ -263,7 +283,7 @@ def generate_data(story_config, q=None):
             base_values = {m["field"]: random.uniform(0.55, 0.85) for m in metric_config}
 
             for dt in dates:
-                ramp = signal_ramp(dt, onset=-3, shape="accelerating", duration=3)
+                ramp = signal_ramp(dt, onset=signal_onset, shape=signal_shape, duration=abs(signal_onset))
                 primary_mult = max(segment_mults[dimensions[0]].get(combo[0], 1.0), 0.0)
 
                 row = {"Record ID": f"{eid}_{dt.strftime('%Y%m%d')}", "Date": dt, "Entity ID": eid}
@@ -310,17 +330,29 @@ def generate_data(story_config, q=None):
 # ---------------------------------------------------------------------------
 
 def generate_walkthrough(slug, company, story_config, metric_config, build_type, checkpoint, demo_dir):
-    """Generate a .docx walkthrough. Returns file path."""
+    """Generate a .docx walkthrough following the standard format. Returns file path."""
     from docx import Document
     doc = Document()
+    dims = story_config.get("dimensions", [])
 
+    # --- Section 1: Demo Scenario ---
     doc.add_heading("Demo Scenario", level=1)
     doc.add_heading(f"About {company}", level=2)
     doc.add_paragraph(story_config.get("story_summary", ""))
-    doc.add_heading("Story & Signal", level=2)
+    doc.add_heading("Audience & Story", level=2)
+    audience = story_config.get("audience", "")
+    if audience:
+        p = doc.add_paragraph()
+        p.add_run("Audience: ").bold = True
+        p.add_run(audience)
     doc.add_paragraph(story_config.get("signal_description", ""))
 
+    # --- Section 2: Metrics Reference ---
     doc.add_heading("Metrics Reference", level=1)
+    doc.add_paragraph(
+        "Each metric below includes its definition and why it matters to the client. "
+        "Primary metrics show the main signal; supporting metrics explain the cause or consequence."
+    )
     for mc in metric_config:
         doc.add_heading(mc["label"], level=2)
         p = doc.add_paragraph()
@@ -330,12 +362,115 @@ def generate_walkthrough(slug, company, story_config, metric_config, build_type,
         p2.add_run("Why it matters: ").bold = True
         p2.add_run(mc.get("why_it_matters", ""))
 
+    # --- Section 3: Click Path / Concierge Prompts ---
     if build_type == "pulse":
         doc.add_heading("Demo Click Path", level=1)
-        doc.add_paragraph("Open Pulse and follow the metric story arc through filters and drill-downs.")
+        doc.add_paragraph(
+            "Each step below shows the action to take in Pulse followed by what the audience will see."
+        )
+        primary = [mc for mc in metric_config if mc.get("is_primary")]
+        lead_metric = primary[0]["label"] if primary else metric_config[0]["label"]
+
+        steps = [
+            ("Opening — Surface Level", f"Open {company} metrics in Pulse", f"The {lead_metric} sparkline shows a recent decline, with a red comparison arrow vs. prior period."),
+        ]
+        if dims:
+            steps.append((f"Drill 1 — {dims[0]}", f"Click into {lead_metric} and filter by {dims[0]}", f"One {dims[0].lower()} segment is declining significantly faster than others."))
+        if len(dims) >= 2:
+            steps.append((f"Drill 2 — {dims[1]}", f"Within the worst {dims[0].lower()}, break down by {dims[1]}", f"The decline is concentrated in a specific {dims[1].lower()} segment."))
+        counter = [mc for mc in metric_config if not mc.get("is_primary") and mc.get("sentiment") != "up_is_good"]
+        if counter:
+            steps.append(("Counter-Trend", f"Switch to {counter[0]['label']}", f"This metric is actually improving — it masks the severity of the decline in the primary metric."))
+        steps.append(("Action", "Summarize findings", "The audience now has a clear signal, knows where it's concentrated, and can identify at-risk entities."))
+
+        for title, action, sees in steps:
+            doc.add_heading(title, level=2)
+            p = doc.add_paragraph()
+            p.add_run("Action: ").bold = True
+            p.add_run(action)
+            p2 = doc.add_paragraph()
+            p2.add_run("Audience sees: ").bold = True
+            p2.add_run(sees)
+
     elif build_type == "next":
         doc.add_heading("Concierge Prompts", level=1)
-        doc.add_paragraph("Ask Concierge the following questions to walk through the demo story.")
+        doc.add_paragraph(
+            "Each step below shows the question to ask Concierge followed by the expected response."
+        )
+        primary = [mc for mc in metric_config if mc.get("is_primary")]
+        lead_metric = primary[0]["label"] if primary else metric_config[0]["label"]
+
+        prompts = [
+            ("Opening", f"How is {lead_metric.lower()} trending?", f"Concierge shows the overall trend with a decline emerging in recent months."),
+        ]
+        if dims:
+            prompts.append((f"Drill — {dims[0]}", f"Which {dims[0].lower()} has the worst {lead_metric.lower()}?", f"Concierge identifies the worst-performing {dims[0].lower()} segment with specific numbers."))
+        if len(dims) >= 2:
+            prompts.append((f"Drill — {dims[1]}", f"Within that {dims[0].lower()}, break it down by {dims[1].lower()}", f"Concierge drills deeper, revealing the compounding effect in a specific {dims[1].lower()} segment."))
+        supporting = [mc for mc in metric_config if not mc.get("is_primary")]
+        if supporting:
+            prompts.append(("Root Cause", f"What about {supporting[0]['label'].lower()}?", f"Concierge shows the supporting metric lagging the primary, confirming the root cause."))
+        prompts.append(("Action", "Which entities are most at risk?", "Concierge lists specific entities with the steepest declines, ready for outreach."))
+
+        for title, ask, expected in prompts:
+            doc.add_heading(title, level=2)
+            p = doc.add_paragraph()
+            p.add_run("Ask: ").bold = True
+            p.add_run(f'"{ask}"')
+            p2 = doc.add_paragraph()
+            p2.add_run("Expected response: ").bold = True
+            p2.add_run(expected)
+
+    elif build_type == "crma":
+        doc.add_heading("Demo Click Path", level=1)
+        doc.add_paragraph("Navigate the CRM Analytics dashboard to explore the story.")
+
+    # --- Section 4: Goal Lines (Pulse only, if any metric has goals) ---
+    if build_type == "pulse":
+        goals = [mc for mc in metric_config if mc.get("goal")]
+        if goals:
+            doc.add_heading("Setting Up Goal Lines", level=1)
+            doc.add_paragraph(
+                "The datasource includes target columns for easy goal setup in the Pulse UI:"
+            )
+            for mc in goals:
+                g = mc["goal"]
+                doc.add_paragraph(
+                    f"{mc['label']}: select \"{g.get('field', '')}\" → target {g.get('value', '')} → direction: {g.get('direction', 'above')}",
+                    style="List Bullet"
+                )
+            doc.add_paragraph(
+                "To set up: Open metric → Edit → Goals → Select field from data → Choose the target column → Set direction."
+            )
+
+    # --- Section 5: Business Preferences (Next only) ---
+    if build_type == "next":
+        doc.add_heading("Business Preferences (SDM)", level=1)
+        doc.add_paragraph(
+            "Copy the text below and paste it into: Data 360 → Semantic Model → [SDM name] "
+            "→ AI Optimization → Manage Business Preferences"
+        )
+        dims_str = ", ".join(dims) if dims else "Region, Category"
+        metric_defs = "\n".join([f"- {mc['label']}: {mc.get('description', '')}" for mc in metric_config])
+        bp_text = (
+            f"# COMPANY CONTEXT\n"
+            f"This data represents {company}'s operational analytics.\n\n"
+            f"# METRIC DEFINITIONS\n{metric_defs}\n\n"
+            f"# DIMENSION GUIDANCE\n"
+            f"Available dimensions: {dims_str}. Use these to segment and filter data.\n\n"
+            f"# THRESHOLDS AND TARGETS\n"
+            f"A decline of more than 10 percentage points is significant. Track metrics against prior period.\n\n"
+            f"# QUESTION INTENT\n"
+            f"\"worst\" = steepest decline over the analysis period\n"
+            f"\"most affected\" = steepest decline segmented by the most recently mentioned dimension\n"
+            f"\"at risk\" = entities with the steepest recent decline\n\n"
+            f"# ANSWER STYLE\n"
+            f"Lead with the answer, then supporting data. Do not open with questions back to the user.\n\n"
+            f"# TIME CONTEXT\n"
+            f"Default comparison: current period vs. prior period (same duration)."
+        )
+        doc.add_paragraph(bp_text)
+        checkpoint["business_preferences"] = bp_text
 
     path = os.path.join(demo_dir, f"{slug}_demo_walkthrough.docx")
     doc.save(path)
@@ -358,7 +493,7 @@ def csv_build(build_id, df, slug, demo_dir, q):
 # Pulse build
 # ---------------------------------------------------------------------------
 
-def pulse_build(build_id, df, slug, company, config, metric_config, story_config, demo_dir, q, cp):
+def pulse_build(build_id, df, slug, company, config, metric_config, story_config, demo_dir, q, cp, build_config=None):
     import requests as req
     from connections import get_tableau_token, tableau_headers, tableau_pulse_headers
 
@@ -480,6 +615,33 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
         progress(q, "warn", f"Group/subscription creation failed: {e}", -1)
 
     _save_cp(cp, slug, demo_dir)
+
+    # --- Optional: Pulse Dashboard with embedded metric tiles ---
+    outputs = build_config.get("outputs", {}) if build_config else {}
+    if outputs.get("pulse_dashboard"):
+        progress(q, "twb", "Creating Pulse Dashboard workbook...", 78)
+        try:
+            from twb_builder import build_pulse_workbook
+            from connections import get_datasource_content_url
+            ds_content_url = get_datasource_content_url(server, cp["pulse_datasource_id"])
+            twb_path = build_pulse_workbook(
+                df=df,
+                metric_config=metric_config,
+                ds_content_url=ds_content_url,
+                company=company,
+                slug=slug,
+                demo_dir=demo_dir,
+                server=server,
+                project_id=cp["pulse_project_id"],
+                datasource_id=cp["pulse_datasource_id"],
+                def_ids=cp.get("pulse_def_ids", []),
+                metric_ids=cp.get("pulse_metric_ids", []),
+            )
+            cp["pulse_twb_path"] = twb_path
+            progress(q, "twb", "Pulse Dashboard published", -1)
+        except Exception as e:
+            progress(q, "warn", f"Pulse Dashboard skipped: {e}", -1)
+        _save_cp(cp, slug, demo_dir)
 
     progress(q, "walkthrough", "Generating walkthrough document...", 85)
     wt_path = generate_walkthrough(slug, company, story_config, metric_config, "pulse", cp, demo_dir)
@@ -699,6 +861,43 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
         cp["ingest_done"] = True
         cp["ingest_job_id"] = job_id
+        _save_cp(cp, slug, demo_dir)
+
+    # --- Phase 3b: CRM Actionability (upsert Account records) ---
+    outputs = build_config.get("outputs", {}) if build_config else {}
+    if outputs.get("crm_actionable") and not cp.get("crm_done"):
+        progress(q, "crm", "Creating CRM Account records...", 36)
+        try:
+            from crm_upserter import ensure_external_id_field, upsert_crm_records
+            sf_token, sf_instance = get_sf_token(config)
+
+            ensure_external_id_field(sf_token, sf_instance, "Account", "Demo_External_ID__c")
+
+            entities = df[["Entity ID"]].drop_duplicates()
+            dims = story_config.get("dimensions", [])
+            records = []
+            for _, row_data in entities.iterrows():
+                eid = row_data["Entity ID"]
+                sample = df[df["Entity ID"] == eid].iloc[0]
+                rec = {
+                    "Name": f"{company} — {eid}",
+                    "Demo_External_ID__c": eid,
+                }
+                for d in dims:
+                    if d in sample:
+                        if d.lower() in ("region", "location", "geography"):
+                            rec["BillingState"] = str(sample[d])
+                        elif d.lower() in ("vertical", "industry", "sector"):
+                            rec["Industry"] = str(sample[d])
+                records.append(rec)
+
+            result = upsert_crm_records(sf_token, sf_instance, "Account", "Demo_External_ID__c", records)
+            cp["crm_account_ids"] = result
+            progress(q, "crm", f"Created {len(records)} Account records", -1)
+        except Exception as e:
+            progress(q, "warn", f"CRM upsert failed: {e}", -1)
+
+        cp["crm_done"] = True
         _save_cp(cp, slug, demo_dir)
 
     # --- Phase 4: Workspace + SDM + DO ---
@@ -962,14 +1161,19 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
                 cp["viz_apis"] = []
 
-                # Filter out system dimensions to get user-facing ones
                 SYSTEM_DIMS = {"date", "record_id", "entity_id", "day_offset", "kq_record_id",
                            "datasourceobject", "datasource", "cdp_sys_sourceversion",
                            "data_source_object", "data_source"}
                 user_dim_names = [k for k in cp.get("dim_field_map", {}).keys()
                                   if k.lower().replace(" ", "_") not in SYSTEM_DIMS]
 
-                # Use recommend_dashboard_vizzes if available, else manual plan
+                brand = build_config.get("brand", {}) if build_config else {}
+                style_overrides = {}
+                if brand.get("primary"):
+                    style_overrides["primary"] = brand["primary"]
+                if brand.get("secondary"):
+                    style_overrides["secondary"] = brand["secondary"]
+
                 try:
                     from viz_templates import recommend_dashboard_vizzes
                     viz_plan = recommend_dashboard_vizzes(metric_config, user_dim_names)
@@ -1003,6 +1207,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                         field_map=fm,
                         dim_field_map=cp.get("dim_field_map", {}),
                         measurements=cp.get("measurement_map", {}),
+                        style_overrides=style_overrides if style_overrides else None,
                     )
 
                     ok, results = is_valid(payload)
@@ -1034,6 +1239,18 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
             sf_token, sf_instance = get_sf_token(config)
             h = sf_headers(sf_token)
 
+            brand = build_config.get("brand", {}) if build_config else {}
+            dash_style = {}
+            if brand.get("primary"):
+                c = brand["primary"].lstrip("#")
+                r_c, g_c, b_c = int(c[:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+                tint = "#{:02x}{:02x}{:02x}".format(
+                    round(r_c + (255 - r_c) * 0.90),
+                    round(g_c + (255 - g_c) * 0.90),
+                    round(b_c + (255 - b_c) * 0.90))
+                dash_style["backgroundColor"] = tint
+                dash_style["gutterColor"] = tint
+
             dash_payload = build_dashboard_payload(
                 dash_name=f"{slug}_dashboard",
                 dash_label=f"{company} Dashboard",
@@ -1041,6 +1258,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 sdm_api=cp["sdm_api"],
                 viz_apis=cp.get("viz_apis", []),
                 metric_apis=cp.get("metric_apis", []),
+                style_overrides=dash_style if dash_style else None,
             )
             r_dash = req.post(
                 f"{sf_instance}/services/data/v66.0/tableau/dashboards?minorVersion=12",
@@ -1154,15 +1372,17 @@ def run_build(build_id, build_config, progress_queue):
                 set_active_profile(full, profile_key)
         config = load_config(profile_key)
 
+        advanced = build_config.get("advanced", {})
+
         progress(q, "init", "Generating data...", 0)
-        df = generate_data(story_config, q)
+        df = generate_data(story_config, q, advanced=advanced)
 
         if outputs.get("csv"):
             csv_build(build_id, df, slug, demo_dir, q)
 
         if outputs.get("pulse"):
             progress(q, "pulse", "Starting Pulse build...", 15)
-            pulse_build(build_id, df, slug, company, config, metric_config, story_config, demo_dir, q, cp)
+            pulse_build(build_id, df, slug, company, config, metric_config, story_config, demo_dir, q, cp, build_config)
 
         if outputs.get("next"):
             progress(q, "next", "Starting Tableau Next build...", 10)

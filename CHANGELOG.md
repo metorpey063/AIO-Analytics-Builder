@@ -4,6 +4,25 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-10-19 — Feature parity: Advanced Mode, Research Depth, full output options (v2.5.0)
+
+### Added
+- **Advanced Mode** in Build wizard: collapsible section with Data History (6/12/24/36 months), Time Grain (daily/weekly/monthly), Signal Severity, Signal Onset, Signal Shape (accelerating/ramp/step), and Supporting Metric Strength — all wired through to data generation.
+- **Research Depth** toggle: Quick (fast defaults) vs. Detailed (deeper company research, 5 metrics, real dimension values). Passed to both story generation and build start.
+- **Brand Colors**: primary and secondary hex color pickers with live preview, applied to viz style overrides and dashboard background tints (auto-blended 90% toward white).
+- **CRM Actionability**: checkbox creates real Salesforce Account records linked to analytics fact data via `crm_upserter.py` (External ID field, batch upsert).
+- **Pulse Dashboard**: checkbox publishes a `.twb` workbook with embedded Pulse metric tiles via `twb_builder.py`.
+- **Dashboard Template** selector: Z Layout (MCP), Performance Overview, or Standard (REST fallback).
+- **CRMA output**: checkbox uploads dataset to CRM Analytics via `crma_uploader.py`.
+- **Build summary panel**: green success panel on completion with checklist of all outputs created.
+- **Enriched walkthrough .docx**: full CLAUDE.md format — Demo Scenario (About + Audience & Story), Metrics Reference (What it measures + Why it matters), Click Path or Concierge Prompts with drill-down steps, Goal Lines (Pulse), Business Preferences (Next).
+
+### Fixed
+- Signal ramp now supports all three shapes: `accelerating` (quadratic), `ramp` (linear), and `step` (threshold at 30%).
+- Data generation uses configurable onset/duration instead of hardcoded `-3`/`3`.
+
+---
+
 ## 2026-10-18 — MCP integration, setup guide improvements, OAuth fixes (v2.4.0)
 
 ### Added

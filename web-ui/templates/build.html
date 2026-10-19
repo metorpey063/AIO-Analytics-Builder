@@ -98,6 +98,92 @@
                         <label for="w-notes">Additional Context <span class="optional">(optional)</span></label>
                         <textarea id="w-notes" class="sync-field" data-sync="notes" rows="3" placeholder="Any specific requirements, pain points, or details about what matters to this prospect..."></textarea>
                     </div>
+
+                    <!-- Research Depth -->
+                    <div class="form-group">
+                        <label>Research Depth</label>
+                        <div style="display:flex; gap:10px">
+                            <label class="output-card" style="flex:1; padding:10px 14px; cursor:pointer">
+                                <input type="radio" name="research-depth" value="quick" checked class="sync-field" data-sync="research-depth" style="accent-color:var(--blue)">
+                                <div class="output-card-inner" style="gap:4px">
+                                    <strong style="font-size:13px">Quick</strong>
+                                    <p style="font-size:11px">AI generates story from company name + context (~10s)</p>
+                                </div>
+                            </label>
+                            <label class="output-card" style="flex:1; padding:10px 14px; cursor:pointer">
+                                <input type="radio" name="research-depth" value="detailed" class="sync-field" data-sync="research-depth" style="accent-color:var(--blue)">
+                                <div class="output-card-inner" style="gap:4px">
+                                    <strong style="font-size:13px">Detailed</strong>
+                                    <p style="font-size:11px">AI researches the company, benchmarks, and brand colors (~30s)</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Mode (collapsible) -->
+                    <div class="advanced-section">
+                        <button type="button" class="advanced-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                            <span class="advanced-arrow">▸</span> Advanced Options
+                        </button>
+                        <div class="advanced-body">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="w-history">Data History</label>
+                                    <select id="w-history" class="sync-field" data-sync="history">
+                                        <option value="6">6 months</option>
+                                        <option value="12">12 months</option>
+                                        <option value="24" selected>24 months (default)</option>
+                                        <option value="36">36 months</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="w-grain">Time Grain</label>
+                                    <select id="w-grain" class="sync-field" data-sync="grain">
+                                        <option value="daily">Daily</option>
+                                        <option value="weekly">Weekly</option>
+                                        <option value="monthly" selected>Monthly (default)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="w-severity">Signal Severity</label>
+                                    <select id="w-severity" class="sync-field" data-sync="severity">
+                                        <option value="0.15">Subtle (15%)</option>
+                                        <option value="0.25">Moderate (25%)</option>
+                                        <option value="0.40" selected>Severe (40%)</option>
+                                        <option value="custom">Custom...</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="w-onset">Signal Onset</label>
+                                    <select id="w-onset" class="sync-field" data-sync="onset">
+                                        <option value="-3" selected>3 months ago</option>
+                                        <option value="-6">6 months ago</option>
+                                        <option value="-9">9 months ago</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="w-shape">Signal Shape</label>
+                                    <select id="w-shape" class="sync-field" data-sync="shape">
+                                        <option value="accelerating" selected>Accelerating (default)</option>
+                                        <option value="ramp">Gradual ramp</option>
+                                        <option value="step">Step change</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="w-supporting">Supporting Metric Strength</label>
+                                    <select id="w-supporting" class="sync-field" data-sync="supporting">
+                                        <option value="0.08">Subtle (8%)</option>
+                                        <option value="0.12" selected>Moderate (12%)</option>
+                                        <option value="0.18">Strong (18%)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="wizard-actions">
@@ -190,6 +276,14 @@
                         </div>
                     </div>
                 </label>
+                <label class="output-card {% if not has_salesforce %}disabled{% endif %}">
+                    <input type="checkbox" id="w-out-crma" class="sync-field" data-sync="out-crma" {% if not has_salesforce %}disabled{% endif %}>
+                    <div class="output-card-inner">
+                        <strong>CRM Analytics</strong>
+                        <p>Upload dataset + create CRMA dashboard from template</p>
+                        {% if not has_salesforce %}<span class="form-hint">Requires Salesforce connection</span>{% endif %}
+                    </div>
+                </label>
                 <label class="output-card">
                     <input type="checkbox" id="w-out-csv" class="sync-field" data-sync="out-csv" checked>
                     <div class="output-card-inner">
@@ -197,6 +291,66 @@
                         <p>Export the generated dataset for manual use in any viz tool</p>
                     </div>
                 </label>
+            </div>
+
+            <!-- Additional Build Options -->
+            <div class="advanced-section" style="margin-bottom:16px">
+                <button type="button" class="advanced-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+                    <span class="advanced-arrow">▸</span> Additional Options
+                </button>
+                <div class="advanced-body">
+                    <div class="form-stack" style="gap:12px">
+                        <!-- Pulse Dashboard -->
+                        <label class="output-card" style="padding:10px 14px" id="pulse-dash-option">
+                            <input type="checkbox" id="w-out-pulse-dash" class="sync-field" data-sync="out-pulse-dash">
+                            <div class="output-card-inner" style="gap:4px">
+                                <strong style="font-size:13px">Tableau Dashboard with Pulse Tiles</strong>
+                                <p style="font-size:11.5px">Create a .twb workbook with embedded Pulse metric tiles (requires Pulse output)</p>
+                            </div>
+                        </label>
+
+                        <!-- CRM Actionability -->
+                        <label class="output-card" style="padding:10px 14px" id="crm-action-option">
+                            <input type="checkbox" id="w-out-crm-action" class="sync-field" data-sync="out-crm-action">
+                            <div class="output-card-inner" style="gap:4px">
+                                <strong style="font-size:13px">CRM Actionability</strong>
+                                <p style="font-size:11.5px">Create Account records in Salesforce linked to the analytics data for drill-to-action</p>
+                            </div>
+                        </label>
+
+                        <!-- Dashboard Template -->
+                        <div class="form-group">
+                            <label for="w-dash-template">Dashboard Template (Tableau Next)</label>
+                            <select id="w-dash-template" class="sync-field" data-sync="dash-template">
+                                <option value="z_layout" selected>Z Layout (recommended)</option>
+                                <option value="perf_overview">Performance Overview</option>
+                                <option value="standard">Standard (REST fallback)</option>
+                            </select>
+                        </div>
+
+                        <!-- Brand Colors -->
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="w-brand-primary">Brand Primary Color <span class="optional">(optional)</span></label>
+                                <div style="display:flex; gap:8px; align-items:center">
+                                    <input type="color" id="w-brand-primary-picker" value="#2563EB" style="width:36px; height:32px; border:1px solid var(--border); border-radius:4px; cursor:pointer"
+                                           oninput="document.getElementById('w-brand-primary').value=this.value">
+                                    <input type="text" id="w-brand-primary" class="sync-field" data-sync="brand-primary" placeholder="#2563EB" style="flex:1"
+                                           oninput="document.getElementById('w-brand-primary-picker').value=this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="w-brand-secondary">Brand Secondary Color <span class="optional">(optional)</span></label>
+                                <div style="display:flex; gap:8px; align-items:center">
+                                    <input type="color" id="w-brand-secondary-picker" value="#16A34A" style="width:36px; height:32px; border:1px solid var(--border); border-radius:4px; cursor:pointer"
+                                           oninput="document.getElementById('w-brand-secondary').value=this.value">
+                                    <input type="text" id="w-brand-secondary" class="sync-field" data-sync="brand-secondary" placeholder="#16A34A" style="flex:1"
+                                           oninput="document.getElementById('w-brand-secondary-picker').value=this.value">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <h3 style="font-size:14px; margin-bottom:10px">Destination Org</h3>
@@ -222,6 +376,10 @@
                 </div>
                 <div class="progress-label" id="progress-label">Initializing...</div>
                 <div class="progress-log" id="progress-log"></div>
+            </div>
+            <div class="build-summary hidden" id="build-summary">
+                <h3 style="margin:0 0 8px 0; color:var(--text-primary)">Build Complete</h3>
+                <div id="summary-items" style="font-size:13px; line-height:1.8; color:var(--text-secondary)"></div>
             </div>
             <div class="wizard-actions">
                 <div></div>
@@ -554,6 +712,7 @@ async function generateStory() {
                 use_case: getVal('usecase'),
                 audience: getVal('audience'),
                 notes: getVal('notes'),
+                research_depth: document.querySelector('input[name="research-depth"]:checked')?.value || 'quick',
             }),
         });
         const j = await r.json();
@@ -693,12 +852,29 @@ async function startBuild() {
         use_case: getVal('usecase'),
         audience: getVal('audience'),
         notes: getVal('notes'),
+        research_depth: document.querySelector('input[name="research-depth"]:checked')?.value || 'quick',
         story_config: finalStoryConfig,
         profile_key: selectedProfileKey,
+        advanced: {
+            history_months: parseInt(getVal('history') || '24'),
+            grain: getVal('grain') || 'monthly',
+            signal_magnitude: parseFloat(getVal('severity') || '0.40'),
+            signal_onset: parseInt(getVal('onset') || '-3'),
+            signal_shape: getVal('shape') || 'accelerating',
+            supporting_magnitude: parseFloat(getVal('supporting') || '0.12'),
+        },
         outputs: {
             pulse: getChecked('out-pulse'),
             next: getChecked('out-next'),
+            crma: getChecked('out-crma'),
             csv: getChecked('out-csv'),
+            pulse_dashboard: getChecked('out-pulse-dash'),
+            crm_actionable: getChecked('out-crm-action'),
+        },
+        dashboard_template: getVal('dash-template') || 'z_layout',
+        brand: {
+            primary: getVal('brand-primary') || '',
+            secondary: getVal('brand-secondary') || '',
         }
     };
 
@@ -737,7 +913,24 @@ async function startBuild() {
         }
         document.getElementById(labelId).textContent = msg.message;
 
-        if (msg.stage === 'done' || msg.stage === 'error') {
+        if (msg.stage === 'done') {
+            es.close();
+            document.getElementById(doneId).classList.remove('hidden');
+            // Show build summary
+            const summaryEl = document.getElementById('build-summary');
+            const itemsEl = document.getElementById('summary-items');
+            if (summaryEl && itemsEl) {
+                const outputs = [];
+                if (getChecked('out-csv')) outputs.push('CSV exported');
+                if (getChecked('out-pulse')) outputs.push('Pulse metrics created');
+                if (getChecked('out-next')) outputs.push('Tableau Next workspace, SDM, vizzes, and dashboard created');
+                if (getChecked('out-crma')) outputs.push('CRM Analytics dataset uploaded');
+                outputs.push('Walkthrough document generated');
+                itemsEl.innerHTML = outputs.map(o => `<div style="padding:2px 0">&#10003; ${o}</div>`).join('');
+                summaryEl.classList.remove('hidden');
+            }
+        }
+        if (msg.stage === 'error') {
             es.close();
             document.getElementById(doneId).classList.remove('hidden');
         }
