@@ -21,5 +21,12 @@
     "client_id": "",
     "client_secret": "",
     "refresh_token": ""
+  },
+  "slack": {
+    "_instructions": "Optional. Filled in by /close-loop only when you pick Slack (IDs only, no secrets). workspace_id is the T… team ID, not the subdomain.",
+    "workspace_id": "",
+    "channel_id": "",
+    "channel_name": "",
+    "app_id": ""
   }
 }

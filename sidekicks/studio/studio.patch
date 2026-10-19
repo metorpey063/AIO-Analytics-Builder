@@ -1,0 +1,3088 @@
+diff --git a/.claude/commands/studio.md b/.claude/commands/studio.md
+new file mode 100644
+index 0000000..1fb2381
+--- /dev/null
++++ b/.claude/commands/studio.md
+@@ -0,0 +1,114 @@
++# /studio — Generate the Tableau Studio Agent skills for a demo
++
++Generates the three Tableau Studio Agent skills, pre-loaded with a demo's story, for any analytics demo need:
++
++- **aio-story:** guided builder that walks the four-question narrative
++- **aio-autobuilder:** one-prompt builder ("build the demo") that creates the Q1–Q4 worksheets and the story dashboard
++- **aio-audience:** interpreter for presenters and viewers ("why did this move?")
++
++**Generation only by default.** Installing into Tableau Studio is a separate, optional step (`--install`, or run the generated `install.sh` later). Studio skills need a Tableau Studio license but no Pulse or Tableau Next.
++
++Works two ways:
++- **From an existing demo:** reads the story from `demos/{slug}/{slug}_checkpoint.json` (written by `/build-demo` Phase 1).
++- **Standalone:** no prior build needed. Asks the story questions, saves the story to the checkpoint, and generates from that. No data generation, no org connection.
++
++`/build-demo` runs these same steps when the user adds the Studio add-on (Step 5a). Keep the two in sync by editing only this file for generation mechanics.
++
++## Usage
++
++- `/studio {slug}`: generate for `demos/{slug}/`
++- `/studio {slug} --new`: ignore any saved story and re-ask the story questions
++- `/studio {slug} --install`: generate, then run the generated `install.sh`
++
++If no slug is given, list the `demos/` folders and ask which one, or offer "new demo" (ask for company and use case, then derive `{company_slug}_{use_case_slug}`).
++
++## Steps
++
++### 1. Source the story
++1. Load `demos/{slug}/{slug}_checkpoint.json` if it exists. If it has a `story` dict and `--new` wasn't passed, use it and show the user a one-screen summary to confirm.
++2. Otherwise ask the story questions. Offer best guesses from the CSV header (if a CSV exists in the folder) so the user can just confirm:
++   - Company, and a one-line **headline** (e.g. "Closed-won isn't billed")
++   - **Primary metric** and 0–3 **supporting metrics** (with lag ratio vs. primary, default 0.7)
++   - **Dimensions** available for drilling
++   - **Culprit segment(s)** (name, dimension, multiplier), **moderate segments**, and the **counter-trend segment**
++   - **Root-cause dimension** (the one that explains cost or effort)
++   - **Entity field** (finest-grain name column for the Q4 at-risk list) and **date field**
++   - **Aggregation** per metric: rates, scores and averages → AVG; counts, revenue and volumes → SUM
++   - **Datasource** to connect in Studio (CSV path or published datasource name)
++   - Signal onset (months ago) and shape (`accelerating` / `ramp` / `step`); default 3 and `accelerating` if unknown
++3. Build the `story` dict and save it, merging into the checkpoint (never overwrite other phases):
++
++```python
++story = {
++    "company": COMPANY,
++    "primary_metric": ...,
++    "dimensions": [...],
++    "culprit_segments": [{"name": ..., "dimension": ..., "multiplier": 1.8}],
++    "moderate_segments": [{"name": ..., "multiplier": 1.0}],
++    "counter_trend_segment": {"name": ..., "multiplier": -0.08},
++    "root_cause_dimension": ...,
++    "supporting_metrics": [{"name": ..., "lag_ratio": 0.7}],
++    "signal_onset_months_ago": 3,
++    "signal_shape": "accelerating",
++    "entity_field": ...,
++    "date_field": "Date",
++    "aggregations": {"Metric Label": "AVG"},
++    "headline": ...,
++    "datasource": f"demos/{slug}/{csv_filename}",
++}
++save_cp(cp, "story", story)
++```
++
++If the folder or checkpoint doesn't exist yet, create `demos/{slug}/` and a minimal `{slug}_checkpoint.json`.
++
++### 2. Render `demo-story.md`
++Render the story into markdown with these sections, in order: Primary Metric, The Problem, Culprit Segment(s), Moderate Segments, Counter-Trend Segment, Root Cause Dimension, Supporting Metrics (Leading Indicators), Dimensions for Drilling, **Build Fields (used by aio-autobuilder)**.
++
++Build Fields lists: Headline, Date field, Segment dimension (Q2) = `culprit_segments[0].dimension`, Entity field (Q4), Aggregations, Datasource to connect.
++
++If `demos/{slug}/{slug}_close_loop_payload.json` exists (close-loop already built), append a **Close the Loop** section so `aio-audience` can point the presenter at it: the action and its reason, the trigger label, and each `demo_steps` entry as `- {title}: {trigger} → {result}`.
++
++### 3. Create the skill folders
++Copy from `tableau_agent_skills/` (`SKILL.md` plus everything in `references/`), then add the rendered `demo-story.md` to each skill's `references/`:
++
++```
++demos/{slug}/studio_skills/
++  aio-story/        SKILL.md, references/{...copied, demo-story.md}
++  aio-audience/     SKILL.md, references/{...copied, demo-story.md}
++  aio-autobuilder/  SKILL.md, references/{...copied, demo-story.md}
++  install.sh
++  README.md
++```
++
++Each skill's Step 0 checks for `references/demo-story.md` and falls back to asking the user if it's absent, so the generic skills in `tableau_agent_skills/` still work without a demo.
++
++### 4. Generate `install.sh`
++Same as `scripts/install_studio_skills.sh`, but copies from the demo-specific folder (`SCRIPT_DIR`) so the installed skills carry this demo's story. Target: `$HOME/Documents/My Tableau Repository (Beta)/Tableau Agent/skills`. For each of the three skills: `rm -rf` the target, `cp -r`, echo `✓ Installed {skill} ({COMPANY} story)`. End with "In Tableau Agent, type: /reload-skills". Fail with the same prerequisite message (Studio installed, opened once, Tableau Agent opened) if the target directory is missing. `chmod +x` it.
++
++### 5. Generate `README.md`
++Quick start (`bash install.sh`, `/reload-skills`, connect the datasource, example prompts), then three sections of example prompts using the story's names:
++- **One-prompt build (aio-autobuilder):** "build the demo"
++- **Guided build (aio-story):** "Walk me through the AiO story for {COMPANY}", Q1–Q4 prompts, "Create the dashboard with all four questions"
++- **For audiences (aio-audience):** "Explain this {PRIMARY_METRIC} trend", "Why is {culprit} down so much?", "Which {culprit} accounts are most at risk?", "What should we do about this?"
++
++Finish with a pointer to `references/demo-story.md`, `docs/v2/studio-skills-design.md`, and the generic skills in `tableau_agent_skills/`.
++
++### 6. Update the checkpoint
++```python
++save_cp(cp, "studio_skills_generated", True)
++save_cp(cp, "studio_skills_installed", False)  # True only if --install ran
++```
++
++### 7. Install (only with `--install`, or if the user asks)
++Run `bash demos/{slug}/studio_skills/install.sh`, set `studio_skills_installed` to True, and remind the user to type `/reload-skills` in Tableau Agent.
++
++### 8. Report
++> **Tableau Studio Skills:** `demos/{slug}/studio_skills/`: three natural-language skills pre-loaded with this demo's story (culprit: {culprit}, counter-trend: {counter_trend}, root cause: {root_cause_dimension}). Install: `bash demos/{slug}/studio_skills/install.sh`, then `/reload-skills` in Tableau Agent.
++
++Also tell the user to connect the datasource in Studio before using "build the demo".
++
++## Re-running
++Safe to re-run. It regenerates `demo-story.md`, the skill folders and the scripts. Re-run after `/close-loop {slug}` builds so `aio-audience` picks up the Close the Loop section.
++
++## Troubleshooting
++Follow the CLAUDE.md order: Known Pitfalls first. Studio skills are plain markdown plus a shell script, so most problems are a missing skills directory (open Tableau Studio and Tableau Agent once) or a skill not showing up (run `/reload-skills`).
+diff --git a/docs/v2/PLAYBOOK.md b/docs/v2/PLAYBOOK.md
+new file mode 100644
+index 0000000..9615c99
+--- /dev/null
++++ b/docs/v2/PLAYBOOK.md
+@@ -0,0 +1,323 @@
++# AiO 2.0 Claude Code Playbook (Jacob's lane)
++
++Copy-paste prompts for Claude in VS Code, in the same order as the plan doc. Lane: Tableau Studio, Slack trigger after the "aha", and closing the loop.
++
++Deadline: video submitted by **Wed 10/21, 11:59pm PT** (target 9:00pm PT).
++
++---
++
++## How to use this file
++
++- Open the AiO repo in VS Code and start Claude Code from the extension panel.
++- Save this file in the repo as `docs/v2/PLAYBOOK.md`, so you can `@`-mention it.
++- **Plan mode** (Shift+Tab until it says plan mode): use it for any prompt marked **[PLAN]**. Claude proposes changes without editing. Approve, then let it run.
++- Run `/clear` between steps so each one starts with a clean context. The project `CLAUDE.md` (Step 0.3) carries the background forward.
++- Replace anything in `<ANGLE_BRACKETS>` before you paste.
++- After each step, run the end-of-step prompt in the [Utility prompts](#utility-prompts) section to commit and log progress.
++
++### Safety rules (read once)
++
++- The Studio guide is marked **confidential and pre-release**. If the AiO repo is public, or shared beyond the team, keep the guide in a git-ignored folder (Step 0.2 sets this up).
++- Never paste the Studio discovery-file token, Slack webhook URLs, or Salesforce tokens into chat. Keep them in `.env` (git-ignored) and have scripts read them from there.
++- Use synthetic or placeholder data (e.g., `CUSTOMER_1`) in anything posted to Slack during testing.
++
++---
++
++## Step 0: One-time setup (Thu, ~15 min)
++
++### 0.1 Branch
++
++```text
++Create and check out a branch named feature/v2-studio-trigger from the latest main. Show me git status and the last 5 commits on main so I know what I'm branching from.
++```
++
++### 0.2 Put the reference docs in the repo
++
++Copy `tableau-studio-guide.md`, `AIO_CURRENT_PROCESS.md`, and (if you have it) `tableau-external-client-api-reference.md` into `docs/v2/private/`. Then:
++
++```text
++Add docs/v2/private/ and .env to .gitignore if they aren't already ignored. Confirm with git check-ignore that docs/v2/private/tableau-studio-guide.md and .env are ignored. Do not commit anything in docs/v2/private/.
++```
++
++### 0.3 Project context for Claude
++
++```text
++Append a section called "AiO v2: Jacob's lane" to CLAUDE.md at the repo root (create the file if it's missing). Keep it under 40 lines and include:
++- Goal: after the demo "aha" (the "Who needs action?" segment), AiO v2 (1) builds the story workbook in Tableau Studio through the External Client API, connected to the Data 360 semantic model, (2) ships an AiO skill for Tableau Agent, (3) posts the finding to Slack with a button that creates a Salesforce Task through a Flow, and (4) as a stretch, measures whether the action happened.
++- Reference docs: docs/v2/private/tableau-studio-guide.md (confidential, never commit), docs/v2/private/AIO_CURRENT_PROCESS.md, docs/v2/PLAYBOOK.md.
++- Teammates' lanes: Matthew Torpey owns the single SDM; Jordan Bethea owns Puppet Mode (natural-language driving of Studio through Tableau MCP). Don't modify their modules without asking me.
++- Rules: secrets only in .env; never print the Studio discovery token; every new /build-demo phase writes to the existing checkpoint file so reruns skip completed phases; prefer deterministic API calls over LLM steps in the build path.
++- Deadline: video due Wed 10/21 11:59pm PT; code freeze Tue 10/20 end of day.
++Show me the diff before saving.
++```
++
++### 0.4 Orient on the codebase **[PLAN]**
++
++```text
++Read @CLAUDE.md and @docs/v2/private/AIO_CURRENT_PROCESS.md, then explore the repo. Don't edit anything. Give me:
++1. Where /build-demo is defined and how its phases run, in order, with file paths.
++2. How the checkpoint file is written and read, and how a rerun skips a phase.
++3. Where the story metadata lives (primary metric, worst segments, the "Who needs action?" cut) and what it looks like.
++4. How the existing Pulse .twb workbook and the walkthrough .docx are generated.
++5. Your recommendation for where to add three things: a "studio" output, a "close-loop" phase or command, and a Tableau Agent skill folder.
++Keep it to one page.
++```
++
++---
++
++## Thursday 10/15: Kickoff and Studio spike (2.5h)
++
++### 1.1 Kickoff message (draft only)
++
++```text
++Draft a short Slack message to Matt and Jordan for today's kickoff. Propose this split: Jordan owns live, natural-language driving of Tableau Studio through Tableau MCP (Puppet Mode); I own the deterministic External Client API build step, the AiO skill inside Tableau Agent, the Data 360 connection, and the post-aha Slack action. Ask them to confirm: demo customer and story, shared demo org, Slack workspace, branch names, Monday 10/19 as integration day, and who has an internal Studio build. Under 120 words. Draft only, don't send it.
++```
++
++### 1.2 Studio API smoke test
++
++Open Tableau Studio first and wait for it to finish loading.
++
++```text
++Using @docs/v2/private/tableau-studio-guide.md (section "Directly call the Tableau External Client API"), create scripts/studio/studio_client.py:
++- Find the newest discovery file in ~/Library/Application Support/Tableau/Tableau/ExternalApi/<pid>.json (macOS) or %LOCALAPPDATA%/Tableau/Tableau/ExternalApi/ (Windows), and skip files whose pid isn't running.
++- Expose a small client: health(), get(path), post(path, body), handling HTTP 202 by polling for up to 30s.
++- Never print or log the token. Mask it as *** in any error output.
++- Add a CLI: python scripts/studio/studio_client.py health | workbook | site-workbooks.
++Then run health, workbook, and site-workbooks, and show me the output with the apiVersion and applicationVersion from the discovery file.
++```
++
++### 1.3 Map the API surface
++
++If you have `tableau-external-client-api-reference.md`:
++
++```text
++Read @docs/v2/private/tableau-external-client-api-reference.md. Make a table of every endpoint grouped by category (Application, Dashboards, Service, Site, Storyboards, Workbook, Worksheets), with method, path, and one-line purpose. Then answer yes or no, with the endpoint: can the API (a) connect or add a data source, (b) create a worksheet, (c) put fields on rows, columns, color, or filters, (d) create a dashboard and add sheets, (e) set titles and formatting, (f) save or publish the workbook? Save the result to docs/v2/studio-api-map.md.
++```
++
++If you don't have it:
++
++```text
++Use scripts/studio/studio_client.py to probe the API. Try GET on v0/workbook, v0/site/workbooks, and any discovery, OpenAPI, or schema endpoints you can find (e.g., v0/openapi.json, v0/docs). Report what exists. Don't make any write calls yet.
++```
++
++### 1.4 Tableau MCP headless check (internal build only)
++
++```text
++Following the "Use Your Agent to Author with Tableau MCP" section of @docs/v2/private/tableau-studio-guide.md: clone https://github.com/tableau/tableau-mcp into ~/dev/tableau-mcp, check out feature/desktop, run npm ci and npm run build, then register it as a project-scoped MCP server named tableau-desktop (stdio, node build/index.desktop.js, env TRANSPORT=stdio and TABLEAU_EXTERNAL_API=true). Tell me when it's done so I can restart and run /mcp to confirm it connected. Check that Node is 22.7.5 or later first.
++```
++
++After restarting, test it:
++
++```text
++Using the tableau-desktop MCP server, tell me which workbooks are open in Tableau Studio and list the worksheets in the active one. Don't change anything.
++```
++
++If this fails because you don't have an internal build, note it for Jordan and move on. The API path doesn't need MCP.
++
++### 1.5 Data 360 connection test
++
++```text
++I need the Studio workbook connected to the Data 360 semantic model (Tableau Semantics) that Matt's SDM creates. Based on docs/v2/studio-api-map.md and the guide, tell me whether this can be done through the External Client API. If it can, write and run the calls against the demo org's semantic model <SEMANTIC_MODEL_NAME>. If it can't, give me the shortest manual click path in Studio, and a script that verifies afterward, through the API, that the workbook has that data source attached.
++```
++
++### 1.6 Can a Tableau Agent skill call out to Slack?
++
++```text
++Create a minimal Tableau Agent skill to test whether a skill can run a local script that makes a network call. Follow the "Author a skill by hand" rules in @docs/v2/private/tableau-studio-guide.md (kebab-case name matching the folder, frontmatter with name and description, short body, scripts in scripts/).
++- Skill name: aio-ping. Trigger phrase: "aio ping".
++- It runs scripts/ping.py, which posts "AiO ping from Tableau Agent" to the Slack incoming webhook in the SLACK_WEBHOOK_URL environment variable (read from ~/.aio/.env).
++- Put the source in tableau_agent_skills/aio-ping/ in this repo, and write scripts/install_tableau_skills.sh to copy every folder in tableau_agent_skills/ to "~/Documents/My Tableau Repository (Beta)/Tableau Agent/skills/".
++Run the installer, then tell me exactly what to do in Studio (/reload-skills, then "aio ping") and where to look in the Tableau Agent logs if it fails.
++```
++
++### 1.7 Slack and Flow access check
++
++```text
++Check what I can do in the demo org. Use the Salesforce CLI with org alias <DEMO_ORG_ALIAS> (if it isn't authorized, give me the sf org login web command). Report: (1) whether my user can create and activate Flows, (2) whether a Screen Flow can be launched by URL with input variables, (3) whether the org has the Salesforce for Slack integration or Slack actions in Flow, and (4) whether Named Credentials or HTTP Callout actions are available in Flow. Read-only, change nothing.
++```
++
++---
++
++## Friday 10/16: Studio build phase and first Slack message (2.5h)
++
++### 2.1 Design the Studio phase **[PLAN]**
++
++```text
++Plan a new "studio" output for /build-demo. Use docs/v2/studio-api-map.md, your notes from the codebase walkthrough, and the story shape in AIO_CURRENT_PROCESS.md (What is wrong, Where is it worst, Why, Who needs action). Propose:
++- Four worksheets, one per story question, with the exact fields from the story dataset and SDM for each, plus the chart type for each.
++- One dashboard that lays them out in story order, titled from the company and use case.
++- The ordered list of External Client API calls, and the checkpoint keys each step writes.
++- What falls back to Tableau Agent or a manual step if an endpoint is missing.
++Write the plan to docs/v2/studio-phase-design.md. Don't write code yet.
++```
++
++### 2.2 Build it
++
++```text
++Implement docs/v2/studio-phase-design.md:
++- Add a studio builder module that uses scripts/studio/studio_client.py.
++- Register "studio" as an output choice in /build-demo, and write checkpoint entries per step so a rerun skips completed steps.
++- Add a --dry-run flag that prints the API calls without sending them.
++Run it in dry-run mode on the most recent demo in demos/, then for real against the open Studio workbook. Show me the result of GET v0/workbook afterward, so I can confirm the four sheets and the dashboard exist.
++```
++
++### 2.3 First Slack message
++
++```text
++Create scripts/slack/post_insight.py. It takes a JSON insight payload (company, metric name, segment, current value, prior value, percent change, recommended owner, and a follow-up URL) and posts a Slack Block Kit message to SLACK_WEBHOOK_URL from .env with:
++- A header line naming the problem in plain words.
++- A section with metric, segment, and change, formatted as a percentage.
++- A "Create follow-up" URL button that opens the follow-up URL. A URL button means we don't need a Slack interactivity endpoint.
++Add --dry-run to print the Block Kit JSON. Generate a test payload from the latest demo's story metadata, using placeholder names, and post it to my test channel.
++```
++
++---
++
++## Saturday 10/17: Flow and an end-to-end click (1.5h)
++
++### 3.1 Build the Flow **[PLAN first]**
++
++```text
++Plan, then build, a Screen Flow named AiO_Create_Followup in Salesforce metadata (force-app/ or this repo's existing metadata folder):
++- Input variables (available for input): segment, metric, changePct, ownerName, accountId (optional), demoSlug.
++- One screen that shows a pre-filled summary and a Confirm button.
++- On confirm: create a Task with Subject "AiO follow-up: <metric> in <segment>", the details in Description, Type "AiO Alert" (or a Subject prefix if we don't want a custom picklist value), ActivityDate today + 2, and OwnerId set to the running user.
++- Optionally, if a Named Credential for the Slack webhook exists, post "Follow-up created" back to Slack.
++Deploy to <DEMO_ORG_ALIAS> with the sf CLI, activate it, and give me the launch URL format with input variables in the query string.
++```
++
++### 3.2 Connect the button
++
++```text
++Update scripts/slack/post_insight.py so the "Create follow-up" button URL is the AiO_Create_Followup launch URL for <DEMO_ORG_ALIAS>, with the payload values URL-encoded as Flow inputs. Post a test message. After I click it and confirm, run a SOQL query to show me the Task that was created.
++```
++
++---
++
++## Sunday 10/18: AiO skill in Tableau Agent and the close-loop phase (1.5h)
++
++### 4.1 AiO story skill for Tableau Agent
++
++```text
++Using the skill rules in @docs/v2/private/tableau-studio-guide.md ("Author a skill by hand"), write tableau_agent_skills/aio-story/SKILL.md, keeping the body under 150 lines:
++- Description triggers on: "walk the AiO story", "where is it worst", "who needs action", "send this to the owner".
++- Body: how to read the AiO story sheets in the open workbook, how to answer the four story questions in order, and the counter-trend segment rule (at least one segment is flat or improving).
++- "Send to owner" step: build the insight payload from the active sheet's selection or the story metadata, then run scripts/send_to_owner.py, which calls the same logic as scripts/slack/post_insight.py.
++- Put long reference material in references/, not in the body.
++Install it with scripts/install_tableau_skills.sh, and tell me the prompts to test it in Studio after /reload-skills, including two that should NOT trigger it.
++```
++
++### 4.2 Close-loop phase in AiO
++
++```text
++Add a close-loop step to AiO. It can be a new phase that runs after the walkthrough in /build-demo, or a /close-loop command; pick whichever fits the existing command structure and tell me why. It should:
++- Read the story metadata for the "Who needs action?" segment and build the insight payload.
++- Post it with scripts/slack/post_insight.py (respecting --dry-run).
++- Record the post in the checkpoint so a rerun doesn't post twice.
++- Add a "Close the loop" section to the walkthrough .docx: what the alert says, what the button does, and what to click during the demo.
++Run it end to end on the latest demo.
++```
++
++---
++
++## Monday 10/19: Integration (2.5h)
++
++### 5.1 Merge teammates' work
++
++```text
++Fetch all remote branches. Show me what's new on Matt's SDM branch <MATT_BRANCH> and Jordan's Puppet Mode branch <JORDAN_BRANCH> since main, as file lists and a short summary for each. Then merge them into my branch one at a time (SDM first). If there are conflicts, stop and explain each one before resolving it. Don't force-push.
++```
++
++### 5.2 Clean full run
++
++```text
++Run a full clean build of the team's chosen demo <COMPANY>_<USE_CASE> from scratch: Tableau Next on the shared SDM, then the studio output, then close-loop. Before you start, list what you'll delete from the previous checkpoint. Log every phase's start, end, and duration. If a phase fails, stop, show me the error, and propose a fix. At the end, give me a pass or fail table per phase.
++```
++
++### 5.3 Video outline (team sync)
++
++```text
++Draft a 5-minute video outline for the team: Problem (30s), Matt's SDM, Jordan's Puppet Mode driving Studio, my segment (about 75s: story in Studio on Data 360, "send this to the owner", Slack alert, one click creates the Task in Salesforce, then the loop metric if ready), and Result (30s, with time saved per SE demo build). Map each beat to the judging criteria: Tableau Depth, Impact, Build Quality, Innovation, Pitch, and the bonus multiplier. Include a timing column. Save it to docs/v2/video-outline.md.
++```
++
++---
++
++## Tuesday 10/20: Hardening, stretch decision, code freeze (2.5h)
++
++### 6.1 Preflight check
++
++```text
++Create scripts/preflight.py that checks, in order, and prints pass or fail with a fix hint for each: Tableau Studio is running and v0/health is OK; the story workbook is open and has the four sheets and the dashboard; the AiO skills are installed in the Tableau Agent skills folder; SLACK_WEBHOOK_URL is set and a dry-run payload is valid; <DEMO_ORG_ALIAS> is authorized; the AiO_Create_Followup Flow is active; the Data 360 semantic model is reachable. Run it.
++```
++
++### 6.2 Stretch: close-the-loop metric
++
++Pick one option.
++
++Option A, CRM loop metric (low cost):
++
++```text
++Add a loop metric for the demo: the count of Tasks with Type "AiO Alert" (or our Subject prefix) created and closed since the alert. Work with Matt's SDM code to add Task as a source and a metric in the semantic model. If that won't be ready by tonight, fall back to a SOQL-backed number that the walkthrough doc and Slack confirmation can show. Tell me which path you took.
++```
++
++Option B, Tableau Agent ask ledger (customer-zero angle):
++
++```text
++Write scripts/analytics/ask_ledger_report.py to parse "~/Documents/My Tableau Repository (Beta)/Tableau Agent/logs/ask-ledger.jsonl": count asks, tools called, failures (is_error true), and time per ask, for today's demo build session. Output a CSV we could load into Data 360, and a three-line summary I can say in the video ("X asks, Y tool calls, Z errors, built in N minutes"). Don't include prompt text in the output.
++```
++
++### 6.3 Backup and freeze
++
++```text
++Run scripts/preflight.py, then do a full dry run of my demo segment. After I confirm it worked: commit everything, tag the commit v2.0-freeze-jacob, push the branch, and save the open Studio workbook to demos/<COMPANY>_<USE_CASE>/ as a backup.
++```
++
++---
++
++## Wednesday 10/21: Record and submit
++
++### 7.1 Reset demo state
++
++```text
++Reset the demo to a clean state for recording. List the AiO Alert Tasks created today in <DEMO_ORG_ALIAS> and delete them only after I confirm. Delete the test messages in Slack if the webhook allows it (otherwise tell me which to delete by hand). Re-open the saved Studio workbook, then run scripts/preflight.py.
++```
++
++### 7.2 Talk track
++
++```text
++From docs/v2/video-outline.md, write my word-for-word talk track for my ~75-second segment, with the on-screen action for each line. About 190 words. Plain language, no jargon the judges would need explained.
++```
++
++### 7.3 Submission checklist
++
++```text
++Give me a submission checklist: video length 5:00 or less, the file name, every teammate's name in the submission, the contest Slack workflow steps, and a fallback if the upload fails. Target submission is 9:00pm PT.
++```
++
++---
++
++## Utility prompts
++
++### End of each step: commit and log
++
++```text
++Summarize what changed in this step in three bullets. Commit with a clear message (no secrets, nothing from docs/v2/private/). Then append today's date, the step number, and those bullets to docs/v2/progress-log.md.
++```
++
++### Where am I versus the plan?
++
++```text
++Compare docs/v2/progress-log.md with the day-by-day plan in @docs/v2/PLAYBOOK.md. Today is <DAY>. Tell me: what's done, what's behind, and what to cut, following the cut order: Agent Analytics build first, then the Slack button (keep the notification), then the Tableau Agent skill, then Studio API automation (keep a saved workbook).
++```
++
++### Studio debugging
++
++```text
++A Studio step failed: <PASTE ERROR, WITH ANY TOKEN REMOVED>. Using the Troubleshooting section of @docs/v2/private/tableau-studio-guide.md, check in this order: any Studio error dialog text I give you; ask-ledger.jsonl for "is_error": true; the latest desktop-mcp-*.log for error, warning, Timeout, or validation lines; tab-agent.log for ERROR or WARNING lines; and Logs/log.txt for connectivity, hyper, or excp lines. Show only the relevant lines near <TIME>, then propose a fix.
++```
++
++### Team update (draft)
++
++```text
++Draft a 5-line Slack update for Matt and Jordan from today's entries in docs/v2/progress-log.md: done, next, blocked, and what I need from each of them. Draft only.
++```
+diff --git a/docs/v2/private/tableau-studio-guide.md b/docs/v2/private/tableau-studio-guide.md
+new file mode 100644
+index 0000000..ef646ab
+--- /dev/null
++++ b/docs/v2/private/tableau-studio-guide.md
+@@ -0,0 +1,1211 @@
++# Tableau Studio guide
++
++Combined from the Tableau Studio Developer Guide pages on the left navigation, plus the External Client API pages that navigation links to.
++
++Root page: https://help.tableau.com/v0.0/api/studio-dev-guide/en-us/tableau-studio-basics.html
++
++The help site marks these pages confidential and pre-release. The site generated this documentation on 2026-10-13. Each section below is the official markdown for that page.
++
++These pages do not contain a topic named puppet mode. Driving Tableau Studio from your own agent or from scripts is covered in [Use Tableau Studio Headless](#use-tableau-studio-headless) and in the [External Client API](#api-overview) section.
++
++Two left-navigation items are not published yet. Extensions API and Packages both show as coming in the 2026.3 release. The Tableau MCP item on this pre-release site points at an internal page that requires a Salesforce git login: https://git.soma.salesforce.com/pages/cx-labs/tableau-mcp-tabstudio/docs/intro
++
++The endpoint catalog behind the External Client API is saved separately as `tableau-external-client-api-reference.md`.
++
++## Contents
++
++- [Tableau Studio Developer Guide](#index)
++- [Tableau Studio Basics](#tableau-studio-basics)
++- [Get Started with Tableau Agent](#get-started-with-tableau-agent)
++- [Use Tableau Studio Headless](#use-tableau-studio-headless)
++- [Customize Tableau Agent](#customize-tableau-agent)
++- [Customize Expertise](#customize-expertise)
++- [Customize Skills](#customize-skills)
++- [Troubleshooting](#troubleshooting)
++- [Release Notes](#release-notes)
++- [References and Guides](#references-and-guides)
++
++### External Client API
++
++- [External Client API Overview](#api-overview)
++- [Get Started with the External Client API](#api-get-started)
++- [External Client API Troubleshooting](#api-troubleshooting)
++
++
++---
++
++<a id="index"></a>
++
++Source: https://help.tableau.com/v0.0/api/studio-dev-guide/en-us/index.html
++
++# Tableau Studio Developer Guide
++
++  
++
++New to Tableau Studio?
++
++[Read the basics](#tableau-studio-basics)  
++or just [Get Started](#get-started-with-tableau-agent)
++
++Automating workflows?
++
++Check out  
++[Use Tableau Studio Headless](#use-tableau-studio-headless)
++
++Customizing your authoring?
++
++See  
++[Customize Tableau Agent](#customize-tableau-agent)
++
++## Overview
++
++In the October 2026 (2026.3) release, Tableau Studio is the evolution of Tableau Desktop, bringing it into the age of agents and AI. While classic Desktop features remain, Tableau Studio enables you to use natural language with an agent or direct API calls to query, create, and refine your Tableau viz or extension. For a more detailed look, see [Tableau Studio Basics](#tableau-studio-basics).
++
++### Customizable, agent-based Tableau authoring
++
++All three of the Tableau Studio release elements described below are architected to give options for altering the authoring expertise guidance and mode of use to reflect your standards and circumstances. Work in Tableau Studio or headless, where you drive Tableau Studio from your own agent or script:
++
++- In Tableau Studio: [Use natural language in Tableau Agent](#get-started-with-tableau-agent)
++- Headless: [Use natural language in the agent of your choice](#use-your-agent-to-author-with-tableau-mcp) _(Internal Beta)_
++- Headless: [Directly call the Tableau External Client API to create and modify your viz](#directly-call-the-tableau-external-client-api)
++- [Find, customize, or create AI tools to meet the needs of your workspace](#customize-tableau-agent)
++
++> [What is Tableau headless?](#headless-tableau-authoring)
++
++### Authoring expertise, reasoning, and tools in Tableau MCP
++
++With the Tableau Studio release, **[Tableau MCP](https://git.soma.salesforce.com/pages/cx-labs/tableau-mcp-tabstudio/docs/intro)** turns your natural language prompt into authoring actions. These updates fall into three areas:
++
++**[Authoring reasoning](https://git.soma.salesforce.com/pages/cx-labs/tableau-mcp-tabstudio/docs/tableau-authoring)** added to the MCP routes your natural language prompt to the quickest, most appropriate, and most token-efficient course of authoring action. Many of the most common tasks are done by the MCP with tool calls that have no token cost.
++
++**[Skills and Expertise](https://git.soma.salesforce.com/pages/cx-labs/studio-skills/skills/)** are available through the Tableau Studio agent and as an open source resource for headless Tableau authoring. This body of agent-optimized knowledge covers viz and extension authoring across 40+ skills, giving the agent deep functional and procedural guidance plus data visualization best practices. It shapes how the agent thinks across every task in its repertoire.
++
++**[Authoring Tools](https://git.soma.salesforce.com/pages/cx-labs/tableau-mcp-tabstudio/docs/category/external-client-tools)** can drive Tableau Studio’s authoring actions to enact the outcome of the expertise reasoning.
++
++### A native REST API to enact authoring programmatically
++
++The [External Client API](https://help.tableau.com/v0.0/api/studio-api-ref/en-us/index.html) gives your agent or script programmatic access to the Tableau Desktop capabilities in Tableau Studio.
++
++### An agent harness in Tableau Agent
++
++The **[Tableau Agent](#tableau-agent-harness-and-guardrails)** chat and configuration UI in Tableau Studio is Claude-optimized and backed by an infrastructure that proactively monitors and orchestrates the MCP and API. It provides detailed and intelligent guardrails and self-correction for accuracy and lowered token cost. It has real-time awareness of the formatting, configuration, and data of the Tableau project you have in focus.
++
++For a full description of Tableau Studio and its new Tableau Agent interface, see Tableau Studio help _coming at GA_.
++
++### Coming soon
++
++Shortly after the Tableau Studio release, these features enable you to customize the Tableau authoring and viewing experience in new, powerful ways.
++
++#### Workspace extensions
++
++The **[Extensions API](https://example.com/extensions-api) (Coming in 2026.3 release)** expands beyond individual viz and dashboard extensions to the entire Tableau workspace, including toolbars and menus.
++
++#### Packages
++
++**[Packages](https://example.com/packages-guide) (Coming in 2026.3 release)** are a new content type: deployable containers (.tpkg) with the same permissions and roles model as a workbook or data source, which can also host your extension’s web app resources.
++
++---
++
++<a id="tableau-studio-basics"></a>
++
++Source: https://help.tableau.com/v0.0/api/studio-dev-guide/en-us/tableau-studio-basics.html
++
++# Tableau Studio Basics
++
++  
++
++## What is Tableau Studio?
++
++### Tableau authoring with Tableau Agent in Tableau Studio
++
++Tableau Studio is an update of Tableau Desktop that adds AI agent-based authoring. The update is made up of three related parts:
++
++- **[Tableau External Client API](https://help.tableau.com/v0.0/api/studio-api-ref/en-us/index.html)** is a REST API surface within Tableau Studio that enables programmatic access to the authoring-related actions you can do using the Tableau Desktop UI.
++- **[Tableau MCP](https://git.soma.salesforce.com/pages/cx-labs/tableau-mcp-tabstudio/docs/intro)** has received a major update, adding tools and expertise for authoring that enable you to drive Tableau Studio authoring actions through the Tableau Agent or through the AI tooling/IDE of your choice.
++- **[Tableau Agent](#tableau-agent-harness-and-guardrails)** has been redesigned as a harness and orchestrator for the MCP and new API surface, providing a chat and configuration interface for authoring using natural language. The agent also provides guardrails, monitoring, and process management for the MCP that increases speed, lowers cost, and verifies outputs.
++
++### Headless Tableau authoring
++
++Headless Tableau is using Tableau services without the Tableau user interface. Tableau authentication, governance, permissions, and other features remain available. Headless use cases include workflow automation and accessing data in Tableau data sources directly.
++
++**Headless Tableau Studio Using Your Agent**
++
++Using Tableau Studio headlessly means that you can drive the authoring experience using the AI tooling of your choice instead of using the Tableau Agent chat. The same expanded capabilities of the MCP used by Tableau Agent to turn natural language into authoring actions are available to any agent that supports MCPs. [Learn more](#use-your-agent-to-author-with-tableau-mcp)
++
++**Headless Tableau Studio Using API Calls**
++
++Another way you can use Tableau Studio headlessly is to call the operations it makes available through the [Tableau External Client API](https://help.tableau.com/v0.0/api/studio-api-ref/en-us/index.html) . You can create a reusable script to perform batch processing on a folder of workbooks, or enforce style or content compliance for each dashboard in a project. A script or app has the advantage of being deterministic and adding no token cost. [Learn more](#directly-call-the-tableau-external-client-api)
++
++**Customizability**
++
++Tableau Agent and Tableau MCP are built to allow you to customize the authoring experience to suit your requirements.
++
++- Skills and expertise in Tableau Agent - The Tableau Studio agent’s behavior is controlled by skills and expertise that define tasks and their context and provide guidance to the model. In the agent UI you can import existing skills, add your own skills using natural language, and override the agent’s existing skills. [Learn more](#customize-skills) _(expertise customization coming at GA)_
++- Skills and expertise in headless Tableau - _coming at GA_
++
++**Workspace-scoped Extensions and More**
++
++_coming at GA_
++
++Accompanying the Tableau Studio release, the [Extensions API](https://example.com/extensions-api) (Coming in 2026.3 release) and [Packages](https://example.com/packages-guide) (Coming in 2026.3 release) add the new workspace extension type and packages that can deploy multiple extensions. A Workspace extension can modify elements like menus and persist in the workspace even when switching between workbooks. Packages are a content type and, like workbooks or datasources, can carry permission and role boundaries. They can also carry the web resources of an extension contained in a package to support hosting an extension’s web app on Tableau service.
++
++### How should I use Tableau Studio?
++
++Choose Tableau Agent, Tableau MCP, or the Tableau External Client API depending on whether you are authoring interactively, integrating a custom agent, or running deterministic scripts:
++
++| Approach | Use it for |
++| --- | --- |
++| Use [Tableau Agent](#get-started-with-tableau-agent) in Tableau Studio | Interactive authoring, learning, and prototyping |
++| Use [Tableau MCP](#use-your-agent-to-author-with-tableau-mcp) to drive Tableau Studio | Custom agent integration and workflow automation |
++| Call [Tableau External Client API](#directly-call-the-tableau-external-client-api) to drive Tableau Studio | Batch processing and compliance-driven workflows |
++
++## Tableau MCP Expertise
++
++### Major updates to the MCP
++
++[Tableau MCP](https://git.soma.salesforce.com/pages/cx-labs/tableau-mcp-tabstudio/docs/intro) tools and resources, released in November 2025, enabled your agent to access Tableau APIs including the Tableau REST, VizQL Data Service (VDS), and Metadata APIs, to perform many tasks.
++
++With the Tableau Studio release, the MCP is being greatly expanded to give agents access to External Client API tools and a Tableau authoring expertise engine.
++
++#### Tools for Tableau Studio REST API operations
++
++The MCP now includes tools that give access to External Client API operations that create, read, update, and delete (and more!) the authoring elements of your workbook.
++
++#### Optimized Access to Deep Tableau expertise
++
++Tableau Studio expands Tableau MCP with a rich and deep source of Tableau data visualization practice knowledge and recommended procedural information. It contains dozens of chart templates and best practice guidance descriptions.
++
++Tableau Studio also adds an authoring engine - a layer of behavioral control that results in:
++
++- Much lower token cost and rapid response for a growing body of the most common questions and tasks
++- Facilitation and guidance for the LLM on more complex tasks
++- Full LLM resource use for very large complex tasks and ambiguous ones that could use more clarity
++
++This diagram provides a sketch of the behavioral level components:
++
++```mermaid
++flowchart LR
++    A(["Incoming<br />request"]) --> SB{"Deterministic<br />match?"}
++    SB -->|"Fits a known<br />chart pattern"| TS["Chart templates:<br />bind fields<br />and apply"]
++    SB -->|"Needs<br />judgment"| RT{"Relevant<br />expertise?"}
++    RT -->|"Expertise<br />available"| GS["Expertise library:<br />agent reasons<br />with the guidance"]
++    RT -->|"No<br />expertise"| LLM["Agent authors<br />from its<br />own knowledge"]
++    TS --> OUT(["Authored<br />workbook"])
++    GS --> OUT
++    LLM --> OUT
++```
++
++For more details about authoring through Tableau MCP works, see [MCP Authoring Expertise](https://git.soma.salesforce.com/pages/cx-labs/tableau-mcp-tabstudio/docs/tableau-authoring) .
++
++### Tableau Agent harness and guardrails
++
++When you use Tableau Agent in Tableau Studio, you are accessing the power of Tableau MCP and the External Client API within a Claude-optimized framework that monitors the thinking and actions of the MCP. It uses this visibility to optimize the MCP’s behavior, ensures that costs stay within expected bounds, and checks that the MCP has delivered the promised results.
++
++#### Locally hosted Tableau MCP for Tableau Agent
++
++A current, self-updating version of the Tableau MCP will be locally hosted within Tableau Studio. This speeds up responses and lowers token cost because the local MCP can avoid network round trips in some common cases and can provide some types of responses without token use.
++
++#### Monitoring
++
++If Tableau Agent detects behavior that seems off-track, it acts to try to improve the outcome. For instance, if the model using the MCP gives a repetitive answer that leads to a dead end, the harness may detect that, invoke a circuit breaker, and redirect the MCP. If the MCP finds the path for a decision point ambiguous, the agent will tend to pause the thinking flow to prompt the user for input rather than charging ahead and polishing a potentially wrong solution.
++
++#### Promise Checking
++
++The Tableau Agent harness applies a check for each MCP response to verify that it did what it claimed. For instance, if the MCP reports it successfully created a sheet, the promise checker will verify that the sheet exists.
++
++## Availability and Pricing
++
++_coming at GA_ Pricing and packaging are not yet finalized.
++
++Tableau Studio is available to [Tableau Plus](https://help.tableau.com/current/online/en-us/to_tab_plus_features.htm) users with the [Creator](https://help.tableau.com/current/online/en-us/permission_license_siterole.htm) role or higher in the October 2026 (2026.3) release.
++
++---
++
++<a id="get-started-with-tableau-agent"></a>
++
++Source: https://help.tableau.com/v0.0/api/studio-dev-guide/en-us/get-started-with-tableau-agent.html
++
++# Get Started with Tableau Agent
++
++  
++
++Tableau Agent is an AI-powered authoring assistant built into Tableau Studio that lets you create and refine visualizations through natural conversation. Instead of manually configuring charts, calculated fields, and worksheets from scratch, you describe what you want — and Tableau Agent handles the rest, drawing on your connected data source to suggest, build, and apply changes directly in Tableau Studio.
++
++## Set up Tableau Agent
++
++1. Install Tableau Studio.
++2. Launch Tableau Studio.
++3. Open Tableau Agent by expanding the extensions menu and selecting **Tableau Agent**.
++    
++    ![Opening Tableau Agent from the extensions menu](assets/open-agent.png)
++4. Review and accept the Anthropic EULA when prompted.
++5. Expand the menu in the top-right corner and select **Settings**.
++6. Specify the path to your local working folder.
++    
++    ![Tableau Agent Settings with the local working folder path](assets/working-folder.png)
++    
++    **tip** Use a dedicated folder for each kind of work — for example analysis, production, or demos — so the agent scopes files, skills, and memory to that project.
++7. Verify that project assets, such as local skill markdown files, have loaded into that folder.
++
++**Note** If your organization manages policy centrally, Tableau Agent features and project access may require additional admin approvals and environmental settings.
++
++## Use Tableau Agent to help visualize your data
++
++With a template library, skill-based workflows, and tight integration with Tableau’s authoring surface, Tableau Agent is designed to accelerate your path from raw data to meaningful insight.
++
++With your Tableau Agent window open, use natural language queries to create vizzes, troubleshoot calculations, or just brainstorm the best way to tell your story.
++
++**tip** When working with published datasources in Tableau Studio, ensure they’re connected to your workbook before generating visualizations.
++
++### Use the chat UI
++
++**Chat configuration controls**
++
++The controls at the top of the Tableau Agent panel allow you to control the appearance of the agent, create new chats, and to access chat history and agent settings.
++
++![Chat configuration controls for New chat, Chats, and Settings](assets/chat-config.png)
++
++- Three dot menu: ![Three-dot menu with New chat, Chats, and Settings](assets/three-dot-menu.png)
++    - New Chat: Open a new chat with the agent and start a new context.
++    - Chats: View a list of your past chats and select to recall them to the agent panel.
++    - Settings:
++        - Skills: View skills that are enabled for the agent and retain, temporarily disable, or delete them.
++            
++            ![Skills tab in Settings, where you can retain, disable, or delete skills](assets/skills-manage.png)
++        - Memories: View memories (persistent rules that are always applied) and retain, temporarily disable, or delete them.
++
++**Chat input dialog**
++
++The Chat input dialog has a field to enter your prompt, and icons to manage and decide the behavior of your chat.
++
++![Tableau Agent dialog with prompt input field, and icons for show skills list, rewind chat, enter plan mode, enter auto-run mode, enter prompt/stop response chat, and copy chat.](assets/chat-ui.png)
++
++- Prompt input field: Enter your prompt here
++- Skills list: View and select skills
++- Rewind chat: Undo the last step of the chat
++- Plan mode: Enter thinking, plan-writing mode, take no actions
++- Auto-run mode: Tell the agent to do low risk actions without asking for permissions
++- Enter prompt/stop chat: Submit your prompt to the agent or tell it to stop working on a response
++- Copy chat: Copy the text of a chat to the clipboard
++
++### Use skills
++
++Skills are reusable instructions and capabilities that enable advanced outcomes, including chart-generation workflows, local scripting support for assets like localhost, and specialized persona or archetype behaviors such as design review and administrative guidance.
++
++Tableau Studio and Tableau MCP ship with a set of standard skills. They provide the default authoring behavior — templates, guidance, and procedures the agent applies. You can see the standard skills by hovering over the `/` icon in the chat input window.
++
++![Standard skills list shown from the slash icon in the chat input](assets/skills-list.png)
++
++You can create your own skill and add it to the list using the `/skill-creator` skill. While most of the standard skills can be customized, some skills are protected and customizing them is not supported. See [Customize Tableau Agent](#customize-tableau-agent).
++
++**Admin-defined skills**
++
++_coming at GA_
++
++[Admin-defined skills](#) (Coming in 2026.3 release) let administrators define and prescribe skills or overrides at the site or tenant level, so an entire team or org shares the same customized behavior.
++
++**Local skills**
++
++Local skills live on your computer and apply to your agent sessions. Use them to add team or personal capabilities without changing the defaults for everyone. To author a new one or change the behavior of a standard one, see [Customize Skills](#customize-skills).
++
++#### Plan mode
++
++Use Plan mode for longer, reasoning-heavy, or token-intensive tasks.
++
++- Best for multi-step analysis and higher-ambiguity requests.
++- Encourages deliberate agent reasoning before action.
++- Useful when you expect iterative planning and refinement.
++
++#### Auto-run mode
++
++Use Auto-run mode when you want the agent to move through routine work with less back-and-forth.
++
++- The agent executes with fewer interruptions for routine flows.
++- Ideal when you want faster end-to-end execution.
++- Best paired with trusted project setup and clear prompts.
++
++### Use rewind
++
++Rewind lets you move back in the chat to an earlier point. Use this when a prompt path goes off track or you want to compare alternate directions. It’s especially useful for exploratory analytics workflows.
++
++1. Select **Rewind** at the bottom of the Tableau Agent window.
++2. Drag and drop the dashed line that appears to the place in the chat you’d like to rewind to. The chat history below the line appears grayed out.
++3. Continue your chat and select **Yes, rewind** when prompted to undo changes.
++    
++    **Note** While rewind lets you return to a previous point in a chat with the agent, it does not undo any actions taken by the agent. In many cases explicitly asking the agent to revert changes will undo its actions.
++
++## Next steps
++
++- [Customize Tableau Agent](#customize-tableau-agent) — tailor skills, templates, and defaults.
++- [Use Tableau Studio Headless](#use-tableau-studio-headless) — drive authoring with your own MCP-capable agent or by calling the Tableau External Client API directly.
++
++---
++
++<a id="use-tableau-studio-headless"></a>
++
++Source: https://help.tableau.com/v0.0/api/studio-dev-guide/en-us/use-tableau-studio-headless.html
++
++# Use Tableau Studio Headless
++
++  
++
++Tableau Studio offers two ways to drive authoring actions for workbooks and extensions headlessly, without using the Tableau Agent interface:
++
++- Configure the agent of your choice to use the Tableau MCP and connect that agent to Tableau Studio.
++- Directly call the [Tableau External Client API](https://help.tableau.com/v0.0/api/studio-api-ref/en-us/index.html) REST endpoints using standard methods from tools like cURL or Postman, scripts, or apps.
++
++While driving Studio headlessly does not get the benefit of Tableau Agent’s guardrails and management of Tableau MCP’s behavior, it enables you to author using natural language or programmatic tooling of your choice.
++
++## Use Your Agent to Author with Tableau MCP
++
++**Internal Beta Only:** Using an external AI tool (Claude Code, Cursor, Codex . . .) to drive Tableau Studio is only available if you have an internal build of Tableau Studio.
++
++In Claude Code, Cursor, Copilot, or any MCP-capable client you choose, download and build the [tableau-mcp repo](https://github.com/tableau/tableau-mcp) locally to drive Tableau Studio authoring using natural language.
++
++### Get started with Tableau MCP
++
++**Tip:** You may be able to copy/paste this Get Started section into your AI IDE and have it complete setup and testing for you.
++
++1. Install [Node.js](https://nodejs.org/en/download) 22.7.5 or later (npx will install the needed server).
++2. Install Tableau Studio.
++3. Clone and build the MCP locally.
++    
++    - Clone the `tableau-mcp` repo:
++    
++    ```
++     git clone https://github.com/tableau/tableau-mcp
++     cd tableau-mcp
++     git checkout feature/desktop
++    ```
++    
++    - Install dependencies and build the Desktop profile:
++    
++    ```
++     npm ci
++     npm run build
++    ```
++    
++    - Configure your MCP client to point at the built server:
++    
++    ```
++     {
++     "mcpServers": {
++         "tableau-desktop": {
++             "type": "stdio",
++             "command": "node",
++             "args": ["<path to your tableau-mcp clone>/tableau-mcp/build/index.desktop.js"],
++             "env": { "TRANSPORT": "stdio", "TABLEAU_EXTERNAL_API": "true" }
++         }
++     }
++     }
++    ```
++4. Open Tableau Studio.
++5. Try a query prompt like: “What workbooks are available in Tableau Studio?”
++6. Try an action prompt like “Change the font color of all dashboard titles in the workbook to green.”
++
++## Directly call the Tableau External Client API
++
++For automation scenarios you may choose to create scripts or other programmatic content that drives Tableau Studio through the [Tableau External Client API](https://help.tableau.com/v0.0/api/studio-api-ref/en-us/index.html) . For instance, you may want to apply a style guide to a workbook, check a batch of workbooks for accessibility features, or search and replace a string in a set of Tableau projects.
++
++### Get Started with direct calls to the Tableau External Client API
++
++1. Install Tableau Studio.
++2. Open Tableau Studio.
++3. Find your Tableau External Client API discovery file.
++    
++    This file is recreated with fresh values on each launch of Tableau Studio and is only available once the app has fully started. The basename of the file is the OS process ID Tableau is running in.
++    
++    **macOS**
++    
++    `~/Library/Application Support/Tableau/Tableau/ExternalApi/<pid>.json`
++    
++    **Windows**
++    
++    `%LOCALAPPDATA%/Tableau/Tableau/ExternalApi/<pid>.json`
++    
++    The two important values it contains are:
++    
++    - `baseUrl` - typically `http://127.0.0.1:<xxxxx>`
++    - `token` - looks like: `af1129c44d5dcd8bd9206a8641133c91eed66c76b5f562633a37fd186e5ccac1`
++    
++    A full typical discovery file looks like:
++    
++    ```
++     {
++     "schemaVersion": 1,
++     "instanceId": "td_a8f1bf61-9194-49e8-8205-6ae7e831d5c2",
++     "pid": 28814,
++     "baseUrl": "http://127.0.0.1:62197",
++     "tokenType": "Bearer",
++     "token": "af1129c44d5dcd8bd9206a8641133c91eed66c76b5f562633a37fd186e5ccac1",
++     "applicationVersion": "0.0.0",
++     "apiVersion": "0.2.6",
++     "startedAt": "2026-08-14T16:14:52Z"
++     }
++    ```
++    
++    A model call looks like:
++    
++    ```
++     curl -sS -H "Authorization: Bearer <token value>" \
++     <baseURL>/v0/workbook
++    ```
++4. Check the presence of the client (no authorization is needed for this one call). Run:
++    
++    ```
++     curl -sS  http://127.0.0.1:62197/v0/health
++    ```
++    
++    This should return:
++    
++    ```
++     {"status":"OK"} (HTTP 200)
++    ```
++5. Try a call to list all available workbooks. Run:
++    
++    ```
++     curl -sS -H "Authorization: Bearer af1129c44d5dcd8bd9206a8641133c91eed66c76b5f562633a37fd186e5ccac1" \
++     http://127.0.0.1:62197/v0/workbook
++    ```
++    
++    This should return something like:
++    
++    ```
++     {
++       "title": "Book1",
++       "location": null,
++       "unsavedChanges": false,
++       "worksheets": [
++         {
++           "id": "{9BBEEE50-4AF9-46C2-BB36-1DAC6793FE4B}",
++           "name": "Sheet 1",
++           "hidden": false,
++           "isActiveSheet": true,
++           "index": 0,
++           "isAutoUpdatesPaused": false,
++           "datasources": []
++         }
++       ],
++       "dashboards": [],
++       "storyboards": []
++     }
++    ```
++
++### API call helper script
++
++**[`call-studio-api.py`](samples/call-studio-api.py)** _(download)_ is an example script for Windows and macOS that does the discovery and authentication work on your behalf each time you call. Rather than reading the discovery file yourself and pasting a `baseUrl` and `token` into every cURL call, you supply a simplified URI and a JSON payload:
++
++```
++python call-studio-api.py <METHOD> <path> [json-body] [--workbook <name or path>]
++```
++
++There is nothing to configure first. Each run finds the running copies of Tableau Studio, confirms the Tableau External Client API is responding, and supplies the current `baseUrl` and `token`.
++
++For long-running operations that return `HTTP 202` instead of a result, the script waits and delivers the full response when it arrives, for up to 30 seconds.
++
++The script writes the response body to `stdout` and status lines, prompts, and errors to `stderr`, so `python call-studio-api.py GET v0/health | jq .status` works. It writes no files, sets no environment variables, and saves no token between runs. Because each run rediscovers the current session, it keeps working after Tableau Studio restarts with a new process ID and a new token.
++
++#### Prerequisite
++
++The script needs Python 3.9 or later.
++
++#### Arguments
++
++| Argument | Required | Description |
++| --- | --- | --- |
++| `METHOD` | Yes | HTTP method: `GET`, `POST`, `PUT`, `PATCH`, or `DELETE`. |
++| `path` | Yes | Simplified API path. The leading slash is optional, so `v0/workbook` and `/v0/workbook` are equivalent. |
++| `json-body` | No | JSON string for write methods. Checked for valid JSON before anything is sent. |
++| `--workbook` | No | Drive the window holding this workbook. Accepts a file name (`lab.twb`), a path (`~/books/lab.twb`, resolved from your current directory), or the title shown in Tableau Studio (`Book1`). A workbook that has never been saved has no file name or path, so its title is the only way to name it. |
++
++#### Choose which window to drive
++
++If more than one instance of Tableau Studio is open, the script will prompt:
++
++```
++Multiple Tableau Studio instances are open. Choose one:
++  1) lab.twb (/Users/me/books/lab.twb)
++  2) sales.twb (/Users/me/books/2026/sales.twb)
++  3) Book1 (unsaved)
++Enter 1-3:
++```
++
++`--workbook` skips that prompt. If the value matches nothing that is open, the script will prompt you to select an open instance.
++
++#### Examples
++
++Focus Sheet 1 in the current workbook:
++
++```
++python call-studio-api.py POST v0/workbook:goToSheet '{"id":"{9BBEEE50-4AF9-46C2-BB36-1DAC6793FE4B}"}'
++```
++
++Read the structure of a specific open workbook:
++
++```
++python call-studio-api.py GET v0/workbook --workbook ~/books/lab.twb
++```
++
++List the workbooks on the site, waiting for the operation to finish:
++
++```
++python call-studio-api.py GET v0/site/workbooks
++```
++
++#### Exit codes
++
++Useful when calling the script from other automation:
++
++| Code | Meaning |
++| --- | --- |
++| `0` | The instance answered with a 2xx, and any operation the script waited on succeeded. |
++| `1` | Tableau Studio is not running or stopped responding, no workbook matched your selector, the prompt was cancelled, or an operation outlived its timeout. |
++| `2` | The command itself was malformed, such as a missing argument or a body that is not valid JSON. |
++| `3` | The instance returned an error status, or the operation it started failed. |
++
++Check the [Tableau External Client API](https://help.tableau.com/v0.0/api/studio-api-ref/en-us/index.html) reference for the Tableau authoring operations you can call.
++
++---
++
++<a id="customize-tableau-agent"></a>
++
++Source: https://help.tableau.com/v0.0/api/studio-dev-guide/en-us/customize-tableau-agent.html
++
++# Customize Tableau Agent
++
++  
++
++## Skills and expertise
++
++Much of Tableau Agent’s behavior in Tableau Studio is driven by a set of files:
++
++- **skills** — reusable capabilities that carry the procedural steps, rules, and judgment the agent applies to your requests
++- **expertise** _coming at GA_ — conceptual and procedural knowledge that helps the agent understand and make decisions about your prompt.
++
++To suit your needs, you can change how the agent authors, formats, and reasons about your work by [customizing skills](#customize-skills) and [customizing expertise](#customize-expertise).
++
++## Choosing formatting
++
++All existing Tableau Desktop features for using pre-existing [templates](https://public.tableau.com/app/discover), [themes](https://help.tableau.com/current/pro/desktop/en-us/formatting_custom_themes.htm), and [bookmarks](https://help.tableau.com/current/pro/desktop/en-us/save_savework.htm) are still available in Tableau Studio.
++
++Now, you can prompt Tableau Agent to use a saved theme or bookmark and it will apply that formatting when it builds or updates a view. If you encode that choice as a memory - like “ALWAYS use my-bar-chart-worksheet.tbh instead of the standard form of bar chart.” - the agent will make that choice each time, instead of requiring you to re-select the theme or bookmark by hand every time.
++
++## Memories
++
++_coming at GA_
++
++In Tableau Agent, memories are persistent rules for your Tableau Studio workspace. They apply to every prompt made in the agent chat so that you can avoid repeating or missing instructions that the agent should always follow.
++
++---
++
++<a id="customize-expertise"></a>
++
++Source: https://help.tableau.com/v0.0/api/studio-dev-guide/en-us/customize-expertise.html
++
++# Customize Expertise
++
++  
++
++## Tableau Agent expertise overview
++
++**Note** _coming at GA_ The following information describes a pattern similar to the way you can modify standard skills for the agent, but is not final.
++
++In Tableau Agent, **Expertise** is conceptual Tableau knowledge that helps the agent understand and make decisions about the user’s request and the content in focus.
++
++Tableau Agent comes loaded with a set of standard expertise for a broad range of Tableau practices and patterns. To suit your needs, you can **customize** the expertise your agent has by creating new expertise files or you can **override the standard expertise**.
++
++Expertise files live in the `~/Documents/My Tableau Repository (Beta)/Tableau Agent/knowledge/` folder. As shown in the tree diagram below, custom expertise and expertise overrides can live at the root folder. The standard expertise files live in the `.vendored/overridable/` and `.vendored/protected` folders.
++
++**Note** Changing vendored expertise files themselves is not supported. Read on to understand how to customize overridable expertise, but changing protected expertise may disable Tableau Studio functionality, and changes to these files will heal themselves at the start of the next session.
++
++```
++~/Documents/My Tableau Repository (Beta)/
++└── Tableau Agent/
++    └── knowledge/
++        ├── .markers/                                # one .sha256 per overridable expertise item
++        ├── .vendored/                               # bundled standard expertise — rebuilt each session; do not edit
++        │   ├── overridable/                         # standard expertise you may override
++        │   │   ├── personalization/
++        │   │   │   └── personalization.md
++        │   │   └── strategy/
++        │   │       └── strategy.md
++        │   └── protected/                           # core expertise that cannot be overridden
++        │       └── tactics/
++        │           └── tactics.md
++        ├── personalization/                         # your expertise override - path must match the overridden expertise file 
++        │   └── personalization.md
++        └── my-custom-expertise.md                   # custom expertise at the knowledge folder root
++```
++
++## Add your own expertise
++
++Following the [format of the standard Tableau Agent expertise files](#expertise-file-format) makes the file easier for the agent to understand. You can manually create the file or chat with the agent in plan mode and ask it to interview you for the information. The agent can also assist in testing your expertise before installing it.
++
++When you have completed your expertise file, paste it into `~/Documents/My Tableau Repository (Beta)/Tableau Agent/knowledge/` and it will be used on the next prompt that invokes it. You can also group expertise files in subfolders within `knowledge/`.
++
++## Override standard expertise
++
++To override a standard expertise file, copy that file and its parent folder. The relative path of the standard file from the `knowledge/.vendored/` folder and that of the override folder from the `knowledge/` folder must match.
++
++Edit the override version of the expertise file to suit your needs either manually or by chatting with the agent. The next section describes the format and agent usage of the expertise file.
++
++## Expertise file format
++
++To match the standard expertise files, your file should have: one topic per file; a short H1 that names the decision; a one-line description, and the H2 headings as specified:
++
++```
++# Title That Names The Decision
++
++One sentence: what this file is for.
++
++## Scope Check
++## When to Use
++## Best Practices
++## Common Mistakes
++## Implementation
++```
++
++Add **When to Say No** under Best Practices when the point is to refuse an unsafe or off-standard ask. Add **Related Expertise** only if you must point at another module. **Source and Confidence** is optional for an internal standard; include a date if you want reviewers to know when it was last checked.
++
++### Scope Check
++
++Use this exact bullet list:
++
++- **Primary audience** — who this is for
++- **Authoring outcome improved** — create, refine, govern, …
++- **In-scope reason** — why the agent should read this before authoring
++- **Out-of-scope risk** — what this file must not become
++- **Tags** — comma-separated keywords
++- **Relevant user prompts/search terms** — quoted phrases people actually type
++
++Those last two lines are how `search-knowledge` finds the file. Put the words users will say, including the _wrong_ ask you want to intercept (for example a request for a pie when your standard is a bar). Do not put internal taxonomy or a nickname only your team uses.
++
++### What each body section is for
++
++| Section | Write |
++| --- | --- |
++| **When to Use** | Situations that should load this file, not the full solution |
++| **Best Practices** | Imperative rules, each with a one-line why |
++| **When to Say No** | The condition, wording the agent can say, and what to offer instead |
++| **Common Mistakes** | The wrong move and what breaks |
++| **Implementation** | Numbered steps to run after reading |
++
++* * *
++
++### Dos and don’ts
++
++**Do** put your default choices here: which chart type, how to lay out KPIs, naming, color, which starter workbook to use, and that the agent should inspect the data before building a viz.
++
++**Don’t** document Tableau’s internal file format (XML), node names, or product internals unless you are recording a confirmed org-specific mechanic. Built-in tactics already cover how Tableau works.
++
++**Don’t** use this file to change how tools behave (retries, session handling, API calls). Expertise is authoring guidance only.
++
++**Do** write rules an agent can follow without guessing: a number, a chart type that is not allowed, a required order of checks.
++
++**Don’t** hedge (“consider possibly limiting KPIs”). If it is a standard, state it as a standard.
++
++**Do** put the words for common failures and non-standard requests in the search terms, so the agent finds this file when someone asks those things.
++
++**Don’t** rely on the rest of the file to get the agent to load it. The agent finds expertise files from Tags, search terms, and When to Use. If those don’t describe the new behavior, the agent will not find the file.
++
++**Do** when you forbid something, say what to do instead. A prohibition with no replacement is often ignored.
++
++**Don’t** mix several unrelated standards into one file. Split topics.
++
++**Do** strip customer names, account IDs, and proprietary identifiers from examples. Generic field names are enough.
++
++**Don’t** upload or paste private data into an expertise file.
++
++**Do** when the file is about inspecting data before building: limit how many clarifying questions the agent asks, and name what to look at first (the real fields in the data — do not invent columns).
++
++**Don’t** paste an entire workbook as an example. One pattern per rule is enough.
++
++---
++
++<a id="customize-skills"></a>
++
++Source: https://help.tableau.com/v0.0/api/studio-dev-guide/en-us/customize-skills.html
++
++# Customize Skills
++
++  
++
++## Tableau Agent skills overview
++
++A **skill** teaches the agent to do something reusable. You see a list of skills and choose one to use by selecting the `/` icon at the bottom of the chat window.
++
++Tableau Agent comes loaded with a set of standard skills to do common basic tasks. To suit your needs, you can **customize** the skills your agent has by creating new ones or you can **override standard skills**.
++
++Skills live in the `~/Documents/My Tableau Repository (Beta)/Tableau Agent/skills/` folder. As shown in the tree diagram below, custom skills and skill overrides can live at the root folder. The standard skills live in the `.vendored/overridable/` and `.vendored/protected` folders.
++
++**Note** Changing vendored skills files themselves is not supported. Read on to understand how to customize overridable skills, but changing protected skills may disable Tableau Studio functionality, and changes to these files will heal themselves at the start of the next session.
++
++```
++~/Documents/My Tableau Repository (Beta)/
++└── Tableau Agent/
++    └── skills/
++        ├── .vendored/                         # bundled standard skills — rebuilt each session; do not edit
++        │   ├── overridable/                   # standard skills you may override
++        │   │   ├── .markers/                  # one .sha256 per overridable skill
++        │   │   ├── insights/
++        │   │   │   └── SKILL.md
++        │   │   └── tableau-desktop-authoring/
++        │   │       └── SKILL.md
++        │   └── protected/                     # core skills that cannot be overridden
++        │       ├── author-extension/
++        │       │   └── SKILL.md
++        │       ├── skill-creator/
++        │       │   └── SKILL.md
++        │       ├── tableau-agent-debug/
++        │       │   └── SKILL.md
++        │       └── tableau-workbook-cli/
++        │           └── SKILL.md
++        ├── <my-skill-override-name>/           # your override skill — same name as the overridable skill
++        │   └── SKILL.md
++        └── <my-skill-name>/                    # your added custom skill
++            └── SKILL.md
++```
++
++## Use `/skill-creator` and natural language
++
++To create a skill in a Tableau Agent chat, type `/skill-creator <description of your skill>`.
++
++If you want help spelling out the details, try plan mode (the checklist icon at the bottom of the agent chat box). Describe the basics and ask the agent to flesh out the plan for the skill. When you are finished, switch out of plan mode and tell the agent to create the skill.
++
++After you have added a skill, run the `/reload-skills` skill and your new skill will appear in the list in the agent. To view the new skill’s file, look in `~/Documents/My Tableau Repository (Beta)/Tableau Agent/skills/`.
++
++## Import an existing or shared skill
++
++If you have skills already created that you want to reuse or share, they can be placed in the Tableau Agent/skills folder at `~/Documents/My Tableau Repository (Beta)/Tableau Agent/skills/`. Once your imported skills are there, run the `/reload-skills` skill and they will show up in your skills list in the agent.
++
++## Override a standard skill
++
++You can override a standard skill by chatting with Tableau Agent (plan mode recommended first) or by manually copying and editing the standard skill. Skill overrides and custom skill folders you add both live at `~/Documents/My Tableau Repository (Beta)/Tableau Agent/skills/`.
++
++## Manage your skills
++
++You can view the skills you have available, turn them on or off, or delete them. To find the controls for these actions, select the three-dot menu at the top of the agent window, select **Settings**, and select the **Skills** tab.
++
++## Author a skill by hand
++
++### How the agent loads a skill
++
++The agent reads a skill in layers, so put content where it earns its place:
++
++1. **Frontmatter** (`name` + `description`) is always in context. This is the trigger — keep it specific and cheap.
++2. The **`SKILL.md` body** loads only once the skill fires. Keep it to the steps and rules the agent needs every time — aim for well under ~200 lines.
++3. **Supporting files** (`references/`, `scripts/`, `assets/`) load only when the body points the agent at them. This is where long specs, examples, schemas, or helper scripts go, so they never cost context until they’re actually needed.
++
++### How to write a skill
++
++If you prefer to write the files yourself, use the same layout and rules `/skill-creator` applies.
++
++#### 1\. Capture intent
++
++Pin down the _one_ capability the skill covers, when it should trigger, and what a good result looks like. If you’ve already described the workflow to the agent in chat, mine that; ask only what you can’t infer.
++
++#### 2\. Write the frontmatter
++
++Create `skills/<skill-name>/SKILL.md`. The frontmatter is what makes the skill fire, so write it for triggering:
++
++```
++---
++name: <kebab-case-name>
++description: <lead with WHEN to use it and the trigger phrases a user would actually say>
++---
++```
++
++- `name` **must** equal the directory name and be kebab-case.
++- The `description` should name the situations and the words a user would actually type (“Use when the user asks to …”). Lean slightly eager — a skill that never triggers is worthless — but don’t claim capabilities it lacks. Vague descriptions never fire.
++
++#### 3\. Write a tight body
++
++Follow the frontmatter with a short, focused body — the steps and rules the agent should apply every time:
++
++```
++# <Human title>
++
++<What the skill is for, then the concrete steps or rules the agent follows.>
++```
++
++- Prefer imperative instructions (“Read the manifest, then …”) over prose.
++- Explain the _why_ behind any non-obvious rule so the agent applies it sensibly instead of blindly.
++- If the body sprawls into several capabilities, split it into separate skills. If one section is long reference material, move it into `references/` and link to it from the body.
++- If the skill needs temporary scratch space at runtime, have it write under its own namespaced subdirectory rather than a shared scratch root, so two skills can’t clobber each other’s working files.
++
++#### 4\. Try it
++
++Try the skill the way a user would. Type a few requests that should use it, and a few that shouldn’t. Watch for these common problems:
++
++- The skill never runs because the description is vague, or doesn’t use the words a user would actually type.
++- The skill runs when it shouldn’t because the description is too broad, or claims more than the skill can do.
++- The agent starts the skill but gets stuck — a step is missing, or the body assumes something it never explains.
++- The body is too long, or tries to cover several jobs at once. If this is the case, move the extra material into a `references/` folder next to `SKILL.md`. That’s where specs, examples, schemas, and other background belong. Point to those files from the body (“Read `references/schema.md`, then …”) instead of pasting them in. The agent only opens a reference file when the skill tells it to, so the skill stays short and cheap until that detail is actually needed.
++
++#### 5\. Refine
++
++After you try the skill, make it more general than the one prompt you tested. Cut anything the agent already knows.
++
++#### 6\. Load it in Tableau Studio
++
++After you add your skill, run `/reload-skills` so the running agent picks it up without a restart. Then prompt the agent with a request that should trigger the skill and confirm it fires.
++
++For an example of a finished `SKILL.md`, see the ones in the `~/Documents/My Tableau Repository (Beta)/Tableau Agent/skills/.vendored/overridable/` folder.
++
++---
++
++<a id="troubleshooting"></a>
++
++Source: https://help.tableau.com/v0.0/api/studio-dev-guide/en-us/troubleshooting.html
++
++# Troubleshooting
++
++  
++
++### The `/tableau-agent-debug` Skill in Tableau Agent
++
++The `/tableau-agent-debug` skill can help with most authoring issues that arise. Prompt the agent to explain and fix unexpected results or a missing element on your dashboard that you describe, or ask it to review logs to find errors.
++
++* * *
++
++### Issues and Solutions
++
++#### Agent claims success but nothing happened
++
++→ Check for Tableau Studio error dialogs. If they are present then you can copy the error message, dismiss it, and paste the message into Tableau Agent to let the debug skill work on it. If an error dialog is not the issue, try describing what failed to the agent.
++
++#### Template not binding to published datasource
++
++→ Verify the datasource is connected before generating a visualization.
++
++#### Agent using slow Python calls instead of native tool
++
++→ If a process seems to be taking longer than expected, you can click on the agent’s thinking. If you suspect it is reinventing a Tableau native skill by writing a script to achieve that function, you can stop the agent and ask why it made that choice.
++
++* * *
++
++### Using Logs for Debugging
++
++#### Agent issues
++
++Agent logs live under `Documents/My Tableau Repository (Beta)/Tableau Agent/logs`. Note the time of the failure, then use:
++
++> **`ask-ledger.jsonl`**
++
++Contains each user ask, chat id, tools called, and which tools failed. Start here to find the failing tool for your ask.
++
++Search for `"is_error": true` - `grep '"is_error": true' ask-ledger.jsonl`
++
++> **`desktop-mcp-`**`<UTC date/time>`**`.log`**
++
++Contains MCP to Desktop tool calls: timeouts, blocking dialogs, and validation failures.
++
++Search for `error` with `"level":"warning"` or `"level":"error"` to avoid benign debug lines:
++
++`grep -i '"level":"error"\|"level":"warning"\|awaiting-user\|Timeout\|validation' desktop-mcp-2026-08-19T18-00-00-000Z.log`
++
++> **`tab-agent.log.`**_`<n>`_
++
++Contains agent runtime errors and warnings. Read the lines nearest your timestamp.
++
++Search for `ERROR` and/or `WARNING` - `grep 'ERROR\|WARNING' tab-agent.log`
++
++> **`web-mcp.log`**
++
++Contains web and cloud MCP startup failures, such as certificate problems that keep server tools from initializing.
++
++Search for `fatal` and/or `certificate` - `grep -i 'fatal\|certificate' web-mcp.log`
++
++#### Viz or data source issues
++
++> **`log_`**_`<n>`_**`.txt`**
++> 
++> For viz or data source problems also check Desktop’s own log at `Documents/My Tableau Repository (Beta)/Logs/log.txt` (rotated as `log_1.txt`, `log_2.txt`), where connection and query failures are recorded.
++
++Search on `connectivity`, `|hyper`, and/or `|excp` - `grep -i 'connectivity\|hyper\|excp' "Documents/My Tableau Repository (Beta)/Logs/log.txt"`
++
++#### Reporting issues
++
++If you are providing assets to someone assisting with troubleshooting, zip the relevant hour of `desktop-mcp`, current `tab-agent` logs, `ask-ledger.jsonl`, and `web-mcp.log`, and attach a workbook if the issue is content-related. If the issue seems to be with a viz or data source, include `log.txt` as well.
++
++---
++
++<a id="release-notes"></a>
++
++Source: https://help.tableau.com/v0.0/api/studio-dev-guide/en-us/release-notes.html
++
++# Release Notes
++
++  
++
++## October 2026 (2026.3) — Tableau Studio general availability
++
++Tableau Studio is the evolution of Tableau Desktop, bringing it into the age of agents and AI. All classic Tableau Desktop authoring features remain fully available and supported, alongside a new set of natural-language, agent, and API capabilities. This release introduces the components below.
++
++- ADD **Tableau Agent**: A Claude-optimized chat and configuration experience built into Tableau Studio, backed by an infrastructure that monitors and orchestrates [Tableau MCP](https://git.soma.salesforce.com/pages/cx-labs/tableau-mcp-tabstudio/docs/intro) and the Tableau External Client API. It provides guardrails, self-correction, and real-time awareness of the formatting, configuration, and data of the Tableau project you have in focus. See [Tableau Studio Basics](#tableau-studio-basics). To start using it, see [Get Started with Tableau Agent](#get-started-with-tableau-agent).
++- ADD **Customization**: Tailor Tableau Studio to your standards by customizing skills and expertise, creating your own skills, and starting from authoring templates. See [Customize Tableau Agent](#customize-tableau-agent).
++
++**Related:**
++
++- UPDATE **Authoring reasoning and tools in Tableau MCP**: [Tableau MCP](https://git.soma.salesforce.com/pages/cx-labs/tableau-mcp-tabstudio/docs/intro) turns your natural-language prompts into authoring actions, adding Tableau viz authoring skills, deep functional and procedural knowledge, and data visualization best practices, plus new tools that drive authoring actions. See [References and Guides](#tableau-mcp).
++- ADD **Tableau External Client API**: A native API that gives your agent or scripts programmatic access to the Tableau Desktop capabilities in Tableau Studio, enabling repeatable, scripted authoring. See [Use Tableau Studio Headless](#directly-call-the-tableau-external-client-api).
++- ADD **Headless authoring with your own agent**: Connect directly to Tableau MCP from the agent of your choice to author without the Tableau Agent harness. See [Use Tableau Studio Headless](#use-your-agent-to-author-with-tableau-mcp).
++- ADD **Open source skills and expertise**: Learn about the skills and expertise that the Tableau Studio agent uses, download them for customization, and contribute to the catalog. See [Tableau AI Utilities](https://git.soma.salesforce.com/pages/cx-labs/studio-skills/skills/).
++
++---
++
++<a id="references-and-guides"></a>
++
++Source: https://help.tableau.com/v0.0/api/studio-dev-guide/en-us/references-and-guides.html
++
++# References and Guides
++
++  
++
++## Tableau MCP
++
++[Tableau MCP](https://git.soma.salesforce.com/pages/cx-labs/tableau-mcp-tabstudio/docs/intro) is the Model Context Protocol server that turns your natural language prompts into Tableau authoring actions. It packages Tableau Studio’s viz authoring skills, deep functional and procedural knowledge, and data visualization best practices as expertise and tools that can be driven through Tableau Agent or the agent of your choice.
++
++## Tableau External Client API
++
++[Tableau External Client API](https://help.tableau.com/v0.0/api/studio-api-ref/en-us/index.html) makes the actions in classic Tableau Desktop available for programmatic use. Today this REST API surface is delivered in Tableau Studio. The API can be coded directly, and its operations are expressed as tools in [Tableau MCP](https://git.soma.salesforce.com/pages/cx-labs/tableau-mcp-tabstudio/docs/intro) , making it available through Tableau Agent or through any agent of your choice.
++
++## Extensions API
++
++_coming at GA_
++
++[Extensions API](https://example.com/extensions-api) (Coming in 2026.3 release) enables you to extend your Tableau viz, dashboard, and, as of the October 2026 (2026.3) release, your entire Tableau workspace, including toolbars and menus.
++
++## Tableau Packages Guide
++
++_coming at GA_
++
++[Packages](https://example.com/packages-guide) (Coming in 2026.3 release) are a content type added in the October 2026 (2026.3) release. They are containers that have the same permissions and roles model as a workbook or data source. They are deployable as .tpkg files and, in many ways, have the same deployment story as an extension file (.trex). Additionally, packages support embedding an extension’s web app resources. This enables you to host your extension web app on Tableau service and avoid standing up external hosting for your app.
++
++---
++
++# External Client API
++
++These pages are the destinations of the Tableau External Client API link in the left navigation.
++
++<a id="api-overview"></a>
++
++Source: https://help.tableau.com/v0.0/api/studio-api-ref/en-us/index.html
++
++# External Client API Overview
++
++### Overview
++
++The External Client API provides programmatic access to [Tableau Studio](https://help.tableau.com/v0.0/api/studio-dev-guide/en-us/index.html) (formerly known as Tableau Desktop) authoring actions. Its operations are mirrored in tools in [Tableau MCP](https://git.soma.salesforce.com/pages/cx-labs/tableau-mcp-tabstudio/docs/intro)
++
++.
++
++### In this guide
++
++This guide offers the [API Reference](https://help.tableau.com/v0.0/api/studio-api-ref/en-us/reference/index.html) and [Troubleshooting](#api-troubleshooting).
++
++The categories of operations in this API are:
++
++- [Application](#api-overview)
++- [Dashboards](#api-overview)
++- [Service](#api-overview)
++- [Site](#api-overview)
++- [Storyboards](#api-overview)
++- [Workbook](#api-overview)
++- [Worksheets](#api-overview)
++
++### Helper script
++
++You can download an example [`call-studio-api.py` helper script](samples/call-studio-api.py). Usage is covered in the [Tableau Studio Developer Guide](https://help.tableau.com/v0.0/api/studio-dev-guide/en-us/index.html) .
++
++This script gets the `baseUrl` and `token` required for a REST call to the API and simplifies making a call, For instance, to get a list of available workbooks you would use:
++
++```
++python call-studio-api.py GET v0/site/workbooks
++```
++
++#### Additional Resources
++
++- [Tableau Developer Documentation](https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm)
++- [Tableau Community](https://community.tableau.com)
++
++---
++
++<a id="api-get-started"></a>
++
++Source: https://help.tableau.com/v0.0/api/studio-api-ref/en-us/docs/get-started.html
++
++# Get Started with the External Client API
++
++  
++
++### Get Started with direct calls to the External Client API
++
++1. Install Tableau Studio.
++2. Open Tableau Studio.
++3. Find your External Client API discovery file.
++    
++    This file is recreated with fresh values on each launch of Tableau Studio and only available once the app has fully started. The basename of the file is the OS process id Tableau is running in.
++    
++    **Mac OS**
++    
++    `~/Library/Application Support/Tableau/Tableau/ExternalApi/<pid>.json`
++    
++    **Windows**
++    
++    `%LOCALAPPDATA%/Tableau/Tableau/ExternalApi/`
++    
++    The two important values it contains are:
++    
++    - `baseUrl` - typically `http://127.0.0.1:<xxxxx>`
++    - `token` - looks like: `af1129c44d5dcd8bd9206a8641133c91eed66c76b5f562633a37fd186e5ccac1`
++    
++    A full typical discovery file looks like:
++    
++    ```
++     {
++     "schemaVersion": 1,
++     "instanceId": "td_a8f1bf61-9194-49e8-8205-6ae7e831d5c2",
++     "pid": 28814,
++     "baseUrl": "http://127.0.0.1:62197",
++     "tokenType": "Bearer",
++     "token": "af1129c44d5dcd8bd9206a8641133c91eed66c76b5f562633a37fd186e5ccac1",
++     "applicationVersion": "0.0.0",
++     "apiVersion": "0.2.6",
++     "startedAt": "2026-08-14T16:14:52Z"
++     }
++    ```
++    
++    A model call looks like:
++    
++    ```
++     curl -sS -H "Authorization: Bearer <token value>" \
++     <baseURL>/v0/workbook
++    ```
++4. Check the presence of the client (no authorization needed for is one call). Run:
++    
++    ```
++     curl -sS  http://127.0.0.1:62197/v0/health
++    ```
++    
++    This should return:
++    
++    ```
++     {"status":"OK"} (HTTP 200)
++    ```
++5. Try a call to list all available workbooks. Run:
++    
++    ```
++     curl -sS -H "Authorization: Bearer af1129c44d5dcd8bd9206a8641133c91eed66c76b5f562633a37fd186e5ccac1" \
++     http://127.0.0.1:62197/v0/workbook
++    ```
++    
++    This should return something like:
++    
++    ```
++     {
++       "title": "Book1",
++       "location": null,
++       "unsavedChanges": false,
++       "worksheets": [
++         {
++           "id": "{9BBEEE50-4AF9-46C2-BB36-1DAC6793FE4B}",
++           "name": "Sheet 1",
++           "hidden": false,
++           "isActiveSheet": true,
++           "index": 0,
++           "isAutoUpdatesPaused": false,
++           "datasources": []
++         }
++       ],
++       "dashboards": [],
++       "storyboards": []
++     }
++    ```
++
++---
++
++<a id="api-troubleshooting"></a>
++
++Source: https://help.tableau.com/v0.0/api/studio-api-ref/en-us/docs/troubleshooting.html
++
++# External Client API Troubleshooting
++
++  
++
++This guide covers common problems you may encounter when working with the External Client API and how to resolve them.
++
++## Table of Contents
++
++## Common REST API Issues
++
++Below are typical issues encountered when making REST API requests, along with their likely causes and solutions.
++
++### 400 Bad Request
++
++**Symptoms:** The server rejects the request before processing it.
++
++**Common causes and solutions:**
++
++- **Malformed JSON body** — Validate your request payload against the endpoint schema in the [API Reference](#api-overview). Ensure quotes, commas, and braces are correct.
++- **Missing required fields** — Confirm that all required parameters are included in the request body or query string.
++- **Incorrect `Content-Type` header** — Set `Content-Type: application/json` for requests that include a JSON body.
++
++### 401 Unauthorized
++
++**Symptoms:** The request is rejected due to missing or invalid credentials.
++
++**Common causes and solutions:**
++
++- **Missing or expired token** — Ensure a valid authentication token is included and has not expired. See [Authentication Problems](#authentication-problems).
++- **Malformed `Authorization` header** — Verify the header format matches what the API expects.
++
++### 403 Forbidden
++
++**Symptoms:** The credentials are valid, but the operation is not permitted.
++
++**Common causes and solutions:**
++
++- **Insufficient permissions** — Confirm the account or token has the required role or scope for the resource.
++- **Accessing another site or resource** — Verify you are targeting the correct site and that you have access to the requested resource.
++
++### 404 Not Found
++
++**Symptoms:** The requested resource does not exist.
++
++**Common causes and solutions:**
++
++- **Incorrect URL or path** — Double-check the endpoint path, resource ID, and base URL.
++- **Wrong API version** — Confirm you are using the correct API version in the request path.
++
++### 429 Too Many Requests
++
++**Symptoms:** Requests are throttled due to rate limiting.
++
++**Common causes and solutions:**
++
++- **Exceeding rate limits** — Implement exponential backoff and retry logic. Inspect any `Retry-After` response header to determine how long to wait.
++- **Bursty traffic** — Spread requests over time rather than sending them in large bursts.
++
++### 500 / 503 Server Errors
++
++**Symptoms:** The server encounters an error or is temporarily unavailable.
++
++**Common causes and solutions:**
++
++- **Transient server issue** — Retry the request after a short delay with backoff.
++- **Persistent failures** — If the problem continues, capture the request ID and timestamp and contact support.
++
++### General Debugging Tips
++
++- Inspect the full response body and status code — error responses often include a descriptive message.
++- Log request and response headers to diagnose header-related problems.
++- Reproduce the request with a tool like `curl` or Postman to isolate client-side issues.
++
++## Authentication Problems
++
++> **TBD** — Content for this section is coming soon.
++
++## Studio API Issues
++
++> **TBD** — Content for this section is coming soon.
+diff --git a/docs/v2/studio-skills-design.md b/docs/v2/studio-skills-design.md
+new file mode 100644
+index 0000000..a6820c0
+--- /dev/null
++++ b/docs/v2/studio-skills-design.md
+@@ -0,0 +1,321 @@
++# Design: AiO Tableau Agent Skills (v1)
++
++## Overview
++
++This document describes the design of three complementary Tableau Agent skills that showcase AiO story-driven demos inside Tableau Studio. The skills enable three distinct roles:
++
++1. **`aio-story` (Builder — Guided)**: Guides a Solutions Engineer through building a four-question demo using natural language. "Walk me through the AiO story" → Claude asks questions and guides you through building each worksheet step-by-step.
++2. **`aio-autobuilder` (Builder — Auto)**: One prompt ("build the demo") builds all four worksheets + the story dashboard on the connected datasource. The skill hands Tableau Agent declarative per-sheet specs; the agent builds them with its native authoring tools and verifies each one. Studio assets only — data, Pulse, and Next still come from `/build-demo`.
++3. **`aio-audience` (Interpreter)**: Helps an audience understand and act on a story-driven dashboard during a demo. When the audience sees a worksheet, they ask "Why is this segment worst?" and the skill interprets the data narratively.
++
++Together, these skills demonstrate Tableau Studio's natural-language authoring and agentic build capabilities, while providing multiple workflows for building and running AiO demos — from guided learning to rapid auto-build to audience engagement.
++
++## Scope (v1)
++
++### What's included
++
++- **Three Tableau Agent skills**: `aio-story` (guided builder), `aio-autobuilder` (one-prompt builder), `aio-audience` (interpreter)
++- **SKILL.md files** with frontmatter (Step 0 for demo-context detection), body, and supporting references
++- **Reference documentation**: 
++  - Builder guides: four-questions, signal-design, talk-track (aio-story); build-specs, verification (aio-autobuilder)
++  - Interpreter guides: story-interpretation, talking-points (aio-audience)
++- **Installation script** (`install_studio_skills.sh`) for standalone use
++- **Demo-specific story injection**: During `/build-demo`, the demo's story metadata is assembled into a checkpoint dict and rendered as `demo-story.md`. All three skills check for this file (Step 0) and use demo-specific context if present.
++- **Integration hook into `/build-demo`**: New output option `studio`; skill files written to demo-specific folder with `demo-story.md` pre-loaded
++
++### What's deferred (future)
++
++- Slack integration or close-loop automation.
++- Semantics / Data 360 integration guidance (skills work with any datasource).
++- Studio section in the walkthrough `.docx`.
++
++## Design principles
++
++### 1. Three roles, three skills
++
++- **`aio-story`** is for guided builders (SEs learning by building). It's prescriptive and educational: "Here are the rules for Q1, Q2, Q3, Q4. Let's build each one together."
++- **`aio-autobuilder`** is for rapid builders (SEs who need the demo fast). It's automated and orchestrated: "I'll build all four worksheets and the dashboard with my native tools, verify each, and tell you what I adjusted. You review and refine."
++- **`aio-audience`** is for interpreters (audience members reading dashboards). It's narrative and context-aware: "Here's why this matters to you, here's what changed, here's what to do."
++
++All three skills are demo-aware (they read `references/demo-story.md` if present) and datasource-agnostic (they work with any structured data).
++
++### 2. Standalone + integrated
++
++- **Standalone**: Anyone can download the `tableau_agent_skills/` folder, run the installer, and use the skills in their own Studio projects.
++- **Integrated**: When `/build-demo` generates a demo with "Studio skills" as output, it copies the skills to `demos/{slug}/studio_skills/` and offers to install them. Users see a README with instructions and example prompts.
++
++This dual delivery maximizes reach: SEs can share the skills with colleagues, and new demos automatically include them.
++
++### 3. The four-question framework is the spine
++
++All three skills anchor to the same narrative:
++
++1. **Q1: "What is wrong?"** — Primary metric over time. Problem unmissable.
++2. **Q2: "Where is it worst?"** — Metric by dimension, ranked. Culprit identified.
++3. **Q3: "Why is it happening?"** — Supporting metrics + root cause. Explanation provided.
++4. **Q4: "Who needs action?"** — Individuals/accounts in the culprit, ranked. Action enabled.
++
++The builder skills *build* this (guided or automatic). The audience skill teaches how to *read* it. All reference the same pattern.
++
++### 4. Lean and reference-rich
++
++- **SKILL.md body**: < 150 lines. Only the essential steps, so the skill loads fast and the agent fires predictably.
++- **References/**: Long docs (four-questions.md, signal-design.md, etc.) load only when the skill body points to them ("Read `references/four-questions.md`, then..."). The agent only opens these when needed, saving tokens.
++
++This keeps the on-demand cost low while having deep docs available.
++
++## Architecture
++
++### File structure
++
++```
++tableau_agent_skills/
++  aio-story/
++    SKILL.md
++    references/
++      four-questions.md
++      signal-design.md
++      talk-track.md
++  aio-autobuilder/
++    SKILL.md
++    references/
++      build-specs.md
++      verification.md
++  aio-audience/
++    SKILL.md
++    references/
++      story-interpretation.md
++      talking-points.md
++
++scripts/
++  install_studio_skills.sh
++```
++
++### Installation
++
++**Standalone:**
++```bash
++bash scripts/install_studio_skills.sh
++```
++
++**Integrated (in `/build-demo`):**
++```
++> Select output: "Studio skills"
++> (Demo data generated)
++> Install the skills? [Y/n]
++> bash demos/{slug}/studio_skills/install.sh
++```
++
++### Trigger phrases
++
++**Builder — Guided (`aio-story`):**
++- "walk the AiO story"
++- "build the next worksheet"
++- "what should Q2 show"
++- "create the dashboard"
++- "help me build a story-driven demo"
++
++**Builder — Auto (`aio-autobuilder`):**
++- "build the demo"
++- "auto-create Q1-Q4"
++- "auto-build the story dashboard"
++- "generate the four-question worksheet"
++
++**Audience (`aio-audience`):**
++- "explain this chart"
++- "why is this segment worst"
++- "what changed"
++- "what should we do"
++- "interpret this worksheet"
++
++Each phrase fires the respective skill due to the `description` frontmatter in SKILL.md.
++
++## How the guided builder skill works (`aio-story`)
++
++1. **SE opens Studio** and connects a datasource.
++2. **SE opens Tableau Agent** and types "walk the AiO story".
++3. **The skill fires.** Claude reads the `aio-story/SKILL.md` body.
++4. **Claude asks:** "What's your primary metric? Which dimensions matter?"
++5. **SE answers:** Claude guides through Q1–Q4, asking for worksheet descriptions and creating them step-by-step.
++6. **Result:** Four worksheets + dashboard following the story pattern (~30 minutes, hands-on learning).
++
++The skill's body tells Claude the steps. The references provide context (four-questions.md explains *why*, signal-design.md explains *how to differentiate segments*, talk-track.md provides example phrasings).
++
++## How the auto-builder skill works (`aio-autobuilder`)
++
++1. **SE opens Studio** and connects a datasource.
++2. **SE opens Tableau Agent** and types "build the demo".
++3. **The skill fires.** Claude reads the `aio-autobuilder/SKILL.md` body and checks for `references/demo-story.md`.
++4. **Claude confirms the story** (primary metric, culprit segment, counter-trend, root cause, supporting metrics).
++5. **Preflight:** the agent maps every story field to a real datasource field and stops if anything is missing.
++6. **The agent builds each sheet with its native tools**, per `build-specs.md`, and verifies it per `verification.md`:
++   - Q1 worksheet (line chart, primary metric over time)
++   - Q2 worksheet (bar chart, ranked by dimension, culprit highlighted)
++   - Q3 worksheet (multi-line, supporting metrics)
++   - Q4 worksheet (summary table, at-risk records)
++   - Dashboard (2×2 layout with all four)
++7. **Result:** Worksheets + dashboard saved, with a report of anything skipped or adjusted (hands-off).
++
++The skill deliberately contains no XML or raw API calls — the Studio guide warns against the agent re-implementing native tools via scripts, and the document endpoint only checks well-formedness, so hand-written XML can "succeed" while producing broken sheets. Declarative specs + read-back verification are more robust.
++
++## How the audience skill works (`aio-audience`)
++
++1. **During the demo**, audience member sees a worksheet.
++2. **Audience asks Tableau Agent:** "Explain this chart" or "Why is this segment worst?"
++3. **The skill fires.** Claude reads `aio-audience/SKILL.md` body.
++4. **Claude reads the visible worksheet** and answers the question as a knowledgeable guide.
++5. **Result:** The audience hears the *story* (why it matters, what changed, what to do) instead of raw numbers.
++
++The skill's references (story-interpretation.md, talking-points.md) teach Claude how to narrate each question and provide ready-to-use phrases.
++
++## Integration with `/build-demo`
++
++### Output option (new)
++
++Add to `.claude/commands/build-demo.md` at line ~347 (Output mode section):
++
++```
++- Tableau Studio skills: Generate demo data + skill files. 
++  Result: CSV data in demos/{slug}/, skills in demos/{slug}/studio_skills/.
++  Use when: Building a demo to showcase natural-language authoring or to integrate with existing dashboards.
++```
++
++### Checkpoint keys
++
++When "Studio skills" is selected, add to `{slug}_checkpoint.json`:
++
++```json
++{
++  "studio_skills_generated": false,    // Set to true after skills written
++  "studio_skills_installed": false     // Set to true after user runs installer
++}
++```
++
++On rerun, check these keys and skip generation if already done.
++
++### Output structure
++
++```
++demos/{slug}/
++  {slug}_demo.py
++  {slug}_checkpoint.json
++  {slug}_{date}.csv
++  studio_skills/
++    aio-story/
++      SKILL.md
++      references/
++    aio-audience/
++      SKILL.md
++      references/
++    aio-autobuilder/
++      SKILL.md
++      references/
++    install.sh
++    README.md
++```
++
++### README.md (generated)
++
++The `README.md` in `studio_skills/` should include:
++
++```markdown
++# AiO Tableau Agent Skills for {Company Demo}
++
++## Quick start
++
++1. Run: `bash install.sh`
++2. In Tableau Agent, run: `/reload-skills`
++3. Connect the demo CSV, then try: "build the demo", "walk the AiO story", or "explain this chart"
++
++## Prompts for builders
++
++- "Walk me through the AiO story"
++- "Build question 1 (what is wrong?)"
++- "Show me [metric] by [dimension]"
++- "Create the dashboard"
++
++## Prompts for audiences
++
++- "Explain this worksheet"
++- "Why is [segment] worst?"
++- "What changed compared to last quarter?"
++- "What should we do?"
++
++## More information
++
++See [docs/v2/studio-skills-design.md](../../docs/v2/studio-skills-design.md) for the full design.
++```
++
++## Testing
++
++### Manual testing (standalone)
++
++1. Run `bash scripts/install_studio_skills.sh` in Terminal.
++2. In Tableau Studio, open Tableau Agent.
++3. Run `/reload-skills`.
++4. Verify `aio-story`, `aio-autobuilder`, and `aio-audience` appear in the skill list.
++5. Test trigger phrases:
++   - "walk the AiO story" → `aio-story` should fire.
++   - "explain this chart" → `aio-audience` should fire.
++   - "build the demo" (datasource connected) → `aio-autobuilder` fires; 4 sheets + dashboard built. Check `Tableau Agent/logs/ask-ledger.jsonl` for failed tools.
++   - "rename this worksheet" → No AiO skill fires (default behavior).
++
++### Integration testing
++
++1. Run `/build-demo`, select "Studio skills" output.
++2. Verify `demos/{slug}/studio_skills/` is created with all three skills, each with `references/demo-story.md`.
++3. Verify README appears.
++4. Run the installer from the demo folder.
++5. Load all three skills and test.
++
++### Negative tests
++
++- Unrelated prompt ("What's the weather?") does not fire the skills.
++- Skills work with different datasources (Pulse, published, Data Cloud).
++- Rerun `/build-demo` on same slug; second run skips skill generation or offers to overwrite.
++
++## Demo-specific story injection (v1, core feature)
++
++When `/build-demo` generates a demo with `studio` output selected, it assembles the demo's story metadata into a structured dict (saved to checkpoint under `"story"`):
++
++```json
++{
++  "story": {
++    "company": "Paylocity",
++    "primary_metric": "Relationship NPS",
++    "dimensions": ["Team", "Region", "Plan Tier"],
++    "culprit_segments": [{"name": "Garnishments", "dimension": "Team", "multiplier": 2.1}],
++    "moderate_segments": [{"name": "Payroll Support", "multiplier": 1.0}],
++    "counter_trend_segment": {"name": "HREdge", "multiplier": -0.08},
++    "root_cause_dimension": "Plan Tier",
++    "supporting_metrics": [{"name": "Case Resolution Time", "lag_ratio": 0.7}],
++    "signal_onset_months_ago": 6,
++    "signal_shape": "accelerating"
++  }
++}
++```
++
++This dict is then rendered into a human-readable `demo-story.md` file that is written to the `references/` folder of **all three** skills. When any skill is invoked in Tableau Studio, Step 0 of the SKILL.md checks for this file. If present, the skill uses the demo-specific metric/segment/dimension names; if absent, the skill operates generically (as with standalone installations).
++
++**Result**: The same SKILL.md files work for both standalone (generic, ask the user) and integrated (demo-specific, use the `demo-story.md` context) scenarios without requiring separate skill definitions.
++
++## Future enhancements
++
++### Phase 2: Slack integration
++
++When audience asks "Who should I call?", send a Slack message to the account owner with a summary.
++
++### Phase 3: Semantics / Data 360 guidance
++
++Document how skills work with Tableau Semantics models and give Concierge-compatible narrative patterns.
++
++### Phase 4: Backfill existing demos
++
++Retrofit existing demo scripts (e.g., `paylocity_voc_analytics_demo.py`) to extract and save their story metadata to checkpoint so that `/build-demo --resume paylocity` will generate the skills with the original story context.
++
++## References
++
++- `CLAUDE.md`: Signal design rules (segment multipliers, counter-trend)
++- `AIO_CURRENT_PROCESS.md`: The four-question pattern
++- `docs/MCP/tableau-studio-guide.md`: Skill format and loading (lines 725–853)
++- `docs/v2/PLAYBOOK.md`: The v2 roadmap (section 4.1)
+diff --git a/scripts/install_studio_skills.sh b/scripts/install_studio_skills.sh
+new file mode 100755
+index 0000000..856a870
+--- /dev/null
++++ b/scripts/install_studio_skills.sh
+@@ -0,0 +1,74 @@
++#!/bin/bash
++
++# Install AiO Tableau Agent skills to the user's Tableau Agent skills directory
++
++set -e  # Exit on error
++
++SKILLS_DIR="$HOME/Documents/My Tableau Repository (Beta)/Tableau Agent/skills"
++
++# Check if the Tableau Agent skills directory exists
++if [ ! -d "$SKILLS_DIR" ]; then
++    echo "Error: Tableau Agent skills directory not found at:"
++    echo "  $SKILLS_DIR"
++    echo ""
++    echo "Make sure you have:"
++    echo "  1. Installed Tableau Studio"
++    echo "  2. Opened Tableau Studio at least once"
++    echo "  3. Opened Tableau Agent (Extensions menu)"
++    echo ""
++    exit 1
++fi
++
++# Find the repo root (script is in scripts/, go up one level)
++SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
++REPO_ROOT="$( dirname "$SCRIPT_DIR" )"
++SKILLS_SOURCE="$REPO_ROOT/tableau_agent_skills"
++
++if [ ! -d "$SKILLS_SOURCE" ]; then
++    echo "Error: Skills not found at $SKILLS_SOURCE"
++    exit 1
++fi
++
++echo "Installing AiO Tableau Agent skills..."
++echo ""
++
++# Copy aio-story skill
++if [ -d "$SKILLS_SOURCE/aio-story" ]; then
++    rm -rf "$SKILLS_DIR/aio-story"
++    cp -r "$SKILLS_SOURCE/aio-story" "$SKILLS_DIR/aio-story"
++    echo "✓ Installed aio-story (builder skill)"
++else
++    echo "✗ aio-story skill not found at $SKILLS_SOURCE/aio-story"
++    exit 1
++fi
++
++# Copy aio-audience skill
++if [ -d "$SKILLS_SOURCE/aio-audience" ]; then
++    rm -rf "$SKILLS_DIR/aio-audience"
++    cp -r "$SKILLS_SOURCE/aio-audience" "$SKILLS_DIR/aio-audience"
++    echo "✓ Installed aio-audience (interpreter skill)"
++else
++    echo "✗ aio-audience skill not found at $SKILLS_SOURCE/aio-audience"
++    exit 1
++fi
++
++# Copy aio-autobuilder skill
++if [ -d "$SKILLS_SOURCE/aio-autobuilder" ]; then
++    rm -rf "$SKILLS_DIR/aio-autobuilder"
++    cp -r "$SKILLS_SOURCE/aio-autobuilder" "$SKILLS_DIR/aio-autobuilder"
++    echo "✓ Installed aio-autobuilder (auto-build skill)"
++else
++    echo "✗ aio-autobuilder skill not found at $SKILLS_SOURCE/aio-autobuilder"
++    exit 1
++fi
++
++echo ""
++echo "Installation complete!"
++echo ""
++echo "Next steps:"
++echo "  1. In Tableau Agent, type: /reload-skills"
++echo "  2. Try the builder skill: 'walk the AiO story' (guided building)"
++echo "  3. Try the auto-builder skill: 'build the demo' (auto-create worksheets)"
++echo "  4. Try the audience skill: 'explain this chart' (narrative interpretation)"
++echo ""
++
+diff --git a/tableau_agent_skills/aio-audience/SKILL.md b/tableau_agent_skills/aio-audience/SKILL.md
+new file mode 100644
+index 0000000..0013c89
+--- /dev/null
++++ b/tableau_agent_skills/aio-audience/SKILL.md
+@@ -0,0 +1,71 @@
++---
++name: aio-audience
++description: Use during a demo to interpret charts and tell the story. Prompts: "explain this chart", "why is this segment worst", "what changed", "what should we do about this".
++---
++
++# AiO Audience Interpreter
++
++This skill helps the Tableau Agent act as a knowledgeable guide during a demo, interpreting worksheets and dashboards for the audience. Instead of the audience reading raw numbers, Claude reads the chart and tells the *story* — why the audience should care, what's changing, and what to do.
++
++## How to use this skill
++
++0. **Check for demo-specific context first.** Look for a file at `references/demo-story.md` next to this skill. If it exists, this skill was generated for a specific AiO demo build — read it before answering any audience question, and use its primary metric, culprit segment, counter-trend segment, root cause dimension, and supporting-metric lag chain as the specifics of the story you tell. If `references/demo-story.md` does not exist, this is a standalone/generic session — interpret whatever chart is visible using the general guidance below.
++
++1. **Trigger during a demo.** When the audience sees a worksheet in Tableau Studio, say:
++   - "Explain this chart" — Claude reads the visible worksheet and tells the story.
++   - "Why is [segment] worst?" — Claude drills into what's driving that segment.
++   - "What changed?" — Claude compares the trend or highlights the shift.
++   - "What should we do?" — Claude recommends action, and points to the staged close-the-loop action if there is one.
++
++2. **Keep it audience-focused.** Claude speaks to the audience, not to you. It translates data into business language.
++
++3. **Build on the four-question pattern.** Claude knows the story has four questions (What is wrong / Where is it worst / Why / Who needs action) and connects each worksheet to its place in the narrative.
++
++## The skill's role
++
++This skill teaches Claude to be a **storyteller, not a data reader**. Instead of saying "the value is 0.62," Claude says "enrollment is down 38 percentage points in President's Club. That's a 50% drop from where we were last year. Here's why it matters to you: [context]."
++
++### What Claude does
++
++- **Reads the visible chart** and identifies the key insight (the story).
++- **Translates numbers to narrative** (e.g., "declining 20% per quarter" not "the trendline has negative slope").
++- **Connects to the story** (e.g., "This is Q2 — where the problem is worst. Notice Enterprise is actually up, which masks how bad President's Club really is").
++- **Recommends action** (e.g., "We should focus on these 10 accounts first" or "Here's where we can course-correct").
++- **Handles audience questions** (e.g., "Is this seasonal?" or "How does this compare to last year?").
++
++## Example interactions
++
++### Interaction 1: Overview
++
++**Audience:** "Explain this chart."
++
++**Claude (aio-audience):** "You're looking at our enrollment rate over the last 24 months. It dropped 25% in the last quarter. That sounds moderate, but it's accelerating—the decline is steeper now than three months ago. We're trending in the wrong direction."
++
++### Interaction 2: Drilldown
++
++**Audience:** "Why is President's Club down so much?"
++
++**Claude (aio-audience):** "President's Club is down 40%—it's our worst segment. Here's what happened: redemption rate started falling in August. That tells us members aren't redeeming as much. When we look at cost, we see high-cost plans are hit hardest. So it's a cost-sensitivity issue. Members in expensive plans are stepping back."
++
++### Interaction 3: Action
++
++**Audience:** "Which accounts should we focus on?"
++
++**Claude (aio-audience):** "Here are the 15 President's Club accounts with the steepest decline. Sarah owns three of them. I'd start with Sarah's accounts—she has the most at risk, and reaching out there gives you the biggest impact."
++
++### Interaction 4: Close the loop
++
++**Audience:** "So what do we do about it?" / "Send this to the owners."
++
++**Claude (aio-audience):** If `references/demo-story.md` has a **Close the Loop** section, a follow-up is already installed in the org. Describe it in one line, e.g. "Let's act on it now. Five follow-up Tasks go to the owners of these accounts, and the team gets a Slack card explaining what we found." Then point the presenter to the installed trigger, using its listed steps:
++- **Slack button:** "Open the alert in Slack and click *Create follow-ups*."
++- **Record-triggered:** "Log the breach signal; Salesforce creates the follow-up automatically."
++
++Don't try to create records or post to Slack from Tableau Agent; the follow-up runs in Salesforce. If there's no Close the Loop section, suggest the natural next action in words (who should own it, what they should do this week).
++
++---
++
++## References
++
++- `references/story-interpretation.md` — How to read each question in the four-question pattern
++- `references/talking-points.md` — Ready-to-use phrases for the audience
+diff --git a/tableau_agent_skills/aio-audience/references/story-interpretation.md b/tableau_agent_skills/aio-audience/references/story-interpretation.md
+new file mode 100644
+index 0000000..229e99e
+--- /dev/null
++++ b/tableau_agent_skills/aio-audience/references/story-interpretation.md
+@@ -0,0 +1,98 @@
++# How to Read Each Question in the Story
++
++When the audience asks about a chart, Claude should know which of the four questions it belongs to and how to interpret it accordingly. This file explains the story role of each question and what to highlight.
++
++## Q1: "What is wrong?" — Primary Metric Over Time
++
++**What the audience sees:** A trend line showing the primary metric declining over 12–24 months.
++
++**What Claude tells them:**
++
++- **The headline:** "Your [metric] is down [X]% over [time period]."
++- **The urgency:** Emphasize the *direction* and *acceleration*. Is it getting worse? Did it just start or has it been steady?
++- **The scope:** "This is across all [segments], not just one area."
++
++### Example interpretation
++
++**Chart:** Enrollment rate declining from 75% (Jan) to 50% (Oct).
++
++**Claude says:** "Enrollment is down 25 percentage points in the last 10 months. But look at the curve—it's getting *steeper*. August was bad. September was worse. October is the worst. We're accelerating downward, and that's the urgent part. If this keeps going, enrollment will be critical by year-end."
++
++---
++
++## Q2: "Where is it worst?" — Metric by Dimension, Ranked
++
++**What the audience sees:** A ranked breakdown showing one or more segments as clear culprits, with contrast (some segments worse, some better, maybe one improving).
++
++**What Claude tells them:**
++
++- **The culprit:** "President's Club is down 40%, driving most of the decline."
++- **The contrast:** "But look at Enterprise—it's actually *up* 5%. That's the puzzle."
++- **The insight:** "So the problem is concentrated. It's not systemic. President's Club and Mid-Market are in trouble, but Enterprise is resilient."
++
++### Example interpretation
++
++**Chart:** Enrollment rate by program type (President's Club 45%, Mid-Market 40%, Enterprise 55%).
++
++**Claude says:** "President's Club is the problem child—down to 45% from 75%. Mid-Market is also struggling at 40%. But Enterprise is 55%, which is *higher than it was a year ago*. So we're not in an industry-wide downturn. We're in a *product mix problem*. The expensive programs are getting hit, and the efficient program is doing fine."
++
++---
++
++## Q3: "Why is it happening?" — Supporting Metrics + Cost/Effort Dimension
++
++**What the audience sees:** Supporting metrics (that moved earlier or smaller) plus a cost/efficiency dimension that explains the lever.
++
++**What Claude tells them:**
++
++- **The causal chain:** "Redemption rate fell first. Then engagement dropped. Then enrollment followed."
++- **The root cause:** "And when we segment by plan cost tier, it's clear: high-cost plans are being abandoned. Members are cost-sensitive."
++- **The implication:** "So it's not a product problem. It's a pricing or positioning problem."
++
++### Example interpretation
++
++**Chart:** Multi-line trend (Redemption, Engagement, Enrollment) + breakdown by cost tier.
++
++**Claude says:** "Notice the sequence: Redemption rate started falling in August—members stopped using their benefits. Engagement followed in September. Enrollment didn't drop until October. That sequence tells us what happened: members saw the cost wasn't worth the value, so they stopped redeeming, which broke engagement. Then new enrollment cratered because word spread.
++
++And here's the real clue: when we look by cost tier, high-cost plans are abandoned, but our lowest-cost tier is holding steady. So it's not that the benefits are bad. It's that the *price* is too high relative to the value members get. We priced ourselves out of the market."
++
++---
++
++## Q4: "Who needs action?" — Individuals/Accounts, Filtered to Culprit
++
++**What the audience sees:** A list of specific people/accounts/teams in the culprit segment, ranked by how bad it is, with owner info.
++
++**What Claude tells them:**
++
++- **The priority:** "These 15 accounts are your biggest risks. 80% of the revenue at stake is in this list."
++- **The ownership:** "Sarah owns three of them. David owns two. Let's call Sarah first—she has the most at risk."
++- **The ask:** "If you can save *these* accounts, you solve the problem. Everyone else on the list, we have time."
++
++### Example interpretation
++
++**Chart:** Table of top 15 at-risk President's Club accounts, sorted by dollars at risk, with owner.
++
++**Claude says:** "These 15 accounts are your immediate action list. They're in President's Club, they've disengaged the hardest, and they represent $2.8M in ARR. You have 90 days before their renewals hit. Sarah owns three of them—Sarah, you're going to want to be in these conversations first. David, you've got two. These 15 are where we either win or we don't. The rest of the portfolio, we can manage incrementally."
++
++---
++
++## Connecting the questions
++
++When the audience asks a question that spans multiple questions, Claude should connect them:
++
++**Audience:** "Are we going to lose money?"
++
++**Claude (connecting Q4 to Q1–Q2):** "Look at Q1 first: yes, enrollment is down 25%. Now Q2 shows it's concentrated in President's Club. Q4 shows that if we lose these 15 accounts, we're down $2.8M. So the answer is: *not yet*, but we're on that path. If Sarah's accounts renew, we buy time. If they don't, we're in trouble."
++
++---
++
++## The four-question narrative flow
++
++Always connect back to this arc:
++
++1. **Q1 sets the problem.** "What is wrong?"
++2. **Q2 locates it.** "Where is it worst?"
++3. **Q3 explains it.** "Why is it happening?"
++4. **Q4 enables action.** "Who needs action?"
++
++Audience questions almost always fit into this flow. If they ask something you can't answer from the visible chart, say "Let me drill into Q2 / Q3 / Q4 to answer that" and guide them through the story.
+diff --git a/tableau_agent_skills/aio-audience/references/talking-points.md b/tableau_agent_skills/aio-audience/references/talking-points.md
+new file mode 100644
+index 0000000..9ed4e8b
+--- /dev/null
++++ b/tableau_agent_skills/aio-audience/references/talking-points.md
+@@ -0,0 +1,190 @@
++# Talking Points — Ready-to-Use Language for the Audience
++
++Use these phrases as templates when Claude is interpreting a chart for the audience. Adapt them to fit your specific metrics and story.
++
++---
++
++## Opening Lines (Any Chart)
++
++### Stating the headline
++
++- "[Metric] is down [X]% in [time period]."
++- "We're seeing a [X] percentage-point decline in [metric]."
++- "[Segment] is the worst performer, down [X]%."
++- "Here's what changed: [metric] went from [start] to [end]."
++
++### Adding urgency
++
++- "The trend is *accelerating*—we're moving in the wrong direction faster."
++- "It's not just down. It's getting worse month-over-month."
++- "We've hit an inflection point. The decline used to be gradual; now it's steep."
++- "This didn't happen overnight. It started [timing], and we're feeling it now."
++
++### Giving context
++
++- "Across the board, [metric] is affected."
++- "But look closer—it's not evenly distributed."
++- "The average hides what's really happening in each segment."
++- "This is a [segment]-driven story, not a company-wide story."
++
++---
++
++## Q1 Phrasings: "What is Wrong?"
++
++### The problem statement
++
++- "Your primary challenge right now is [metric]. It's declined [X]% and it's trending worse."
++- "The headline: [metric] is down. Here's why it matters to you: [business impact]."
++- "If I had to summarize our biggest risk in one metric, it would be [metric]. And it's moving in the wrong direction."
++
++### The timeline
++
++- "[Metric] started declining in [month]. We're now at the lowest point."
++- "This has been building for [timespan]. The last [timespan] has been the steepest."
++- "It's a steady decline. No sudden cliff, but the trajectory is concerning."
++
++### The stakes
++
++- "If this trend continues at the current rate, [metric] will reach [critical level] in [timespan]."
++- "We have [timespan] to act before this becomes unfixable."
++- "The cost of inaction is [financial impact] in [timespan]."
++
++---
++
++## Q2 Phrasings: "Where Is It Worst?"
++
++### Identifying the culprit
++
++- "[Segment] is the biggest issue. It's down [X]% while the average is down [Y]%."
++- "President's Club is catastrophic—down [X]%. That's what's driving the overall decline."
++- "If we fixed [segment], we'd solve [X]% of the problem."
++
++### The contrast
++
++- "But here's what's interesting: [Segment 2] is actually *stable* or *growing*."
++- "Enterprise is *up* 5%. So it's not an industry issue. It's specific to [culprit segment]."
++- "[Segment 3] is holding steady, which is why the overall number isn't *as bad* as it could be."
++
++### The discovery
++
++- "So the story is: one or two segments are in freefall. Everything else is moderate. That concentration is actually good news—we know where to focus."
++- "When we drill by [dimension], the culprit is unmissable. It's not spread out."
++- "This tells us it's a [segment]-specific problem, not a product-wide problem."
++
++### The segment story
++
++- "[Culprit segment] is down because: [reason from Q3]."
++- "[Counter-trend segment] is up because: [reason from Q3]."
++- "The pattern: high-cost segments are getting hit. Low-cost segments are resilient."
++
++---
++
++## Q3 Phrasings: "Why Is It Happening?"
++
++### The causal chain
++
++- "Here's what happened in sequence:"
++  - "August: [Supporting metric 1] dropped. That was first."
++  - "September: [Supporting metric 2] followed. Engagement broke."
++  - "October: [Primary metric] finally fell. By then, it was inevitable."
++
++- "The *leading indicator* is [supporting metric 1]. It always moves first. That's your early warning system."
++- "We saw [supporting metric 1] break. We should have acted then. By the time [primary metric] dropped, we'd already lost momentum."
++
++### The root cause
++
++- "When we look at [cost/effort dimension], the pattern is clear: [cause]."
++- "[Root cause] is the lever. That's where we need to pull to fix this."
++- "It's not a product issue. It's a [pricing/positioning/efficiency] issue."
++
++### The financial or operational angle
++
++- "High-cost clients are abandoning us. Low-cost clients are sticking."
++- "Bigger deals are cratering. Smaller deals are solid."
++- "Expensive programs are suffering. Lean programs are resilient."
++- "Clients who have to staff up to use us are churning. Clients who can do it solo are staying."
++
++---
++
++## Q4 Phrasings: "Who Needs Action?"
++
++### The actionable list
++
++- "Here are the [N] accounts you need to focus on. They represent [X]% of the revenue at risk."
++- "This list is your priority. Save these, and we've solved most of the problem."
++- "These 15 accounts are where we win or lose. Everyone else on the roster, we can manage."
++
++### Ownership and next steps
++
++- "[Owner] owns [N] of these. [Owner], you're going to want to be in the first calls."
++- "Sarah, David, and Michael: you three own 60% of the at-risk revenue. You're on point."
++- "Let's start with [Owner]'s list. If we can turn two accounts around there, it sends a signal to the rest."
++
++### Urgency
++
++- "These accounts renew in [timeframe]. We're inside the window to act."
++- "If we lose these, we've lost the game. If we save them, we're not out of the woods, but we've bought time."
++- "[Account] is the most at risk. It's [metric status] and the owner is [situation]. We should call them this week."
++
++### The ask
++
++- "Your job is to have [N] conversations. The conversations are: 'What changed? How can we help?'"
++- "These accounts need proof of value. We need to either change our positioning or change our offer."
++- "We have [timeframe] to course-correct with this list. That determines Q4."
++
++---
++
++## Connecting to Broader Context
++
++### Why this matters (business impact)
++
++- "This isn't just numbers. If we lose [segment], we lose [customer type / revenue tier / strategic asset]."
++- "Losing President's Club means losing our premium tier and our brand reputation."
++- "If SMB adoption flattens, we've lost our growth engine."
++- "This is revenue at risk. The number is $[X]M in [timeframe]."
++
++### Competitive or market context
++
++- "Our competitors are seeing this too, but they're also seeing [different segment] get hit."
++- "We're vulnerable because [reason]. Our [segment] clients are looking elsewhere."
++- "This is a market shift. We either adapt or we shrink."
++
++### Strategic implications
++
++- "This changes our go-to-market strategy. We need to pivot from [old approach] to [new approach]."
++- "The data is telling us: [strategic insight]."
++- "We have a choice: do we double down on [segment] or pivot to [different segment]?"
++
++---
++
++## Handling Audience Questions
++
++### "Is this seasonal?"
++
++- "Good question. Let me check the same period last year. [Compare.] No, this is worse than seasonal. It's structural."
++- "Normally [metric] dips in [month]. But [year] it was [level]. This year it's [level]. So it's worse than normal."
++
++### "What are other companies seeing?"
++
++- "I don't have that data here, but based on what I know, [competitors/industry] are seeing [pattern]. We're either in line with that or ahead of it."
++- "If we're seeing this and they're not, we have a competitive disadvantage. If we're all seeing it, it's market-driven."
++
++### "When can we fix this?"
++
++- "If we act on [root cause] this week, we might see [supporting metric] stabilize in [timeframe]. Then [primary metric] would follow in [timeframe after that]."
++- "The lag time is important: [metric 1] is a leading indicator. We see it move first. Give it [timespan] before the primary metric responds."
++- "Best case: [timeframe]. Realistic case: [longer timeframe]. Worst case: [worst timeframe]."
++
++### "What if we do nothing?"
++
++- "The trend continues. [Metric] reaches [critical level] in [timeframe]. Revenue impact is [amount]. At that point, damage control becomes harder."
++- "We'll have fewer choices. Right now, we can proactively fix it. In [timeframe], it becomes reactive."
++
++---
++
++## Closing Lines (Summary / Call to Action)
++
++- "The good news: the problem is *concentrated* and *identifiable*. We know where it is and why."
++- "The urgent action: [specific step]. That's this week. Then [next step]. That's next week."
++- "If we get this right, we're not just reversing a decline—we're repositioning for the next phase."
++- "Questions before we go into the details on [next segment]?"
+diff --git a/tableau_agent_skills/aio-autobuilder/SKILL.md b/tableau_agent_skills/aio-autobuilder/SKILL.md
+new file mode 100644
+index 0000000..1a99f49
+--- /dev/null
++++ b/tableau_agent_skills/aio-autobuilder/SKILL.md
+@@ -0,0 +1,75 @@
++---
++name: aio-autobuilder
++description: Auto-build the complete four-question AiO demo (Q1–Q4 worksheets + story dashboard) on the connected datasource. Prompts: "build the demo", "auto-create Q1-Q4", "auto-build the story dashboard".
++---
++
++# AiO Auto-Builder
++
++Build all four AiO story worksheets and the story dashboard in one pass, hands-off, on the datasource the user has connected. The user reviews the result; they do not click through each step.
++
++**Scope:** this skill builds Studio worksheets and a dashboard only. It does not generate data or create Pulse metrics / Tableau Next assets — those come from `/build-demo` in Claude Code.
++
++## Ground rules
++
++- **Use your native worksheet, dashboard, and save tools.** Do NOT write Python, shell scripts, or raw HTTP calls to the External Client API to do this — your built-in authoring tools already do it faster and more reliably.
++- **Never invent field names.** Every field you place must exist in the connected datasource (Step 1 mapping).
++- **Verify every sheet before moving on** (see `references/verification.md`). A tool call that returns success is not proof the chart is right.
++- **Don't stop to ask questions mid-build** unless Step 1 fails. Confirm once up front, then build all the way through.
++
++## Step 0 — Load the story
++
++Look for `references/demo-story.md` next to this skill.
++- **If present:** read it. It defines the company, primary metric, dimensions, culprit segment(s), counter-trend segment, root-cause dimension, supporting metrics, and the at-risk entity field.
++- **If absent:** standalone session. Ask the user once for: primary metric, the dimension where the problem concentrates, the culprit value, the counter-trend value, root-cause dimension, 1–3 supporting metrics, and the entity field for the at-risk list (e.g. Account Name). Offer your best guesses from the datasource fields so they can just confirm.
++
++## Step 1 — Preflight (stop here if it fails)
++
++1. Confirm a datasource is connected. If none, tell the user to connect one (e.g. the demo's CSV or published `.hyper`) and stop.
++2. List the datasource fields. Map every story field (primary metric, supporting metrics, date, segment dimension, root-cause dimension, entity field) to an exact datasource field name. Match case-insensitively and ignore spaces/underscores (`approval_rate` ↔ `Approval Rate`).
++3. Check that the culprit and counter-trend **values** exist in the segment dimension.
++4. Decide each measure's aggregation: rates, percentages, scores, averages → **AVG**; counts, revenue, volumes → **SUM**. If `demo-story.md` states an aggregation, use it.
++5. Print a one-screen build plan (mapped fields + aggregations + the four sheets) and say "Building now." If anything required is unmapped, list it and stop — do not guess.
++
++## Steps 2–5 — Build Q1–Q4
++
++Build each worksheet exactly per its spec in `references/build-specs.md`. For each one:
++1. Create a new worksheet with the spec's name.
++2. Place fields, set mark type, aggregation, colors, sort, filters, number format, and title per the spec.
++3. Verify it (`references/verification.md`). Fix and re-verify once if needed.
++4. Print a one-line status, e.g. `✓ Q2 — Where Is It Worst (bar, culprit highlighted)`.
++
++| Step | Sheet | Chart |
++|------|-------|-------|
++| 2 | Q1 — What Is Wrong | Line: primary metric by month |
++| 3 | Q2 — Where Is It Worst | Horizontal bar: primary metric by segment dimension, culprit red, counter-trend orange |
++| 4 | Q3 — Why Is It Happening | Multi-line: supporting metrics by month (or primary metric by root-cause dimension if there are no supporting metrics) |
++| 5 | Q4 — Who Needs Action | Highlight table: top 20 entities in the culprit segment, worst first |
++
++## Step 6 — Dashboard
++
++Create the dashboard per the **Dashboard** spec in `references/build-specs.md`: title `{Company} — {Story headline}`, 2×2 tiled grid in reading order Q1 → Q2 → Q3 → Q4. Verify that all four sheets are on it and none are blank.
++
++## Step 7 — Save and report
++
++Save the workbook. Then print:
++
++```
++✓ AiO demo built — {Company}
++  Q1  {title}   (line)
++  Q2  {title}   (bar — {culprit} red, {counter-trend} orange)
++  Q3  {title}   (multi-line)
++  Q4  {title}   (top 20 {entity} in {culprit})
++  Dashboard: {dashboard name}
++
++Anything skipped or adjusted: {list, or "none"}
++
++Next: click into each sheet to tweak, then try "explain this chart" (aio-audience) to rehearse the story.
++```
++
++Be honest in "skipped or adjusted". If a sheet couldn't be built to spec, say what's different.
++
++## References
++
++- `references/demo-story.md` — this demo's story (only present for `/build-demo` installs)
++- `references/build-specs.md` — exact spec for Q1–Q4 and the dashboard
++- `references/verification.md` — how to check each sheet and recover from failures
+diff --git a/tableau_agent_skills/aio-autobuilder/references/build-specs.md b/tableau_agent_skills/aio-autobuilder/references/build-specs.md
+new file mode 100644
+index 0000000..916415a
+--- /dev/null
++++ b/tableau_agent_skills/aio-autobuilder/references/build-specs.md
+@@ -0,0 +1,116 @@
++# Build Specs — Q1–Q4 + Dashboard
++
++Each spec is declarative: build it with your native authoring tools. `{braces}` are the story fields mapped in Step 1. Use the exact datasource field names, not the story's spelling.
++
++## Shared formatting
++
++| Item | Value |
++|------|-------|
++| Primary color | `#4472C4` |
++| Culprit highlight | `#E74C3C` (red) |
++| Counter-trend highlight | `#F39C12` (orange) |
++| Other segments | `#95A5A6` (gray) |
++| Text | `#2E2E2E` |
++| Rate/percentage measures | Percentage, 1 decimal (values are stored as decimals, e.g. 0.62 = 62%) |
++| Currency measures | Currency, 0 decimals, K/M units if values exceed 10,000 |
++| Counts | Number, 0 decimals, thousands separator |
++| Date axis | Month granularity, continuous, chronological |
++
++If `demo-story.md` includes brand colors, use the brand primary in place of `#4472C4`. Keep the red, orange, and gray story colors as they are, because they carry the narrative.
++
++---
++
++## Q1 — What Is Wrong
++
++**Purpose:** within 10 seconds the audience can see the primary metric moving the wrong way.
++
++| Property | Spec |
++|----------|------|
++| Sheet name | `Q1 — What Is Wrong` |
++| Mark | Line |
++| Columns | `{date}` — continuous MONTH |
++| Rows | `{primary_metric}` — AVG or SUM per Step 1 |
++| Color | Single, primary color; line weight slightly thicker than default |
++| Filter | None (all data) |
++| Title | `{primary_metric} — {direction} since {onset month}` (e.g. "Revenue Realization Rate — declining since May"). If the onset is unknown, use `{primary_metric} Over Time` |
++| Number format | Per shared formatting |
++
++**Done when:** one line, roughly 24 monthly points, and the decline (or rise) toward the right edge is visible.
++
++---
++
++## Q2 — Where Is It Worst
++
++**Purpose:** show the problem is concentrated in one segment, and that the counter-trend segment is masking it.
++
++| Property | Spec |
++|----------|------|
++| Sheet name | `Q2 — Where Is It Worst` |
++| Mark | Bar (horizontal) |
++| Rows | `{segment_dimension}` |
++| Columns | `{primary_metric}` — same aggregation as Q1 |
++| Filter | `{date}` limited to the **most recent 3 months**, so the bars show the current state rather than a 24-month average that dilutes the signal |
++| Sort | `{segment_dimension}` by `{primary_metric}`, worst first. For "up is good" metrics, worst = lowest, so sort ascending. For "down is good" metrics, sort descending |
++| Color | Color by `{segment_dimension}`. Assign `{culprit}` = red, `{counter_trend}` = orange, every other value = gray |
++| Labels | Show mark labels with the metric value |
++| Title | `{primary_metric} by {segment_dimension} — {culprit} is worst` |
++
++**Done when:** the culprit bar is red and at the top, the counter-trend bar is orange, and all others are gray.
++
++---
++
++## Q3 — Why Is It Happening
++
++**Purpose:** the supporting (leading) metrics moved first, and that explains the cause.
++
++**Variant A (default, when the story has supporting metrics):**
++
++| Property | Spec |
++|----------|------|
++| Sheet name | `Q3 — Why Is It Happening` |
++| Mark | Line |
++| Columns | `{date}` — continuous MONTH |
++| Rows | Up to 3 `{supporting_metrics}`. Use **Measure Values** with a Measure Names color legend if they share a scale (e.g. all rates). Otherwise use separate rows/axes |
++| Filter | `{segment_dimension}` = `{culprit}` (the "why" for the worst segment) |
++| Color | Measure Names, default categorical palette |
++| Title | `What moved first — {culprit}` |
++
++**Variant B (no supporting metrics, or they don't exist in the datasource):** a line chart of `{primary_metric}` by MONTH, colored by `{root_cause_dimension}`, filtered to `{culprit}`. Title: `{primary_metric} by {root_cause_dimension} — {culprit}`.
++
++**Done when:** at least one supporting line starts falling before the primary metric did in Q1, or the root-cause lines visibly diverge.
++
++---
++
++## Q4 — Who Needs Action
++
++**Purpose:** a concrete list the audience could act on tomorrow.
++
++| Property | Spec |
++|----------|------|
++| Sheet name | `Q4 — Who Needs Action` |
++| Mark | Square (highlight table) |
++| Rows | `{entity_field}` (e.g. Account Name, Client, Location) |
++| Columns | Measure Names: `{primary_metric}` plus up to 2 `{supporting_metrics}` |
++| Text | Measure Values |
++| Color | Measure Values, diverging red (worst) → green (best), oriented so that worst = red for the primary metric's direction |
++| Filters | `{segment_dimension}` = `{culprit}`; `{date}` = most recent 3 months; **Top 20** `{entity_field}` by `{primary_metric}`, worst first |
++| Sort | `{entity_field}` by `{primary_metric}`, worst first |
++| Title | `Top 20 at-risk {entity_field} — {culprit}` |
++
++**Done when:** at most 20 rows, all from the culprit segment, with the worst at the top in red.
++
++---
++
++## Dashboard
++
++| Property | Spec |
++|----------|------|
++| Name | `{Company} — AiO Story` |
++| Title | `{Company} — {story headline}` (from `demo-story.md`, or `{primary_metric}: what's wrong, where, why, who`) |
++| Size | Automatic, or fixed 1200 × 800 |
++| Layout | Tiled 2×2: top-left Q1, top-right Q2, bottom-left Q3, bottom-right Q4 |
++| Background | `#F3F3F3`, with a small inner padding on each sheet |
++| Worksheet titles | Show on each tile |
++| Filter action (optional, nice-to-have) | Selecting a bar in Q2 filters Q3 and Q4 to that segment |
++
++**Done when:** all four sheets render in reading order, none is blank, and nothing is cut off.
+diff --git a/tableau_agent_skills/aio-autobuilder/references/verification.md b/tableau_agent_skills/aio-autobuilder/references/verification.md
+new file mode 100644
+index 0000000..5c52003
+--- /dev/null
++++ b/tableau_agent_skills/aio-autobuilder/references/verification.md
+@@ -0,0 +1,27 @@
++# Verification and Recovery
++
++A success response from a tool only tells you the call ran. It does not tell you the chart is correct. After building each sheet, read its current state back and check it against the spec.
++
++## Per-sheet checks
++
++| Check | How |
++|-------|-----|
++| Correct fields placed | Read the worksheet back. Confirm the rows/columns/marks fields match the spec, and that each field has the intended aggregation |
++| Correct mark type | Line, Bar, or Square, as the spec says |
++| Not blank | Query or inspect the sheet's data and confirm there are rows. For Q4, confirm 20 or fewer rows |
++| Filters applied | Q2: recent 3 months. Q3: culprit only. Q4: culprit + recent 3 months + Top 20 |
++| Colors (Q2) | Culprit = red, counter-trend = orange, others = gray |
++| Sort direction | The worst segment or entity appears first |
++| Title | Matches the spec, with real values substituted (no `{braces}` left) |
++
++## Recovery
++
++1. **Field not found.** Re-list the datasource fields, fix the mapping, and rebuild that sheet.
++2. **Sheet is blank.**
++   - Check the filters. The usual cause is a culprit value that doesn't match exactly, or a date filter outside the data range.
++   - Loosen the date filter to the most recent 3 months *of the data*, not of today.
++3. **A formatting step fails** (color, label, number format). Leave the sheet structurally correct and note the gap in the final report. Do not block the build on formatting.
++4. **A sheet fails twice.** Skip it, keep building the rest, and report what failed.
++5. **An error dialog appears in Studio.** Stop, ask the user to copy the message into chat, and then fix based on that message.
++
++Retry each sheet at most once. A fully built dashboard with one formatting gap is a better result than a stalled build.
+diff --git a/tableau_agent_skills/aio-story/SKILL.md b/tableau_agent_skills/aio-story/SKILL.md
+new file mode 100644
+index 0000000..d475ff8
+--- /dev/null
++++ b/tableau_agent_skills/aio-story/SKILL.md
+@@ -0,0 +1,47 @@
++---
++name: aio-story
++description: Use to build a story-driven demo in Tableau Studio. Prompts: "walk the AiO story", "build the next worksheet", "what should Q2 show", "create the dashboard".
++---
++
++# AiO Story Builder
++
++This skill guides you through building a four-question story in Tableau Studio, where each worksheet answers a key audience question. You'll build worksheets that surface the problem, locate it, explain it, and identify who to act on.
++
++## How to use this skill
++
++0. **Check for demo-specific context first.** Look for a file at `references/demo-story.md` next to this skill. If it exists, this skill was generated for a specific AiO demo build — read it and use its primary metric, dimensions, culprit/counter-trend segments, and root cause as the specifics for this build instead of asking the user to supply them. Confirm what you found ("I see this demo's story is about {metric}, with {culprit segment} as the problem area — let's build Q1 around that") rather than re-asking from scratch. If `references/demo-story.md` does not exist, this is a standalone/generic session — proceed to step 2 and ask the user conversationally.
++
++1. **Start with a datasource.** Connect a published datasource (Tableau Pulse, Data Cloud, or any other source) in Tableau Studio before invoking this skill.
++
++2. **Ask the builder questions.** Say "walk the AiO story" or "help me build question 1" and Claude will guide you step-by-step through each worksheet.
++
++3. **Clarify your metrics and dimensions.** The skill will ask you for:
++   - Your primary metric (e.g., "Enrollment Rate") and its direction (up or down)
++   - Key dimensions for filtering and drilling (e.g., "Region", "Program Type", "Size Band")
++   - Supporting metrics that explain the primary (e.g., "Redemption Rate" before "Enrollment Rate")
++
++4. **Build each question.** Claude will help you create:
++   - **Q1: "What is wrong?"** — Primary metric over time (line chart)
++   - **Q2: "Where is it worst?"** — Primary metric by your chosen dimension, ranked bar, with culprit highlighted
++   - **Q3: "Why is it happening?"** — Supporting metrics and a cost/effort dimension
++   - **Q4: "Who needs action?"** — Your finest dimension, filtered to the culprit, top-N rows
++
++5. **Assemble the dashboard.** Claude will help you arrange the four worksheets in story order with clear titles.
++
++## The four-question pattern
++
++Each question has a specific role in your demo narrative. Read `references/four-questions.md` to understand what each worksheet should show and why.
++
++## Segment differentiation rules
++
++To make your story drillable and your audience find the culprit immediately, use the segment multiplier rules in `references/signal-design.md`. One or two segments should be the clear culprit (1.5–2.5× your base metric), a couple should be moderate (0.8–1.2×), and at least one should be flat or improving (counter-trend) so the average hides the problem.
++
++## Example phrasings
++
++When Claude asks you what you want on a worksheet, you can say things like:
++- "Show me enrollment rate declining over time" (Q1)
++- "Break it down by program type, sorted with the worst on the left" (Q2)
++- "Show me redemption rate and points per rep trending together" (Q3)
++- "Give me the top 10 accounts in the worst program type" (Q4)
++
++See `references/talk-track.md` for more examples.
+diff --git a/tableau_agent_skills/aio-story/references/four-questions.md b/tableau_agent_skills/aio-story/references/four-questions.md
+new file mode 100644
+index 0000000..bb4ee19
+--- /dev/null
++++ b/tableau_agent_skills/aio-story/references/four-questions.md
+@@ -0,0 +1,62 @@
++# The Four-Question Story Pattern
++
++Every AiO demo follows the same arc. These four questions are the structure that lets your audience *solve a problem*, not just see a chart.
++
++## Q1: "What is wrong?"
++
++**Audience question:** Is there a problem I should care about?
++
++**What the worksheet shows:** Your primary metric over time (trend line), declining hard enough to see in about 10 seconds. No filters, no breakdowns—just the headline metric and its trajectory.
++
++**Why it works:** The audience sees the problem unmissably. They don't need to drill, filter, or interpret. The metric says "we're in trouble" clearly.
++
++**Typical viz:** Line chart. Metric on Y-axis, Time (Week, Month, Year) on X-axis. Spark-like, 12–24 months of history. Color should emphasize the decline (red if down is bad).
++
++---
++
++## Q2: "Where is it worst?"
++
++**Audience question:** Which segment is driving this? Where should I focus?
++
++**What the worksheet shows:** Primary metric broken down by a key dimension (Region, Vertical, Program Type, etc.), ranked by the metric value, with the culprit segment(s) unmissable.
++
++**Why it works:** Audience discovers that the problem is **not evenly distributed**. One or two segments are catastrophic, others are moderate, and maybe one is actually improving. This is the "aha"—the average hides the real story.
++
++**Typical viz:** Horizontal bar chart, sorted descending. Segment names on Y-axis, metric on X-axis. Highlight the worst segment in a contrasting color. If you have a counter-trend segment (one improving while others decline), use a different color for that too.
++
++---
++
++## Q3: "Why is it happening?"
++
++**Audience question:** What is the root cause? What moved first?
++
++**What the worksheet shows:** Supporting metrics that explain the primary, often moving *earlier* or *smaller* than the primary metric, plus a cost or effort dimension that reveals the lever.
++
++**Why it works:** Supporting metrics prove the root cause. For example: "Redemption Rate dropped first → then Points Per Rep fell → then overall Participation Rate declined." The audience sees the causal chain. A cost/effort dimension (e.g., "Plan Cost Tier", "Deal Size Band") often reveals the root cause is financial or operational friction.
++
++**Typical viz:** Multi-line chart (supporting metrics over time), or a dual-axis if you're showing a trend and a categorical breakdown. Supporting metrics should lag the primary metric (don't move as much, or move earlier). Include a secondary breakdown if explaining cost/effort.
++
++---
++
++## Q4: "Who needs action?"
++
++**Audience question:** Which specific people/accounts/teams are at risk? What should I do?
++
++**What the worksheet shows:** The finest grain of your data (individual account, team, rep, etc.), filtered to the culprit segment(s) from Q2, ranked by the metric, top-N rows. Include an owner field if available (which account manager owns this account, which executive sponsors this team).
++
++**Why it works:** The audience moves from "this segment is bad" to "Bob's team is in the red zone. He's my responsibility. I need to call him." It's personal and actionable.
++
++**Typical viz:** Table or ranked bar. Rows = individual entities (accounts, teams). Columns = metric value, owner/manager, filters applied. Typically top 10–20 rows, enough to be actionable without overwhelming.
++
++---
++
++## How the story compounds
++
++The demo narrative works like this:
++
++1. **Q1 opens:** "Overall participation dropped 25% in the last quarter."
++2. **Q2 drills:** "But look—President's Club is down 40%, Mid-Market is down 20%, SMB is actually flat, Enterprise is up 5%."
++3. **Q3 explains:** "Redemption Rate started falling in August, before Participation dropped. And when we look at Plan Cost Tier, it's clear: high-cost programs are getting hit hardest."
++4. **Q4 acts:** "Here are the 15 accounts in President's Club with the worst trend. Sarah owns three of them. Let's call them today."
++
++Each question is more specific than the last, and the audience goes from pattern (Q1) → segment (Q2) → root cause (Q3) → action (Q4).
+diff --git a/tableau_agent_skills/aio-story/references/signal-design.md b/tableau_agent_skills/aio-story/references/signal-design.md
+new file mode 100644
+index 0000000..7f1466b
+--- /dev/null
++++ b/tableau_agent_skills/aio-story/references/signal-design.md
+@@ -0,0 +1,117 @@
++# Signal Design Rules for Drillable Stories
++
++When building a story-driven demo, your data should be engineered so the story *reveals itself* as the audience drills down. These rules ensure your data tells the right story, with the culprit unmissable and the counter-trend credible.
++
++## Segment Differentiation by Multiplier
++
++**The problem:** If all segments decline equally, the average hides nothing. The audience drills and sees "everything is down 20%."
++
++**The solution:** Assign different impact multipliers to each segment so the story compounds as you drill.
++
++### Multiplier ranges
++
++| Segment role | Multiplier range | What it means |
++|---|---|---|
++| **Culprit (worst)** | 1.5–2.5× | This segment is the primary driver. Drops 40–50% when the overall metric is down 20%. |
++| **Moderate** | 0.8–1.2× | This segment moves in line with the average or slightly better. |
++| **Counter-trend** | -0.10 to 0.0 | This segment is *improving* while others decline. Props up the overall average so the true severity is hidden. |
++
++### Example: Enrollment Rate with Program Types
++
++- **President's Club** (culprit): 2.0× multiplier → drops from 75% to 45% (30 percentage points)
++- **Mid-Market** (moderate): 1.0× multiplier → drops from 60% to 40% (20 percentage points)
++- **SMB** (moderate): 0.9× multiplier → drops from 50% to 32% (18 percentage points)
++- **Enterprise** (counter-trend): -0.10 multiplier → improves from 55% to 65% (+10 percentage points)
++
++**The narrative:** Overall enrollment is down 20%. But President's Club is down 30%, which is why everyone is worried. Enterprise improving masks how bad it really is.
++
++## Supporting Metrics Lag the Primary
++
++**Why:** The audience moves through a causal chain. What moved *first* is often the root cause.
++
++**How:** Supporting metrics should use 0.7× the primary metric's multiplier and move earlier in time.
++
++### Example: Redemption Rate → Participation Rate
++
++- **Redemption Rate** (leading indicator): multiplier 1.4× (70% of primary's 2.0×)
++- **Participation Rate** (lagging indicator): multiplier 2.0×
++- **Timeline:** Redemption starts falling in August; Participation follows in September.
++
++**The story:** "See? Redemption Rate dropped first. That's what broke the machine."
++
++## Counter-Trend Segment
++
++**Why:** A segment that improves while others decline makes the overall average *misleading on purpose*. The "aha" moment is when the audience sees they've been looking at the wrong thing.
++
++**How:** Pick one segment (e.g., Enterprise, Channel Partner, Global) and give it a small negative multiplier (-0.05 to -0.15). It should move visibly upward while everything else declines.
++
++### Important constraint
++
++- **Never set counter-trend below -0.15**, or the upward trend becomes implausibly obvious and looks fake.
++- **Only one counter-trend segment per metric.** Multiple improving segments dilute the story.
++
++### Example reveal
++
++- Q1: "Participation down 25% overall."
++- Q2: "Enterprise is up 5%! Wait, what? Enterprise is improving while President's Club tanks?"
++- Q3: "Ah, Enterprise has a dedicated account team and aren't affected by the cost-cutting that hit our SMB and Mid-Market programs."
++
++## Signal Ramp Shape
++
++**Default: Accelerating (quadratic).** Slow at first, steeper toward the present. This mirrors how real problems manifest (small at first, urgent recently).
++
++### Ramp formula (conceptual)
++
++```
++progress = min(1.0, (months_from_onset) / duration)
++if accelerating:
++    signal = progress ** 2
++else:
++    signal = progress  # linear
++```
++
++- `onset`: how many months before today the signal started (e.g., onset=-3 = started 3 months ago)
++- `duration`: how many months until the signal reaches full magnitude (e.g., duration=3 = takes 3 months to go from 0 to full)
++- `SIGNAL_MAGNITUDE`: the full impact multiplier (0.45–0.55 recommended, since accelerating keeps early months flat)
++
++### Why accelerating beats linear
++
++- **Linear:** Signal rises steadily from month -3 to month 0. Looks too uniform, like a straight line.
++- **Accelerating:** Signal is tiny in month -3 (almost flat), then rises quickly. Month -1 is already 75% of full magnitude. Feels like something that just started happening, not a slow drift.
++
++## Noise Scale by Size Band
++
++**Why:** Large segments (Global, Enterprise) should be smoother; small segments (SMB, startups) need more noise to look realistic.
++
++### Typical noise scale (standard deviation)
++
++| Segment | Noise std dev |
++|---|---|
++| Small Enterprise | 0.022 |
++| Mid-Market | 0.016 |
++| Large Enterprise | 0.011 |
++| Global | 0.007 |
++
++**Application:** Add normal-distributed random noise scaled to the segment size. Smaller segments show more churn; larger segments are stable.
++
++## Base Value Variation
++
++**Why:** If all clients start at the same base level, the data looks synthetic at the row level.
++
++**How:** For each client/account, randomize the starting value (e.g., `random.uniform(0.62, 0.82)` for a 62–82% metric).
++
++**Result:** Rows look diverse and realistic. When the audience filters, they see variation that feels lived-in.
++
++## Summary Checklist
++
++Before you finalize your story data:
++
++- [ ] **Culprit segment(s)** assigned 1.5–2.5× multiplier?
++- [ ] **Moderate segments** assigned 0.8–1.2× multiplier?
++- [ ] **One counter-trend segment** assigned -0.05 to -0.15 multiplier?
++- [ ] **Supporting metrics** use 0.7× multiplier and move earlier (or move smaller)?
++- [ ] **Signal ramp** set to accelerating (quadratic) by default?
++- [ ] **Noise scaled** by segment size (larger = smoother)?
++- [ ] **Base values randomized** per client/account?
++
++If yes to all, your data will tell a compelling story.
+diff --git a/tableau_agent_skills/aio-story/references/talk-track.md b/tableau_agent_skills/aio-story/references/talk-track.md
+new file mode 100644
+index 0000000..c670f9f
+--- /dev/null
++++ b/tableau_agent_skills/aio-story/references/talk-track.md
+@@ -0,0 +1,152 @@
++# Talk Track — Example Phrasings for the Builder
++
++This file provides example phrasings you can use when describing what you want on each worksheet. Use these as templates—adapt them to your specific metrics and dimensions.
++
++## Triggering the skill
++
++**To start the full story:** "Walk me through the AiO story" or "Help me build a four-question demo"
++
++**To jump to a specific question:** "Help me build Q2" or "What should the dashboard look like?"
++
++---
++
++## Q1: "What is wrong?" — Primary Metric Over Time
++
++### What to say
++
++*"Show me [metric name] over time, declining from [start date] to now. I want it to be obvious in 10 seconds that we have a problem."*
++
++### Examples
++
++- "Show me enrollment rate over the last 24 months, trending downward."
++- "Line chart: participation rate, month by month, with a clear drop in the last quarter."
++- "I want to see ARR trending down from Jan to now. Make the decline unmissable."
++- "Trending redemption rate week by week for the last 12 months."
++
++### What Claude will help with
++
++- Choosing the right time grain (daily, weekly, monthly, quarterly)
++- Setting the metric direction so the decline is visually alarming (red if down is bad)
++- Adding a reference line for "last year" or "baseline" if helpful
++
++---
++
++## Q2: "Where is it worst?" — Metric by Dimension, Ranked
++
++### What to say
++
++*"Break down [metric name] by [dimension], sorted so the worst is first. I want to see which [segment] is driving the decline."*
++
++### Examples
++
++- "Show me participation rate by program type, sorted worst to best. I want program type on the left, rate on the bottom."
++- "Break it down by region, with the region doing worst on top."
++- "Rank accounts by their enrollment rate, top 10 worst accounts."
++- "Show me by vertical, sorted so the vertical losing the most is on the left."
++- "Breakdown by size band: where's our biggest decline happening? Enterprise, mid-market, or SMB?"
++
++### What Claude will help with
++
++- Choosing horizontal vs. vertical bars (usually horizontal, so you can read segment names)
++- Highlighting the culprit segment(s) in a contrasting color
++- Deciding whether to show all segments or top/bottom N
++- Adding a counter-trend segment in a different color if one exists
++
++---
++
++## Q3: "Why is it happening?" — Supporting Metrics + Cost/Effort Dimension
++
++### What to say
++
++*"Show me [supporting metric 1] and [supporting metric 2] over time, and break it down by [cost/effort dimension] so we can see what's driving it."*
++
++### Examples
++
++- "Multi-line trend: show me redemption rate dropping first, then points per rep following. Which program type is hit hardest?"
++- "Dual-axis chart: enrollment rate on the left, cost per enrollment on the right, both over time."
++- "Break down by deal size band: is our big deals revenue holding up while SMB collapses?"
++- "Show me plan cost tier. Are high-cost plans the ones declining?"
++- "Trending two things: voluntary plan adoption and involuntary plan adoption, side by side."
++
++### What Claude will help with
++
++- Choosing multi-line vs. dual-axis vs. side-by-side breakdown
++- Setting supporting metrics to lag (move earlier or smaller than the primary)
++- Deciding whether to show the supporting metric + dimension together or separately
++
++---
++
++## Q4: "Who needs action?" — Individuals/Accounts, Filtered to Culprit
++
++### What to say
++
++*"Show me the [finest dimension] in the [culprit segment], ranked by [metric], top [N]. Include [owner field] so I know who owns each one."*
++
++### Examples
++
++- "Top 15 accounts in President's Club with the worst participation rate. Include the account manager name so I know who to call."
++- "Top 10 states in the Northeast region where revenue is down most. Include the regional manager."
++- "All teams with fewer than 5 active users, sorted by user count, ascending. Show me the team lead."
++- "Worst-performing accounts by ARR at risk. Include the account owner and the renewal date."
++- "Individual reps in the quota attainment program with the lowest year-to-date completion rate."
++
++### What Claude will help with
++
++- Choosing table vs. ranked bar (tables are easier to action)
++- Deciding how many rows to show (enough to act on, not overwhelming—typically 10–20)
++- Including fields that enable action (owner name, phone, email if available)
++- Sorting (ascending if low is bad, descending if high is bad)
++
++---
++
++## Dashboard Assembly
++
++### What to say
++
++*"Arrange these four worksheets in story order: [Q1], then [Q2], then [Q3], then [Q4]. Use titles that are the questions so the audience knows what story we're telling."*
++
++### Example
++
++- "Put them in a 2×2 grid. Top-left is 'What is wrong?', top-right is 'Where is it worst?', bottom-left is 'Why?', bottom-right is 'Who needs action?' Make it clear these are the four questions."
++- "Stack them vertically so I can scroll through the story. Make each title a question."
++
++### What Claude will help with
++
++- Choosing 2×2 grid, vertical stack, or custom arrangement
++- Writing titles that are audience questions (not technical metric names)
++- Sizing worksheets so the story is readable
++- Adding a title and description to the dashboard
++
++---
++
++## Refining a worksheet
++
++### What to say
++
++*"The chart looks good, but [change]. Can you [action]?"*
++
++### Examples
++
++- "I want to highlight the mid-market segment differently—it's our counter-trend."
++- "Can you hide the Enterprise segment and focus on President's Club?"
++- "Sort the bars the other way—best on top instead of worst on top."
++- "Add a threshold line at 50% so we can see which accounts are above/below that target."
++- "Change the color to red for the culprit segments and green for the improving ones."
++
++### What Claude will help with
++
++- Color, sorting, filtering, annotations
++- Removing noise or adding reference lines
++- Changing chart type if a different viz tells the story better
++
++---
++
++## When you're stuck
++
++**Say:** "What should Q2 focus on?" or "Help me pick the dimension for this breakdown."
++
++**Claude can help with:**
++- Suggesting which dimension is most actionable
++- Deciding between related dimensions
++- Picking a supporting metric that lags the primary
++- Recommending a segment to highlight
