@@ -1453,18 +1453,21 @@ textarea.mono { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-s
 }
 .guide-step > div > strong:first-child { cursor: pointer; user-select: none; }
 .guide-step > div > strong:first-child::after {
-    content: '▾';
-    font-size: 11px;
+    content: '−';
+    font-size: 16px;
+    font-weight: 300;
     color: #fff;
     width: 20px; height: 20px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
+    border-radius: 6px;
     background: var(--blue);
     flex-shrink: 0;
+    margin-left: 6px;
+    line-height: 1;
 }
-.guide-step.collapsed > div > strong:first-child::after { content: '▸'; background: var(--text-muted); }
+.guide-step.collapsed > div > strong:first-child::after { content: '+'; background: var(--text-muted); }
 .guide-step.collapsed .guide-body { display: none; }
 .guide-step.collapsed > div > p,
 .guide-step.collapsed > div > ul,
