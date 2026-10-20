@@ -8,6 +8,7 @@ CLAUDE.local.md
 # Downloaded/generated artifacts
 *.hyper
 *.tdsx
+*.command
 hyperd.log
 
 # Demo output — generated at runtime, not source

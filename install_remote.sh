@@ -47,7 +47,15 @@ log "Python 3 found"
 if [ -d "$INSTALL_DIR/.git" ]; then
     log "Updating existing installation..."
     cd "$INSTALL_DIR"
-    git pull --ff-only origin main 2>/dev/null || git pull origin main
+
+    # Remove generated launcher files that conflict with git pull
+    # (these get recreated at the end of every install/update)
+    for f in "AIO Builder.command" "AIO_Builder.command" "Install AIO.command" "Install_AIO.command"; do
+        [ -f "$INSTALL_DIR/$f" ] && rm -f "$INSTALL_DIR/$f"
+    done
+
+    git fetch origin main
+    git reset --hard origin/main
 else
     log "Downloading AIO Analytics Builder..."
     git clone https://github.com/metorpey063/AIO-Analytics-Builder.git "$INSTALL_DIR"
