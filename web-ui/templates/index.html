@@ -4,8 +4,12 @@
 {% block title %}AIO Analytics Builder{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>AIO Analytics Builder</h1>
+<div class="page-header" style="position:relative">
+    <button class="theme-toggle" onclick="toggleTheme()" title="Switch theme">
+        <span class="theme-icon-sun">☀️</span>
+        <span class="theme-icon-moon">🌙</span>
+    </button>
+    <h1><span class="hero-title-gradient">AIO Analytics Builder</span></h1>
     <p class="subtitle">
         A Claude Code-powered toolkit for Tableau and Salesforce Solutions Engineers to rapidly build
         compelling, story-driven demo assets across Tableau Pulse, Tableau Next, and Data Cloud.
@@ -183,5 +187,27 @@ function togglePanel(panelId) {
     const panel = document.getElementById(panelId);
     if (panel) panel.classList.toggle('expanded');
 }
+
+function toggleTheme() {
+    const isDark = document.body.classList.toggle('dark-theme');
+    localStorage.setItem('aio-theme', isDark ? 'dark' : 'light');
+}
+
+/* Populate live stats */
+(function() {
+    function fmt(n) {
+        if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+        if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+        return n.toString();
+    }
+    fetch('/api/stats').then(r => r.json()).then(s => {
+        const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        set('stat-demos', s.demos || 0);
+        set('stat-metrics', s.metrics || 0);
+        set('stat-vizzes', s.vizzes || 0);
+        set('stat-dashboards', s.dashboards || 0);
+        set('stat-rows', fmt(s.rows || 0));
+    }).catch(() => {});
+})();
 </script>
 {% endblock %}
