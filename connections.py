@@ -184,7 +184,8 @@ def tableau_pulse_headers(auth_token):
 # ── Salesforce + Data Cloud (Tableau Next) ────────────────────────────────────
 
 def _is_expired_refresh_token(response):
-    """Check if a token request failed due to an expired/revoked refresh token."""
+    """Check if a token request failed due to an expired/revoked refresh token.
+    Must NOT match config errors like 'app not installed' or 'invalid client credentials'."""
     if response.status_code != 400:
         return False
     try:
@@ -193,15 +194,18 @@ def _is_expired_refresh_token(response):
         body = {}
     err = body.get("error", "")
     desc = body.get("error_description", "").lower()
-    text = response.text.lower()
+    # These are config errors, not expired tokens — do NOT re-auth
     if "code verifier" in desc or "code_verifier" in desc:
         return False
+    if "app_not_found" in err or "app not installed" in desc:
+        return False
+    if "invalid client" in desc or "client_id" in desc:
+        return False
     return (
-        err in ("invalid_grant", "expired_access/refresh_token")
-        or "expired access/refresh token" in desc
+        "expired access/refresh token" in desc
         or "token has been expired" in desc
-        or "refresh token has expired" in text
-        or "invalid_grant" in text
+        or "refresh token has expired" in desc
+        or (err == "invalid_grant" and "expired" in desc)
     )
 
 
