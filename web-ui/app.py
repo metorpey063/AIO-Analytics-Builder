@@ -642,8 +642,9 @@ def oauth_mcp():
     """Run OAuth flow specifically for the MCP ECA to get an MCP refresh token."""
     try:
         from connections import load_full_config, save_full_config
+        data = request.json or {}
         full = load_full_config()
-        key = full.get("active_profile")
+        key = data.get("profile_key") or full.get("active_profile")
         if not key or key not in full.get("profiles", {}):
             return jsonify({"ok": False, "error": "No active profile."})
 
@@ -675,8 +676,9 @@ def oauth_start():
     try:
         from connections import load_full_config, save_full_config
 
+        data = request.json or {}
         full = load_full_config()
-        key = full.get("active_profile")
+        key = data.get("profile_key") or full.get("active_profile")
         if not key or key not in full.get("profiles", {}):
             return jsonify({"ok": False, "error": "No active profile. Run Setup first."})
 

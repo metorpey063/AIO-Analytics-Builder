@@ -98,6 +98,10 @@
                 <div class="conn-row-actions">
                     <span class="badge badge-pending" id="sf-status-{{ c.key }}">—</span>
                     <button class="btn btn-secondary btn-sm" onclick="testSfConn('{{ c.key }}')" id="sf-btn-{{ c.key }}">Test</button>
+                    <button class="btn btn-ghost btn-sm" onclick="reAuthSf('{{ c.key }}')" id="sf-reauth-{{ c.key }}" title="Re-authorize OAuth">OAuth</button>
+                    {% if c.has_mcp %}
+                    <button class="btn btn-ghost btn-sm" onclick="reAuthMcp('{{ c.key }}')" id="sf-mcp-reauth-{{ c.key }}" title="Re-authorize MCP">MCP</button>
+                    {% endif %}
                     <a href="/setup?profile={{ c.key }}" class="btn btn-ghost btn-sm">Edit</a>
                     {% if not c.active %}
                     <button class="btn btn-ghost btn-sm" onclick="switchProfile('{{ c.key }}')">Set Active</button>
@@ -408,6 +412,58 @@ async function switchProfile(key) {
     const j = await r.json();
     if (j.ok) location.reload();
     else alert('Failed to switch profile: ' + j.error);
+}
+
+async function reAuthSf(key) {
+    const btn = document.getElementById('sf-reauth-' + key);
+    const status = document.getElementById('sf-status-' + key);
+    btn.disabled = true; btn.textContent = 'Authorizing...';
+    status.className = 'badge badge-pending'; status.textContent = 'Opening browser...';
+
+    try {
+        const r = await fetch('/api/oauth/start', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({profile_key: key}),
+        });
+        const j = await r.json();
+        if (j.ok) {
+            status.className = 'badge badge-ok'; status.textContent = 'Re-authorized';
+            // Auto-test after re-auth
+            setTimeout(() => testSfConn(key), 1000);
+        } else {
+            status.className = 'badge badge-pending'; status.textContent = 'Failed';
+            alert('OAuth failed: ' + (j.error || 'unknown'));
+        }
+    } catch (e) {
+        status.className = 'badge badge-pending'; status.textContent = 'Error';
+        alert('OAuth error: ' + e.message);
+    }
+    btn.disabled = false; btn.textContent = 'OAuth';
+}
+
+async function reAuthMcp(key) {
+    const btn = document.getElementById('sf-mcp-reauth-' + key);
+    const status = document.getElementById('sf-status-' + key);
+    btn.disabled = true; btn.textContent = 'Authorizing...';
+    status.className = 'badge badge-pending'; status.textContent = 'Opening browser...';
+
+    try {
+        const r = await fetch('/api/oauth/mcp', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({profile_key: key}),
+        });
+        const j = await r.json();
+        if (j.ok) {
+            status.className = 'badge badge-ok'; status.textContent = 'MCP authorized';
+            setTimeout(() => testSfConn(key), 1000);
+        } else {
+            status.className = 'badge badge-pending'; status.textContent = 'Failed';
+            alert('MCP OAuth failed: ' + (j.error || 'unknown'));
+        }
+    } catch (e) {
+        status.className = 'badge badge-pending'; status.textContent = 'Error';
+    }
+    btn.disabled = false; btn.textContent = 'MCP';
 }
 
 function show(id) { const e = document.getElementById(id); if (e) e.style.display = ''; }
