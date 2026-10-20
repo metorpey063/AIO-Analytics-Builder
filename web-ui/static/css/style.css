@@ -261,7 +261,32 @@ body::before {
 .page-header { margin-bottom: 28px; }
 .page-header h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
 
-/* Theme toggle */
+/* Theme toggle (global — top right of content area) */
+.theme-toggle-global {
+    position: fixed;
+    top: 16px; right: 20px;
+    z-index: 50;
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 20px;
+    padding: 5px 14px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    transition: background 200ms ease, border-color 200ms ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    backdrop-filter: blur(10px);
+}
+.theme-toggle-global:hover { background: rgba(0, 0, 0, 0.06); }
+body.dark-theme .theme-toggle-global {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+body.dark-theme .theme-toggle-global:hover { background: rgba(255, 255, 255, 0.15); }
+
+/* Theme toggle (home page inline — legacy) */
 .theme-toggle {
     position: absolute;
     top: 0; right: 0;

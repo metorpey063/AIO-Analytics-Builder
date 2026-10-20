@@ -2,6 +2,11 @@
  * AIO Analytics Builder — Shared UI utilities
  */
 
+function toggleTheme() {
+    const isDark = document.body.classList.toggle('dark-theme');
+    localStorage.setItem('aio-theme', isDark ? 'dark' : 'light');
+}
+
 function showResult(elementId, ok, message) {
     const el = document.getElementById(elementId);
     if (!el) return;
