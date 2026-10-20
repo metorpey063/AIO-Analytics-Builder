@@ -4,6 +4,31 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-10-20 — Dark theme, design refresh, UX improvements (v2.7.0)
+
+### Added
+- **Dark/Light theme toggle** — sun/moon button in upper right of home page, persists via localStorage. Dark is default.
+- **Dark theme for ALL pages** — Setup, Build, Demos, Connections all styled with dark glass cards, dark inputs, dark badges. Same layout, only colors change.
+- **Premium animations** — staggered card entrance, 3D perspective tilt on hover, rotating gradient border on Build card, icon glow pulse, hero text fade-in, right panel slide-in.
+- **Stats strip** — live stats under hero: Version, Demos Built, Metrics Created, Visualizations, Dashboards, Data Rows (from `/api/stats` endpoint).
+- **High-res background** — dark blue silk wave image (Unsplash, Pawel Czerwinski) replaces pixelated stock chart. Layered with gradient orbs and ambient glow animation.
+- **Gradient hero title** — "AIO Analytics Builder" cycles through blue → teal → purple over 6 seconds.
+- **Colored card accent bars** — thin gradient line at top of each card (blue/teal/purple).
+- **Claude AI section on Connections page** — manage API key in one place, auto-hides from Setup if already configured.
+- **Copy buttons** (⧉) on setup guide for app names, callback URLs, connector names.
+- **Guide expand/collapse** — click step titles to collapse/expand guide content.
+- **Save & Finish Later** — on OAuth step, with amber callout about ECA activation delay.
+- **Save at every step** — Tableau PAT and SF creds saved when clicking Next, not just on final save.
+- **Org provisioning cards** — "Request Salesforce Org" and "Tableau Cloud Site" mini-cards with hover lift.
+
+### Fixed
+- **OAuth validation** — validates client_id and login_url before starting flow, clearer error messages.
+- **Setup guide** — Click Create moved to step 6, step 10 MCP scopes on separate lines with complete instructions.
+- **Update/Restart icons** — differentiated: download arrow for update, cycle arrows for restart.
+- **Setup card** — always shows number 1 (not checkmark).
+
+---
+
 ## 2026-10-20 — Viz/dashboard builder enhancements from Sales Insights patterns
 
 ### Added
