@@ -1917,18 +1917,12 @@ body.dark-theme {
 }
 body.dark-theme::before {
     background:
-        /* Soft orb top-right (teal) */
-        radial-gradient(ellipse 600px 500px at 85% 15%, rgba(20, 184, 166, 0.12), transparent),
-        /* Soft orb center-left (blue) */
-        radial-gradient(ellipse 500px 600px at 15% 50%, rgba(59, 130, 246, 0.10), transparent),
-        /* Soft orb bottom-right (purple) */
-        radial-gradient(ellipse 400px 400px at 75% 85%, rgba(139, 92, 246, 0.08), transparent),
-        /* Subtle dot grid */
-        radial-gradient(circle 1px at center, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-        /* Base dark gradient */
-        linear-gradient(160deg, #0A0D14 0%, #0F1724 40%, #0D1117 100%);
-    background-size: 100% 100%, 100% 100%, 100% 100%, 24px 24px, 100% 100%;
-    opacity: 1;
+        /* Soft orb overlays for depth */
+        radial-gradient(ellipse 600px 500px at 85% 15%, rgba(20, 184, 166, 0.08), transparent),
+        radial-gradient(ellipse 500px 600px at 15% 50%, rgba(59, 130, 246, 0.06), transparent),
+        /* High-res image */
+        url('/static/img/bg-dark.jpg') center center / cover no-repeat;
+    opacity: 0.45;
 }
 
 /* Animated ambient glow that drifts slowly */
