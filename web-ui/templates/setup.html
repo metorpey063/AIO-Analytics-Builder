@@ -1011,17 +1011,36 @@ async function saveAndGoOAuth() {
 }
 
 async function runOAuth() {
-    showResult('w-oauth-result', null, 'Opening browser for Salesforce authorization...');
+    // Validate fields before starting
+    const loginUrl = getSetupVal('sf-login-url');
+    const clientId = getSetupVal('sf-client-id');
+    if (!clientId) {
+        showResult('w-oauth-result', false, 'Enter your Consumer Key (Client ID) in Step 2 first.');
+        return;
+    }
+    if (!loginUrl) {
+        showResult('w-oauth-result', false, 'Enter your Salesforce login URL in Step 2 first.');
+        return;
+    }
+
+    showResult('w-oauth-result', null, 'Saving credentials and starting OAuth flow...');
 
     // Save client_id/secret first
     const data = {
         salesforce: {
-            sf_login_url: getSetupVal('sf-login-url'),
-            client_id: getSetupVal('sf-client-id'),
+            sf_login_url: loginUrl,
+            client_id: clientId,
             client_secret: getSetupVal('sf-client-secret'),
         }
     };
-    await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
+    const saveR = await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
+    const saveJ = await saveR.json();
+    if (!saveJ.ok) {
+        showResult('w-oauth-result', false, 'Could not save credentials: ' + (saveJ.error || 'unknown error'));
+        return;
+    }
+
+    showResult('w-oauth-result', null, 'Opening browser — click Allow on the Salesforce page. If no browser opens, check your popup blocker.');
 
     try {
         const r = await fetch('/api/oauth/start', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
