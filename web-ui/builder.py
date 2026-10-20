@@ -1607,7 +1607,9 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
                 # Build field_map: template uses D16 field names, remap to target SDM
                 # The template vizzes reference _clc calc measures and DO dimensions
-                clc_apis = [f"{mc['field']}_clc" for mc in metric_config]
+                # Only use CLCs that were actually created (metric creation may have partially failed)
+                created_metric_bases = [m.replace("_mtc", "") for m in cp.get("metric_apis", [])]
+                clc_apis = [f"{base}_clc" for base in created_metric_bases]
                 dim_map = cp.get("dim_field_map", {})
                 SYSTEM_DIMS = {"date", "record_id", "entity_id", "day_offset", "kq_record_id",
                                "datasourceobject", "datasource", "cdp_sys_sourceversion",

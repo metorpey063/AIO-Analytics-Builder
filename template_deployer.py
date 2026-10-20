@@ -183,8 +183,7 @@ def prepare_viz_payloads(
             # Replace fieldName via field_map
             if field_map and fv.get("fieldName") in field_map:
                 fv["fieldName"] = field_map[fv["fieldName"]]
-            # Strip server-returned read-only field
-            fv.pop("role", None)
+            # Note: keep 'role' and 'type' — the REST API needs both for field validation
 
         # Also substitute field names in the DO-qualified expressions throughout the payload
         # (e.g. axis titles, style references that embed field names as strings)
