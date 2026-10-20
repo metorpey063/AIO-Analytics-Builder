@@ -1413,6 +1413,7 @@ textarea.mono { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-s
     align-items: center;
     gap: 6px;
 }
+.guide-step > div > strong:first-child { cursor: pointer; user-select: none; }
 .guide-step > div > strong:first-child::after {
     content: '▾';
     font-size: 11px;
@@ -1427,6 +1428,11 @@ textarea.mono { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-s
 }
 .guide-step.collapsed > div > strong:first-child::after { content: '▸'; background: var(--text-muted); }
 .guide-step.collapsed .guide-body { display: none; }
+.guide-step.collapsed > div > p,
+.guide-step.collapsed > div > ul,
+.guide-step.collapsed > div > code,
+.guide-step.collapsed > div > span,
+.guide-step.collapsed > div > .guide-list { display: none; }
 .guide-step p {
     font-size: 12px;
     color: var(--text-muted);

@@ -265,7 +265,7 @@
                             <span class="guide-num">2</span>
                             <div>
                                 <strong>Name the app</strong>
-                                <p>Set the name to <code>AIO Analytics Builder</code> and enter your email as the contact.</p>
+                                <p>Set the name to <span class="copy-wrap"><code>AIO Analytics Builder</code><button class="copy-btn" onclick="event.stopPropagation();copyText('AIO Analytics Builder',this)">⧉</button></span> and enter your email as the contact.</p>
                             </div>
                         </div>
                         <div class="guide-step">
@@ -273,7 +273,7 @@
                             <div>
                                 <strong>Enable OAuth</strong>
                                 <p>Expand <strong>"API (Enable OAuth Settings)"</strong>, check <strong>"Enable OAuth"</strong>, and set the Callback URL to:</p>
-                                <code class="guide-code">http://localhost:8080/callback</code>
+                                <span class="copy-wrap"><code class="guide-code">http://localhost:8080/callback</code><button class="copy-btn" onclick="event.stopPropagation();copyText('http://localhost:8080/callback',this)">⧉</button></span>
                             </div>
                         </div>
                         <div class="guide-step">
@@ -316,7 +316,7 @@
                             <div>
                                 <strong>Create Ingest API Connector</strong>
                                 <p>Required for Tableau Next builds. In Salesforce Setup, search <strong>"Ingestion API"</strong> (under Data Cloud &rarr; External Integrations). Click <strong>"New"</strong>, name it:</p>
-                                <code class="guide-code">analytics_builder_demo</code>
+                                <span class="copy-wrap"><code class="guide-code">analytics_builder_demo</code><button class="copy-btn" onclick="event.stopPropagation();copyText('analytics_builder_demo',this)">⧉</button></span>
                                 <p style="margin-top:6px">Complete any required fields and save. AIO will auto-discover this connector during builds.</p>
                             </div>
                         </div>
@@ -344,8 +344,8 @@
                                 <p style="font-weight:600; margin-bottom:4px">Create the MCP External Client App:</p>
                                 <ul class="guide-list">
                                     <li>Setup &rarr; <strong>External Client App Manager</strong> &rarr; <strong>New External Client App</strong></li>
-                                    <li>Name: <code>AIO MCP Client</code></li>
-                                    <li>Enable OAuth, Callback URL:<br><code>http://localhost:8080/callback</code></li>
+                                    <li>Name: <span class="copy-wrap"><code>AIO MCP Client</code><button class="copy-btn" onclick="event.stopPropagation();copyText('AIO MCP Client',this)">⧉</button></span></li>
+                                    <li>Enable OAuth, Callback URL:<br><span class="copy-wrap"><code>http://localhost:8080/callback</code><button class="copy-btn" onclick="event.stopPropagation();copyText('http://localhost:8080/callback',this)">⧉</button></span></li>
                                     <li>Add these scopes:<br>
                                         <code>mcp_api</code> — MCP Server Access<br>
                                         <code>refresh_token</code> — Perform requests at any time
