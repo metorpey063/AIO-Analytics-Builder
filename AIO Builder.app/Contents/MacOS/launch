@@ -1,0 +1,97 @@
+#!/bin/bash
+# ──────────────────────────────────────────────────────────
+# AIO Builder — Daily Launcher
+#
+# Double-click to:
+#   1. Auto-update from git (fast, ~2 seconds)
+#   2. Kill any stale server process
+#   3. Launch the web UI
+#   4. Open browser
+#
+# Options (hold key while launching):
+#   - Normal:       Update + launch
+#   - If problems:  Delete .venv and reinstall deps (auto-detected)
+# ──────────────────────────────────────────────────────────
+
+INSTALL_DIR="$HOME/AIO-Analytics-Builder"
+GREEN="\033[92m"
+YELLOW="\033[93m"
+RED="\033[91m"
+BOLD="\033[1m"
+RESET="\033[0m"
+
+log() { echo -e "${GREEN}${BOLD}  → ${RESET}$1"; }
+warn() { echo -e "${YELLOW}${BOLD}  ⚠ ${RESET}$1"; }
+
+echo ""
+echo -e "${BOLD}  AIO Analytics Builder${RESET}"
+echo ""
+
+# Check if installed
+if [ ! -d "$INSTALL_DIR" ] || [ ! -f "$INSTALL_DIR/web-ui/app.py" ]; then
+    echo -e "${RED}  AIO is not installed.${RESET}"
+    echo ""
+    echo "  Run this in Terminal to install:"
+    echo ""
+    echo "    curl -sL https://raw.githubusercontent.com/metorpey063/AIO-Analytics-Builder/main/install_remote.sh | bash"
+    echo ""
+    read -p "  Press Enter to exit..."
+    exit 1
+fi
+
+cd "$INSTALL_DIR"
+
+# Kill stale server
+lsof -ti:5100 2>/dev/null | xargs kill 2>/dev/null
+
+# Auto-update
+log "Checking for updates..."
+git fetch origin main --quiet 2>/dev/null
+LOCAL=$(git rev-parse HEAD 2>/dev/null)
+REMOTE=$(git rev-parse origin/main 2>/dev/null)
+
+if [ "$LOCAL" != "$REMOTE" ]; then
+    log "Updating..."
+    git reset --hard origin/main 2>/dev/null
+
+    # Check if requirements changed
+    if git diff "$LOCAL" "$REMOTE" -- requirements.txt | grep -q '^[+-]'; then
+        log "Dependencies changed — reinstalling..."
+        .venv/bin/pip install -r requirements.txt -q 2>/dev/null
+    fi
+
+    log "Updated to latest!"
+else
+    log "Up to date"
+fi
+
+# Verify venv works
+if ! .venv/bin/python -c "import flask" 2>/dev/null; then
+    warn "Virtual environment broken — rebuilding..."
+    rm -rf .venv
+    python3 -m venv .venv
+    .venv/bin/pip install --upgrade pip -q
+    .venv/bin/pip install -r requirements.txt -q
+    log "Rebuilt virtual environment"
+fi
+
+# Clear stale Python cache
+rm -rf web-ui/__pycache__ 2>/dev/null
+
+# Launch
+log "Starting server..."
+echo ""
+echo -e "  ${GREEN}${BOLD}✓ AIO Analytics Builder${RESET}"
+echo "    http://localhost:5100"
+echo ""
+echo "  Press Ctrl+C to stop."
+echo ""
+echo "  ─────────────────────────────────────"
+echo "  Trouble? Run these in Terminal:"
+echo "    Clean update:  cd ~/AIO-Analytics-Builder && git reset --hard origin/main && git pull"
+echo "    Full rebuild:  cd ~/AIO-Analytics-Builder && rm -rf .venv && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
+echo "  ─────────────────────────────────────"
+echo ""
+
+open "http://localhost:5100"
+exec .venv/bin/python web-ui/app.py

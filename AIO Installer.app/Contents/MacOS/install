@@ -1,0 +1,140 @@
+#!/bin/bash
+# ──────────────────────────────────────────────────────────
+# AIO Analytics Builder — Installer & Launcher
+#
+# First run:  Clones repo, installs deps, creates launcher
+# Subsequent: Launches the web server directly
+# ──────────────────────────────────────────────────────────
+
+INSTALL_DIR="$HOME/AIO-Analytics-Builder"
+GREEN="\033[92m"
+BOLD="\033[1m"
+RESET="\033[0m"
+
+log() { echo -e "${GREEN}${BOLD}  → ${RESET}$1"; }
+
+echo ""
+echo -e "${BOLD}  ┌─────────────────────────────────────────┐"
+echo "  │       AIO Analytics Builder              │"
+echo "  │                                          │"
+echo "  │  Tableau Pulse · Tableau Next · Data Cloud│"
+echo -e "  └─────────────────────────────────────────┘${RESET}"
+echo ""
+
+# Kill any existing server on port 5100
+lsof -ti:5100 2>/dev/null | xargs kill 2>/dev/null
+
+# ── Already installed? Just launch ──
+if [ -d "$INSTALL_DIR/.venv" ] && [ -f "$INSTALL_DIR/web-ui/app.py" ]; then
+    log "AIO is already installed"
+    cd "$INSTALL_DIR"
+
+    # Check for updates
+    log "Checking for updates..."
+    git fetch origin main --quiet 2>/dev/null
+    LOCAL=$(git rev-parse HEAD 2>/dev/null)
+    REMOTE=$(git rev-parse origin/main 2>/dev/null)
+
+    if [ "$LOCAL" != "$REMOTE" ]; then
+        log "Update available — pulling latest..."
+        git reset --hard origin/main 2>/dev/null
+        .venv/bin/pip install -r requirements.txt -q 2>/dev/null
+        log "Updated!"
+    else
+        log "Already up to date"
+    fi
+
+    log "Starting AIO web server..."
+    echo ""
+    echo -e "  ${GREEN}${BOLD}✓ AIO Analytics Builder${RESET}"
+    echo "    http://localhost:5100"
+    echo ""
+    echo "  Press Ctrl+C to stop the server."
+    echo ""
+
+    open "http://localhost:5100"
+    .venv/bin/python web-ui/app.py
+    exit 0
+fi
+
+# ── Fresh install ──
+log "Installing AIO Analytics Builder..."
+
+# Check Python
+if ! command -v python3 &>/dev/null; then
+    echo ""
+    echo "  ✗ Python 3 not found."
+    echo "    Install from https://www.python.org/downloads/"
+    echo ""
+    read -p "  Press Enter to exit..."
+    exit 1
+fi
+
+PY_OK=$(python3 -c "import sys; print(1 if sys.version_info >= (3, 10) else 0)")
+if [ "$PY_OK" != "1" ]; then
+    echo "  ✗ Python 3.10+ required."
+    echo "    Install from https://www.python.org/downloads/"
+    read -p "  Press Enter to exit..."
+    exit 1
+fi
+log "Python 3 found"
+
+# Clone
+if [ -d "$INSTALL_DIR/.git" ]; then
+    log "Updating existing installation..."
+    cd "$INSTALL_DIR"
+    git pull --ff-only origin main 2>/dev/null || git reset --hard origin/main
+else
+    log "Downloading AIO Analytics Builder..."
+    git clone https://github.com/metorpey063/AIO-Analytics-Builder.git "$INSTALL_DIR"
+    cd "$INSTALL_DIR"
+fi
+
+# Strip quarantine
+if [ "$(uname)" = "Darwin" ]; then
+    xattr -cr "$INSTALL_DIR" 2>/dev/null || true
+fi
+
+# Look for existing config
+SEARCH_PATHS=(
+    "$HOME/Desktop/AIO Analytics Builder/config.json"
+    "$HOME/Desktop/AIO-Analytics-Builder/config.json"
+    "$HOME/Documents/AIO Analytics Builder/config.json"
+)
+for sp in "${SEARCH_PATHS[@]}"; do
+    if [ -f "$sp" ] && [ "$sp" != "$INSTALL_DIR/config.json" ]; then
+        PROFILE_COUNT=$(python3 -c "import json; print(len(json.loads(open('$sp').read()).get('profiles',{})))" 2>/dev/null)
+        if [ "$PROFILE_COUNT" -gt 0 ] 2>/dev/null; then
+            log "Found existing config with $PROFILE_COUNT profiles"
+            cp "$sp" "$INSTALL_DIR/config.json"
+            log "Connection profiles restored!"
+            break
+        fi
+    fi
+done
+
+# Create venv + install
+if [ ! -d ".venv" ]; then
+    log "Creating virtual environment..."
+    python3 -m venv .venv
+fi
+
+log "Installing dependencies..."
+.venv/bin/pip install --upgrade pip -q
+.venv/bin/pip install -r requirements.txt -q
+
+# Create config if needed
+if [ ! -f "config.json" ] && [ -f "config.json.template" ]; then
+    cp config.json.template config.json
+fi
+
+log "Setup complete!"
+echo ""
+echo -e "  ${GREEN}${BOLD}✓ AIO Analytics Builder is ready${RESET}"
+echo "    http://localhost:5100"
+echo ""
+echo "  Press Ctrl+C to stop the server."
+echo ""
+
+open "http://localhost:5100"
+.venv/bin/python web-ui/app.py
