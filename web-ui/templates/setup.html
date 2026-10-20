@@ -84,8 +84,8 @@
                 </label>
             </div>
 
-            <!-- AI Assistant (optional, inline in Step 0) -->
-            <div style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border)">
+            <!-- AI Configuration (hidden if already set) -->
+            <div id="setup-ai-section" style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border)">
                 <h2 style="margin-bottom:4px">AI Configuration <span style="color:var(--red); font-size:12px; font-weight:600">Required</span></h2>
                 <p class="subtitle" style="margin-bottom:14px">AIO uses Claude AI to generate demo stories, metrics, and the chat assistant. A key is required to build demos.</p>
 
@@ -265,7 +265,7 @@
                             <span class="guide-num">2</span>
                             <div>
                                 <strong>Name the app</strong>
-                                <p>Set the name to <code>AIO Analytics Builder</code> and enter your email as the contact.</p>
+                                <p>Set the name to <span class="copy-wrap"><code>AIO Analytics Builder</code><button class="copy-btn" onclick="event.stopPropagation();copyText('AIO Analytics Builder',this)">⧉</button></span> and enter your email as the contact.</p>
                             </div>
                         </div>
                         <div class="guide-step">
@@ -273,7 +273,7 @@
                             <div>
                                 <strong>Enable OAuth</strong>
                                 <p>Expand <strong>"API (Enable OAuth Settings)"</strong>, check <strong>"Enable OAuth"</strong>, and set the Callback URL to:</p>
-                                <code class="guide-code">http://localhost:8080/callback</code>
+                                <span class="copy-wrap"><code class="guide-code">http://localhost:8080/callback</code><button class="copy-btn" onclick="event.stopPropagation();copyText('http://localhost:8080/callback',this)">⧉</button></span>
                             </div>
                         </div>
                         <div class="guide-step">
@@ -300,15 +300,15 @@
                         <div class="guide-step">
                             <span class="guide-num">6</span>
                             <div>
-                                <strong>Security settings</strong>
-                                <p>Leave <strong>"Require Proof Key for Code Exchange (PKCE)"</strong> checked — AIO supports it. No other changes needed.</p>
+                                <strong>Security &amp; Create</strong>
+                                <p>Leave <strong>"Require Proof Key for Code Exchange (PKCE)"</strong> checked — AIO supports it. No other changes needed. Click <strong>Create</strong> to save the app.</p>
                             </div>
                         </div>
                         <div class="guide-step">
                             <span class="guide-num">7</span>
                             <div>
                                 <strong>Get Consumer Key &amp; Secret</strong>
-                                <p>Click <strong>Create</strong>. Then go to the app's <strong>Settings</strong> tab &rarr; <strong>OAuth Settings</strong> &rarr; <strong>"Consumer Key and Secret"</strong>. You may need to verify your identity. Copy both values and paste them in the form.</p>
+                                <p>Go to the app's <strong>Settings</strong> tab &rarr; <strong>OAuth Settings</strong> &rarr; click <strong>"Consumer Key and Secret"</strong>. You may need to verify your identity. Copy both values and paste them in the form on the left.</p>
                             </div>
                         </div>
                         <div class="guide-step" style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(0,0,0,0.06)">
@@ -316,7 +316,7 @@
                             <div>
                                 <strong>Create Ingest API Connector</strong>
                                 <p>Required for Tableau Next builds. In Salesforce Setup, search <strong>"Ingestion API"</strong> (under Data Cloud &rarr; External Integrations). Click <strong>"New"</strong>, name it:</p>
-                                <code class="guide-code">analytics_builder_demo</code>
+                                <span class="copy-wrap"><code class="guide-code">analytics_builder_demo</code><button class="copy-btn" onclick="event.stopPropagation();copyText('analytics_builder_demo',this)">⧉</button></span>
                                 <p style="margin-top:6px">Complete any required fields and save. AIO will auto-discover this connector during builds.</p>
                             </div>
                         </div>
@@ -344,12 +344,23 @@
                                 <p style="font-weight:600; margin-bottom:4px">Create the MCP External Client App:</p>
                                 <ul class="guide-list">
                                     <li>Setup &rarr; <strong>External Client App Manager</strong> &rarr; <strong>New External Client App</strong></li>
-                                    <li>Name: <code>AIO MCP Client</code></li>
-                                    <li>Enable OAuth, Callback URL: <code>http://localhost:8080/callback</code></li>
-                                    <li>Scopes: <code>mcp_api</code> + <code>refresh_token</code></li>
-                                    <li><strong>Uncheck:</strong> Require secret for Web Server Flow, Require secret for Refresh Token Flow</li>
-                                    <li><strong>Check:</strong> Require PKCE, Issue JWT-based access tokens for named users</li>
-                                    <li>Copy the <strong>Consumer Key</strong> and paste it in the MCP Client ID field below</li>
+                                    <li>Name: <span class="copy-wrap"><code>AIO MCP Client</code><button class="copy-btn" onclick="event.stopPropagation();copyText('AIO MCP Client',this)">⧉</button></span></li>
+                                    <li>Enable OAuth, Callback URL:<br><span class="copy-wrap"><code>http://localhost:8080/callback</code><button class="copy-btn" onclick="event.stopPropagation();copyText('http://localhost:8080/callback',this)">⧉</button></span></li>
+                                    <li>Add these scopes:<br>
+                                        <code>mcp_api</code> — MCP Server Access<br>
+                                        <code>refresh_token</code> — Perform requests at any time
+                                    </li>
+                                    <li><strong>Uncheck:</strong><br>
+                                        Require secret for Web Server Flow<br>
+                                        Require secret for Refresh Token Flow
+                                    </li>
+                                    <li><strong>Check:</strong><br>
+                                        Require PKCE<br>
+                                        Issue JWT-based access tokens for named users
+                                    </li>
+                                    <li>Click <strong>Create</strong> to save the app</li>
+                                    <li>Go to the app's <strong>Settings</strong> tab &rarr; <strong>OAuth Settings</strong> &rarr; click <strong>"Consumer Key and Secret"</strong></li>
+                                    <li>Copy the <strong>Consumer Key</strong> and paste it in the MCP Consumer Key field on the left</li>
                                 </ul>
                             </div>
                         </div>
@@ -1308,17 +1319,22 @@ async function saveWizAiKeySimple() {
     }
 }
 
-// Load existing AI key status on page load
+// Load existing AI key status on page load — hide setup section if already configured
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const r = await fetch('/api/chat/status');
         const j = await r.json();
         const badge = document.getElementById('ai-status');
+        const setupSection = document.getElementById('setup-ai-section');
         if (badge) {
             badge.style.display = '';
             if (j.available) {
                 badge.className = 'badge badge-ok';
                 badge.textContent = 'Configured';
+                // Hide the AI section in Step 0 if key is already set
+                if (setupSection) {
+                    setupSection.innerHTML = '<div style="margin-top:24px; padding:12px 16px; background:rgba(20,184,166,0.08); border:1px solid rgba(20,184,166,0.2); border-radius:10px"><p style="font-size:13px; color:var(--text-muted); margin:0"><strong style="color:#14B8A6">✓ Claude AI configured</strong> — manage your API key in <a href="/connections" style="color:var(--blue); font-weight:600">Connections</a></p></div>';
+                }
             } else {
                 badge.className = 'badge badge-pending';
                 badge.textContent = 'Not configured';

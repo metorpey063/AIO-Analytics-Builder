@@ -269,6 +269,47 @@ def open_demo_folder(slug):
         return jsonify({"ok": False, "error": str(e)})
 
 
+@app.route("/api/stats")
+def get_stats():
+    """Aggregate stats across all demos for the home page stats strip."""
+    demos_dir = PROJECT_ROOT / "demos"
+    total_demos = 0
+    total_metrics = 0
+    total_dashboards = 0
+    total_vizzes = 0
+    total_rows = 0
+
+    if demos_dir.exists():
+        for d in demos_dir.iterdir():
+            if not d.is_dir() or d.name.startswith("."):
+                continue
+            cp_files = list(d.glob("*_checkpoint.json"))
+            if cp_files:
+                try:
+                    cp = json.loads(cp_files[0].read_text())
+                    total_demos += 1
+                    total_metrics += len(cp.get("metric_apis", []) or cp.get("pulse_metric_ids", []))
+                    total_dashboards += 1 if cp.get("dash_api") or cp.get("dash_done") else 0
+                    total_vizzes += len([v for v in (cp.get("viz_apis", []) or cp.get("all_viz_apis", [])) if v])
+                except Exception:
+                    pass
+            csv_files = list(d.glob("*.csv"))
+            for cf in csv_files[:1]:
+                try:
+                    with open(str(cf)) as f:
+                        total_rows += sum(1 for _ in f) - 1
+                except Exception:
+                    pass
+
+    return jsonify({
+        "demos": total_demos,
+        "metrics": total_metrics,
+        "dashboards": total_dashboards,
+        "vizzes": total_vizzes,
+        "rows": total_rows,
+    })
+
+
 @app.route("/api/demos/<slug>/build-log")
 def view_build_log(slug):
     """Return the build log as plain text."""

@@ -180,6 +180,44 @@
         </p>
     </div>
 </div>
+<!-- Claude AI -->
+<div class="conn-platform-section">
+    <div class="conn-platform-header">
+        <div class="conn-icon-sm accent-blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        </div>
+        <div>
+            <h2>Claude AI</h2>
+            <span class="conn-platform-sub">Powers story generation, metrics design, and the Ask Claude chat</span>
+        </div>
+    </div>
+    <div class="card" style="margin-top:12px">
+        <div class="conn-row-header">
+            <div class="conn-row-info">
+                <strong>API Key</strong>
+                <div class="conn-row-details">
+                    <span id="ai-key-status" class="conn-row-muted">Checking...</span>
+                </div>
+            </div>
+            <div class="conn-row-actions">
+                <span class="badge badge-pending" id="ai-badge">—</span>
+            </div>
+        </div>
+        <div id="ai-key-form" style="margin-top:12px; display:none">
+            <div class="form-group" style="margin-bottom:8px">
+                <label style="font-size:12px">Claude API Key</label>
+                <div style="display:flex; gap:4px">
+                    <input type="password" id="conn-ai-key" placeholder="sk-ant-..." style="flex:1; font-size:13px">
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="togglePwdVis('conn-ai-key', this)" style="padding:4px 8px; font-size:16px">👁</button>
+                </div>
+                <span class="form-hint">Run <code>claude setup-token</code> in Terminal to get a key</span>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="saveConnAiKey()">Save</button>
+            <span id="ai-save-result" class="test-result" style="margin-left:8px"></span>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -193,7 +231,56 @@ document.addEventListener('DOMContentLoaded', () => {
     {% if c.active %}testSfConn('{{ c.key }}');{% endif %}
     {% endfor %}
     testMcp();
+    checkAiKey();
 });
+
+async function checkAiKey() {
+    try {
+        const r = await fetch('/api/chat/status');
+        const j = await r.json();
+        const badge = document.getElementById('ai-badge');
+        const status = document.getElementById('ai-key-status');
+        const form = document.getElementById('ai-key-form');
+        if (j.available) {
+            badge.className = 'badge badge-ok'; badge.textContent = 'Configured';
+            status.textContent = 'API key is set';
+            form.style.display = 'none';
+        } else {
+            badge.className = 'badge badge-pending'; badge.textContent = 'Not set';
+            status.textContent = 'No API key configured';
+            form.style.display = '';
+        }
+    } catch (e) {}
+}
+
+async function saveConnAiKey() {
+    const key = document.getElementById('conn-ai-key').value.trim();
+    if (!key) return;
+    const result = document.getElementById('ai-save-result');
+    result.textContent = 'Saving...'; result.className = 'test-result loading';
+    try {
+        const r = await fetch('/api/chat/save-key', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({mode: 'anthropic', api_key: key}),
+        });
+        const j = await r.json();
+        if (j.ok) {
+            result.textContent = 'Saved!'; result.className = 'test-result ok';
+            checkAiKey();
+        } else {
+            result.textContent = j.error || 'Failed'; result.className = 'test-result err';
+        }
+    } catch (e) {
+        result.textContent = e.message; result.className = 'test-result err';
+    }
+}
+
+function togglePwdVis(inputId, btn) {
+    const el = document.getElementById(inputId);
+    if (!el) return;
+    el.type = el.type === 'password' ? 'text' : 'password';
+    btn.textContent = el.type === 'password' ? '👁' : '🙈';
+}
 
 async function testTabConn(key) {
     const btn = document.getElementById('tab-btn-' + key);
