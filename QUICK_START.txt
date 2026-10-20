@@ -3,20 +3,35 @@
 ═══════════════════════════════════════════════════════
 
 
-  INSTALL (first time only)
-  ─────────────────────────
+  OPTION 1: Download from GitHub (recommended)
+  ─────────────────────────────────────────────
+  1. Go to: https://github.com/metorpey063/AIO-Analytics-Builder
+  2. Click the green "Code" button (top right)
+  3. Click "Download ZIP"
+  4. Unzip the downloaded file
+  5. Open the unzipped folder
+  6. Double-click "AIO Installer.app"
+
+  If macOS shows a security warning:
+    Right-click "AIO Installer.app" → Open → click "Open"
+    (You only need to do this once)
+
+  The installer will:
+    • Set up Python and dependencies
+    • Put "AIO Builder" on your Desktop
+    • Launch the Web UI automatically
+
+
+  OPTION 2: One-Line Terminal Install
+  ────────────────────────────────────
   Open Terminal (Spotlight → type "Terminal" → Enter)
-  and paste this single line:
+  and paste:
 
     curl -sL https://raw.githubusercontent.com/metorpey063/AIO-Analytics-Builder/main/install_remote.sh | bash
 
-  That's it. It downloads everything, installs
-  dependencies, opens the Web UI, and puts an
-  "AIO Builder" app on your Desktop.
 
-
-  LAUNCH (every time after)
-  ─────────────────────────
+  LAUNCH (every time after install)
+  ──────────────────────────────────
   Double-click "AIO Builder" on your Desktop.
 
   It automatically:
@@ -25,8 +40,19 @@
     • Opens your browser to http://localhost:5100
 
   If macOS blocks it on first launch:
-    Right-click → Open → click "Open" in the dialog.
-    You only need to do this once.
+    Right-click → Open → click "Open"
+
+
+  FIRST TIME SETUP
+  ─────────────────
+  1. The Web UI opens → click "Setup"
+  2. Enter a connection name (e.g. "My Demo Org")
+  3. Choose your platforms (Tableau Cloud, Tableau Next)
+  4. Set up your Claude AI key:
+     Open Terminal → run "claude setup-token" → paste the key
+  5. Follow the guide to create your Salesforce External
+     Client App and run the OAuth flow
+  6. Click "Verify" to test all connections
 
 
   TROUBLESHOOTING
