@@ -138,8 +138,8 @@
 
                     <!-- Advanced Mode (collapsible) -->
                     <div class="advanced-section">
-                        <button type="button" class="advanced-toggle" onclick="this.parentElement.classList.toggle('expanded')">
-                            <span class="advanced-arrow">▸</span> Advanced Options
+                        <button type="button" class="advanced-toggle" onclick="this.parentElement.classList.toggle('expanded'); this.querySelector('.advanced-arrow').textContent = this.parentElement.classList.contains('expanded') ? '−' : '+';">
+                            <span class="advanced-arrow">+</span> Advanced Options
                         </button>
                         <div class="advanced-body">
                             <div class="form-row">
@@ -323,8 +323,8 @@
 
             <!-- Additional Build Options -->
             <div class="advanced-section" style="margin-bottom:16px">
-                <button type="button" class="advanced-toggle" onclick="this.parentElement.classList.toggle('expanded')">
-                    <span class="advanced-arrow">▸</span> Additional Options
+                <button type="button" class="advanced-toggle" onclick="this.parentElement.classList.toggle('expanded'); this.querySelector('.advanced-arrow').textContent = this.parentElement.classList.contains('expanded') ? '−' : '+';">
+                    <span class="advanced-arrow">+</span> Additional Options
                 </button>
                 <div class="advanced-body">
                     <div class="form-stack" style="gap:12px">

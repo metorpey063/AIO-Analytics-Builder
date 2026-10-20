@@ -829,8 +829,21 @@ textarea.mono { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-s
     transition: background var(--transition);
 }
 .advanced-toggle:hover { background: rgba(37, 99, 235, 0.14); }
-.advanced-arrow { font-size: 10px; transition: transform 200ms ease; }
-.advanced-section.expanded .advanced-arrow { transform: rotate(90deg); }
+.advanced-arrow {
+    font-size: 18px;
+    font-weight: 300;
+    width: 22px; height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--blue);
+    transition: background 200ms ease;
+    line-height: 1;
+}
+.advanced-section.expanded .advanced-arrow { background: rgba(59, 130, 246, 0.15); }
+.advanced-toggle:hover .advanced-arrow { background: rgba(59, 130, 246, 0.2); }
 .advanced-body {
     display: none;
     padding: 14px 0 0;
