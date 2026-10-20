@@ -68,6 +68,12 @@
      Open Terminal → run "claude setup-token" → paste the key
   5. Follow the guide to create your Salesforce External
      Client App and run the OAuth flow
+
+     IMPORTANT: Make sure your browser is logged into the
+     correct Salesforce org BEFORE clicking "Run OAuth Flow".
+     If you're logged into a different org, the wrong token
+     will be saved and the connection will fail.
+
   6. Click "Verify" to test all connections
 
 

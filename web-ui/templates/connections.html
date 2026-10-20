@@ -415,6 +415,7 @@ async function switchProfile(key) {
 }
 
 async function reAuthSf(key) {
+    if (!confirm('Make sure your browser is logged into the correct Salesforce org for this connection.\n\nIf you\'re logged into a different org, the wrong token will be saved.\n\nContinue?')) return;
     const btn = document.getElementById('sf-reauth-' + key);
     const status = document.getElementById('sf-status-' + key);
     btn.disabled = true; btn.textContent = 'Authorizing...';
@@ -442,6 +443,7 @@ async function reAuthSf(key) {
 }
 
 async function reAuthMcp(key) {
+    if (!confirm('Make sure your browser is logged into the correct Salesforce org for this connection.\n\nThe MCP uses a separate External Client App.\n\nContinue?')) return;
     const btn = document.getElementById('sf-mcp-reauth-' + key);
     const status = document.getElementById('sf-status-' + key);
     btn.disabled = true; btn.textContent = 'Authorizing...';

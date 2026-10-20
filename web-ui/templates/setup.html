@@ -375,10 +375,13 @@
         <section class="card">
             <h2>Step 3: Salesforce OAuth Authorization</h2>
             <p class="subtitle" style="margin-bottom:16px">Click below to open a browser window where you'll log in to Salesforce and authorize AIO. The refresh token will be saved automatically.</p>
+            <div style="margin-bottom:14px; padding:10px 14px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-radius:10px; font-size:13px; color:var(--text)">
+                <strong style="color:#D97706">⚠ Important:</strong> You must be logged into the <strong>correct Salesforce org</strong> in your browser before clicking below. If you're logged into a different org, the authorization will save the wrong token and connections will fail.
+            </div>
             <div class="oauth-instructions">
                 <div class="instruction-step">
                     <span class="instruction-num">1</span>
-                    <span>Make sure your default browser is logged into the correct Salesforce org</span>
+                    <span>Verify your browser is logged into the Salesforce org for this connection</span>
                 </div>
                 <div class="instruction-step">
                     <span class="instruction-num">2</span>
