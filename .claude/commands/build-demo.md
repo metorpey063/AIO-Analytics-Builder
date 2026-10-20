@@ -1240,14 +1240,14 @@ After all metrics are created, PUT each metric back with natural-language nouns 
 Ask the user which layout to use via `AskUserQuestion`:
 
 - **Z Layout** (Recommended) — Filters → 6 KPI cards → hero viz → 3-up detail → full-width bottom. Rounded containers, section headers. Best for demos with 4+ metrics.
-- **Performance Overview** — Title + filters → hero metric (sparkline) + 4 BANs → 2 side-by-side vizzes → full-width bottom. Best for executive dashboards with one primary KPI.
-- **Standard (legacy)** — 3 metrics + 2×2 viz grid. REST-based, no containers. Fallback for orgs without MCP.
+- **F Layout** — Filters → 3 KPI cards (left stack) + hero viz (right) → 3-up detail → full-width bottom. Best for demos with ≤3 metrics and a dominant trend viz.
+- **Standard (legacy)** — 3 metrics + 2×2 viz grid. REST-based, no containers. Fallback when template deployer can't be used.
 
-Default to **Z Layout** when MCP `tableau-next-pilot` is connected. Fall back to **Standard** without MCP.
+Default to **Z Layout**.
 
 **Step 5b — Pre-flight: check SDM relationships:**
 
-Before creating vizzes, check for broken relationships:
+Before creating vizzes, check for broken relationships via MCP or REST:
 
 ```
 list_semantic_model_relationships(modelApiNameOrId=sdm_api)
@@ -1255,73 +1255,75 @@ list_semantic_model_relationships(modelApiNameOrId=sdm_api)
 
 If any relationship has `criteria: []`, delete it — it poisons every query against the SDM. Known Pitfall: IngestAPI DLO relationships silently drop join criteria.
 
-**Step 5c — Create visualizations via MCP:**
+**Step 5c — Deploy via template_deployer (primary path):**
 
-When using Z Layout or Performance Overview, create vizzes via MCP `create_visualization` (not `build_viz_payload` REST). MCP vizzes render correctly in MCP dashboards.
-
-MCP chart type mapping:
-- `trend_over_time` → `type: "Line"`, date columns, measure rows
-- `bar_by_category` → `type: "Bar"`, dim columns, measure rows, `sortIntent: "MeasureDescending"`
-- `horizontal_bar` → `type: "Bar"`, measure columns, dim rows
-- `multi_series_line` → `type: "Line"`, Color encoding on dim
-- `donut` → `layout: "Radial"`, `type: "Donut"`, Angle + Color encodings
-- `scatter` → `type: "Circle"`, measure each axis, Color on dim
-- `heatmap` → `type: "Square"`, Color encoding on measure
-
-Capture both `name` and `id` from each response.
-
-**Step 5d — Assemble dashboard:**
-
-1. Create empty dashboard via MCP `create_dashboard`
-2. Extract `page_name` from `layouts[0].pages[0].name`
-3. Generate operations:
+Use `template_deployer.deploy_template()` to create the complete dashboard from the Package & Deploy template packages. This creates vizzes via REST with the full VizQL spec (complete style, axis, fonts, marks, legends) on a native 72-col grid — pixel-perfect match to the Tableau Next product templates.
 
 ```python
-from dashboard_builder import build_z_layout_ops, build_perf_overview_ops
+from template_deployer import deploy_template
 
-# Z Layout
-ops = build_z_layout_ops(
-    page_name=page_name,
-    title=f"{company} {use_case}",
-    subtitle="Description",
-    sdm_api=sdm_api, sdm_id=sdm_id,
-    metric_apis=[m["api"] for m in metrics],
-    metric_labels=[m["label"] for m in metrics],
-    viz_apis=[v["name"] for v in vizzes],
-    viz_labels=[v["label"] for v in vizzes],
-    viz_ids=[v["id"] for v in vizzes],
-    filter_fields=[{"fieldName": d, "objectName": do_api, "label": l} for d, l in dims],
-    brand_colors={"title_color": BRAND.get("primary", "#03234d")},
-    grid_columns=48,
+results = deploy_template(
+    template_name="z_layout",  # or "f_layout"
+    sf_token=sf_token,
+    sf_instance=sf_instance,
+    sdm_api=sdm_api,
+    sdm_label=sdm_label,
+    sdm_id=sdm_id,
+    ws_api=ws_api,
+    ws_label=ws_label,
+    ws_id=ws_id,
+    slug=slug,
+    dash_label=f"{company} — {use_case}",
+    metric_apis=[m["api"] for m in METRIC_CONFIG],  # ordered list of _mtc apiNames
+    filter_fields=[
+        {"fieldName": dim_api, "objectName": do_api, "label": dim_label}
+        for dim_api, dim_label in DIM_DESCRIPTIONS.items()
+    ],
+    title_text=f"{company} {use_case}",
+    detail_header="Details",
+    field_map=None,  # set if field names differ from template
 )
 
-# OR Performance Overview
-ops = build_perf_overview_ops(
-    page_name=page_name,
-    title=f"{company} {use_case}",
-    sdm_api=sdm_api, sdm_id=sdm_id,
-    hero_metric_api=metrics[0]["api"], hero_metric_label=metrics[0]["label"],
-    ban_metric_apis=[m["api"] for m in metrics[1:5]],
-    ban_metric_labels=[m["label"] for m in metrics[1:5]],
-    viz_left_api=vizzes[0]["name"], viz_left_label=vizzes[0]["label"], viz_left_id=vizzes[0]["id"],
-    viz_right_api=vizzes[1]["name"], viz_right_label=vizzes[1]["label"], viz_right_id=vizzes[1]["id"],
-    viz_bottom_api=vizzes[2]["name"], viz_bottom_label=vizzes[2]["label"], viz_bottom_id=vizzes[2]["id"],
-    filter_fields=[...],
-    grid_columns=48,
-)
+# Results contain created asset names/IDs for checkpoint
+cp["all_viz_apis"] = [v["name"] for v in results["vizzes_created"].values()]
+cp["all_dash_apis"] = [results["dashboard"]["name"]] if results["dashboard"] else []
 ```
 
-4. Send ops via MCP `edit_dashboard` with `autosave: true`
-5. Verify: `render_dashboard` → check all widget statuses are `Ok`
+**Template data requirements — ensure the demo build provides:**
 
-**Critical MCP dashboard rules:**
-- **Always pass viz `id` AND `name`** in widget sources
-- **Never send `metricOption.layout.componentVisibility`** — causes embeddedMetric crash
-- **48-col scaling is automatic** — builders handle it via `grid_columns=48`
-- **Create vizzes via MCP** when building MCP dashboards
-- **Check relationships pre-flight** — empty `criteria` breaks everything
+| Template slot | What it needs | Where it comes from |
+|---------------|--------------|-------------------|
+| Metric cards (up to 6 Z / 3 F) | `_mtc` metric apiNames | Phase 4 metric creation |
+| Hero trend line | `_clc` calc measure + `Display_Date` calc dim + 1 grouping dim | Phase 4 CLC + calc dim creation |
+| Detail donut | `_clc` calc measure + 1 breakdown dim | Phase 4 CLC creation |
+| Detail horiz bar | `_clc` calc measure + 1 breakdown dim | Phase 4 CLC creation |
+| Detail table | All categorical dimensions | Data gen dimensions |
+| Filters (up to 6 Z / 6 F) | Dimension fieldName + objectName (DO apiName) | Phase 4 DO field discovery |
 
-**Step 5e — Fallback to REST (no MCP):**
+The template packages reference specific field names from the D16 demo (`platform_utilization_rate_clc`, `team1`, etc.). For other demos, pass `field_map` to remap template field names to the target SDM's field names:
+
+```python
+field_map = {
+    "platform_utilization_rate_clc": "your_primary_clc_name",
+    "reports_migrated_to_tableau_clc": "your_breakdown_clc_name",
+    "team1": "your_grouping_dim_name",
+    "report_type1": "your_breakdown_dim_1",
+    "system_source1": "your_breakdown_dim_2",
+    "request_status1": "your_detail_dim",
+    "Display_Date": "Display_Date",  # usually same across all demos
+}
+```
+
+**Critical rules:**
+- **REST auth required** — `template_deployer` uses REST, not MCP. The SF token must be valid. If it expires mid-build, re-auth via PKCE OAuth flow.
+- **72-col native grid** — no scaling needed, the template package defines the exact grid
+- **Full VizQL specs** — vizzes are created with complete style scaffolding from the package
+- **Strip read-only fields automatically** — `template_deployer` handles stripping `stylesheet`, `receiveFilterSource`, `receiveParameterSource`, empty `publishers`/`widgetIds`, etc.
+- **Widget parameter whitelist** — dashboard POST only accepts specific parameter keys per widget type; the deployer cleans this automatically
+
+**Step 5d — Fallback to legacy REST (no template deployer):**
+
+If `template_deployer` fails or the template packages aren't available:
 
 ```python
 from viz_builder import build_viz_payload

@@ -1,0 +1,3708 @@
+{
+  "templateId": "Surescripts_DNA_Prescription_Analytics",
+  "apiVersion": "67.14",
+  "requirements": {
+    "metrics": [],
+    "fields": [
+      {
+        "fieldName": "Brand_Name",
+        "objectName": "Surescripts_DNA_Rx_Fact"
+      },
+      {
+        "fieldName": "Date24",
+        "objectName": "Surescripts_DNA_Rx_Fact"
+      },
+      {
+        "fieldName": "New_Rx_Volume",
+        "objectName": "Surescripts_DNA_Rx_Fact"
+      },
+      {
+        "fieldName": "Prescriber_Specialty",
+        "objectName": "Surescripts_DNA_Rx_Fact"
+      },
+      {
+        "fieldName": "State11",
+        "objectName": "Surescripts_DNA_Rx_Fact"
+      }
+    ],
+    "listParameters": []
+  },
+  "components": {
+    "visualizations": {
+      "ss_v_rx_trend_155751": {
+        "dataSource": {
+          "label": "{{SDM_LABEL}}",
+          "name": "{{SDM_API_NAME}}",
+          "type": "SemanticModel"
+        },
+        "fields": {
+          "F2": {
+            "displayCategory": "Discrete",
+            "fieldName": "Date24",
+            "function": "DatePartMonth",
+            "objectName": "Surescripts_DNA_Rx_Fact",
+            "role": "Dimension",
+            "type": "Field"
+          },
+          "F3": {
+            "displayCategory": "Continuous",
+            "fieldName": "New_Rx_Volume",
+            "function": "Sum",
+            "objectName": "Surescripts_DNA_Rx_Fact",
+            "role": "Measure",
+            "type": "Field"
+          },
+          "F4": {
+            "displayCategory": "Discrete",
+            "fieldName": "Date24",
+            "function": "DatePartYear",
+            "objectName": "Surescripts_DNA_Rx_Fact",
+            "role": "Dimension",
+            "type": "Field"
+          }
+        },
+        "interactions": [],
+        "label": "New Rx Volume \u2014 Weekly Trend by Drug Form",
+        "name": "ss_v_rx_trend_155751",
+        "view": {
+          "label": "default",
+          "name": "ss_v_rx_trend_155751_default",
+          "viewSpecification": {
+            "filter": {
+              "filters": []
+            },
+            "sortOrders": {
+              "columns": [],
+              "fields": {},
+              "rows": []
+            },
+            "style": {
+              "headers": {
+                "columns": {
+                  "sizing": {
+                    "fieldHeight": {}
+                  }
+                },
+                "rows": {
+                  "sizing": {
+                    "fieldWidth": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "visualSpecification": {
+          "columns": [
+            "F2"
+          ],
+          "forecasts": {},
+          "layout": "Vizql",
+          "legends": {
+            "F4": {
+              "isVisible": true,
+              "position": "Right",
+              "title": {
+                "isVisible": true
+              }
+            }
+          },
+          "marks": {
+            "fields": {},
+            "headers": {
+              "encodings": [],
+              "isAutomatic": true,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": false
+              },
+              "type": "Text"
+            },
+            "panes": {
+              "encodings": [
+                {
+                  "fieldKey": "F4",
+                  "type": "Color"
+                }
+              ],
+              "isAutomatic": false,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": true
+              },
+              "type": "Bar"
+            }
+          },
+          "measureValues": [],
+          "referenceLines": {},
+          "rows": [
+            "F3"
+          ],
+          "style": {
+            "axis": {
+              "fields": {
+                "F3": {
+                  "isVisible": true,
+                  "isZeroLineVisible": true,
+                  "range": {
+                    "includeZero": false,
+                    "type": "Auto"
+                  },
+                  "scale": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 0,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  },
+                  "ticks": {
+                    "majorTicks": {
+                      "type": "Auto"
+                    },
+                    "minorTicks": {
+                      "type": "Auto"
+                    }
+                  }
+                }
+              }
+            },
+            "encodings": {
+              "fields": {
+                "F3": {
+                  "defaults": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 0,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  }
+                },
+                "F4": {
+                  "colors": {
+                    "customColors": [
+                      {
+                        "color": "--slds-g-color-palette-teal-95",
+                        "value": 2026.0
+                      }
+                    ],
+                    "palette": {
+                      "colors": [
+                        "#E5973D",
+                        "#3B769A",
+                        "#3F8CCF",
+                        "--slds-g-color-palette-teal-95",
+                        "#fe5c4c",
+                        "#024d4c",
+                        "#3ba755",
+                        "#8a033e",
+                        "#e3066a",
+                        "#002775"
+                      ],
+                      "type": "Custom"
+                    },
+                    "type": "Discrete"
+                  },
+                  "defaults": {
+                    "format": {}
+                  }
+                }
+              }
+            },
+            "fieldLabels": {
+              "columns": {
+                "showDividerLine": false,
+                "showLabels": true
+              },
+              "rows": {
+                "showDividerLine": false,
+                "showLabels": true
+              }
+            },
+            "fit": "Entire",
+            "fonts": {
+              "actionableHeaders": {
+                "color": "#0250D9",
+                "size": 13
+              },
+              "axisTickLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "fieldLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "headers": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "legendLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "markLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "marks": {
+                "color": "#2E2E2E",
+                "size": 13
+              }
+            },
+            "headers": {
+              "columns": {
+                "mergeRepeatedCells": true,
+                "showIndex": false,
+                "sizing": {
+                  "fieldHeight": {}
+                }
+              },
+              "fields": {
+                "F2": {
+                  "hiddenValues": [],
+                  "isVisible": true,
+                  "showMissingValues": false,
+                  "textDirection": "Horizontal"
+                }
+              },
+              "rows": {
+                "mergeRepeatedCells": true,
+                "showIndex": false,
+                "sizing": {
+                  "fieldWidth": {}
+                }
+              }
+            },
+            "lines": {
+              "axisLine": {
+                "color": "#C9C9C9"
+              },
+              "fieldLabelDividerLine": {
+                "color": "#C9C9C9"
+              },
+              "separatorLine": {
+                "color": "#C9C9C9"
+              },
+              "zeroLine": {
+                "color": "#C9C9C9"
+              }
+            },
+            "marks": {
+              "fields": {},
+              "headers": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticOpacity": true,
+                "isAutomaticSize": true,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false,
+                  "textDirection": "Horizontal"
+                },
+                "opacity": 100,
+                "range": {
+                  "reverse": false
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Pixel",
+                  "value": 13
+                }
+              },
+              "panes": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticOpacity": true,
+                "isAutomaticSize": true,
+                "isStackingAxisCentered": false,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false,
+                  "textDirection": "Horizontal"
+                },
+                "opacity": 100,
+                "range": {
+                  "reverse": false
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Percentage",
+                  "value": 75
+                }
+              }
+            },
+            "referenceLines": {},
+            "shading": {
+              "backgroundColor": "#FFFFFF",
+              "banding": {
+                "rows": {
+                  "color": "--slds-g-color-palette-neutral-90"
+                }
+              }
+            },
+            "showDataPlaceholder": false,
+            "title": {
+              "isVisible": true
+            }
+          },
+          "stylesheet": {
+            "rules": [
+              {
+                "selector": "AxisTickLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "FieldLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "AxisTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "LegendTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "HeaderLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "LegendLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "MarkLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "Scene",
+                "style": {
+                  "backgroundColor": "#FFFFFF"
+                }
+              },
+              {
+                "selector": "SeparatorLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisTick",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "ZeroLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              }
+            ]
+          }
+        },
+        "workspace": {
+          "label": "{{WORKSPACE_LABEL}}",
+          "name": "{{WORKSPACE_API_NAME}}"
+        }
+      },
+      "ss_v_rx_state_155751": {
+        "dataSource": {
+          "label": "{{SDM_LABEL}}",
+          "name": "{{SDM_API_NAME}}",
+          "type": "SemanticModel"
+        },
+        "fields": {
+          "F1": {
+            "displayCategory": "Discrete",
+            "fieldName": "State11",
+            "objectName": "Surescripts_DNA_Rx_Fact",
+            "role": "Dimension",
+            "type": "Field"
+          },
+          "F2": {
+            "displayCategory": "Continuous",
+            "fieldName": "New_Rx_Volume",
+            "function": "Sum",
+            "objectName": "Surescripts_DNA_Rx_Fact",
+            "role": "Measure",
+            "type": "Field"
+          },
+          "F3": {
+            "displayCategory": "Continuous",
+            "fieldName": "New_Rx_Volume",
+            "function": "Sum",
+            "objectName": "Surescripts_DNA_Rx_Fact",
+            "role": "Measure",
+            "type": "Field"
+          }
+        },
+        "interactions": [],
+        "label": "New Rx Volume by State",
+        "name": "ss_v_rx_state_155751",
+        "view": {
+          "label": "default",
+          "name": "ss_v_rx_state_155751_default",
+          "viewSpecification": {
+            "sortOrders": {
+              "columns": [],
+              "fields": {
+                "F1": {
+                  "byField": "F2",
+                  "order": "Descending",
+                  "type": "Nested"
+                }
+              },
+              "rows": []
+            }
+          }
+        },
+        "visualSpecification": {
+          "columns": [
+            "F2"
+          ],
+          "forecasts": {},
+          "layout": "Vizql",
+          "legends": {},
+          "marks": {
+            "fields": {},
+            "headers": {
+              "encodings": [],
+              "isAutomatic": true,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": false
+              },
+              "type": "Text"
+            },
+            "panes": {
+              "encodings": [
+                {
+                  "fieldKey": "F3",
+                  "type": "Label"
+                }
+              ],
+              "isAutomatic": false,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": true
+              },
+              "type": "Bar"
+            }
+          },
+          "measureValues": [],
+          "referenceLines": {},
+          "rows": [
+            "F1"
+          ],
+          "style": {
+            "axis": {
+              "fields": {
+                "F2": {
+                  "isVisible": true,
+                  "isZeroLineVisible": true,
+                  "range": {
+                    "includeZero": false,
+                    "type": "Auto"
+                  },
+                  "scale": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 0,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  },
+                  "ticks": {
+                    "majorTicks": {
+                      "type": "Auto"
+                    },
+                    "minorTicks": {
+                      "type": "Auto"
+                    }
+                  }
+                }
+              }
+            },
+            "encodings": {
+              "fields": {
+                "F2": {
+                  "defaults": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 0,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  }
+                },
+                "F3": {
+                  "defaults": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 0,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "fieldLabels": {
+              "columns": {
+                "showDividerLine": false,
+                "showLabels": true
+              },
+              "rows": {
+                "showDividerLine": false,
+                "showLabels": true
+              }
+            },
+            "fit": "Entire",
+            "fonts": {
+              "actionableHeaders": {
+                "color": "#0250D9",
+                "size": 13
+              },
+              "axisTickLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "fieldLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "headers": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "legendLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "markLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "marks": {
+                "color": "#2E2E2E",
+                "size": 13
+              }
+            },
+            "headers": {
+              "columns": {
+                "mergeRepeatedCells": true,
+                "showIndex": false
+              },
+              "fields": {
+                "F1": {
+                  "hiddenValues": [],
+                  "isVisible": true,
+                  "showMissingValues": false
+                }
+              },
+              "rows": {
+                "mergeRepeatedCells": true,
+                "showIndex": false
+              }
+            },
+            "lines": {
+              "axisLine": {
+                "color": "#C9C9C9"
+              },
+              "fieldLabelDividerLine": {
+                "color": "#C9C9C9"
+              },
+              "separatorLine": {
+                "color": "#C9C9C9"
+              },
+              "zeroLine": {
+                "color": "#C9C9C9"
+              }
+            },
+            "marks": {
+              "fields": {},
+              "headers": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticSize": true,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false
+                },
+                "range": {
+                  "reverse": true
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Pixel",
+                  "value": 13
+                }
+              },
+              "panes": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticSize": true,
+                "isStackingAxisCentered": false,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false
+                },
+                "range": {
+                  "reverse": true
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Percentage",
+                  "value": 75
+                }
+              }
+            },
+            "referenceLines": {},
+            "shading": {
+              "backgroundColor": "#FFFFFF",
+              "banding": {
+                "rows": {
+                  "color": "#E5E5E5"
+                }
+              }
+            },
+            "showDataPlaceholder": false,
+            "title": {
+              "isVisible": true
+            }
+          },
+          "stylesheet": {
+            "rules": [
+              {
+                "selector": "AxisTickLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "FieldLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "AxisTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "LegendTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "HeaderLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "LegendLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "MarkLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "Scene",
+                "style": {
+                  "backgroundColor": "#FFFFFF"
+                }
+              },
+              {
+                "selector": "SeparatorLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisTick",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "ZeroLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              }
+            ]
+          }
+        },
+        "workspace": {
+          "label": "{{WORKSPACE_LABEL}}",
+          "name": "{{WORKSPACE_API_NAME}}"
+        }
+      },
+      "ss_v_rx_spec_155751": {
+        "dataSource": {
+          "label": "{{SDM_LABEL}}",
+          "name": "{{SDM_API_NAME}}",
+          "type": "SemanticModel"
+        },
+        "fields": {
+          "F1": {
+            "displayCategory": "Discrete",
+            "fieldName": "Prescriber_Specialty",
+            "objectName": "Surescripts_DNA_Rx_Fact",
+            "role": "Dimension",
+            "type": "Field"
+          },
+          "F2": {
+            "displayCategory": "Continuous",
+            "fieldName": "New_Rx_Volume",
+            "function": "Sum",
+            "objectName": "Surescripts_DNA_Rx_Fact",
+            "role": "Measure",
+            "type": "Field"
+          },
+          "F3": {
+            "displayCategory": "Continuous",
+            "fieldName": "New_Rx_Volume",
+            "function": "Sum",
+            "objectName": "Surescripts_DNA_Rx_Fact",
+            "role": "Measure",
+            "type": "Field"
+          }
+        },
+        "interactions": [],
+        "label": "New Rx Volume by Prescriber Specialty",
+        "name": "ss_v_rx_spec_155751",
+        "view": {
+          "label": "default",
+          "name": "ss_v_rx_spec_155751_default",
+          "viewSpecification": {
+            "filter": {
+              "filters": []
+            },
+            "sortOrders": {
+              "columns": [],
+              "fields": {},
+              "rows": []
+            },
+            "style": {
+              "headers": {
+                "columns": {
+                  "sizing": {
+                    "fieldHeight": {}
+                  }
+                },
+                "rows": {
+                  "sizing": {
+                    "fieldWidth": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "visualSpecification": {
+          "ban": [
+            "F3"
+          ],
+          "layout": "Radial",
+          "legends": {},
+          "marks": {
+            "panes": {
+              "encodings": [],
+              "isAutomatic": false,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": true
+              },
+              "type": "Donut"
+            }
+          },
+          "rings": [],
+          "slices": [
+            "F1",
+            "F2"
+          ],
+          "style": {
+            "ban": {
+              "fields": {
+                "F3": {
+                  "fieldLabel": {
+                    "showDividerLine": false,
+                    "showLabels": true
+                  },
+                  "format": {
+                    "numberFormatInfo": {
+                      "decimalPlaces": 2,
+                      "displayUnits": "Auto",
+                      "includeThousandSeparator": true,
+                      "negativeValuesFormat": "Auto",
+                      "prefix": "",
+                      "suffix": "",
+                      "type": "NumberShort"
+                    }
+                  }
+                }
+              }
+            },
+            "encodings": {
+              "fields": {
+                "F2": {
+                  "defaults": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 0,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "fieldLabels": {
+              "columns": {
+                "showDividerLine": false,
+                "showLabels": false
+              },
+              "rows": {
+                "showDividerLine": false,
+                "showLabels": false
+              }
+            },
+            "fonts": {
+              "actionableHeaders": {
+                "color": "#0250D9",
+                "size": 13
+              },
+              "axisTickLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "fieldLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "headers": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "legendLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "markLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "marks": {
+                "color": "#2E2E2E",
+                "size": 13
+              }
+            },
+            "lines": {
+              "axisLine": {
+                "color": "#C9C9C9"
+              },
+              "fieldLabelDividerLine": {
+                "color": "#C9C9C9"
+              },
+              "separatorLine": {
+                "color": "#C9C9C9"
+              },
+              "zeroLine": {
+                "color": "#C9C9C9"
+              }
+            },
+            "marks": {
+              "panes": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticOpacity": true,
+                "isAutomaticSize": true,
+                "isStackingAxisCentered": false,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false,
+                  "textDirection": "Horizontal"
+                },
+                "opacity": 100,
+                "range": {
+                  "reverse": true
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Percentage",
+                  "value": 80
+                }
+              }
+            },
+            "shading": {
+              "backgroundColor": "#FFFFFF",
+              "banding": {
+                "rows": {
+                  "color": "#E5E5E5"
+                }
+              }
+            },
+            "title": {
+              "isVisible": true
+            }
+          },
+          "stylesheet": {
+            "rules": [
+              {
+                "selector": "Mark",
+                "style": {
+                  "color": "#E5973D"
+                }
+              }
+            ]
+          }
+        },
+        "workspace": {
+          "label": "{{WORKSPACE_LABEL}}",
+          "name": "{{WORKSPACE_API_NAME}}"
+        }
+      },
+      "ss_v_rx_brand_155751": {
+        "dataSource": {
+          "label": "{{SDM_LABEL}}",
+          "name": "{{SDM_API_NAME}}",
+          "type": "SemanticModel"
+        },
+        "fields": {
+          "F1": {
+            "displayCategory": "Discrete",
+            "fieldName": "Brand_Name",
+            "objectName": "Surescripts_DNA_Rx_Fact",
+            "role": "Dimension",
+            "type": "Field"
+          },
+          "F2": {
+            "displayCategory": "Continuous",
+            "fieldName": "New_Rx_Volume",
+            "function": "Sum",
+            "objectName": "Surescripts_DNA_Rx_Fact",
+            "role": "Measure",
+            "type": "Field"
+          },
+          "F3": {
+            "displayCategory": "Continuous",
+            "fieldName": "New_Rx_Volume",
+            "function": "Sum",
+            "objectName": "Surescripts_DNA_Rx_Fact",
+            "role": "Measure",
+            "type": "Field"
+          }
+        },
+        "interactions": [],
+        "label": "New Rx Volume by Brand",
+        "name": "ss_v_rx_brand_155751",
+        "view": {
+          "label": "default",
+          "name": "ss_v_rx_brand_155751_default",
+          "viewSpecification": {
+            "sortOrders": {
+              "columns": [],
+              "fields": {
+                "F1": {
+                  "byField": "F2",
+                  "order": "Descending",
+                  "type": "Nested"
+                }
+              },
+              "rows": []
+            }
+          }
+        },
+        "visualSpecification": {
+          "columns": [
+            "F2"
+          ],
+          "forecasts": {},
+          "layout": "Vizql",
+          "legends": {},
+          "marks": {
+            "fields": {},
+            "headers": {
+              "encodings": [],
+              "isAutomatic": true,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": false
+              },
+              "type": "Text"
+            },
+            "panes": {
+              "encodings": [
+                {
+                  "fieldKey": "F3",
+                  "type": "Label"
+                }
+              ],
+              "isAutomatic": false,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": true
+              },
+              "type": "Bar"
+            }
+          },
+          "measureValues": [],
+          "referenceLines": {},
+          "rows": [
+            "F1"
+          ],
+          "style": {
+            "axis": {
+              "fields": {
+                "F2": {
+                  "isVisible": true,
+                  "isZeroLineVisible": true,
+                  "range": {
+                    "includeZero": false,
+                    "type": "Auto"
+                  },
+                  "scale": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 0,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  },
+                  "ticks": {
+                    "majorTicks": {
+                      "type": "Auto"
+                    },
+                    "minorTicks": {
+                      "type": "Auto"
+                    }
+                  }
+                }
+              }
+            },
+            "encodings": {
+              "fields": {
+                "F2": {
+                  "defaults": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 0,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  }
+                },
+                "F3": {
+                  "defaults": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 0,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "fieldLabels": {
+              "columns": {
+                "showDividerLine": false,
+                "showLabels": true
+              },
+              "rows": {
+                "showDividerLine": false,
+                "showLabels": true
+              }
+            },
+            "fit": "Entire",
+            "fonts": {
+              "actionableHeaders": {
+                "color": "#0250D9",
+                "size": 13
+              },
+              "axisTickLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "fieldLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "headers": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "legendLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "markLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "marks": {
+                "color": "#2E2E2E",
+                "size": 13
+              }
+            },
+            "headers": {
+              "columns": {
+                "mergeRepeatedCells": true,
+                "showIndex": false
+              },
+              "fields": {
+                "F1": {
+                  "hiddenValues": [],
+                  "isVisible": true,
+                  "showMissingValues": false
+                }
+              },
+              "rows": {
+                "mergeRepeatedCells": true,
+                "showIndex": false
+              }
+            },
+            "lines": {
+              "axisLine": {
+                "color": "#C9C9C9"
+              },
+              "fieldLabelDividerLine": {
+                "color": "#C9C9C9"
+              },
+              "separatorLine": {
+                "color": "#C9C9C9"
+              },
+              "zeroLine": {
+                "color": "#C9C9C9"
+              }
+            },
+            "marks": {
+              "fields": {},
+              "headers": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticSize": true,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false
+                },
+                "range": {
+                  "reverse": true
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Pixel",
+                  "value": 13
+                }
+              },
+              "panes": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticSize": true,
+                "isStackingAxisCentered": false,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false
+                },
+                "range": {
+                  "reverse": true
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Percentage",
+                  "value": 75
+                }
+              }
+            },
+            "referenceLines": {},
+            "shading": {
+              "backgroundColor": "#FFFFFF",
+              "banding": {
+                "rows": {
+                  "color": "#E5E5E5"
+                }
+              }
+            },
+            "showDataPlaceholder": false,
+            "title": {
+              "isVisible": true
+            }
+          },
+          "stylesheet": {
+            "rules": [
+              {
+                "selector": "AxisTickLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "FieldLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "AxisTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "LegendTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "HeaderLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "LegendLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "MarkLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "Scene",
+                "style": {
+                  "backgroundColor": "#FFFFFF"
+                }
+              },
+              {
+                "selector": "SeparatorLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisTick",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "ZeroLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              }
+            ]
+          }
+        },
+        "workspace": {
+          "label": "{{WORKSPACE_LABEL}}",
+          "name": "{{WORKSPACE_API_NAME}}"
+        }
+      }
+    },
+    "dashboard": {
+      "label": "Surescripts \u2014 DNA Prescription Analytics",
+      "layouts": [
+        {
+          "columnCount": 72,
+          "maxWidth": 1200,
+          "name": "default",
+          "pages": [
+            {
+              "label": "DNA Prescription Analytics",
+              "name": "030fd131-4a3b-4dbf-8f1f-9b166d565418",
+              "widgets": [
+                {
+                  "colspan": 72,
+                  "column": 0,
+                  "name": "viz_hero",
+                  "row": 11,
+                  "rowspan": 22
+                },
+                {
+                  "colspan": 36,
+                  "column": 0,
+                  "name": "viz_by_spec",
+                  "row": 35,
+                  "rowspan": 20
+                },
+                {
+                  "colspan": 36,
+                  "column": 36,
+                  "name": "viz_by_state",
+                  "row": 35,
+                  "rowspan": 20
+                },
+                {
+                  "colspan": 72,
+                  "column": 0,
+                  "name": "viz_by_brand",
+                  "row": 70,
+                  "rowspan": 20
+                },
+                {
+                  "colspan": 19,
+                  "column": 0,
+                  "name": "image_1",
+                  "row": 0,
+                  "rowspan": 4
+                },
+                {
+                  "colspan": 18,
+                  "column": 0,
+                  "name": "text_1",
+                  "row": 5,
+                  "rowspan": 5
+                },
+                {
+                  "colspan": 18,
+                  "column": 18,
+                  "name": "text_2",
+                  "row": 5,
+                  "rowspan": 5
+                },
+                {
+                  "colspan": 18,
+                  "column": 36,
+                  "name": "text_3",
+                  "row": 5,
+                  "rowspan": 5
+                },
+                {
+                  "colspan": 18,
+                  "column": 54,
+                  "name": "text_4",
+                  "row": 5,
+                  "rowspan": 5
+                },
+                {
+                  "colspan": 28,
+                  "column": 35,
+                  "name": "text_5",
+                  "row": 1,
+                  "rowspan": 3
+                }
+              ]
+            }
+          ],
+          "rowHeight": 10,
+          "style": {
+            "backgroundColor": "#F0F3F8",
+            "cellSpacingX": 8,
+            "cellSpacingY": 8,
+            "gutterColor": "#F0F3F8"
+          }
+        }
+      ],
+      "name": "Surescripts_DNA_Prescription_Analytics",
+      "style": {
+        "widgetStyle": {
+          "borderEdges": []
+        }
+      },
+      "widgets": {
+        "viz_hero": {
+          "actions": [],
+          "name": "viz_hero",
+          "parameters": {
+            "legendPosition": "Bottom",
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            }
+          },
+          "source": {
+            "name": "{{VIZ_NAME_ss_v_rx_trend_155751}}"
+          },
+          "type": "visualization"
+        },
+        "viz_by_state": {
+          "actions": [],
+          "name": "viz_by_state",
+          "parameters": {
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            }
+          },
+          "source": {
+            "name": "{{VIZ_NAME_ss_v_rx_state_155751}}"
+          },
+          "type": "visualization"
+        },
+        "text_1": {
+          "actions": [],
+          "name": "text_1",
+          "parameters": {
+            "conditionalFormattingRules": [],
+            "content": [
+              {
+                "attributes": {
+                  "bold": true,
+                  "color": "#3B769A",
+                  "size": "16px"
+                },
+                "insert": "New Rx Volume",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "align": "center"
+                },
+                "insert": "\n",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "size": "32px"
+                },
+                "insert": "486.82K",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "align": "center"
+                },
+                "insert": "\n",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "bold": true,
+                  "color": "--slds-g-color-palette-green-60",
+                  "size": "16px"
+                },
+                "insert": "\u25b2 +8.8%",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "bold": true,
+                  "color": "--slds-g-color-palette-red-60",
+                  "size": "16px"
+                },
+                "insert": " ",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "color": "--slds-g-color-palette-neutral-30",
+                  "size": "12px"
+                },
+                "insert": "vs last week",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "align": "center"
+                },
+                "insert": "\n",
+                "rules": []
+              }
+            ],
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            },
+            "verticalAlignment": "top",
+            "widgetStyle": {
+              "backgroundColor": "--slds-g-color-palette-neutral-100",
+              "borderColor": "#3B769A",
+              "borderEdges": [
+                "all"
+              ],
+              "borderRadius": 8,
+              "borderWidth": 2
+            }
+          },
+          "type": "text"
+        },
+        "viz_by_brand": {
+          "actions": [],
+          "name": "viz_by_brand",
+          "parameters": {
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            }
+          },
+          "source": {
+            "name": "{{VIZ_NAME_ss_v_rx_brand_155751}}"
+          },
+          "type": "visualization"
+        },
+        "image_1": {
+          "actions": [],
+          "name": "image_1",
+          "parameters": {
+            "alignmentX": "center",
+            "alignmentY": "center",
+            "altText": "",
+            "imageScale": "fitToWidth",
+            "opacity": 100,
+            "widgetStyle": {
+              "backgroundColor": "--slds-g-color-palette-neutral-100",
+              "borderColor": "--slds-g-color-palette-neutral-80",
+              "borderEdges": [],
+              "borderRadius": 0,
+              "borderWidth": 1
+            }
+          },
+          "source": {
+            "name": "Surescripts_RGBblue005677"
+          },
+          "type": "image"
+        },
+        "text_3": {
+          "actions": [],
+          "name": "text_3",
+          "parameters": {
+            "conditionalFormattingRules": [],
+            "content": [
+              {
+                "attributes": {
+                  "color": "#3B769A",
+                  "size": "16px"
+                },
+                "insert": "Prior Auth Touchless Rate",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "align": "center"
+                },
+                "insert": "\n",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "size": "32px"
+                },
+                "insert": "88%",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "align": "center"
+                },
+                "insert": "\n",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "bold": true,
+                  "color": "--slds-g-color-palette-green-60",
+                  "size": "16px"
+                },
+                "insert": "\u25b2 +.8%",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "bold": true,
+                  "color": "--slds-g-color-palette-red-60",
+                  "size": "16px"
+                },
+                "insert": " ",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "color": "--slds-g-color-palette-neutral-30",
+                  "size": "12px"
+                },
+                "insert": "vs last week",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "align": "center"
+                },
+                "insert": "\n",
+                "rules": []
+              }
+            ],
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            },
+            "verticalAlignment": "top",
+            "widgetStyle": {
+              "backgroundColor": "--slds-g-color-palette-neutral-100",
+              "borderColor": "#3B769A",
+              "borderEdges": [
+                "all"
+              ],
+              "borderRadius": 8,
+              "borderWidth": 2
+            }
+          },
+          "type": "text"
+        },
+        "text_2": {
+          "actions": [],
+          "name": "text_2",
+          "parameters": {
+            "conditionalFormattingRules": [],
+            "content": [
+              {
+                "attributes": {
+                  "bold": true,
+                  "color": "#3B769A",
+                  "size": "16px"
+                },
+                "insert": "Unique Prescribers",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "align": "center"
+                },
+                "insert": "\n",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "size": "32px"
+                },
+                "insert": "129.98K",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "align": "center"
+                },
+                "insert": "\n",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "bold": true,
+                  "color": "--slds-g-color-palette-red-50",
+                  "size": "16px"
+                },
+                "insert": "\u25bc -1.4%",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "bold": true,
+                  "color": "--slds-g-color-palette-red-60",
+                  "size": "16px"
+                },
+                "insert": " ",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "color": "--slds-g-color-palette-neutral-30",
+                  "size": "12px"
+                },
+                "insert": "vs last week",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "align": "center"
+                },
+                "insert": "\n",
+                "rules": []
+              }
+            ],
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            },
+            "verticalAlignment": "top",
+            "widgetStyle": {
+              "backgroundColor": "--slds-g-color-palette-neutral-100",
+              "borderColor": "#3B769A",
+              "borderEdges": [
+                "all"
+              ],
+              "borderRadius": 8,
+              "borderWidth": 2
+            }
+          },
+          "type": "text"
+        },
+        "text_5": {
+          "actions": [],
+          "name": "text_5",
+          "parameters": {
+            "conditionalFormattingRules": [],
+            "content": [
+              {
+                "attributes": {
+                  "bold": true,
+                  "color": "#3B769A",
+                  "size": "14px"
+                },
+                "insert": "DNA Prescription Analytics",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "align": "center"
+                },
+                "insert": "\n",
+                "rules": []
+              }
+            ],
+            "lineSpacing": 2.0,
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            },
+            "verticalAlignment": "bottom",
+            "widgetStyle": {
+              "backgroundColor": "--slds-g-color-palette-neutral-100",
+              "borderColor": "#3B769A",
+              "borderEdges": [
+                "bottom"
+              ],
+              "borderRadius": 0,
+              "borderWidth": 2
+            }
+          },
+          "type": "text"
+        },
+        "text_4": {
+          "actions": [],
+          "name": "text_4",
+          "parameters": {
+            "conditionalFormattingRules": [],
+            "content": [
+              {
+                "attributes": {
+                  "bold": true,
+                  "color": "#3B769A",
+                  "size": "16px"
+                },
+                "insert": "Avg Fills per Rx",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "align": "center"
+                },
+                "insert": "\n",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "size": "32px"
+                },
+                "insert": "2.98",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "align": "center"
+                },
+                "insert": "\n",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "bold": true,
+                  "color": "--slds-g-color-palette-green-60",
+                  "size": "16px"
+                },
+                "insert": "\u25b2 +4.4%",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "bold": true,
+                  "color": "--slds-g-color-palette-red-60",
+                  "size": "16px"
+                },
+                "insert": " ",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "color": "--slds-g-color-palette-neutral-30",
+                  "size": "12px"
+                },
+                "insert": "vs last week",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "align": "center"
+                },
+                "insert": "\n",
+                "rules": []
+              }
+            ],
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            },
+            "verticalAlignment": "top",
+            "widgetStyle": {
+              "backgroundColor": "--slds-g-color-palette-neutral-100",
+              "borderColor": "#3B769A",
+              "borderEdges": [
+                "all"
+              ],
+              "borderRadius": 8,
+              "borderWidth": 2
+            }
+          },
+          "type": "text"
+        },
+        "viz_by_spec": {
+          "actions": [],
+          "name": "viz_by_spec",
+          "parameters": {
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            }
+          },
+          "source": {
+            "name": "{{VIZ_NAME_ss_v_rx_spec_155751}}"
+          },
+          "type": "visualization"
+        }
+      },
+      "workspaceIdOrApiName": "{{WORKSPACE_API_NAME}}"
+    },
+    "semanticModel": {
+      "agentEnabled": true,
+      "allowUnmapped": false,
+      "apiName": "Surescripts_DNA_Rx_202610191554_07a",
+      "categories": [],
+      "currency": {
+        "useOrgDefault": true
+      },
+      "dataspace": "default",
+      "fieldsOverrides": [],
+      "hasUnmapped": false,
+      "isAiDrafted": false,
+      "isLocked": false,
+      "isPartialSdm": false,
+      "isQueryable": "Queryable",
+      "isUpsertable": true,
+      "label": "Surescripts DNA Rx 202610191554",
+      "lockedActions": {},
+      "queryUnrelatedDataObjects": "Exception",
+      "semanticCalculatedDimensions": [],
+      "semanticCalculatedMeasurements": [],
+      "semanticDataObjects": [
+        {
+          "apiName": "Surescripts_DNA_Rx_Fact",
+          "dataObjectName": "analytics_builder_demo_Surescri_67BCA8D1__dll",
+          "dataObjectType": "Dlo",
+          "filters": [],
+          "isQueryable": "Queryable",
+          "label": "Surescripts DNA Rx Fact",
+          "overriddenProperties": [],
+          "semanticDimensions": [
+            {
+              "apiName": "Account_Name4",
+              "dataObjectFieldName": "Account_Name__c",
+              "dataType": "Text",
+              "description": "Named pharmacy or health system \u2014 use to drill to specific partners.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Account Name",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Account_Segment1",
+              "dataObjectFieldName": "Account_Segment__c",
+              "dataType": "Text",
+              "description": "Type of pharmacy or health system handling the prescription \u2014 Health System, IDN, Specialty Pharmacy, Retail Pharmacy Chain, Independent Pharmacy.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Account Segment",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Brand_Name",
+              "dataObjectFieldName": "Brand_Name__c",
+              "dataType": "Text",
+              "description": "The commercial brand name of a prescribed medication (e.g. Advair, Ozempic, Humira). The primary cut sales enablement uses. Treat as a synonym for the generic and ingredient class it maps to \u2014 Advair == fluticasone/salmeterol == Bronchodilator.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Brand Name",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "cdp_sys_SourceVersion27",
+              "dataObjectFieldName": "cdp_sys_SourceVersion__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "cdp_sys_SourceVersion",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Data_Source27",
+              "dataObjectFieldName": "DataSource__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Data Source",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Data_Source_Object27",
+              "dataObjectFieldName": "DataSourceObject__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Data Source Object",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Date24",
+              "dataObjectFieldName": "Date__c",
+              "dataType": "Date",
+              "description": "Weekly observation date \u2014 the week-ending date for all metrics on this row.",
+              "displayCategory": "Continuous",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Date",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Date"
+            },
+            {
+              "apiName": "Days_Supply",
+              "dataObjectFieldName": "Days_Supply__c",
+              "dataType": "Text",
+              "description": "30-day, 60-day, 90-day, or 90+ day fill length.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Days Supply",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Drug_Form",
+              "dataObjectFieldName": "Drug_Form__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Drug_Form",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Generic_Name",
+              "dataObjectFieldName": "Generic_Name__c",
+              "dataType": "Text",
+              "description": "The nonproprietary chemical name of the medication (e.g. fluticasone/salmeterol, atorvastatin). Use when the question references a generic equivalent, or when comparing branded vs generic within the same therapeutic class.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Generic Name",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Ingredient",
+              "dataObjectFieldName": "Ingredient__c",
+              "dataType": "Text",
+              "description": "The therapeutic class or active ingredient grouping (e.g. Bronchodilator, Statin, GLP-1 Agonist). Use when the question references a drug class or therapeutic area rather than a specific brand/generic.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Ingredient",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "KQ_Record_ID24",
+              "dataObjectFieldName": "KQ_Record_ID__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "KQ_Record_ID",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Payer_Mix",
+              "dataObjectFieldName": "Payer_Mix__c",
+              "dataType": "Text",
+              "description": "Commercial, Medicare, Medicaid, or Cash \u2014 the reimbursement path.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Payer Mix",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Prescriber_ID1",
+              "dataObjectFieldName": "Prescriber_ID__c",
+              "dataType": "Text",
+              "description": "Internal prescriber identifier.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Prescriber ID",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Prescriber_Specialty",
+              "dataObjectFieldName": "Prescriber_Specialty__c",
+              "dataType": "Text",
+              "description": "The medical specialty of the writing prescriber (Primary Care, Endocrinology, Pulmonology, etc.). Use for \"who is writing this\" questions.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Prescriber Specialty",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Record_ID25",
+              "dataObjectFieldName": "Record_ID__c",
+              "dataType": "Text",
+              "description": "Internal unique weekly key per prescriber-brand-state. Internal use only.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Record ID",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Rx_Type",
+              "dataObjectFieldName": "Rx_Type__c",
+              "dataType": "Text",
+              "description": "New, Refill, or Transfer prescription.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Rx Type",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "State11",
+              "dataObjectFieldName": "State__c",
+              "dataType": "Text",
+              "description": "Two-letter US state abbreviation of the dispensing pharmacy / patient address.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "State",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "US_Region1",
+              "dataObjectFieldName": "US_Region__c",
+              "dataType": "Text",
+              "description": "Region grouping \u2014 Northeast, South, Midwest, West. Use for coarser geographic cuts.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "US Region",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            }
+          ],
+          "semanticMeasurements": [
+            {
+              "aggregationType": "Average",
+              "apiName": "Avg_Fills_per_Rx",
+              "dataObjectFieldName": "Avg_Fills_per_Rx__c",
+              "dataType": "Number",
+              "decimalPlace": 2,
+              "description": "Average fills per unique prescription within a 12-month window.",
+              "displayCategory": "Continuous",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Avg Fills per Rx",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "shouldTreatNullsAsZeros": false,
+              "sortOrder": "None",
+              "storageDataType": "Number"
+            },
+            {
+              "aggregationType": "Sum",
+              "apiName": "New_Rx_Volume",
+              "dataObjectFieldName": "New_Rx_Volume__c",
+              "dataType": "Number",
+              "decimalPlace": 2,
+              "description": "Count of new prescriptions routed through Surescripts.",
+              "displayCategory": "Continuous",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "New Rx Volume",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "shouldTreatNullsAsZeros": false,
+              "sortOrder": "None",
+              "storageDataType": "Number"
+            },
+            {
+              "aggregationType": "Average",
+              "apiName": "Prior_Auth_Touchless_Rate",
+              "dataObjectFieldName": "Prior_Auth_Touchless_Rate__c",
+              "dataType": "Number",
+              "decimalPlace": 2,
+              "description": "Percentage of prior authorizations completing without manual intervention.",
+              "displayCategory": "Continuous",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Prior Auth Touchless Rate",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "shouldTreatNullsAsZeros": false,
+              "sortOrder": "None",
+              "storageDataType": "Number"
+            },
+            {
+              "aggregationType": "Average",
+              "apiName": "Time_to_First_Script",
+              "dataObjectFieldName": "Time_to_First_Script__c",
+              "dataType": "Number",
+              "decimalPlace": 2,
+              "description": "Average days from account contract signing to the first routed prescription. The classic time-to-value metric Molly mentioned on the DNA planning call \u2014 the gap between \"the account is live\" and \"we're actually making money.\"",
+              "displayCategory": "Continuous",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Time to First Script",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "shouldTreatNullsAsZeros": false,
+              "sortOrder": "None",
+              "storageDataType": "Number"
+            },
+            {
+              "aggregationType": "Sum",
+              "apiName": "Unique_Prescribers",
+              "dataObjectFieldName": "Unique_Prescribers__c",
+              "dataType": "Number",
+              "decimalPlace": 2,
+              "description": "Distinct prescribers writing scripts for the selected brand in the period. Separates two possible causes of a volume drop: fewer prescribers (lost relationships) vs. same prescribers writing fewer scripts (brand switching).",
+              "displayCategory": "Continuous",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Unique Prescribers",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "shouldTreatNullsAsZeros": false,
+              "sortOrder": "None",
+              "storageDataType": "Number"
+            }
+          ],
+          "shouldIncludeAllFields": true,
+          "tableType": "Standard"
+        }
+      ],
+      "semanticDimensionHierarchies": [],
+      "semanticGroupings": [],
+      "semanticLogicalViews": [],
+      "semanticMetrics": [],
+      "semanticModelFilters": [],
+      "semanticModelInfo": {
+        "definitionsCount": 12,
+        "maxDefinitionCount": 5000,
+        "modelHierarchyDepth": 1
+      },
+      "semanticParameters": [],
+      "semanticPredictionModels": [],
+      "semanticRelationships": [],
+      "sourceCreation": "Other",
+      "tags": []
+    },
+    "dimensions": [
+      {
+        "apiName": "Display_Date",
+        "dataType": "Date",
+        "displayCategory": "Continuous",
+        "expression": "DATEADD(\"day\", DATEDIFF(\"day\", #2026-10-19#, [Surescripts_DNA_Rx_Fact].[Date24]), TODAY())",
+        "filters": [],
+        "isOverrideBase": false,
+        "isQueryable": "Queryable",
+        "isVisible": true,
+        "label": "Display Date",
+        "level": "Row",
+        "overriddenProperties": [],
+        "semanticDataType": "None",
+        "sortOrder": "None"
+      }
+    ],
+    "measurements": [
+      {
+        "aggregationType": "UserAgg",
+        "apiName": "clc_avg_fills_per_rx",
+        "dataType": "Number",
+        "decimalPlace": 4,
+        "directionality": "Up",
+        "displayCategory": "Continuous",
+        "expression": "AVG([Surescripts_DNA_Rx_Fact].[Avg_Fills_per_Rx])",
+        "filters": [],
+        "isOverrideBase": false,
+        "isQueryable": "Queryable",
+        "isVisible": true,
+        "label": "Avg Fills per Rx CLC",
+        "level": "AggregateFunction",
+        "overriddenProperties": [],
+        "semanticDataType": "None",
+        "sentiment": "SentimentTypeUpIsGood",
+        "shouldTreatNullsAsZeros": false,
+        "sortOrder": "None",
+        "totalAggregationType": "Sum"
+      },
+      {
+        "aggregationType": "UserAgg",
+        "apiName": "clc_unique_prescribers",
+        "dataType": "Number",
+        "decimalPlace": 4,
+        "directionality": "Up",
+        "displayCategory": "Continuous",
+        "expression": "SUM([Surescripts_DNA_Rx_Fact].[Unique_Prescribers])",
+        "filters": [],
+        "isOverrideBase": false,
+        "isQueryable": "Queryable",
+        "isVisible": true,
+        "label": "Unique Prescribers CLC",
+        "level": "AggregateFunction",
+        "overriddenProperties": [],
+        "semanticDataType": "None",
+        "sentiment": "SentimentTypeUpIsGood",
+        "shouldTreatNullsAsZeros": false,
+        "sortOrder": "None",
+        "totalAggregationType": "Sum"
+      },
+      {
+        "aggregationType": "UserAgg",
+        "apiName": "clc_new_rx_volume",
+        "dataType": "Number",
+        "decimalPlace": 4,
+        "directionality": "Up",
+        "displayCategory": "Continuous",
+        "expression": "SUM([Surescripts_DNA_Rx_Fact].[New_Rx_Volume])",
+        "filters": [],
+        "isOverrideBase": false,
+        "isQueryable": "Queryable",
+        "isVisible": true,
+        "label": "New Rx Volume CLC",
+        "level": "AggregateFunction",
+        "overriddenProperties": [],
+        "semanticDataType": "None",
+        "sentiment": "SentimentTypeUpIsGood",
+        "shouldTreatNullsAsZeros": false,
+        "sortOrder": "None",
+        "totalAggregationType": "Sum"
+      },
+      {
+        "aggregationType": "UserAgg",
+        "apiName": "clc_time_to_first_script",
+        "dataType": "Number",
+        "decimalPlace": 4,
+        "directionality": "Up",
+        "displayCategory": "Continuous",
+        "expression": "AVG([Surescripts_DNA_Rx_Fact].[Time_to_First_Script])",
+        "filters": [],
+        "isOverrideBase": false,
+        "isQueryable": "Queryable",
+        "isVisible": true,
+        "label": "Time to First Script CLC",
+        "level": "AggregateFunction",
+        "overriddenProperties": [],
+        "semanticDataType": "None",
+        "sentiment": "SentimentTypeUpIsGood",
+        "shouldTreatNullsAsZeros": false,
+        "sortOrder": "None",
+        "totalAggregationType": "Sum"
+      },
+      {
+        "aggregationType": "UserAgg",
+        "apiName": "clc_prior_auth_touchless",
+        "dataType": "Number",
+        "decimalPlace": 4,
+        "directionality": "Up",
+        "displayCategory": "Continuous",
+        "expression": "AVG([Surescripts_DNA_Rx_Fact].[Prior_Auth_Touchless_Rate])",
+        "filters": [],
+        "isOverrideBase": false,
+        "isQueryable": "Queryable",
+        "isVisible": true,
+        "label": "Prior Auth Touchless CLC",
+        "level": "AggregateFunction",
+        "overriddenProperties": [],
+        "semanticDataType": "None",
+        "sentiment": "SentimentTypeUpIsGood",
+        "shouldTreatNullsAsZeros": false,
+        "sortOrder": "None",
+        "totalAggregationType": "Sum"
+      }
+    ],
+    "metrics": [
+      {
+        "additionalDimensions": [
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Account_Segment1",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Brand_Name",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Days_Supply",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Drug_Form",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Generic_Name",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Ingredient",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Payer_Mix",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Prescriber_Specialty",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Rx_Type",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "State11",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "US_Region1",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          }
+        ],
+        "aggregationType": "UserAgg",
+        "apiName": "mtc_prior_auth_touchless_rate",
+        "dataDefinedGoals": [],
+        "description": "Percentage of prior authorizations completing without manual intervention. Counter-trend metric.",
+        "filters": [],
+        "insightsSettings": {
+          "insightTypes": [
+            {
+              "enabled": true,
+              "type": "TopContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ComparisonToExpectedRangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TrendChangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "BottomContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ConcentratedContributionAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TopDrivers"
+            },
+            {
+              "enabled": true,
+              "type": "TopDetractors"
+            },
+            {
+              "enabled": true,
+              "type": "CurrentTrend"
+            },
+            {
+              "enabled": false,
+              "type": "OutlierDetection"
+            },
+            {
+              "enabled": false,
+              "type": "RecordLevelTable"
+            }
+          ],
+          "insightsDimensionsReferences": [
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Account_Segment1",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Brand_Name",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Days_Supply",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Drug_Form",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Generic_Name",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Ingredient",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Payer_Mix",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Prescriber_Specialty",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Rx_Type",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "State11",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "US_Region1",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            }
+          ],
+          "pluralNoun": "touchless points",
+          "sentiment": "SentimentTypeUpIsGood",
+          "singularNoun": "touchless point"
+        },
+        "isCumulative": false,
+        "isGoalEditingBlocked": false,
+        "isQueryable": "Queryable",
+        "label": "Prior Auth Touchless Rate",
+        "measurementReference": {
+          "calculatedFieldApiName": "clc_prior_auth_touchless"
+        },
+        "timeDimensionReference": {
+          "calculatedFieldApiName": "Display_Date"
+        },
+        "timeGrains": [
+          "Week",
+          "Month",
+          "Quarter",
+          "Year"
+        ]
+      },
+      {
+        "additionalDimensions": [
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Account_Segment1",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Brand_Name",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Days_Supply",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Drug_Form",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Generic_Name",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Ingredient",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Payer_Mix",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Prescriber_Specialty",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Rx_Type",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "State11",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "US_Region1",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          }
+        ],
+        "aggregationType": "UserAgg",
+        "apiName": "mtc_new_rx_volume",
+        "dataDefinedGoals": [],
+        "description": "Count of new prescriptions routed through Surescripts for the selected brand.",
+        "filters": [],
+        "insightsSettings": {
+          "insightTypes": [
+            {
+              "enabled": true,
+              "type": "TopContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ComparisonToExpectedRangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TrendChangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "BottomContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ConcentratedContributionAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TopDrivers"
+            },
+            {
+              "enabled": true,
+              "type": "TopDetractors"
+            },
+            {
+              "enabled": true,
+              "type": "CurrentTrend"
+            },
+            {
+              "enabled": false,
+              "type": "OutlierDetection"
+            },
+            {
+              "enabled": false,
+              "type": "RecordLevelTable"
+            }
+          ],
+          "insightsDimensionsReferences": [
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Account_Segment1",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Brand_Name",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Days_Supply",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Drug_Form",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Generic_Name",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Ingredient",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Payer_Mix",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Prescriber_Specialty",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Rx_Type",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "State11",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "US_Region1",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            }
+          ],
+          "pluralNoun": "prescriptions",
+          "sentiment": "SentimentTypeUpIsGood",
+          "singularNoun": "prescription"
+        },
+        "isCumulative": false,
+        "isGoalEditingBlocked": false,
+        "isQueryable": "Queryable",
+        "label": "New Rx Volume",
+        "measurementReference": {
+          "calculatedFieldApiName": "clc_new_rx_volume"
+        },
+        "timeDimensionReference": {
+          "calculatedFieldApiName": "Display_Date"
+        },
+        "timeGrains": [
+          "Week",
+          "Month",
+          "Quarter",
+          "Year"
+        ]
+      },
+      {
+        "additionalDimensions": [
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Account_Segment1",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Brand_Name",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Days_Supply",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Drug_Form",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Generic_Name",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Ingredient",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Payer_Mix",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Prescriber_Specialty",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Rx_Type",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "State11",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "US_Region1",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          }
+        ],
+        "aggregationType": "UserAgg",
+        "apiName": "mtc_time_to_first_script",
+        "dataDefinedGoals": [],
+        "description": "Average days from account contract signing to the first routed prescription. The classic time-to-value metric Molly mentioned on the DNA planning call \u2014 the gap between &quot;the account is live&quot; and &quot;we&#39;re actually making money.&quot;",
+        "filters": [],
+        "insightsSettings": {
+          "insightTypes": [
+            {
+              "enabled": true,
+              "type": "TopContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ComparisonToExpectedRangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TrendChangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "BottomContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ConcentratedContributionAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TopDrivers"
+            },
+            {
+              "enabled": true,
+              "type": "TopDetractors"
+            },
+            {
+              "enabled": true,
+              "type": "CurrentTrend"
+            },
+            {
+              "enabled": false,
+              "type": "OutlierDetection"
+            },
+            {
+              "enabled": false,
+              "type": "RecordLevelTable"
+            }
+          ],
+          "insightsDimensionsReferences": [
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Account_Segment1",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Brand_Name",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Days_Supply",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Drug_Form",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Generic_Name",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Ingredient",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Payer_Mix",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Prescriber_Specialty",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Rx_Type",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "State11",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "US_Region1",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            }
+          ],
+          "pluralNoun": "days to first script",
+          "sentiment": "SentimentTypeUpIsBad",
+          "singularNoun": "day to first script"
+        },
+        "isCumulative": false,
+        "isGoalEditingBlocked": false,
+        "isQueryable": "Queryable",
+        "label": "Time to First Script",
+        "measurementReference": {
+          "calculatedFieldApiName": "clc_time_to_first_script"
+        },
+        "timeDimensionReference": {
+          "calculatedFieldApiName": "Display_Date"
+        },
+        "timeGrains": [
+          "Week",
+          "Month",
+          "Quarter",
+          "Year"
+        ]
+      },
+      {
+        "additionalDimensions": [
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Account_Segment1",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Brand_Name",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Days_Supply",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Drug_Form",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Generic_Name",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Ingredient",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Payer_Mix",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Prescriber_Specialty",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Rx_Type",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "State11",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "US_Region1",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          }
+        ],
+        "aggregationType": "UserAgg",
+        "apiName": "mtc_unique_prescribers",
+        "dataDefinedGoals": [],
+        "description": "Distinct prescribers writing scripts for the selected brand in the period. Separates two possible causes of a volume drop: fewer prescribers (lost relationships) vs. same prescribers writing fewer scripts (brand switching).",
+        "filters": [],
+        "insightsSettings": {
+          "insightTypes": [
+            {
+              "enabled": true,
+              "type": "TopContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ComparisonToExpectedRangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TrendChangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "BottomContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ConcentratedContributionAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TopDrivers"
+            },
+            {
+              "enabled": true,
+              "type": "TopDetractors"
+            },
+            {
+              "enabled": true,
+              "type": "CurrentTrend"
+            },
+            {
+              "enabled": false,
+              "type": "OutlierDetection"
+            },
+            {
+              "enabled": false,
+              "type": "RecordLevelTable"
+            }
+          ],
+          "insightsDimensionsReferences": [
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Account_Segment1",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Brand_Name",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Days_Supply",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Drug_Form",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Generic_Name",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Ingredient",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Payer_Mix",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Prescriber_Specialty",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Rx_Type",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "State11",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "US_Region1",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            }
+          ],
+          "pluralNoun": "prescribers",
+          "sentiment": "SentimentTypeUpIsGood",
+          "singularNoun": "prescriber"
+        },
+        "isCumulative": false,
+        "isGoalEditingBlocked": false,
+        "isQueryable": "Queryable",
+        "label": "Unique Prescribers",
+        "measurementReference": {
+          "calculatedFieldApiName": "clc_unique_prescribers"
+        },
+        "timeDimensionReference": {
+          "calculatedFieldApiName": "Display_Date"
+        },
+        "timeGrains": [
+          "Week",
+          "Month",
+          "Quarter",
+          "Year"
+        ]
+      },
+      {
+        "additionalDimensions": [
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Account_Segment1",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Brand_Name",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Days_Supply",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Drug_Form",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Generic_Name",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Ingredient",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Payer_Mix",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Prescriber_Specialty",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Rx_Type",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "State11",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "US_Region1",
+              "tableApiName": "Surescripts_DNA_Rx_Fact"
+            }
+          }
+        ],
+        "aggregationType": "UserAgg",
+        "apiName": "mtc_avg_fills_per_rx",
+        "dataDefinedGoals": [],
+        "description": "Average fills per unique prescription within a 12-month window.",
+        "filters": [],
+        "insightsSettings": {
+          "insightTypes": [
+            {
+              "enabled": true,
+              "type": "TopContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ComparisonToExpectedRangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TrendChangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "BottomContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ConcentratedContributionAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TopDrivers"
+            },
+            {
+              "enabled": true,
+              "type": "TopDetractors"
+            },
+            {
+              "enabled": true,
+              "type": "CurrentTrend"
+            },
+            {
+              "enabled": false,
+              "type": "OutlierDetection"
+            },
+            {
+              "enabled": false,
+              "type": "RecordLevelTable"
+            }
+          ],
+          "insightsDimensionsReferences": [
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Account_Segment1",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Brand_Name",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Days_Supply",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Drug_Form",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Generic_Name",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Ingredient",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Payer_Mix",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Prescriber_Specialty",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Rx_Type",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "State11",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "US_Region1",
+                "tableApiName": "Surescripts_DNA_Rx_Fact"
+              }
+            }
+          ],
+          "pluralNoun": "fills",
+          "sentiment": "SentimentTypeUpIsGood",
+          "singularNoun": "fill"
+        },
+        "isCumulative": false,
+        "isGoalEditingBlocked": false,
+        "isQueryable": "Queryable",
+        "label": "Avg Fills per Rx",
+        "measurementReference": {
+          "calculatedFieldApiName": "clc_avg_fills_per_rx"
+        },
+        "timeDimensionReference": {
+          "calculatedFieldApiName": "Display_Date"
+        },
+        "timeGrains": [
+          "Week",
+          "Month",
+          "Quarter",
+          "Year"
+        ]
+      }
+    ]
+  }
+}

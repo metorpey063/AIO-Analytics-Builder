@@ -1,0 +1,3276 @@
+{
+  "templateId": "F_Layout",
+  "apiVersion": "67.14",
+  "requirements": {
+    "metrics": [
+      "report_fulfillment_cycle_time_mtc",
+      "reports_migrated_to_tableau_mtc",
+      "sf_native_report_usage_mtc"
+    ],
+    "fields": [
+      {
+        "fieldName": "Display_Date",
+        "objectName": null
+      },
+      {
+        "fieldName": "platform_utilization_rate_clc",
+        "objectName": null
+      },
+      {
+        "fieldName": "report_type1",
+        "objectName": "D16_Fact"
+      },
+      {
+        "fieldName": "reports_migrated_to_tableau_clc",
+        "objectName": null
+      },
+      {
+        "fieldName": "request_status1",
+        "objectName": "D16_Fact"
+      },
+      {
+        "fieldName": "system_source1",
+        "objectName": "D16_Fact"
+      },
+      {
+        "fieldName": "team1",
+        "objectName": "D16_Fact"
+      }
+    ],
+    "listParameters": []
+  },
+  "components": {
+    "visualizations": {
+      "Details_Table1": {
+        "dataSource": {
+          "label": "{{SDM_LABEL}}",
+          "name": "{{SDM_API_NAME}}",
+          "type": "SemanticModel"
+        },
+        "fields": {
+          "F1": {
+            "displayCategory": "Discrete",
+            "fieldName": "team1",
+            "objectName": "D16_Fact",
+            "role": "Dimension",
+            "type": "Field"
+          },
+          "F2": {
+            "displayCategory": "Discrete",
+            "fieldName": "report_type1",
+            "objectName": "D16_Fact",
+            "role": "Dimension",
+            "type": "Field"
+          },
+          "F3": {
+            "displayCategory": "Discrete",
+            "fieldName": "system_source1",
+            "objectName": "D16_Fact",
+            "role": "Dimension",
+            "type": "Field"
+          },
+          "F4": {
+            "displayCategory": "Discrete",
+            "fieldName": "request_status1",
+            "objectName": "D16_Fact",
+            "role": "Dimension",
+            "type": "Field"
+          }
+        },
+        "interactions": [],
+        "label": "Details Table",
+        "name": "Details_Table1",
+        "view": {
+          "label": "default",
+          "name": "Details_Table1_default",
+          "viewSpecification": {
+            "sortOrders": {
+              "columns": [],
+              "fields": {},
+              "rows": []
+            }
+          }
+        },
+        "visualSpecification": {
+          "columns": [],
+          "forecasts": {},
+          "layout": "Vizql",
+          "legends": {},
+          "marks": {
+            "fields": {},
+            "headers": {
+              "encodings": [],
+              "isAutomatic": true,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": false
+              },
+              "type": "Text"
+            },
+            "panes": {
+              "encodings": [],
+              "isAutomatic": true,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": false
+              },
+              "type": "Text"
+            }
+          },
+          "measureValues": [],
+          "referenceLines": {},
+          "rows": [
+            "F1",
+            "F2",
+            "F3",
+            "F4"
+          ],
+          "style": {
+            "axis": {
+              "fields": {}
+            },
+            "encodings": {
+              "fields": {}
+            },
+            "fieldLabels": {
+              "columns": {
+                "showDividerLine": false,
+                "showLabels": true
+              },
+              "rows": {
+                "showDividerLine": false,
+                "showLabels": true
+              }
+            },
+            "fit": "Standard",
+            "fonts": {
+              "actionableHeaders": {
+                "color": "#0250D9",
+                "size": 12
+              },
+              "axisTickLabels": {
+                "color": "#5C5C5C",
+                "size": 12
+              },
+              "fieldLabels": {
+                "color": "#2E2E2E",
+                "size": 12
+              },
+              "headers": {
+                "color": "#5C5C5C",
+                "size": 12
+              },
+              "legendLabels": {
+                "color": "#2E2E2E",
+                "size": 12
+              },
+              "markLabels": {
+                "color": "#000000",
+                "size": 12
+              },
+              "marks": {
+                "color": "#5C5C5C",
+                "size": 12
+              }
+            },
+            "headers": {
+              "columns": {
+                "mergeRepeatedCells": true,
+                "showIndex": false
+              },
+              "fields": {
+                "F1": {
+                  "hiddenValues": [],
+                  "isVisible": true,
+                  "showMissingValues": false
+                },
+                "F2": {
+                  "hiddenValues": [],
+                  "isVisible": true,
+                  "showMissingValues": false
+                },
+                "F3": {
+                  "hiddenValues": [],
+                  "isVisible": true,
+                  "showMissingValues": false
+                },
+                "F4": {
+                  "hiddenValues": [],
+                  "isVisible": true,
+                  "showMissingValues": false
+                }
+              },
+              "rows": {
+                "mergeRepeatedCells": true,
+                "showIndex": false
+              }
+            },
+            "lines": {
+              "axisLine": {
+                "color": "#C9C9C9"
+              },
+              "fieldLabelDividerLine": {
+                "color": "#C9C9C9"
+              },
+              "separatorLine": {
+                "color": "#C9C9C9"
+              },
+              "zeroLine": {
+                "color": "#E5E5E5"
+              }
+            },
+            "marks": {
+              "fields": {},
+              "headers": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticSize": true,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false
+                },
+                "range": {
+                  "reverse": true
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Pixel",
+                  "value": 13
+                }
+              },
+              "panes": {
+                "color": {
+                  "color": "#5C5C5C"
+                },
+                "isAutomaticSize": true,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": true
+                },
+                "range": {
+                  "reverse": false
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Pixel",
+                  "value": 13
+                }
+              }
+            },
+            "referenceLines": {},
+            "shading": {
+              "backgroundColor": "#FFFFFF",
+              "banding": {}
+            },
+            "showDataPlaceholder": true,
+            "title": {
+              "isVisible": true
+            }
+          },
+          "stylesheet": {
+            "rules": [
+              {
+                "selector": "AxisTickLabel",
+                "style": {
+                  "color": "#5C5C5C",
+                  "font": {
+                    "size": 12,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "FieldLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 12,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "AxisTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 12,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "LegendTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 12,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "HeaderLabel",
+                "style": {
+                  "color": "#5C5C5C",
+                  "font": {
+                    "size": 12,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "LegendLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 12,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "MarkLabel",
+                "style": {
+                  "color": "#000000",
+                  "font": {
+                    "size": 12,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "Scene",
+                "style": {
+                  "backgroundColor": "#FFFFFF"
+                }
+              },
+              {
+                "selector": "SeparatorLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisTick",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "ZeroLine",
+                "style": {
+                  "color": "#E5E5E5"
+                }
+              }
+            ]
+          }
+        },
+        "workspace": {
+          "label": "{{WORKSPACE_LABEL}}",
+          "name": "{{WORKSPACE_API_NAME}}"
+        }
+      },
+      "Donut_Chart1": {
+        "dataSource": {
+          "label": "{{SDM_LABEL}}",
+          "name": "{{SDM_API_NAME}}",
+          "type": "SemanticModel"
+        },
+        "fields": {
+          "F1": {
+            "displayCategory": "Continuous",
+            "fieldName": "reports_migrated_to_tableau_clc",
+            "function": "UserAgg",
+            "role": "Measure",
+            "type": "Field"
+          },
+          "F2": {
+            "displayCategory": "Discrete",
+            "fieldName": "system_source1",
+            "objectName": "D16_Fact",
+            "role": "Dimension",
+            "type": "Field"
+          },
+          "F3": {
+            "displayCategory": "Discrete",
+            "fieldName": "system_source1",
+            "objectName": "D16_Fact",
+            "role": "Dimension",
+            "type": "Field"
+          }
+        },
+        "interactions": [],
+        "label": "Donut Chart",
+        "name": "Donut_Chart1",
+        "view": {
+          "label": "default",
+          "name": "Donut_Chart1_default",
+          "viewSpecification": {
+            "sortOrders": {
+              "columns": [],
+              "fields": {},
+              "rows": []
+            }
+          }
+        },
+        "visualSpecification": {
+          "columns": [],
+          "forecasts": {},
+          "layout": "Vizql",
+          "legends": {
+            "F2": {
+              "isVisible": false,
+              "position": "Right",
+              "title": {
+                "isVisible": true
+              }
+            }
+          },
+          "marks": {
+            "fields": {},
+            "headers": {
+              "encodings": [],
+              "isAutomatic": true,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": false
+              },
+              "type": "Text"
+            },
+            "panes": {
+              "encodings": [
+                {
+                  "fieldKey": "F1",
+                  "type": "Angle"
+                },
+                {
+                  "fieldKey": "F2",
+                  "type": "Color"
+                },
+                {
+                  "fieldKey": "F3",
+                  "type": "Label"
+                }
+              ],
+              "isAutomatic": false,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": false
+              },
+              "type": "Donut"
+            }
+          },
+          "measureValues": [],
+          "referenceLines": {},
+          "rows": [],
+          "style": {
+            "axis": {
+              "fields": {}
+            },
+            "encodings": {
+              "fields": {
+                "F1": {
+                  "defaults": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 2,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "fieldLabels": {
+              "columns": {
+                "showDividerLine": false,
+                "showLabels": true
+              },
+              "rows": {
+                "showDividerLine": false,
+                "showLabels": true
+              }
+            },
+            "fit": "Entire",
+            "fonts": {
+              "actionableHeaders": {
+                "color": "#0250D9",
+                "size": 12
+              },
+              "axisTickLabels": {
+                "color": "#5C5C5C",
+                "size": 12
+              },
+              "fieldLabels": {
+                "color": "#2E2E2E",
+                "size": 12
+              },
+              "headers": {
+                "color": "#5C5C5C",
+                "size": 12
+              },
+              "legendLabels": {
+                "color": "#2E2E2E",
+                "size": 12
+              },
+              "markLabels": {
+                "color": "#000000",
+                "size": 12
+              },
+              "marks": {
+                "color": "#5C5C5C",
+                "size": 12
+              }
+            },
+            "headers": {
+              "columns": {
+                "mergeRepeatedCells": true,
+                "showIndex": false
+              },
+              "fields": {},
+              "rows": {
+                "mergeRepeatedCells": true,
+                "showIndex": false
+              }
+            },
+            "lines": {
+              "axisLine": {
+                "color": "#C9C9C9"
+              },
+              "fieldLabelDividerLine": {
+                "color": "#C9C9C9"
+              },
+              "separatorLine": {
+                "color": "#C9C9C9"
+              },
+              "zeroLine": {
+                "color": "#E5E5E5"
+              }
+            },
+            "marks": {
+              "fields": {},
+              "headers": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticSize": true,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false
+                },
+                "range": {
+                  "reverse": true
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Pixel",
+                  "value": 13
+                }
+              },
+              "panes": {
+                "color": {
+                  "color": "#4992FE"
+                },
+                "isAutomaticSize": true,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": true
+                },
+                "range": {
+                  "reverse": false
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Percentage",
+                  "value": 80
+                }
+              }
+            },
+            "referenceLines": {},
+            "shading": {
+              "backgroundColor": "#FFFFFF",
+              "banding": {}
+            },
+            "showDataPlaceholder": true,
+            "title": {
+              "isVisible": true
+            }
+          },
+          "stylesheet": {
+            "rules": [
+              {
+                "selector": "AxisTickLabel",
+                "style": {
+                  "color": "#5C5C5C",
+                  "font": {
+                    "size": 12,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "FieldLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 12,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "AxisTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 12,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "LegendTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 12,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "HeaderLabel",
+                "style": {
+                  "color": "#5C5C5C",
+                  "font": {
+                    "size": 12,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "LegendLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 12,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "MarkLabel",
+                "style": {
+                  "color": "#000000",
+                  "font": {
+                    "size": 12,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "Scene",
+                "style": {
+                  "backgroundColor": "#FFFFFF"
+                }
+              },
+              {
+                "selector": "SeparatorLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisTick",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "ZeroLine",
+                "style": {
+                  "color": "#E5E5E5"
+                }
+              }
+            ]
+          }
+        },
+        "workspace": {
+          "label": "{{WORKSPACE_LABEL}}",
+          "name": "{{WORKSPACE_API_NAME}}"
+        }
+      },
+      "Horizontal_Bar1": {
+        "dataSource": {
+          "label": "{{SDM_LABEL}}",
+          "name": "{{SDM_API_NAME}}",
+          "type": "SemanticModel"
+        },
+        "fields": {
+          "F1": {
+            "displayCategory": "Discrete",
+            "fieldName": "report_type1",
+            "objectName": "D16_Fact",
+            "role": "Dimension",
+            "type": "Field"
+          },
+          "F2": {
+            "displayCategory": "Continuous",
+            "fieldName": "reports_migrated_to_tableau_clc",
+            "function": "UserAgg",
+            "role": "Measure",
+            "type": "Field"
+          },
+          "F3": {
+            "displayCategory": "Continuous",
+            "fieldName": "reports_migrated_to_tableau_clc",
+            "function": "UserAgg",
+            "role": "Measure",
+            "type": "Field"
+          }
+        },
+        "interactions": [],
+        "label": "Horizontal Bar",
+        "name": "Horizontal_Bar1",
+        "view": {
+          "label": "default",
+          "name": "Horizontal_Bar1_default",
+          "viewSpecification": {
+            "sortOrders": {
+              "columns": [],
+              "fields": {},
+              "rows": []
+            }
+          }
+        },
+        "visualSpecification": {
+          "columns": [
+            "F2"
+          ],
+          "forecasts": {},
+          "layout": "Vizql",
+          "legends": {},
+          "marks": {
+            "fields": {},
+            "headers": {
+              "encodings": [],
+              "isAutomatic": true,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": false
+              },
+              "type": "Text"
+            },
+            "panes": {
+              "encodings": [
+                {
+                  "fieldKey": "F3",
+                  "type": "Label"
+                }
+              ],
+              "isAutomatic": false,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": true
+              },
+              "type": "Bar"
+            }
+          },
+          "measureValues": [],
+          "referenceLines": {},
+          "rows": [
+            "F1"
+          ],
+          "style": {
+            "axis": {
+              "fields": {
+                "F2": {
+                  "isVisible": true,
+                  "isZeroLineVisible": true,
+                  "range": {
+                    "includeZero": true,
+                    "type": "Auto"
+                  },
+                  "scale": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 2,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "NumberShort"
+                      }
+                    }
+                  },
+                  "ticks": {
+                    "majorTicks": {
+                      "type": "Auto"
+                    },
+                    "minorTicks": {
+                      "type": "Auto"
+                    }
+                  },
+                  "titleText": "Reports Migrated to Tableau"
+                }
+              }
+            },
+            "encodings": {
+              "fields": {
+                "F2": {
+                  "defaults": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 2,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  }
+                },
+                "F3": {
+                  "defaults": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 2,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "fieldLabels": {
+              "columns": {
+                "showDividerLine": false,
+                "showLabels": true
+              },
+              "rows": {
+                "showDividerLine": false,
+                "showLabels": true
+              }
+            },
+            "fit": "Entire",
+            "fonts": {
+              "actionableHeaders": {
+                "color": "#0250D9",
+                "size": 12
+              },
+              "axisTickLabels": {
+                "color": "#5C5C5C",
+                "size": 12
+              },
+              "fieldLabels": {
+                "color": "#2E2E2E",
+                "size": 12
+              },
+              "headers": {
+                "color": "#5C5C5C",
+                "size": 12
+              },
+              "legendLabels": {
+                "color": "#2E2E2E",
+                "size": 12
+              },
+              "markLabels": {
+                "color": "#000000",
+                "size": 12
+              },
+              "marks": {
+                "color": "#5C5C5C",
+                "size": 12
+              }
+            },
+            "headers": {
+              "columns": {
+                "mergeRepeatedCells": true,
+                "showIndex": false
+              },
+              "fields": {
+                "F1": {
+                  "hiddenValues": [],
+                  "isVisible": true,
+                  "showMissingValues": false
+                }
+              },
+              "rows": {
+                "mergeRepeatedCells": true,
+                "showIndex": false
+              }
+            },
+            "lines": {
+              "axisLine": {
+                "color": "#C9C9C9"
+              },
+              "fieldLabelDividerLine": {
+                "color": "#C9C9C9"
+              },
+              "separatorLine": {
+                "color": "#C9C9C9"
+              },
+              "zeroLine": {
+                "color": "#E5E5E5"
+              }
+            },
+            "marks": {
+              "fields": {},
+              "headers": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticSize": true,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false
+                },
+                "range": {
+                  "reverse": true
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Pixel",
+                  "value": 13
+                }
+              },
+              "panes": {
+                "color": {
+                  "color": "#4992FE"
+                },
+                "isAutomaticSize": true,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": true
+                },
+                "range": {
+                  "reverse": false
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Percentage",
+                  "value": 75
+                }
+              }
+            },
+            "referenceLines": {},
+            "shading": {
+              "backgroundColor": "#FFFFFF",
+              "banding": {}
+            },
+            "showDataPlaceholder": true,
+            "title": {
+              "isVisible": true
+            }
+          },
+          "stylesheet": {
+            "rules": [
+              {
+                "selector": "AxisTickLabel",
+                "style": {
+                  "color": "#5C5C5C",
+                  "font": {
+                    "size": 12,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "FieldLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 12,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "AxisTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 12,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "LegendTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 12,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "HeaderLabel",
+                "style": {
+                  "color": "#5C5C5C",
+                  "font": {
+                    "size": 12,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "LegendLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 12,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "MarkLabel",
+                "style": {
+                  "color": "#000000",
+                  "font": {
+                    "size": 12,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "Scene",
+                "style": {
+                  "backgroundColor": "#FFFFFF"
+                }
+              },
+              {
+                "selector": "SeparatorLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisTick",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "ZeroLine",
+                "style": {
+                  "color": "#E5E5E5"
+                }
+              }
+            ]
+          }
+        },
+        "workspace": {
+          "label": "{{WORKSPACE_LABEL}}",
+          "name": "{{WORKSPACE_API_NAME}}"
+        }
+      },
+      "Trend_Line1": {
+        "dataSource": {
+          "label": "{{SDM_LABEL}}",
+          "name": "{{SDM_API_NAME}}",
+          "type": "SemanticModel"
+        },
+        "fields": {
+          "F1": {
+            "displayCategory": "Discrete",
+            "fieldName": "Display_Date",
+            "role": "Dimension",
+            "type": "Field"
+          },
+          "F3": {
+            "displayCategory": "Continuous",
+            "fieldName": "platform_utilization_rate_clc",
+            "function": "UserAgg",
+            "role": "Measure",
+            "type": "Field"
+          },
+          "F4": {
+            "displayCategory": "Discrete",
+            "fieldName": "team1",
+            "objectName": "D16_Fact",
+            "role": "Dimension",
+            "type": "Field"
+          }
+        },
+        "interactions": [],
+        "label": "Trend Line",
+        "name": "Trend_Line1",
+        "view": {
+          "label": "default",
+          "name": "Trend_Line1_default",
+          "viewSpecification": {
+            "sortOrders": {
+              "columns": [],
+              "fields": {},
+              "rows": []
+            }
+          }
+        },
+        "visualSpecification": {
+          "columns": [
+            "F1"
+          ],
+          "forecasts": {},
+          "layout": "Vizql",
+          "legends": {
+            "F4": {
+              "isVisible": false,
+              "position": "Right",
+              "title": {
+                "isVisible": true
+              }
+            }
+          },
+          "marks": {
+            "fields": {},
+            "headers": {
+              "encodings": [],
+              "isAutomatic": true,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": false
+              },
+              "type": "Text"
+            },
+            "panes": {
+              "encodings": [
+                {
+                  "fieldKey": "F4",
+                  "type": "Color"
+                }
+              ],
+              "isAutomatic": false,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": false
+              },
+              "type": "Line"
+            }
+          },
+          "measureValues": [],
+          "referenceLines": {},
+          "rows": [
+            "F3"
+          ],
+          "style": {
+            "axis": {
+              "fields": {
+                "F3": {
+                  "isVisible": true,
+                  "isZeroLineVisible": true,
+                  "range": {
+                    "includeZero": true,
+                    "type": "Auto"
+                  },
+                  "scale": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 2,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "NumberShort"
+                      }
+                    }
+                  },
+                  "ticks": {
+                    "majorTicks": {
+                      "type": "Auto"
+                    },
+                    "minorTicks": {
+                      "type": "Auto"
+                    }
+                  },
+                  "titleText": "Tableau Platform Utilization Rate"
+                }
+              }
+            },
+            "encodings": {
+              "fields": {
+                "F3": {
+                  "defaults": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 2,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "fieldLabels": {
+              "columns": {
+                "showDividerLine": false,
+                "showLabels": true
+              },
+              "rows": {
+                "showDividerLine": false,
+                "showLabels": true
+              }
+            },
+            "fit": "Entire",
+            "fonts": {
+              "actionableHeaders": {
+                "color": "#0250D9",
+                "size": 12
+              },
+              "axisTickLabels": {
+                "color": "#5C5C5C",
+                "size": 12
+              },
+              "fieldLabels": {
+                "color": "#2E2E2E",
+                "size": 12
+              },
+              "headers": {
+                "color": "#5C5C5C",
+                "size": 12
+              },
+              "legendLabels": {
+                "color": "#2E2E2E",
+                "size": 12
+              },
+              "markLabels": {
+                "color": "#000000",
+                "size": 12
+              },
+              "marks": {
+                "color": "#5C5C5C",
+                "size": 12
+              }
+            },
+            "headers": {
+              "columns": {
+                "mergeRepeatedCells": true,
+                "showIndex": false
+              },
+              "fields": {
+                "F1": {
+                  "hiddenValues": [],
+                  "isVisible": true,
+                  "showMissingValues": false
+                }
+              },
+              "rows": {
+                "mergeRepeatedCells": true,
+                "showIndex": false
+              }
+            },
+            "lines": {
+              "axisLine": {
+                "color": "#C9C9C9"
+              },
+              "fieldLabelDividerLine": {
+                "color": "#C9C9C9"
+              },
+              "separatorLine": {
+                "color": "#C9C9C9"
+              },
+              "zeroLine": {
+                "color": "#E5E5E5"
+              }
+            },
+            "marks": {
+              "fields": {},
+              "headers": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticSize": true,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false
+                },
+                "range": {
+                  "reverse": true
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Pixel",
+                  "value": 13
+                }
+              },
+              "panes": {
+                "color": {
+                  "color": "#4992FE"
+                },
+                "isAutomaticSize": true,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false
+                },
+                "range": {
+                  "reverse": false
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Pixel",
+                  "value": 3
+                }
+              }
+            },
+            "referenceLines": {},
+            "shading": {
+              "backgroundColor": "#FFFFFF",
+              "banding": {}
+            },
+            "showDataPlaceholder": true,
+            "title": {
+              "isVisible": true
+            }
+          },
+          "stylesheet": {
+            "rules": [
+              {
+                "selector": "AxisTickLabel",
+                "style": {
+                  "color": "#5C5C5C",
+                  "font": {
+                    "size": 12,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "FieldLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 12,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "AxisTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 12,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "LegendTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 12,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "HeaderLabel",
+                "style": {
+                  "color": "#5C5C5C",
+                  "font": {
+                    "size": 12,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "LegendLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 12,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "MarkLabel",
+                "style": {
+                  "color": "#000000",
+                  "font": {
+                    "size": 12,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "Scene",
+                "style": {
+                  "backgroundColor": "#FFFFFF"
+                }
+              },
+              {
+                "selector": "SeparatorLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisTick",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "ZeroLine",
+                "style": {
+                  "color": "#E5E5E5"
+                }
+              }
+            ]
+          }
+        },
+        "workspace": {
+          "label": "{{WORKSPACE_LABEL}}",
+          "name": "{{WORKSPACE_API_NAME}}"
+        }
+      }
+    },
+    "dashboard": {
+      "label": "F Layout for Claude",
+      "layouts": [
+        {
+          "columnCount": 72,
+          "name": "default",
+          "pages": [
+            {
+              "label": "Page 1",
+              "name": "b6495471-7b7d-47fe-9ef6-06e523522bcc",
+              "widgets": [
+                {
+                  "colspan": 11,
+                  "column": 1,
+                  "name": "filter_1",
+                  "row": 1,
+                  "rowspan": 5
+                },
+                {
+                  "colspan": 11,
+                  "column": 13,
+                  "name": "filter_2",
+                  "row": 1,
+                  "rowspan": 5
+                },
+                {
+                  "colspan": 11,
+                  "column": 25,
+                  "name": "filter_3",
+                  "row": 1,
+                  "rowspan": 5
+                },
+                {
+                  "colspan": 11,
+                  "column": 37,
+                  "name": "filter_4",
+                  "row": 1,
+                  "rowspan": 5
+                },
+                {
+                  "colspan": 11,
+                  "column": 49,
+                  "name": "filter_5",
+                  "row": 1,
+                  "rowspan": 5
+                },
+                {
+                  "colspan": 10,
+                  "column": 61,
+                  "name": "filter_6",
+                  "row": 1,
+                  "rowspan": 5
+                },
+                {
+                  "colspan": 22,
+                  "column": 1,
+                  "name": "metric_1",
+                  "row": 8,
+                  "rowspan": 19
+                },
+                {
+                  "colspan": 45,
+                  "column": 25,
+                  "name": "text_1",
+                  "row": 9,
+                  "rowspan": 5
+                },
+                {
+                  "colspan": 47,
+                  "column": 24,
+                  "name": "visualization_1",
+                  "row": 14,
+                  "rowspan": 55
+                },
+                {
+                  "colspan": 22,
+                  "column": 1,
+                  "name": "metric_2",
+                  "row": 29,
+                  "rowspan": 19
+                },
+                {
+                  "colspan": 22,
+                  "column": 1,
+                  "name": "metric_3",
+                  "row": 50,
+                  "rowspan": 19
+                },
+                {
+                  "colspan": 70,
+                  "column": 1,
+                  "name": "text_2",
+                  "row": 73,
+                  "rowspan": 6
+                },
+                {
+                  "colspan": 22,
+                  "column": 2,
+                  "name": "text_6",
+                  "row": 84,
+                  "rowspan": 3
+                },
+                {
+                  "colspan": 21,
+                  "column": 26,
+                  "name": "text_7",
+                  "row": 84,
+                  "rowspan": 3
+                },
+                {
+                  "colspan": 20,
+                  "column": 50,
+                  "name": "text_8",
+                  "row": 84,
+                  "rowspan": 3
+                },
+                {
+                  "colspan": 23,
+                  "column": 1,
+                  "name": "visualization_2",
+                  "row": 87,
+                  "rowspan": 37
+                },
+                {
+                  "colspan": 23,
+                  "column": 25,
+                  "name": "visualization_3",
+                  "row": 87,
+                  "rowspan": 37
+                },
+                {
+                  "colspan": 22,
+                  "column": 49,
+                  "name": "visualization_4",
+                  "row": 87,
+                  "rowspan": 37
+                },
+                {
+                  "colspan": 68,
+                  "column": 2,
+                  "name": "visualization_5",
+                  "row": 128,
+                  "rowspan": 53
+                },
+                {
+                  "colspan": 47,
+                  "column": 24,
+                  "name": "container_1",
+                  "row": 8,
+                  "rowspan": 61
+                },
+                {
+                  "colspan": 23,
+                  "column": 1,
+                  "name": "container_2",
+                  "row": 83,
+                  "rowspan": 41
+                },
+                {
+                  "colspan": 23,
+                  "column": 25,
+                  "name": "container_3",
+                  "row": 83,
+                  "rowspan": 41
+                },
+                {
+                  "colspan": 22,
+                  "column": 49,
+                  "name": "container_4",
+                  "row": 83,
+                  "rowspan": 41
+                },
+                {
+                  "colspan": 70,
+                  "column": 1,
+                  "name": "container_5",
+                  "row": 126,
+                  "rowspan": 57
+                }
+              ]
+            }
+          ],
+          "rowHeight": 10,
+          "style": {
+            "backgroundColor": "#f3f3f3",
+            "cellSpacingX": 0,
+            "cellSpacingY": 0,
+            "gutterColor": "#ffffff"
+          }
+        }
+      ],
+      "name": "F_Layout",
+      "style": {
+        "widgetStyle": {
+          "backgroundColor": "#ffffff",
+          "borderColor": "#cccccc",
+          "borderEdges": [],
+          "borderRadius": 0,
+          "borderWidth": 1
+        }
+      },
+      "widgets": {
+        "visualization_2": {
+          "actions": [],
+          "name": "visualization_2",
+          "parameters": {
+            "legendPosition": "Top",
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            },
+            "widgetStyle": {
+              "borderColor": "#C9C9C9",
+              "borderEdges": [],
+              "borderRadius": 16
+            }
+          },
+          "source": {
+            "name": "{{VIZ_NAME_Donut_Chart1}}"
+          },
+          "type": "visualization"
+        },
+        "visualization_1": {
+          "actions": [],
+          "name": "visualization_1",
+          "parameters": {
+            "legendPosition": "Bottom",
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            },
+            "widgetStyle": {
+              "borderColor": "#C9C9C9",
+              "borderEdges": [],
+              "borderRadius": 16
+            }
+          },
+          "source": {
+            "name": "{{VIZ_NAME_Trend_Line1}}"
+          },
+          "type": "visualization"
+        },
+        "text_1": {
+          "actions": [],
+          "name": "text_1",
+          "parameters": {
+            "conditionalFormattingRules": [],
+            "content": [
+              {
+                "attributes": {
+                  "size": "20px"
+                },
+                "insert": "Title/ Time + Name",
+                "rules": []
+              },
+              {
+                "insert": "\n",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "color": "#5c5c5c",
+                  "size": "14px"
+                },
+                "insert": "Section Subheader",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "align": "left"
+                },
+                "insert": "\n",
+                "rules": []
+              }
+            ],
+            "lineSpacing": 1.5,
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            },
+            "verticalAlignment": "top",
+            "widgetStyle": {
+              "borderColor": "#C9C9C9",
+              "borderEdges": []
+            }
+          },
+          "type": "text"
+        },
+        "filter_2": {
+          "actions": [],
+          "label": "report_type",
+          "name": "filter_2",
+          "parameters": {
+            "filterOption": {
+              "dataType": "Text",
+              "fieldName": "report_type1",
+              "objectName": "D16_Fact"
+            },
+            "isLabelHidden": false,
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            },
+            "viewType": "list",
+            "widgetStyle": {
+              "backgroundColor": "#f3f3f3",
+              "borderEdges": []
+            }
+          },
+          "source": {
+            "name": "{{SDM_API_NAME}}"
+          },
+          "type": "filter"
+        },
+        "filter_1": {
+          "actions": [],
+          "label": "team",
+          "name": "filter_1",
+          "parameters": {
+            "filterOption": {
+              "dataType": "Text",
+              "fieldName": "team1",
+              "objectName": "D16_Fact"
+            },
+            "isLabelHidden": false,
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            },
+            "viewType": "list",
+            "widgetStyle": {
+              "backgroundColor": "#f3f3f3",
+              "borderEdges": []
+            }
+          },
+          "source": {
+            "name": "{{SDM_API_NAME}}"
+          },
+          "type": "filter"
+        },
+        "filter_6": {
+          "actions": [],
+          "name": "filter_6",
+          "parameters": {
+            "filterOption": {
+              "dataType": "",
+              "fieldName": "",
+              "objectName": "",
+              "selectionType": "multiple"
+            },
+            "isLabelHidden": false,
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "viewType": "list",
+            "widgetStyle": {
+              "backgroundColor": "#f3f3f3",
+              "borderEdges": []
+            }
+          },
+          "type": "filter"
+        },
+        "visualization_4": {
+          "actions": [],
+          "name": "visualization_4",
+          "parameters": {
+            "legendPosition": "Top",
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            },
+            "widgetStyle": {
+              "borderColor": "#C9C9C9",
+              "borderEdges": [],
+              "borderRadius": 16
+            }
+          },
+          "type": "visualization"
+        },
+        "filter_5": {
+          "actions": [],
+          "name": "filter_5",
+          "parameters": {
+            "filterOption": {
+              "dataType": "",
+              "fieldName": "",
+              "objectName": "",
+              "selectionType": "multiple"
+            },
+            "isLabelHidden": false,
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "viewType": "list",
+            "widgetStyle": {
+              "backgroundColor": "#f3f3f3",
+              "borderEdges": []
+            }
+          },
+          "type": "filter"
+        },
+        "visualization_3": {
+          "actions": [],
+          "name": "visualization_3",
+          "parameters": {
+            "legendPosition": "Right",
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            },
+            "widgetStyle": {
+              "borderColor": "#C9C9C9",
+              "borderEdges": [],
+              "borderRadius": 16
+            }
+          },
+          "source": {
+            "name": "{{VIZ_NAME_Horizontal_Bar1}}"
+          },
+          "type": "visualization"
+        },
+        "filter_4": {
+          "actions": [],
+          "label": "request_status",
+          "name": "filter_4",
+          "parameters": {
+            "filterOption": {
+              "dataType": "Text",
+              "fieldName": "request_status1",
+              "objectName": "D16_Fact"
+            },
+            "isLabelHidden": false,
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            },
+            "viewType": "list",
+            "widgetStyle": {
+              "backgroundColor": "#f3f3f3",
+              "borderEdges": []
+            }
+          },
+          "source": {
+            "name": "{{SDM_API_NAME}}"
+          },
+          "type": "filter"
+        },
+        "filter_3": {
+          "actions": [],
+          "label": "system_source",
+          "name": "filter_3",
+          "parameters": {
+            "filterOption": {
+              "dataType": "Text",
+              "fieldName": "system_source1",
+              "objectName": "D16_Fact"
+            },
+            "isLabelHidden": false,
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            },
+            "viewType": "list",
+            "widgetStyle": {
+              "backgroundColor": "#f3f3f3",
+              "borderEdges": []
+            }
+          },
+          "source": {
+            "name": "{{SDM_API_NAME}}"
+          },
+          "type": "filter"
+        },
+        "visualization_5": {
+          "actions": [],
+          "name": "visualization_5",
+          "parameters": {
+            "legendPosition": "Right",
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            }
+          },
+          "source": {
+            "name": "{{VIZ_NAME_Details_Table1}}"
+          },
+          "type": "visualization"
+        },
+        "container_1": {
+          "actions": [],
+          "name": "container_1",
+          "parameters": {
+            "widgetStyle": {
+              "borderColor": "#c9c9c9",
+              "borderEdges": [
+                "all"
+              ],
+              "borderRadius": 16
+            }
+          },
+          "type": "container"
+        },
+        "container_2": {
+          "actions": [],
+          "name": "container_2",
+          "parameters": {
+            "widgetStyle": {
+              "borderColor": "#c9c9c9",
+              "borderEdges": [
+                "all"
+              ],
+              "borderRadius": 16
+            }
+          },
+          "type": "container"
+        },
+        "container_3": {
+          "actions": [],
+          "name": "container_3",
+          "parameters": {
+            "widgetStyle": {
+              "borderColor": "#c9c9c9",
+              "borderEdges": [
+                "all"
+              ],
+              "borderRadius": 16
+            }
+          },
+          "type": "container"
+        },
+        "container_4": {
+          "actions": [],
+          "name": "container_4",
+          "parameters": {
+            "widgetStyle": {
+              "borderColor": "#c9c9c9",
+              "borderEdges": [
+                "all"
+              ],
+              "borderRadius": 16
+            }
+          },
+          "type": "container"
+        },
+        "container_5": {
+          "actions": [],
+          "name": "container_5",
+          "parameters": {
+            "widgetStyle": {
+              "borderColor": "#c9c9c9",
+              "borderEdges": [
+                "all"
+              ],
+              "borderRadius": 16
+            }
+          },
+          "type": "container"
+        },
+        "text_2": {
+          "actions": [],
+          "name": "text_2",
+          "parameters": {
+            "conditionalFormattingRules": [],
+            "content": [
+              {
+                "attributes": {
+                  "color": "#03234d",
+                  "size": "24px"
+                },
+                "insert": "Details",
+                "rules": []
+              },
+              {
+                "insert": "\n",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "color": "#2e2e2e",
+                  "size": "16px"
+                },
+                "insert": "Section Subheader",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "align": "left"
+                },
+                "insert": "\n",
+                "rules": []
+              }
+            ],
+            "lineSpacing": 1.5,
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            },
+            "verticalAlignment": "top",
+            "widgetStyle": {
+              "backgroundColor": "#f3f3f3",
+              "borderEdges": []
+            }
+          },
+          "type": "text"
+        },
+        "metric_3": {
+          "actions": [],
+          "name": "metric_3",
+          "parameters": {
+            "metricOption": {
+              "layout": {
+                "componentVisibility": {
+                  "comparison": true,
+                  "insights": true,
+                  "details": true,
+                  "title": true,
+                  "value": true,
+                  "chart": false
+                }
+              },
+              "sdmApiName": "{{SDM_API_NAME}}",
+              "sdmId": "{{SDM_ID}}"
+            },
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "widgetStyle": {
+              "borderColor": "#c9c9c9",
+              "borderEdges": [
+                "all"
+              ],
+              "borderRadius": 20
+            }
+          },
+          "source": {
+            "name": "sf_native_report_usage_mtc"
+          },
+          "type": "metric"
+        },
+        "metric_2": {
+          "actions": [],
+          "name": "metric_2",
+          "parameters": {
+            "metricOption": {
+              "layout": {
+                "componentVisibility": {
+                  "comparison": true,
+                  "insights": true,
+                  "details": true,
+                  "title": true,
+                  "value": true,
+                  "chart": false
+                }
+              },
+              "sdmApiName": "{{SDM_API_NAME}}",
+              "sdmId": "{{SDM_ID}}"
+            },
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "widgetStyle": {
+              "borderColor": "#C9C9C9",
+              "borderEdges": [
+                "all"
+              ],
+              "borderRadius": 20
+            }
+          },
+          "source": {
+            "name": "reports_migrated_to_tableau_mtc"
+          },
+          "type": "metric"
+        },
+        "text_7": {
+          "actions": [],
+          "name": "text_7",
+          "parameters": {
+            "conditionalFormattingRules": [],
+            "content": [
+              {
+                "attributes": {
+                  "color": "#2e2e2e",
+                  "size": "18px"
+                },
+                "insert": "Metric by report_type",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "align": "left"
+                },
+                "insert": "\n",
+                "rules": []
+              }
+            ],
+            "lineSpacing": 1.5,
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            },
+            "verticalAlignment": "top",
+            "widgetStyle": {
+              "borderColor": "#C9C9C9",
+              "borderEdges": []
+            }
+          },
+          "type": "text"
+        },
+        "metric_1": {
+          "actions": [],
+          "name": "metric_1",
+          "parameters": {
+            "metricOption": {
+              "layout": {
+                "componentVisibility": {
+                  "comparison": true,
+                  "insights": true,
+                  "details": true,
+                  "title": true,
+                  "value": true,
+                  "chart": false
+                }
+              },
+              "sdmApiName": "{{SDM_API_NAME}}",
+              "sdmId": "{{SDM_ID}}"
+            },
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "widgetStyle": {
+              "borderColor": "#C9C9C9",
+              "borderEdges": [
+                "all"
+              ],
+              "borderRadius": 20
+            }
+          },
+          "source": {
+            "name": "report_fulfillment_cycle_time_mtc"
+          },
+          "type": "metric"
+        },
+        "text_6": {
+          "actions": [],
+          "name": "text_6",
+          "parameters": {
+            "conditionalFormattingRules": [],
+            "content": [
+              {
+                "attributes": {
+                  "color": "#03234d",
+                  "size": "18px"
+                },
+                "insert": "Metric by system_source",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "align": "left"
+                },
+                "insert": "\n",
+                "rules": []
+              }
+            ],
+            "lineSpacing": 1.5,
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            },
+            "verticalAlignment": "top",
+            "widgetStyle": {
+              "borderColor": "#C9C9C9",
+              "borderEdges": []
+            }
+          },
+          "type": "text"
+        },
+        "text_8": {
+          "actions": [],
+          "name": "text_8",
+          "parameters": {
+            "conditionalFormattingRules": [],
+            "content": [
+              {
+                "attributes": {
+                  "color": "#2e2e2e",
+                  "size": "18px"
+                },
+                "insert": "",
+                "rules": []
+              },
+              {
+                "attributes": {
+                  "align": "left"
+                },
+                "insert": "\n",
+                "rules": []
+              }
+            ],
+            "lineSpacing": 1.5,
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            },
+            "verticalAlignment": "top",
+            "widgetStyle": {
+              "borderColor": "#C9C9C9",
+              "borderEdges": []
+            }
+          },
+          "type": "text"
+        }
+      },
+      "workspaceIdOrApiName": "{{WORKSPACE_API_NAME}}"
+    },
+    "semanticModel": {
+      "agentEnabled": true,
+      "allowUnmapped": false,
+      "apiName": "D16_Analytics_e6f",
+      "categories": [],
+      "currency": {
+        "useOrgDefault": true
+      },
+      "dataspace": "default",
+      "description": "Diversify Operational Analytics",
+      "fieldsOverrides": [],
+      "hasUnmapped": false,
+      "isAiDrafted": false,
+      "isLocked": false,
+      "isPartialSdm": false,
+      "isQueryable": "Queryable",
+      "isUpsertable": true,
+      "label": "D16 Analytics",
+      "lockedActions": {},
+      "queryUnrelatedDataObjects": "Exception",
+      "semanticCalculatedDimensions": [],
+      "semanticCalculatedMeasurements": [],
+      "semanticDataObjects": [
+        {
+          "apiName": "D16_Fact",
+          "dataObjectName": "analytics_builder_demo_d16_fact_817033C4__dll",
+          "dataObjectType": "Dlo",
+          "filters": [],
+          "isQueryable": "Queryable",
+          "label": "D16 Fact",
+          "overriddenProperties": [],
+          "semanticDimensions": [
+            {
+              "apiName": "cdp_sys_SourceVersion19",
+              "dataObjectFieldName": "cdp_sys_SourceVersion__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "cdp_sys_SourceVersion",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Data_Source20",
+              "dataObjectFieldName": "DataSource__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Data Source",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Data_Source_Object20",
+              "dataObjectFieldName": "DataSourceObject__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Data Source Object",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "date3",
+              "dataObjectFieldName": "date__c",
+              "dataType": "Date",
+              "displayCategory": "Continuous",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "date",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Date"
+            },
+            {
+              "apiName": "entity_id2",
+              "dataObjectFieldName": "entity_id__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "entity_id",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "KQ_record_id3",
+              "dataObjectFieldName": "KQ_record_id__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "KQ_record_id",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "record_id3",
+              "dataObjectFieldName": "record_id__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "record_id",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "report_type1",
+              "dataObjectFieldName": "report_type__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "report_type",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "request_status1",
+              "dataObjectFieldName": "request_status__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "request_status",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "system_source1",
+              "dataObjectFieldName": "system_source__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "system_source",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "team1",
+              "dataObjectFieldName": "team__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "team",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            }
+          ],
+          "semanticMeasurements": [
+            {
+              "aggregationType": "None",
+              "apiName": "day_offset2",
+              "dataObjectFieldName": "day_offset__c",
+              "dataType": "Number",
+              "decimalPlace": 2,
+              "displayCategory": "Continuous",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "day_offset",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "shouldTreatNullsAsZeros": false,
+              "sortOrder": "None",
+              "storageDataType": "Number"
+            },
+            {
+              "aggregationType": "None",
+              "apiName": "platform_utilization_rate1",
+              "dataObjectFieldName": "platform_utilization_rate__c",
+              "dataType": "Number",
+              "decimalPlace": 2,
+              "displayCategory": "Continuous",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "platform_utilization_rate",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "shouldTreatNullsAsZeros": false,
+              "sortOrder": "None",
+              "storageDataType": "Number"
+            },
+            {
+              "aggregationType": "None",
+              "apiName": "reports_migrated_to_tableau1",
+              "dataObjectFieldName": "reports_migrated_to_tableau__c",
+              "dataType": "Number",
+              "decimalPlace": 2,
+              "displayCategory": "Continuous",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "reports_migrated_to_tableau",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "shouldTreatNullsAsZeros": false,
+              "sortOrder": "None",
+              "storageDataType": "Number"
+            },
+            {
+              "aggregationType": "None",
+              "apiName": "report_fulfillment_cycle_time1",
+              "dataObjectFieldName": "report_fulfillment_cycle_time__c",
+              "dataType": "Number",
+              "decimalPlace": 2,
+              "displayCategory": "Continuous",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "report_fulfillment_cycle_time",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "shouldTreatNullsAsZeros": false,
+              "sortOrder": "None",
+              "storageDataType": "Number"
+            },
+            {
+              "aggregationType": "None",
+              "apiName": "sf_native_report_usage1",
+              "dataObjectFieldName": "sf_native_report_usage__c",
+              "dataType": "Number",
+              "decimalPlace": 2,
+              "displayCategory": "Continuous",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "sf_native_report_usage",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "shouldTreatNullsAsZeros": false,
+              "sortOrder": "None",
+              "storageDataType": "Number"
+            }
+          ],
+          "shouldIncludeAllFields": true,
+          "tableType": "Standard"
+        }
+      ],
+      "semanticDimensionHierarchies": [],
+      "semanticGroupings": [],
+      "semanticLogicalViews": [],
+      "semanticMetrics": [],
+      "semanticModelFilters": [],
+      "semanticModelInfo": {
+        "definitionsCount": 10,
+        "maxDefinitionCount": 5000,
+        "modelHierarchyDepth": 1
+      },
+      "semanticParameters": [],
+      "semanticPredictionModels": [],
+      "semanticRelationships": [],
+      "sourceCreation": "Other",
+      "tags": []
+    },
+    "dimensions": [
+      {
+        "apiName": "Display_Date",
+        "dataType": "Date",
+        "displayCategory": "Continuous",
+        "expression": "DATEADD(\"day\", DATEDIFF(\"day\", #2026-10-19#, [D16_Fact].[date3]), TODAY())",
+        "filters": [],
+        "isOverrideBase": false,
+        "isQueryable": "Queryable",
+        "isVisible": true,
+        "label": "Display Date",
+        "level": "Row",
+        "overriddenProperties": [],
+        "semanticDataType": "None",
+        "sortOrder": "None"
+      }
+    ],
+    "measurements": [
+      {
+        "aggregationType": "UserAgg",
+        "apiName": "reports_migrated_to_tableau_clc",
+        "dataType": "Number",
+        "decimalPlace": 4,
+        "directionality": "Up",
+        "displayCategory": "Continuous",
+        "expression": "SUM([D16_Fact].[reports_migrated_to_tableau1])",
+        "filters": [],
+        "isOverrideBase": false,
+        "isQueryable": "Queryable",
+        "isVisible": true,
+        "label": "Reports Migrated to Tableau",
+        "level": "AggregateFunction",
+        "overriddenProperties": [],
+        "semanticDataType": "None",
+        "sentiment": "SentimentTypeUpIsGood",
+        "shouldTreatNullsAsZeros": false,
+        "sortOrder": "None",
+        "totalAggregationType": "Sum"
+      },
+      {
+        "aggregationType": "UserAgg",
+        "apiName": "report_fulfillment_cycle_time_clc",
+        "dataType": "Number",
+        "decimalPlace": 4,
+        "directionality": "Up",
+        "displayCategory": "Continuous",
+        "expression": "AVG([D16_Fact].[report_fulfillment_cycle_time1])",
+        "filters": [],
+        "isOverrideBase": false,
+        "isQueryable": "Queryable",
+        "isVisible": true,
+        "label": "Report Fulfillment Cycle Time",
+        "level": "AggregateFunction",
+        "overriddenProperties": [],
+        "semanticDataType": "None",
+        "sentiment": "SentimentTypeUpIsGood",
+        "shouldTreatNullsAsZeros": false,
+        "sortOrder": "None",
+        "totalAggregationType": "Sum"
+      },
+      {
+        "aggregationType": "UserAgg",
+        "apiName": "sf_native_report_usage_clc",
+        "dataType": "Number",
+        "decimalPlace": 4,
+        "directionality": "Up",
+        "displayCategory": "Continuous",
+        "expression": "SUM([D16_Fact].[sf_native_report_usage1])",
+        "filters": [],
+        "isOverrideBase": false,
+        "isQueryable": "Queryable",
+        "isVisible": true,
+        "label": "SF Native Report Usage",
+        "level": "AggregateFunction",
+        "overriddenProperties": [],
+        "semanticDataType": "None",
+        "sentiment": "SentimentTypeUpIsGood",
+        "shouldTreatNullsAsZeros": false,
+        "sortOrder": "None",
+        "totalAggregationType": "Sum"
+      },
+      {
+        "aggregationType": "UserAgg",
+        "apiName": "platform_utilization_rate_clc",
+        "dataType": "Number",
+        "decimalPlace": 4,
+        "directionality": "Up",
+        "displayCategory": "Continuous",
+        "expression": "AVG([D16_Fact].[platform_utilization_rate1])",
+        "filters": [],
+        "isOverrideBase": false,
+        "isQueryable": "Queryable",
+        "isVisible": true,
+        "label": "Tableau Platform Utilization Rate",
+        "level": "AggregateFunction",
+        "overriddenProperties": [],
+        "semanticDataType": "None",
+        "sentiment": "SentimentTypeUpIsGood",
+        "shouldTreatNullsAsZeros": false,
+        "sortOrder": "None",
+        "totalAggregationType": "Sum"
+      }
+    ],
+    "metrics": [
+      {
+        "additionalDimensions": [
+          {
+            "tableFieldReference": {
+              "fieldApiName": "team1",
+              "tableApiName": "D16_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "report_type1",
+              "tableApiName": "D16_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "system_source1",
+              "tableApiName": "D16_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "request_status1",
+              "tableApiName": "D16_Fact"
+            }
+          }
+        ],
+        "aggregationType": "UserAgg",
+        "apiName": "platform_utilization_rate_mtc",
+        "dataDefinedGoals": [],
+        "filters": [],
+        "insightsSettings": {
+          "insightTypes": [
+            {
+              "enabled": true,
+              "type": "TopContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ComparisonToExpectedRangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TrendChangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "BottomContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ConcentratedContributionAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TopDrivers"
+            },
+            {
+              "enabled": true,
+              "type": "TopDetractors"
+            },
+            {
+              "enabled": true,
+              "type": "CurrentTrend"
+            },
+            {
+              "enabled": false,
+              "type": "OutlierDetection"
+            },
+            {
+              "enabled": false,
+              "type": "RecordLevelTable"
+            }
+          ],
+          "insightsDimensionsReferences": [
+            {
+              "tableFieldReference": {
+                "fieldApiName": "team1",
+                "tableApiName": "D16_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "report_type1",
+                "tableApiName": "D16_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "system_source1",
+                "tableApiName": "D16_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "request_status1",
+                "tableApiName": "D16_Fact"
+              }
+            }
+          ],
+          "pluralNoun": "platform utilization rates",
+          "sentiment": "SentimentTypeUpIsGood",
+          "singularNoun": "platform utilization rate"
+        },
+        "isCumulative": false,
+        "isGoalEditingBlocked": false,
+        "isQueryable": "Queryable",
+        "label": "Tableau Platform Utilization Rate",
+        "measurementReference": {
+          "calculatedFieldApiName": "platform_utilization_rate_clc"
+        },
+        "timeDimensionReference": {
+          "calculatedFieldApiName": "Display_Date"
+        },
+        "timeGrains": [
+          "Month",
+          "Quarter",
+          "Year"
+        ]
+      },
+      {
+        "additionalDimensions": [
+          {
+            "tableFieldReference": {
+              "fieldApiName": "team1",
+              "tableApiName": "D16_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "report_type1",
+              "tableApiName": "D16_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "system_source1",
+              "tableApiName": "D16_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "request_status1",
+              "tableApiName": "D16_Fact"
+            }
+          }
+        ],
+        "aggregationType": "UserAgg",
+        "apiName": "reports_migrated_to_tableau_mtc",
+        "dataDefinedGoals": [],
+        "filters": [],
+        "insightsSettings": {
+          "insightTypes": [
+            {
+              "enabled": true,
+              "type": "TopContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ComparisonToExpectedRangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TrendChangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "BottomContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ConcentratedContributionAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TopDrivers"
+            },
+            {
+              "enabled": true,
+              "type": "TopDetractors"
+            },
+            {
+              "enabled": true,
+              "type": "CurrentTrend"
+            },
+            {
+              "enabled": false,
+              "type": "OutlierDetection"
+            },
+            {
+              "enabled": false,
+              "type": "RecordLevelTable"
+            }
+          ],
+          "insightsDimensionsReferences": [
+            {
+              "tableFieldReference": {
+                "fieldApiName": "team1",
+                "tableApiName": "D16_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "report_type1",
+                "tableApiName": "D16_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "system_source1",
+                "tableApiName": "D16_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "request_status1",
+                "tableApiName": "D16_Fact"
+              }
+            }
+          ],
+          "pluralNoun": "reports migrated",
+          "sentiment": "SentimentTypeUpIsGood",
+          "singularNoun": "report migrated"
+        },
+        "isCumulative": false,
+        "isGoalEditingBlocked": false,
+        "isQueryable": "Queryable",
+        "label": "Reports Migrated to Tableau",
+        "measurementReference": {
+          "calculatedFieldApiName": "reports_migrated_to_tableau_clc"
+        },
+        "timeDimensionReference": {
+          "calculatedFieldApiName": "Display_Date"
+        },
+        "timeGrains": [
+          "Month",
+          "Quarter",
+          "Year"
+        ]
+      },
+      {
+        "additionalDimensions": [
+          {
+            "tableFieldReference": {
+              "fieldApiName": "team1",
+              "tableApiName": "D16_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "report_type1",
+              "tableApiName": "D16_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "system_source1",
+              "tableApiName": "D16_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "request_status1",
+              "tableApiName": "D16_Fact"
+            }
+          }
+        ],
+        "aggregationType": "UserAgg",
+        "apiName": "report_fulfillment_cycle_time_mtc",
+        "dataDefinedGoals": [],
+        "filters": [],
+        "insightsSettings": {
+          "insightTypes": [
+            {
+              "enabled": true,
+              "type": "TopContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ComparisonToExpectedRangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TrendChangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "BottomContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ConcentratedContributionAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TopDrivers"
+            },
+            {
+              "enabled": true,
+              "type": "TopDetractors"
+            },
+            {
+              "enabled": true,
+              "type": "CurrentTrend"
+            },
+            {
+              "enabled": false,
+              "type": "OutlierDetection"
+            },
+            {
+              "enabled": false,
+              "type": "RecordLevelTable"
+            }
+          ],
+          "insightsDimensionsReferences": [
+            {
+              "tableFieldReference": {
+                "fieldApiName": "team1",
+                "tableApiName": "D16_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "report_type1",
+                "tableApiName": "D16_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "system_source1",
+                "tableApiName": "D16_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "request_status1",
+                "tableApiName": "D16_Fact"
+              }
+            }
+          ],
+          "pluralNoun": "report fulfillment cycle times",
+          "sentiment": "SentimentTypeUpIsBad",
+          "singularNoun": "report fulfillment cycle time"
+        },
+        "isCumulative": false,
+        "isGoalEditingBlocked": false,
+        "isQueryable": "Queryable",
+        "label": "Report Fulfillment Cycle Time",
+        "measurementReference": {
+          "calculatedFieldApiName": "report_fulfillment_cycle_time_clc"
+        },
+        "timeDimensionReference": {
+          "calculatedFieldApiName": "Display_Date"
+        },
+        "timeGrains": [
+          "Month",
+          "Quarter",
+          "Year"
+        ]
+      },
+      {
+        "additionalDimensions": [
+          {
+            "tableFieldReference": {
+              "fieldApiName": "team1",
+              "tableApiName": "D16_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "report_type1",
+              "tableApiName": "D16_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "system_source1",
+              "tableApiName": "D16_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "request_status1",
+              "tableApiName": "D16_Fact"
+            }
+          }
+        ],
+        "aggregationType": "UserAgg",
+        "apiName": "sf_native_report_usage_mtc",
+        "dataDefinedGoals": [],
+        "filters": [],
+        "insightsSettings": {
+          "insightTypes": [
+            {
+              "enabled": true,
+              "type": "TopContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ComparisonToExpectedRangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TrendChangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "BottomContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ConcentratedContributionAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TopDrivers"
+            },
+            {
+              "enabled": true,
+              "type": "TopDetractors"
+            },
+            {
+              "enabled": true,
+              "type": "CurrentTrend"
+            },
+            {
+              "enabled": false,
+              "type": "OutlierDetection"
+            },
+            {
+              "enabled": false,
+              "type": "RecordLevelTable"
+            }
+          ],
+          "insightsDimensionsReferences": [
+            {
+              "tableFieldReference": {
+                "fieldApiName": "team1",
+                "tableApiName": "D16_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "report_type1",
+                "tableApiName": "D16_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "system_source1",
+                "tableApiName": "D16_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "request_status1",
+                "tableApiName": "D16_Fact"
+              }
+            }
+          ],
+          "pluralNoun": "SF native report runs",
+          "sentiment": "SentimentTypeUpIsBad",
+          "singularNoun": "SF native report run"
+        },
+        "isCumulative": false,
+        "isGoalEditingBlocked": false,
+        "isQueryable": "Queryable",
+        "label": "SF Native Report Usage",
+        "measurementReference": {
+          "calculatedFieldApiName": "sf_native_report_usage_clc"
+        },
+        "timeDimensionReference": {
+          "calculatedFieldApiName": "Display_Date"
+        },
+        "timeGrains": [
+          "Month",
+          "Quarter",
+          "Year"
+        ]
+      }
+    ]
+  }
+}

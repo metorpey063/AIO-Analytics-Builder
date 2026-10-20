@@ -100,7 +100,7 @@ LAYOUT_PATTERNS = {
 # grid. These templates are defined in native 72-col / rowHeight-10.
 # Use scale_slots_for_grid() to adapt positions before sending operations.
 
-PRODUCT_TEMPLATES = ["z_layout", "perf_overview"]
+PRODUCT_TEMPLATES = ["z_layout", "f_layout", "perf_overview"]
 
 
 def scale_slots_for_grid(
@@ -323,7 +323,6 @@ def build_z_layout_ops(
         })
 
     # --- Metrics (up to 6, two rows of 3) ---
-    z_cv = z["metric_layout"]["componentVisibility"]
     all_metric_slots = slots["metrics_row1"] + slots["metrics_row2"]
     for i, (mapi, mlabel) in enumerate(zip(metric_apis[:6], metric_labels[:6])):
         slot = all_metric_slots[i]
@@ -339,7 +338,6 @@ def build_z_layout_ops(
                     "metricOption": {
                         "sdmApiName": sdm_api,
                         "sdmId": sdm_id,
-                        "layout": {"componentVisibility": z_cv},
                     },
                     "receiveFilterSource": {"filterMode": "all", "publishers": [], "widgetIds": []},
                     "widgetStyle": m_style,
@@ -504,6 +502,386 @@ def build_z_layout_ops(
                 "source": _viz_source(4),
                 "parameters": {
                     "receiveFilterSource": {"filterMode": "all", "publishers": [], "widgetIds": []},
+                },
+            },
+        })
+        ops.append({
+            "operation": "place_widget_on_page",
+            "pageName": page_name,
+            "placement": {"name": "viz_bottom", **slots["bottom_viz"]},
+        })
+
+    return ops
+
+
+# --- F Layout template (captured from Tableau Next UI) ---
+# 3 metrics stacked vertically on the left, hero viz fills the right.
+# Same detail section as Z Layout (3-up vizzes + bottom table).
+
+F_LAYOUT = {
+    "description": "Tableau Next F-layout: filters → 3 metrics (left stack) + hero viz (right) → 3-up detail → full-width bottom",
+    "grid": {
+        "columnCount": 72,
+        "rowHeight": 10,
+        "style": {
+            "backgroundColor": "#f3f3f3",
+            "gutterColor": "#ffffff",
+            "cellSpacingX": 0,
+            "cellSpacingY": 0,
+        },
+    },
+    "widget_styles": {
+        "metric": {
+            "borderColor": "#C9C9C9",
+            "borderEdges": ["all"],
+            "borderRadius": 20,
+        },
+        "viz_container": {
+            "borderColor": "#c9c9c9",
+            "borderEdges": ["all"],
+            "borderRadius": 16,
+        },
+        "filter": {
+            "backgroundColor": "#f3f3f3",
+            "borderEdges": [],
+        },
+    },
+    "text_styles": {
+        "section_title": {"color": "#03234d", "size": "20px"},
+        "section_sub": {"color": "#5c5c5c", "size": "14px"},
+        "detail_header": {"color": "#03234d", "size": "24px"},
+        "detail_sub": {"color": "#2e2e2e", "size": "16px"},
+        "viz_title": {"color": "#2e2e2e", "size": "18px"},
+    },
+    "slots": {
+        "filters": [
+            {"row": 1, "column": 1, "rowspan": 5, "colspan": 11},
+            {"row": 1, "column": 13, "rowspan": 5, "colspan": 11},
+            {"row": 1, "column": 25, "rowspan": 5, "colspan": 11},
+            {"row": 1, "column": 37, "rowspan": 5, "colspan": 11},
+            {"row": 1, "column": 49, "rowspan": 5, "colspan": 11},
+            {"row": 1, "column": 61, "rowspan": 5, "colspan": 10},
+        ],
+        "metrics_left": [
+            {"row": 8, "column": 1, "rowspan": 19, "colspan": 22},
+            {"row": 29, "column": 1, "rowspan": 19, "colspan": 22},
+            {"row": 50, "column": 1, "rowspan": 19, "colspan": 22},
+        ],
+        "hero_container": {"row": 8, "column": 24, "rowspan": 61, "colspan": 47},
+        "hero_title": {"row": 9, "column": 25, "rowspan": 5, "colspan": 45},
+        "hero_viz": {"row": 14, "column": 24, "rowspan": 55, "colspan": 47},
+        "detail_header": {"row": 73, "column": 1, "rowspan": 6, "colspan": 70},
+        "detail_containers": [
+            {"row": 83, "column": 1, "rowspan": 41, "colspan": 23},
+            {"row": 83, "column": 25, "rowspan": 41, "colspan": 23},
+            {"row": 83, "column": 49, "rowspan": 41, "colspan": 22},
+        ],
+        "detail_titles": [
+            {"row": 84, "column": 2, "rowspan": 3, "colspan": 22},
+            {"row": 84, "column": 26, "rowspan": 3, "colspan": 21},
+            {"row": 84, "column": 50, "rowspan": 3, "colspan": 20},
+        ],
+        "detail_vizzes": [
+            {"row": 87, "column": 1, "rowspan": 37, "colspan": 23},
+            {"row": 87, "column": 25, "rowspan": 37, "colspan": 23},
+            {"row": 87, "column": 49, "rowspan": 37, "colspan": 22},
+        ],
+        "bottom_container": {"row": 126, "column": 1, "rowspan": 57, "colspan": 70},
+        "bottom_viz": {"row": 128, "column": 2, "rowspan": 53, "colspan": 68},
+    },
+}
+
+
+def build_f_layout_ops(
+    *,
+    page_name: str,
+    title: str,
+    subtitle: str,
+    sdm_api: str,
+    sdm_id: str,
+    metric_apis: List[str],
+    metric_labels: List[str],
+    viz_apis: List[str],
+    viz_labels: List[str],
+    viz_ids: Optional[List[str]] = None,
+    filter_fields: Optional[List[Dict[str, str]]] = None,
+    detail_header: str = "Details",
+    detail_sub: str = "",
+    brand_colors: Optional[Dict[str, str]] = None,
+    grid_columns: int = 48,
+) -> List[Dict[str, Any]]:
+    """Build MCP edit_dashboard operations for an F-layout dashboard.
+
+    F Layout: 3 metrics stacked vertically on the left, hero viz on the right,
+    then 3-up detail row and full-width bottom viz (same as Z Layout detail section).
+
+    Args:
+        page_name: UUID page name from create_dashboard response
+        title: Hero section title text
+        subtitle: Hero section subtitle
+        sdm_api: SDM apiName
+        sdm_id: SDM Salesforce ID (2SM...)
+        metric_apis: List of metric _mtc apiNames (up to 3 for left stack)
+        metric_labels: Display labels for metrics
+        viz_apis: List of viz apiNames (hero + up to 3 detail + bottom)
+        viz_labels: Display labels for vizzes
+        viz_ids: Optional list of viz Salesforce IDs (1AK...)
+        filter_fields: List of dicts with keys: fieldName, objectName, label
+        detail_header: Section header text for the detail row
+        detail_sub: Section subheader text
+        brand_colors: Optional overrides for title_color, sub_color
+        grid_columns: Target grid column count (48 for MCP-created dashboards)
+    """
+    ops: List[Dict[str, Any]] = []
+    f = F_LAYOUT
+    bc = brand_colors or {}
+    title_color = bc.get("title_color", f["text_styles"]["section_title"]["color"])
+    sub_color = bc.get("sub_color", f["text_styles"]["section_sub"]["color"])
+    m_style = f["widget_styles"]["metric"]
+    c_style = f["widget_styles"]["viz_container"]
+    viz_ids = viz_ids or []
+    _recv = {"filterMode": "all", "publishers": [], "widgetIds": []}
+    _recv_p = {"parameterMode": "all", "publishers": []}
+
+    slots = f["slots"]
+    if grid_columns != f["grid"]["columnCount"]:
+        slots = scale_slots_for_grid(
+            slots,
+            source_cols=f["grid"]["columnCount"],
+            source_row_height=f["grid"]["rowHeight"],
+            target_cols=grid_columns,
+            target_row_height=20 if grid_columns == 48 else 10,
+        )
+
+    def _viz_source(idx):
+        src = {"name": viz_apis[idx]}
+        if idx < len(viz_ids) and viz_ids[idx]:
+            src["id"] = viz_ids[idx]
+        return src
+
+    # --- Filters (up to 6) ---
+    filter_fields = filter_fields or []
+    for i, ff in enumerate(filter_fields[:6]):
+        slot = slots["filters"][i]
+        fname = f"filter_{i+1}"
+        ops.append({
+            "operation": "upsert_filter_widget",
+            "widget": {
+                "type": "filter",
+                "name": fname,
+                "label": ff.get("label", ff["fieldName"]),
+                "source": {"name": sdm_api},
+                "parameters": {
+                    "viewType": "list",
+                    "isLabelHidden": False,
+                    "filterOption": {
+                        "fieldName": ff["fieldName"],
+                        "objectName": ff["objectName"],
+                        "dataType": ff.get("dataType", "Text"),
+                        "selectionType": "multiple",
+                    },
+                    "receiveFilterSource": _recv,
+                    "receiveParameterSource": _recv_p,
+                },
+            },
+        })
+        ops.append({
+            "operation": "place_widget_on_page",
+            "pageName": page_name,
+            "placement": {"name": fname, **slot},
+        })
+
+    # --- Metrics (up to 3, stacked vertically on the left) ---
+    for i, (mapi, mlabel) in enumerate(zip(metric_apis[:3], metric_labels[:3])):
+        slot = slots["metrics_left"][i]
+        mname = f"metric_{i+1}"
+        ops.append({
+            "operation": "upsert_metric_widget",
+            "widget": {
+                "type": "metric",
+                "name": mname,
+                "label": mlabel,
+                "source": {"name": mapi},
+                "parameters": {
+                    "metricOption": {"sdmApiName": sdm_api, "sdmId": sdm_id},
+                    "receiveFilterSource": _recv,
+                    "widgetStyle": m_style,
+                },
+            },
+        })
+        ops.append({
+            "operation": "place_widget_on_page",
+            "pageName": page_name,
+            "placement": {"name": mname, **slot},
+        })
+
+    # --- Hero section (container + title + viz) ---
+    if viz_apis:
+        ops.append({
+            "operation": "upsert_container_widget",
+            "widget": {
+                "type": "container",
+                "name": "container_hero",
+                "parameters": {"widgetStyle": c_style},
+            },
+        })
+        ops.append({
+            "operation": "place_widget_on_page",
+            "pageName": page_name,
+            "placement": {"name": "container_hero", **slots["hero_container"]},
+        })
+        ops.append({
+            "operation": "upsert_text_widget",
+            "widget": {
+                "type": "text",
+                "name": "text_hero_title",
+                "parameters": {
+                    "content": [
+                        {"attributes": {"size": "20px"}, "insert": title},
+                        {"insert": "\n"},
+                        {"attributes": {"color": "#5c5c5c", "size": "14px"}, "insert": subtitle},
+                        {"attributes": {"align": "left"}, "insert": "\n"},
+                    ],
+                    "lineSpacing": 1.5,
+                    "verticalAlignment": "top",
+                    "receiveFilterSource": _recv,
+                    "receiveParameterSource": _recv_p,
+                    "widgetStyle": {"borderColor": "#C9C9C9", "borderEdges": []},
+                },
+            },
+        })
+        ops.append({
+            "operation": "place_widget_on_page",
+            "pageName": page_name,
+            "placement": {"name": "text_hero_title", **slots["hero_title"]},
+        })
+        ops.append({
+            "operation": "upsert_visualization_widget",
+            "widget": {
+                "type": "visualization",
+                "name": "viz_hero",
+                "source": _viz_source(0),
+                "parameters": {
+                    "legendPosition": "Bottom",
+                    "receiveFilterSource": _recv,
+                    "receiveParameterSource": _recv_p,
+                    "widgetStyle": {"borderColor": "#C9C9C9", "borderEdges": [], "borderRadius": 16},
+                },
+            },
+        })
+        ops.append({
+            "operation": "place_widget_on_page",
+            "pageName": page_name,
+            "placement": {"name": "viz_hero", **slots["hero_viz"]},
+        })
+
+    # --- Detail section header ---
+    detail_vizzes = viz_apis[1:4]
+    detail_labels = viz_labels[1:4] if len(viz_labels) > 1 else []
+    if detail_vizzes:
+        ops.append({
+            "operation": "upsert_text_widget",
+            "widget": {
+                "type": "text",
+                "name": "text_detail_header",
+                "parameters": {
+                    "content": [
+                        {"attributes": {"color": title_color, "size": "24px"}, "insert": detail_header},
+                        {"insert": "\n"},
+                        {"attributes": {"color": "#2e2e2e", "size": "16px"}, "insert": detail_sub},
+                        {"attributes": {"align": "left"}, "insert": "\n"},
+                    ],
+                    "lineSpacing": 1.5,
+                    "verticalAlignment": "top",
+                    "receiveFilterSource": _recv,
+                    "receiveParameterSource": _recv_p,
+                    "widgetStyle": {"backgroundColor": "#f3f3f3", "borderEdges": []},
+                },
+            },
+        })
+        ops.append({
+            "operation": "place_widget_on_page",
+            "pageName": page_name,
+            "placement": {"name": "text_detail_header", **slots["detail_header"]},
+        })
+
+    # --- Detail row (up to 3 containers with titled vizzes) ---
+    for i, (vapi, vlabel) in enumerate(zip(detail_vizzes, detail_labels)):
+        detail_idx = i + 1
+        cname = f"container_detail_{i+1}"
+        tname = f"text_detail_{i+1}"
+        vname = f"viz_detail_{i+1}"
+        ops.append({
+            "operation": "upsert_container_widget",
+            "widget": {"type": "container", "name": cname, "parameters": {"widgetStyle": c_style}},
+        })
+        ops.append({
+            "operation": "place_widget_on_page",
+            "pageName": page_name,
+            "placement": {"name": cname, **slots["detail_containers"][i]},
+        })
+        ops.append({
+            "operation": "upsert_text_widget",
+            "widget": {
+                "type": "text",
+                "name": tname,
+                "parameters": {
+                    "content": [
+                        {"attributes": {"color": "#2e2e2e", "size": "18px"}, "insert": vlabel},
+                        {"attributes": {"align": "left"}, "insert": "\n"},
+                    ],
+                    "lineSpacing": 1.5,
+                    "verticalAlignment": "top",
+                    "receiveFilterSource": _recv,
+                    "receiveParameterSource": _recv_p,
+                    "widgetStyle": {"borderColor": "#C9C9C9", "borderEdges": []},
+                },
+            },
+        })
+        ops.append({
+            "operation": "place_widget_on_page",
+            "pageName": page_name,
+            "placement": {"name": tname, **slots["detail_titles"][i]},
+        })
+        ops.append({
+            "operation": "upsert_visualization_widget",
+            "widget": {
+                "type": "visualization",
+                "name": vname,
+                "source": _viz_source(detail_idx),
+                "parameters": {
+                    "receiveFilterSource": _recv,
+                    "receiveParameterSource": _recv_p,
+                },
+            },
+        })
+        ops.append({
+            "operation": "place_widget_on_page",
+            "pageName": page_name,
+            "placement": {"name": vname, **slots["detail_vizzes"][i]},
+        })
+
+    # --- Bottom full-width viz ---
+    if len(viz_apis) > 4:
+        ops.append({
+            "operation": "upsert_container_widget",
+            "widget": {"type": "container", "name": "container_bottom", "parameters": {"widgetStyle": c_style}},
+        })
+        ops.append({
+            "operation": "place_widget_on_page",
+            "pageName": page_name,
+            "placement": {"name": "container_bottom", **slots["bottom_container"]},
+        })
+        ops.append({
+            "operation": "upsert_visualization_widget",
+            "widget": {
+                "type": "visualization",
+                "name": "viz_bottom",
+                "source": _viz_source(4),
+                "parameters": {
+                    "legendPosition": "Right",
+                    "receiveFilterSource": _recv,
+                    "receiveParameterSource": _recv_p,
                 },
             },
         })
@@ -984,17 +1362,13 @@ def build_perf_overview_ops(
                 "placement": {"name": "text_section_top", **slots["section_header_top"]}})
 
     # --- Hero metric (large, with chart) ---
-    hero_cv = p["metric_layout_hero"]["componentVisibility"]
     ops.append({
         "operation": "upsert_metric_widget",
         "widget": {
             "type": "metric", "name": "metric_1", "label": hero_metric_label,
             "source": {"name": hero_metric_api},
             "parameters": {
-                "metricOption": {
-                    "sdmApiName": sdm_api, "sdmId": sdm_id,
-                    "layout": {"componentVisibility": hero_cv},
-                },
+                "metricOption": {"sdmApiName": sdm_api, "sdmId": sdm_id},
                 "receiveFilterSource": _recv, "widgetStyle": m_hero,
             },
         },
@@ -1003,7 +1377,6 @@ def build_perf_overview_ops(
                 "placement": {"name": "metric_1", **slots["metric_hero"]}})
 
     # --- BAN metrics (up to 4, 2x2 grid) ---
-    ban_cv = p["metric_layout_ban"]["componentVisibility"]
     for i, (mapi, mlabel) in enumerate(zip(ban_metric_apis[:4], ban_metric_labels[:4])):
         mname = f"metric_{i+2}"
         ops.append({
@@ -1012,10 +1385,7 @@ def build_perf_overview_ops(
                 "type": "metric", "name": mname, "label": mlabel,
                 "source": {"name": mapi},
                 "parameters": {
-                    "metricOption": {
-                        "sdmApiName": sdm_api, "sdmId": sdm_id,
-                        "layout": {"componentVisibility": ban_cv},
-                    },
+                    "metricOption": {"sdmApiName": sdm_api, "sdmId": sdm_id},
                     "receiveFilterSource": _recv, "widgetStyle": m_ban,
                 },
             },

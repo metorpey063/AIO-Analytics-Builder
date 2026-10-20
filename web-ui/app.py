@@ -855,6 +855,7 @@ def build_generate_story():
             audience=data.get("audience", ""),
             notes=data.get("notes", ""),
             research_depth=data.get("research_depth", "quick"),
+            dashboard_template=data.get("dashboard_template", "z_layout"),
         )
         if not result.get("metric_config"):
             return jsonify({"ok": False, "error": "AI returned a response but no metrics were generated. Try again with more detail about the use case."})
@@ -1217,5 +1218,6 @@ if __name__ == "__main__":
     port = int(os.environ.get("AIO_PORT", 5100))
     print(f"\n  AIO Analytics Builder")
     print(f"  http://localhost:{port}\n")
-    webbrowser.open(f"http://localhost:{port}")
-    app.run(host="127.0.0.1", port=port, debug=True, use_reloader=True)
+    if not os.environ.get("WERKZEUG_RUN_MAIN"):
+        webbrowser.open(f"http://localhost:{port}")
+    app.run(host="127.0.0.1", port=port, debug=True, use_reloader=False)

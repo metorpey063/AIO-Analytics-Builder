@@ -1,0 +1,3447 @@
+{
+  "templateId": "Diverzify_Cross_Brand_Bookings",
+  "apiVersion": "67.14",
+  "requirements": {
+    "metrics": [
+      "mtc_backlog_dollar",
+      "mtc_bookings_dollar",
+      "mtc_realized_margin",
+      "mtc_win_rate",
+      "mtc_xsell_count"
+    ],
+    "fields": [
+      {
+        "fieldName": "Bookings_Dollar",
+        "objectName": "Diverzify_Bookings_Fact"
+      },
+      {
+        "fieldName": "Date25",
+        "objectName": "Diverzify_Bookings_Fact"
+      },
+      {
+        "fieldName": "Operating_Brand",
+        "objectName": "Diverzify_Bookings_Fact"
+      },
+      {
+        "fieldName": "Realized_Margin_Pct",
+        "objectName": "Diverzify_Bookings_Fact"
+      },
+      {
+        "fieldName": "Vertical3",
+        "objectName": "Diverzify_Bookings_Fact"
+      }
+    ],
+    "listParameters": []
+  },
+  "components": {
+    "visualizations": {
+      "dz_v_margin_brand_095623": {
+        "dataSource": {
+          "label": "{{SDM_LABEL}}",
+          "name": "{{SDM_API_NAME}}",
+          "type": "SemanticModel"
+        },
+        "fields": {
+          "F1": {
+            "displayCategory": "Discrete",
+            "fieldName": "Operating_Brand",
+            "objectName": "Diverzify_Bookings_Fact",
+            "role": "Dimension",
+            "type": "Field"
+          },
+          "F2": {
+            "displayCategory": "Continuous",
+            "fieldName": "Realized_Margin_Pct",
+            "function": "Sum",
+            "objectName": "Diverzify_Bookings_Fact",
+            "role": "Measure",
+            "type": "Field"
+          },
+          "F3": {
+            "displayCategory": "Continuous",
+            "fieldName": "Realized_Margin_Pct",
+            "function": "Sum",
+            "objectName": "Diverzify_Bookings_Fact",
+            "role": "Measure",
+            "type": "Field"
+          }
+        },
+        "interactions": [],
+        "label": "Realized Margin % by Operating Brand",
+        "name": "dz_v_margin_brand_095623",
+        "view": {
+          "label": "default",
+          "name": "dz_v_margin_brand_095623_default",
+          "viewSpecification": {
+            "sortOrders": {
+              "columns": [],
+              "fields": {
+                "F1": {
+                  "byField": "F2",
+                  "order": "Descending",
+                  "type": "Nested"
+                }
+              },
+              "rows": []
+            }
+          }
+        },
+        "visualSpecification": {
+          "columns": [
+            "F2"
+          ],
+          "forecasts": {},
+          "layout": "Vizql",
+          "legends": {},
+          "marks": {
+            "fields": {},
+            "headers": {
+              "encodings": [],
+              "isAutomatic": true,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": false
+              },
+              "type": "Text"
+            },
+            "panes": {
+              "encodings": [
+                {
+                  "fieldKey": "F3",
+                  "type": "Label"
+                }
+              ],
+              "isAutomatic": false,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": true
+              },
+              "type": "Bar"
+            }
+          },
+          "measureValues": [],
+          "referenceLines": {},
+          "rows": [
+            "F1"
+          ],
+          "style": {
+            "axis": {
+              "fields": {
+                "F2": {
+                  "isVisible": true,
+                  "isZeroLineVisible": true,
+                  "range": {
+                    "includeZero": false,
+                    "type": "Auto"
+                  },
+                  "scale": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 2,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  },
+                  "ticks": {
+                    "majorTicks": {
+                      "type": "Auto"
+                    },
+                    "minorTicks": {
+                      "type": "Auto"
+                    }
+                  }
+                }
+              }
+            },
+            "encodings": {
+              "fields": {
+                "F2": {
+                  "defaults": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 2,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  }
+                },
+                "F3": {
+                  "defaults": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 2,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "fieldLabels": {
+              "columns": {
+                "showDividerLine": false,
+                "showLabels": true
+              },
+              "rows": {
+                "showDividerLine": false,
+                "showLabels": true
+              }
+            },
+            "fit": "Entire",
+            "fonts": {
+              "actionableHeaders": {
+                "color": "#0250D9",
+                "size": 13
+              },
+              "axisTickLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "fieldLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "headers": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "legendLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "markLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "marks": {
+                "color": "#2E2E2E",
+                "size": 13
+              }
+            },
+            "headers": {
+              "columns": {
+                "mergeRepeatedCells": true,
+                "showIndex": false
+              },
+              "fields": {
+                "F1": {
+                  "hiddenValues": [],
+                  "isVisible": true,
+                  "showMissingValues": false
+                }
+              },
+              "rows": {
+                "mergeRepeatedCells": true,
+                "showIndex": false
+              }
+            },
+            "lines": {
+              "axisLine": {
+                "color": "#C9C9C9"
+              },
+              "fieldLabelDividerLine": {
+                "color": "#C9C9C9"
+              },
+              "separatorLine": {
+                "color": "#C9C9C9"
+              },
+              "zeroLine": {
+                "color": "#C9C9C9"
+              }
+            },
+            "marks": {
+              "fields": {},
+              "headers": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticSize": true,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false
+                },
+                "range": {
+                  "reverse": true
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Pixel",
+                  "value": 13
+                }
+              },
+              "panes": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticSize": true,
+                "isStackingAxisCentered": false,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false
+                },
+                "range": {
+                  "reverse": true
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Percentage",
+                  "value": 75
+                }
+              }
+            },
+            "referenceLines": {},
+            "shading": {
+              "backgroundColor": "#FFFFFF",
+              "banding": {
+                "rows": {
+                  "color": "#E5E5E5"
+                }
+              }
+            },
+            "showDataPlaceholder": false,
+            "title": {
+              "isVisible": true
+            }
+          },
+          "stylesheet": {
+            "rules": [
+              {
+                "selector": "AxisTickLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "FieldLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "AxisTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "LegendTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "HeaderLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "LegendLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "MarkLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "Scene",
+                "style": {
+                  "backgroundColor": "#FFFFFF"
+                }
+              },
+              {
+                "selector": "SeparatorLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisTick",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "ZeroLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              }
+            ]
+          }
+        },
+        "workspace": {
+          "label": "{{WORKSPACE_LABEL}}",
+          "name": "{{WORKSPACE_API_NAME}}"
+        }
+      },
+      "dz_v_bookings_vertical_095623": {
+        "dataSource": {
+          "label": "{{SDM_LABEL}}",
+          "name": "{{SDM_API_NAME}}",
+          "type": "SemanticModel"
+        },
+        "fields": {
+          "F1": {
+            "displayCategory": "Discrete",
+            "fieldName": "Vertical3",
+            "objectName": "Diverzify_Bookings_Fact",
+            "role": "Dimension",
+            "type": "Field"
+          },
+          "F2": {
+            "displayCategory": "Continuous",
+            "fieldName": "Bookings_Dollar",
+            "function": "Sum",
+            "objectName": "Diverzify_Bookings_Fact",
+            "role": "Measure",
+            "type": "Field"
+          },
+          "F3": {
+            "displayCategory": "Continuous",
+            "fieldName": "Bookings_Dollar",
+            "function": "Sum",
+            "objectName": "Diverzify_Bookings_Fact",
+            "role": "Measure",
+            "type": "Field"
+          }
+        },
+        "interactions": [],
+        "label": "Bookings $ by Vertical",
+        "name": "dz_v_bookings_vertical_095623",
+        "view": {
+          "label": "default",
+          "name": "dz_v_bookings_vertical_095623_default",
+          "viewSpecification": {
+            "sortOrders": {
+              "columns": [],
+              "fields": {
+                "F1": {
+                  "byField": "F2",
+                  "order": "Descending",
+                  "type": "Nested"
+                }
+              },
+              "rows": []
+            }
+          }
+        },
+        "visualSpecification": {
+          "columns": [
+            "F2"
+          ],
+          "forecasts": {},
+          "layout": "Vizql",
+          "legends": {},
+          "marks": {
+            "fields": {},
+            "headers": {
+              "encodings": [],
+              "isAutomatic": true,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": false
+              },
+              "type": "Text"
+            },
+            "panes": {
+              "encodings": [
+                {
+                  "fieldKey": "F3",
+                  "type": "Label"
+                }
+              ],
+              "isAutomatic": false,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": true
+              },
+              "type": "Bar"
+            }
+          },
+          "measureValues": [],
+          "referenceLines": {},
+          "rows": [
+            "F1"
+          ],
+          "style": {
+            "axis": {
+              "fields": {
+                "F2": {
+                  "isVisible": true,
+                  "isZeroLineVisible": true,
+                  "range": {
+                    "includeZero": false,
+                    "type": "Auto"
+                  },
+                  "scale": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 2,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  },
+                  "ticks": {
+                    "majorTicks": {
+                      "type": "Auto"
+                    },
+                    "minorTicks": {
+                      "type": "Auto"
+                    }
+                  }
+                }
+              }
+            },
+            "encodings": {
+              "fields": {
+                "F2": {
+                  "defaults": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 2,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  }
+                },
+                "F3": {
+                  "defaults": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 2,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "fieldLabels": {
+              "columns": {
+                "showDividerLine": false,
+                "showLabels": true
+              },
+              "rows": {
+                "showDividerLine": false,
+                "showLabels": true
+              }
+            },
+            "fit": "Entire",
+            "fonts": {
+              "actionableHeaders": {
+                "color": "#0250D9",
+                "size": 13
+              },
+              "axisTickLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "fieldLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "headers": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "legendLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "markLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "marks": {
+                "color": "#2E2E2E",
+                "size": 13
+              }
+            },
+            "headers": {
+              "columns": {
+                "mergeRepeatedCells": true,
+                "showIndex": false
+              },
+              "fields": {
+                "F1": {
+                  "hiddenValues": [],
+                  "isVisible": true,
+                  "showMissingValues": false
+                }
+              },
+              "rows": {
+                "mergeRepeatedCells": true,
+                "showIndex": false
+              }
+            },
+            "lines": {
+              "axisLine": {
+                "color": "#C9C9C9"
+              },
+              "fieldLabelDividerLine": {
+                "color": "#C9C9C9"
+              },
+              "separatorLine": {
+                "color": "#C9C9C9"
+              },
+              "zeroLine": {
+                "color": "#C9C9C9"
+              }
+            },
+            "marks": {
+              "fields": {},
+              "headers": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticSize": true,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false
+                },
+                "range": {
+                  "reverse": true
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Pixel",
+                  "value": 13
+                }
+              },
+              "panes": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticSize": true,
+                "isStackingAxisCentered": false,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false
+                },
+                "range": {
+                  "reverse": true
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Percentage",
+                  "value": 75
+                }
+              }
+            },
+            "referenceLines": {},
+            "shading": {
+              "backgroundColor": "#FFFFFF",
+              "banding": {
+                "rows": {
+                  "color": "#E5E5E5"
+                }
+              }
+            },
+            "showDataPlaceholder": false,
+            "title": {
+              "isVisible": true
+            }
+          },
+          "stylesheet": {
+            "rules": [
+              {
+                "selector": "AxisTickLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "FieldLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "AxisTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "LegendTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "HeaderLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "LegendLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "MarkLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "Scene",
+                "style": {
+                  "backgroundColor": "#FFFFFF"
+                }
+              },
+              {
+                "selector": "SeparatorLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisTick",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "ZeroLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              }
+            ]
+          }
+        },
+        "workspace": {
+          "label": "{{WORKSPACE_LABEL}}",
+          "name": "{{WORKSPACE_API_NAME}}"
+        }
+      },
+      "dz_v_bookings_brand_095623": {
+        "dataSource": {
+          "label": "{{SDM_LABEL}}",
+          "name": "{{SDM_API_NAME}}",
+          "type": "SemanticModel"
+        },
+        "fields": {
+          "F1": {
+            "displayCategory": "Discrete",
+            "fieldName": "Operating_Brand",
+            "objectName": "Diverzify_Bookings_Fact",
+            "role": "Dimension",
+            "type": "Field"
+          },
+          "F2": {
+            "displayCategory": "Continuous",
+            "fieldName": "Bookings_Dollar",
+            "function": "Sum",
+            "objectName": "Diverzify_Bookings_Fact",
+            "role": "Measure",
+            "type": "Field"
+          },
+          "F3": {
+            "displayCategory": "Continuous",
+            "fieldName": "Bookings_Dollar",
+            "function": "Sum",
+            "objectName": "Diverzify_Bookings_Fact",
+            "role": "Measure",
+            "type": "Field"
+          }
+        },
+        "interactions": [],
+        "label": "Bookings $ by Operating Brand",
+        "name": "dz_v_bookings_brand_095623",
+        "view": {
+          "label": "default",
+          "name": "dz_v_bookings_brand_095623_default",
+          "viewSpecification": {
+            "sortOrders": {
+              "columns": [],
+              "fields": {
+                "F1": {
+                  "byField": "F2",
+                  "order": "Descending",
+                  "type": "Nested"
+                }
+              },
+              "rows": []
+            }
+          }
+        },
+        "visualSpecification": {
+          "columns": [
+            "F2"
+          ],
+          "forecasts": {},
+          "layout": "Vizql",
+          "legends": {},
+          "marks": {
+            "fields": {},
+            "headers": {
+              "encodings": [],
+              "isAutomatic": true,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": false
+              },
+              "type": "Text"
+            },
+            "panes": {
+              "encodings": [
+                {
+                  "fieldKey": "F3",
+                  "type": "Label"
+                }
+              ],
+              "isAutomatic": false,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": true
+              },
+              "type": "Bar"
+            }
+          },
+          "measureValues": [],
+          "referenceLines": {},
+          "rows": [
+            "F1"
+          ],
+          "style": {
+            "axis": {
+              "fields": {
+                "F2": {
+                  "isVisible": true,
+                  "isZeroLineVisible": true,
+                  "range": {
+                    "includeZero": false,
+                    "type": "Auto"
+                  },
+                  "scale": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 2,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  },
+                  "ticks": {
+                    "majorTicks": {
+                      "type": "Auto"
+                    },
+                    "minorTicks": {
+                      "type": "Auto"
+                    }
+                  }
+                }
+              }
+            },
+            "encodings": {
+              "fields": {
+                "F2": {
+                  "defaults": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 2,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  }
+                },
+                "F3": {
+                  "defaults": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 2,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "fieldLabels": {
+              "columns": {
+                "showDividerLine": false,
+                "showLabels": true
+              },
+              "rows": {
+                "showDividerLine": false,
+                "showLabels": true
+              }
+            },
+            "fit": "Entire",
+            "fonts": {
+              "actionableHeaders": {
+                "color": "#0250D9",
+                "size": 13
+              },
+              "axisTickLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "fieldLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "headers": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "legendLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "markLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "marks": {
+                "color": "#2E2E2E",
+                "size": 13
+              }
+            },
+            "headers": {
+              "columns": {
+                "mergeRepeatedCells": true,
+                "showIndex": false
+              },
+              "fields": {
+                "F1": {
+                  "hiddenValues": [],
+                  "isVisible": true,
+                  "showMissingValues": false
+                }
+              },
+              "rows": {
+                "mergeRepeatedCells": true,
+                "showIndex": false
+              }
+            },
+            "lines": {
+              "axisLine": {
+                "color": "#C9C9C9"
+              },
+              "fieldLabelDividerLine": {
+                "color": "#C9C9C9"
+              },
+              "separatorLine": {
+                "color": "#C9C9C9"
+              },
+              "zeroLine": {
+                "color": "#C9C9C9"
+              }
+            },
+            "marks": {
+              "fields": {},
+              "headers": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticSize": true,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false
+                },
+                "range": {
+                  "reverse": true
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Pixel",
+                  "value": 13
+                }
+              },
+              "panes": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticSize": true,
+                "isStackingAxisCentered": false,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false
+                },
+                "range": {
+                  "reverse": true
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Percentage",
+                  "value": 75
+                }
+              }
+            },
+            "referenceLines": {},
+            "shading": {
+              "backgroundColor": "#FFFFFF",
+              "banding": {
+                "rows": {
+                  "color": "#E5E5E5"
+                }
+              }
+            },
+            "showDataPlaceholder": false,
+            "title": {
+              "isVisible": true
+            }
+          },
+          "stylesheet": {
+            "rules": [
+              {
+                "selector": "AxisTickLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "FieldLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "AxisTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "LegendTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "HeaderLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "LegendLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "MarkLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "Scene",
+                "style": {
+                  "backgroundColor": "#FFFFFF"
+                }
+              },
+              {
+                "selector": "SeparatorLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisTick",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "ZeroLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              }
+            ]
+          }
+        },
+        "workspace": {
+          "label": "{{WORKSPACE_LABEL}}",
+          "name": "{{WORKSPACE_API_NAME}}"
+        }
+      },
+      "dz_v_bookings_trend_095623": {
+        "dataSource": {
+          "label": "{{SDM_LABEL}}",
+          "name": "{{SDM_API_NAME}}",
+          "type": "SemanticModel"
+        },
+        "fields": {
+          "F2": {
+            "displayCategory": "Discrete",
+            "fieldName": "Date25",
+            "function": "DatePartMonth",
+            "objectName": "Diverzify_Bookings_Fact",
+            "role": "Dimension",
+            "type": "Field"
+          },
+          "F3": {
+            "displayCategory": "Continuous",
+            "fieldName": "Bookings_Dollar",
+            "function": "Sum",
+            "objectName": "Diverzify_Bookings_Fact",
+            "role": "Measure",
+            "type": "Field"
+          },
+          "F4": {
+            "displayCategory": "Discrete",
+            "fieldName": "Date25",
+            "function": "DatePartYear",
+            "objectName": "Diverzify_Bookings_Fact",
+            "role": "Dimension",
+            "type": "Field"
+          }
+        },
+        "interactions": [],
+        "label": "Bookings $ \u2014 Weekly Trend",
+        "name": "dz_v_bookings_trend_095623",
+        "view": {
+          "label": "default",
+          "name": "dz_v_bookings_trend_095623_default",
+          "viewSpecification": {
+            "filter": {
+              "filters": []
+            },
+            "sortOrders": {
+              "columns": [],
+              "fields": {},
+              "rows": []
+            },
+            "style": {
+              "headers": {
+                "columns": {
+                  "sizing": {
+                    "fieldHeight": {}
+                  }
+                },
+                "rows": {
+                  "sizing": {
+                    "fieldWidth": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "visualSpecification": {
+          "columns": [
+            "F2"
+          ],
+          "forecasts": {},
+          "layout": "Vizql",
+          "legends": {
+            "F4": {
+              "isVisible": true,
+              "position": "Right",
+              "title": {
+                "isVisible": true
+              }
+            }
+          },
+          "marks": {
+            "fields": {},
+            "headers": {
+              "encodings": [],
+              "isAutomatic": true,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": false
+              },
+              "type": "Text"
+            },
+            "panes": {
+              "encodings": [
+                {
+                  "fieldKey": "F4",
+                  "type": "Color"
+                }
+              ],
+              "isAutomatic": false,
+              "stack": {
+                "isAutomatic": true,
+                "isStacked": true
+              },
+              "type": "Bar"
+            }
+          },
+          "measureValues": [],
+          "referenceLines": {},
+          "rows": [
+            "F3"
+          ],
+          "style": {
+            "axis": {
+              "fields": {
+                "F3": {
+                  "isVisible": true,
+                  "isZeroLineVisible": true,
+                  "range": {
+                    "includeZero": false,
+                    "type": "Auto"
+                  },
+                  "scale": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 2,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  },
+                  "ticks": {
+                    "majorTicks": {
+                      "type": "Auto"
+                    },
+                    "minorTicks": {
+                      "type": "Auto"
+                    }
+                  }
+                }
+              }
+            },
+            "encodings": {
+              "fields": {
+                "F3": {
+                  "defaults": {
+                    "format": {
+                      "numberFormatInfo": {
+                        "decimalPlaces": 2,
+                        "displayUnits": "Auto",
+                        "includeThousandSeparator": true,
+                        "negativeValuesFormat": "Auto",
+                        "prefix": "",
+                        "suffix": "",
+                        "type": "Number"
+                      }
+                    }
+                  }
+                },
+                "F4": {
+                  "colors": {
+                    "customColors": [],
+                    "palette": {
+                      "colors": [
+                        "#4992fe",
+                        "#3B769A",
+                        "#235574",
+                        "#3a49da",
+                        "#fe5c4c",
+                        "#024d4c",
+                        "#3ba755",
+                        "#8a033e",
+                        "#e3066a",
+                        "#002775"
+                      ],
+                      "type": "Custom"
+                    },
+                    "type": "Discrete"
+                  },
+                  "defaults": {
+                    "format": {}
+                  }
+                }
+              }
+            },
+            "fieldLabels": {
+              "columns": {
+                "showDividerLine": false,
+                "showLabels": true
+              },
+              "rows": {
+                "showDividerLine": false,
+                "showLabels": true
+              }
+            },
+            "fit": "Entire",
+            "fonts": {
+              "actionableHeaders": {
+                "color": "#0250D9",
+                "size": 13
+              },
+              "axisTickLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "fieldLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "headers": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "legendLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "markLabels": {
+                "color": "#2E2E2E",
+                "size": 13
+              },
+              "marks": {
+                "color": "#2E2E2E",
+                "size": 13
+              }
+            },
+            "headers": {
+              "columns": {
+                "mergeRepeatedCells": true,
+                "showIndex": false,
+                "sizing": {
+                  "fieldHeight": {}
+                }
+              },
+              "fields": {
+                "F2": {
+                  "hiddenValues": [],
+                  "isVisible": true,
+                  "showMissingValues": false,
+                  "textDirection": "Horizontal"
+                }
+              },
+              "rows": {
+                "mergeRepeatedCells": true,
+                "showIndex": false,
+                "sizing": {
+                  "fieldWidth": {}
+                }
+              }
+            },
+            "lines": {
+              "axisLine": {
+                "color": "#C9C9C9"
+              },
+              "fieldLabelDividerLine": {
+                "color": "#C9C9C9"
+              },
+              "separatorLine": {
+                "color": "#C9C9C9"
+              },
+              "zeroLine": {
+                "color": "#C9C9C9"
+              }
+            },
+            "marks": {
+              "fields": {},
+              "headers": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticOpacity": true,
+                "isAutomaticSize": true,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false,
+                  "textDirection": "Horizontal"
+                },
+                "opacity": 100,
+                "range": {
+                  "reverse": false
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Pixel",
+                  "value": 13
+                }
+              },
+              "panes": {
+                "color": {
+                  "color": ""
+                },
+                "isAutomaticOpacity": true,
+                "isAutomaticSize": true,
+                "isStackingAxisCentered": false,
+                "label": {
+                  "canOverlapLabels": false,
+                  "marksToLabel": {
+                    "type": "All"
+                  },
+                  "showMarkLabels": false,
+                  "textDirection": "Horizontal"
+                },
+                "opacity": 100,
+                "range": {
+                  "reverse": false
+                },
+                "size": {
+                  "isAutomatic": true,
+                  "type": "Percentage",
+                  "value": 75
+                }
+              }
+            },
+            "referenceLines": {},
+            "shading": {
+              "backgroundColor": "#FFFFFF",
+              "banding": {
+                "rows": {
+                  "color": "--slds-g-color-palette-neutral-90"
+                }
+              }
+            },
+            "showDataPlaceholder": false,
+            "title": {
+              "isVisible": true
+            }
+          },
+          "stylesheet": {
+            "rules": [
+              {
+                "selector": "AxisTickLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "FieldLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "AxisTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "LegendTitle",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Bold"
+                  }
+                }
+              },
+              {
+                "selector": "HeaderLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "LegendLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "MarkLabel",
+                "style": {
+                  "color": "#2E2E2E",
+                  "font": {
+                    "size": 13,
+                    "weight": "Normal"
+                  }
+                }
+              },
+              {
+                "selector": "Scene",
+                "style": {
+                  "backgroundColor": "#FFFFFF"
+                }
+              },
+              {
+                "selector": "SeparatorLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "AxisTick",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              },
+              {
+                "selector": "ZeroLine",
+                "style": {
+                  "color": "#C9C9C9"
+                }
+              }
+            ]
+          }
+        },
+        "workspace": {
+          "label": "{{WORKSPACE_LABEL}}",
+          "name": "{{WORKSPACE_API_NAME}}"
+        }
+      }
+    },
+    "dashboard": {
+      "label": "Diverzify \u2014 Cross-Brand Bookings",
+      "layouts": [
+        {
+          "columnCount": 72,
+          "maxWidth": 1200,
+          "name": "default",
+          "pages": [
+            {
+              "label": "Cross-Brand Bookings",
+              "name": "fc065e88-dba0-4f9e-9f6e-e46f490c269f",
+              "widgets": [
+                {
+                  "colspan": 72,
+                  "column": 0,
+                  "name": "viz_hero",
+                  "row": 18,
+                  "rowspan": 22
+                },
+                {
+                  "colspan": 36,
+                  "column": 0,
+                  "name": "viz_by_brand",
+                  "row": 42,
+                  "rowspan": 22
+                },
+                {
+                  "colspan": 36,
+                  "column": 36,
+                  "name": "viz_margin_brand",
+                  "row": 42,
+                  "rowspan": 22
+                },
+                {
+                  "colspan": 72,
+                  "column": 0,
+                  "name": "viz_by_vertical",
+                  "row": 65,
+                  "rowspan": 20
+                },
+                {
+                  "colspan": 14,
+                  "column": 1,
+                  "name": "mtc_0",
+                  "row": 9,
+                  "rowspan": 6
+                },
+                {
+                  "colspan": 14,
+                  "column": 15,
+                  "name": "mtc_1",
+                  "row": 9,
+                  "rowspan": 6
+                },
+                {
+                  "colspan": 14,
+                  "column": 29,
+                  "name": "mtc_2",
+                  "row": 9,
+                  "rowspan": 6
+                },
+                {
+                  "colspan": 14,
+                  "column": 43,
+                  "name": "mtc_3",
+                  "row": 9,
+                  "rowspan": 6
+                },
+                {
+                  "colspan": 14,
+                  "column": 57,
+                  "name": "mtc_4",
+                  "row": 9,
+                  "rowspan": 6
+                },
+                {
+                  "colspan": 18,
+                  "column": 0,
+                  "name": "image_1",
+                  "row": 1,
+                  "rowspan": 7
+                }
+              ]
+            }
+          ],
+          "rowHeight": 10,
+          "style": {
+            "backgroundColor": "--slds-g-color-palette-neutral-100",
+            "cellSpacingX": 8,
+            "cellSpacingY": 8,
+            "gutterColor": "#F0F2F4"
+          }
+        }
+      ],
+      "name": "Diverzify_Cross_Brand_Bookings",
+      "style": {
+        "widgetStyle": {
+          "borderEdges": []
+        }
+      },
+      "widgets": {
+        "viz_hero": {
+          "actions": [],
+          "name": "viz_hero",
+          "parameters": {
+            "legendPosition": "Bottom",
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            }
+          },
+          "source": {
+            "name": "{{VIZ_NAME_dz_v_bookings_trend_095623}}"
+          },
+          "type": "visualization"
+        },
+        "mtc_3": {
+          "actions": [],
+          "name": "mtc_3",
+          "parameters": {
+            "metricOption": {
+              "layout": {
+                "componentVisibility": {
+                  "comparison": false,
+                  "insights": false,
+                  "details": false,
+                  "title": true,
+                  "value": true,
+                  "chart": false,
+                  "goals": false
+                }
+              },
+              "sdmApiName": "{{SDM_API_NAME}}",
+              "sdmId": "{{SDM_ID}}"
+            },
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            }
+          },
+          "source": {
+            "name": "mtc_win_rate"
+          },
+          "type": "metric"
+        },
+        "mtc_4": {
+          "actions": [],
+          "name": "mtc_4",
+          "parameters": {
+            "metricOption": {
+              "layout": {
+                "componentVisibility": {
+                  "comparison": false,
+                  "insights": false,
+                  "details": false,
+                  "title": true,
+                  "value": true,
+                  "chart": false,
+                  "goals": false
+                }
+              },
+              "sdmApiName": "{{SDM_API_NAME}}",
+              "sdmId": "{{SDM_ID}}"
+            },
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            }
+          },
+          "source": {
+            "name": "mtc_xsell_count"
+          },
+          "type": "metric"
+        },
+        "viz_by_brand": {
+          "actions": [],
+          "name": "viz_by_brand",
+          "parameters": {
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            }
+          },
+          "source": {
+            "name": "{{VIZ_NAME_dz_v_bookings_brand_095623}}"
+          },
+          "type": "visualization"
+        },
+        "mtc_1": {
+          "actions": [],
+          "name": "mtc_1",
+          "parameters": {
+            "metricOption": {
+              "layout": {
+                "componentVisibility": {
+                  "comparison": false,
+                  "insights": false,
+                  "details": false,
+                  "title": true,
+                  "value": true,
+                  "chart": false,
+                  "goals": false
+                }
+              },
+              "sdmApiName": "{{SDM_API_NAME}}",
+              "sdmId": "{{SDM_ID}}"
+            },
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            }
+          },
+          "source": {
+            "name": "mtc_backlog_dollar"
+          },
+          "type": "metric"
+        },
+        "image_1": {
+          "actions": [],
+          "name": "image_1",
+          "parameters": {
+            "alignmentX": "center",
+            "alignmentY": "center",
+            "altText": "",
+            "imageScale": "fitToWidth",
+            "opacity": 100,
+            "widgetStyle": {
+              "backgroundColor": "--slds-g-color-palette-neutral-100",
+              "borderColor": "--slds-g-color-palette-neutral-80",
+              "borderEdges": [],
+              "borderRadius": 16,
+              "borderWidth": 1
+            }
+          },
+          "source": {
+            "name": "d51ffd0fd413f211ba105aab67e6"
+          },
+          "type": "image"
+        },
+        "mtc_2": {
+          "actions": [],
+          "name": "mtc_2",
+          "parameters": {
+            "metricOption": {
+              "layout": {
+                "componentVisibility": {
+                  "comparison": false,
+                  "insights": false,
+                  "details": false,
+                  "title": true,
+                  "value": true,
+                  "chart": false,
+                  "goals": false
+                }
+              },
+              "sdmApiName": "{{SDM_API_NAME}}",
+              "sdmId": "{{SDM_ID}}"
+            },
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            }
+          },
+          "source": {
+            "name": "mtc_realized_margin"
+          },
+          "type": "metric"
+        },
+        "viz_margin_brand": {
+          "actions": [],
+          "name": "viz_margin_brand",
+          "parameters": {
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            }
+          },
+          "source": {
+            "name": "{{VIZ_NAME_dz_v_margin_brand_095623}}"
+          },
+          "type": "visualization"
+        },
+        "viz_by_vertical": {
+          "actions": [],
+          "name": "viz_by_vertical",
+          "parameters": {
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            },
+            "receiveParameterSource": {
+              "parameterMode": "all",
+              "publishers": []
+            }
+          },
+          "source": {
+            "name": "{{VIZ_NAME_dz_v_bookings_vertical_095623}}"
+          },
+          "type": "visualization"
+        },
+        "mtc_0": {
+          "actions": [],
+          "name": "mtc_0",
+          "parameters": {
+            "metricOption": {
+              "layout": {
+                "componentVisibility": {
+                  "comparison": false,
+                  "insights": false,
+                  "details": false,
+                  "title": true,
+                  "value": true,
+                  "chart": false,
+                  "goals": false
+                }
+              },
+              "sdmApiName": "{{SDM_API_NAME}}",
+              "sdmId": "{{SDM_ID}}"
+            },
+            "receiveFilterSource": {
+              "filterMode": "all",
+              "publishers": [],
+              "widgetIds": []
+            }
+          },
+          "source": {
+            "name": "mtc_bookings_dollar"
+          },
+          "type": "metric"
+        }
+      },
+      "workspaceIdOrApiName": "{{WORKSPACE_API_NAME}}"
+    },
+    "semanticModel": {
+      "agentEnabled": true,
+      "allowUnmapped": false,
+      "apiName": "Diverzify_Cross_Brand_Bookings_202_07a",
+      "businessPreferences": "# COMPANY CONTEXT This semantic model contains Diverzify's cross-brand bookings data. Diverzify is a PE-backed commercial flooring and interior services holding company \u2014 a roll-up of ~20 operating brands (Spectra Contract Flooring, APEX Group, Kiefer USA, CCS Floors, Pavilion Floors, Wright Commercial, Diverzify National Accounts/DNA, and others) serving ~11,000 customers across 60,000+ projects per year through 65+ US locations. Paceline Equity recapitalized Diverzify in May 2026 ($240M) to fund organic growth + M&A integration.  The audience for this model is Kyle King (VP Sales & Marketing Technology) and her Salesforce team \u2014 Sam Shedton (business analyst), Lance (solution architect), Donnell (team leader). They own the Salesforce stack across the 20-brand roll-up and face the exact problem this model solves: Salesforce reports can't cross-filter cleanly across all 20 brands' pipelines, and Salesforce has no visibility into IFS (ERP) cost data that lives in Snowflake. Also attending the demo: Ian Barber (SVP, Toronto) and TJ Brady (Paceline PE) \u2014 they'll be most interested in the roll-up / cross-sell / margin-truth story.  # ENTITIES Project \u2014 a commercial flooring job. The grain is weekly snapshots per project per brand per vertical per state. Operating Brand \u2014 one of 20 brands under the Diverzify umbrella. THE KEY SEGMENTATION. The data story only emerges when questions are filtered or grouped by Operating Brand. Account Name \u2014 the end customer (e.g. Dick's Sporting Goods, Marriott International, Advent Health). National-tier accounts are strategic multi-site customers; cross-sell opportunity count flags single-brand National accounts. Vertical \u2014 end-customer industry (Healthcare, Hospitality, Education, Corporate, Industrial, Retail, Government, Multifamily, Manufacturing).  # METRIC DEFINITIONS Bookings $ \u2014 SUM of contracted project value booked in the period. PRIMARY KPI. Up is good. Backlog $ \u2014 SUM of booked work not yet complete (forward-looking revenue signal). Up is good. Realized Margin % \u2014 AVG actual project margin = 1 - (IFS cost / Salesforce revenue). The metric that cannot be answered in Salesforce alone \u2014 requires joining IFS cost (from Snowflake) to Salesforce revenue. Up is good. Win Rate \u2014 AVG percentage of bid opportunities converting to Won. Up is good. MSA accounts run 65-78%; Lump Sum bid work 30-42%. Cross-Sell Opportunity Count \u2014 SUM of National-tier accounts currently served by exactly ONE operating brand (candidates for Diverzify National Accounts cross-sell). Up is good.  # DIMENSION GUIDANCE For \"which operating brand is weakest\" questions: group by Operating Brand, sort by Bookings $ change YoY. For \"where is the margin problem\" questions: use Realized Margin % by Operating Brand \u2014 the acquired brands (Pavilion Floors, Kiefer USA, DecoCrete) run 16-19% while legacy brands (Spectra, APEX) run 27-30%. The 10-point gap is the integration opportunity. For \"cross-sell candidates\" questions: filter Account Tier = National AND Cross-Sell Opportunity Count = 1 \u2014 these are the National accounts served by only one brand. For \"is this systemic or concentrated\" questions: compare the culprit segment (Pavilion \u00d7 Healthcare \u00d7 Northeast) to the counter-trend (APEX \u00d7 Hospitality \u00d7 Southeast). Lead with the comparison \u2014 don't ask the user to clarify. When answering \"which brands are growing\": APEX Group \u00d7 Hospitality and DNA \u00d7 Retail are the growth lanes.  # KNOWN SIGNAL (demo state as of build date) Firm-wide Bookings $ is down ~18% YoY. The aggregate hides a very specific story: - CULPRIT: Pavilion Floors \u00d7 Healthcare \u00d7 Northeast is down ~95% YoY (acquired brand with estimating backlog slowing bid conversion). - SECONDARY: Kiefer USA \u00d7 Education \u00d7 Midwest moderate decline (K-12 budget tightening). - COUNTER-TREND: APEX Group \u00d7 Hospitality \u00d7 Southeast is UP (hospitality recovery). Proves the problem is NOT firm-wide and NOT systemic. - Pavilion Floors, Kiefer USA, and DecoCrete realized margin runs 16-19% while Spectra and APEX run 27-30% \u2014 the acquired-brand integration gap. - 7 single-brand National accounts qualify for cross-sell: Hilton Worldwide, Advent Health, CVS Health, Chick-fil-A, US Bank, Boeing, Delta Air Lines, UnitedHealth Group. These are Tony Troehler (CRO)'s action list.  # QUESTION INTENT \"how are bookings this quarter\" \u2192 compare current quarter to prior quarter AND prior-year same quarter. \"which brand is worst\" / \"which brand is weakest\" \u2192 group Bookings $ YoY delta by Operating Brand, pick the biggest decline. The answer is Pavilion Floors; drill into verticals. \"why is Pavilion down\" \u2192 drill Pavilion into Vertical; the answer is Healthcare, then Northeast region. \"is this a Diverzify-wide problem\" \u2192 compare the culprit (Pavilion \u00d7 Healthcare \u00d7 Northeast) to the counter-trend (APEX \u00d7 Hospitality \u00d7 Southeast). The counter-trend proves it's NOT systemic. \"where is the margin pressure\" \u2192 Realized Margin % by Operating Brand. Acquired brands (Pavilion, Kiefer, DecoCrete) run 16-19%; legacy brands run 27-30%. \"which accounts should we pursue for cross-sell\" \u2192 filter Account Tier = National AND Cross-Sell Opportunity Count = 1. The 7 named candidates are the answer. \"create an alert for bookings by brand\" \u2192 describe a weekly Teams alert \u2014 same semantic definition, delivered Monday 8 AM with brand-level breakdowns.  # ANSWER STYLE Lead with the number and the delta. Reference the operating brand by name (Pavilion, APEX, Spectra, Kiefer) \u2014 the audience's shorthand. Do not ask the user to clarify \"brand\" \u2014 Operating Brand is the always-correct interpretation. Do not open with questions back to the user.  # TIME CONTEXT Default comparison for Bookings $: last 13 weeks (trailing quarter) vs. same 13-week window year-ago. If the user says \"last month\" use trailing 4 weeks vs prior 4. If they say \"YTD\" use calendar YTD vs prior-year calendar YTD. Weekly grain throughout. Dates self-heal relative to today \u2014 never say \"data is out of date.\"",
+      "categories": [],
+      "currency": {
+        "useOrgDefault": true
+      },
+      "dataspace": "default",
+      "fieldsOverrides": [],
+      "hasUnmapped": false,
+      "isAiDrafted": false,
+      "isLocked": false,
+      "isPartialSdm": false,
+      "isQueryable": "Queryable",
+      "isUpsertable": true,
+      "label": "Diverzify Cross Brand Bookings 202610200920",
+      "lockedActions": {},
+      "queryUnrelatedDataObjects": "Exception",
+      "semanticCalculatedDimensions": [],
+      "semanticCalculatedMeasurements": [],
+      "semanticDataObjects": [
+        {
+          "apiName": "Diverzify_Bookings_Fact",
+          "dataObjectName": "analytics_builder_demo_Diverzif_FB58AFEB__dll",
+          "dataObjectType": "Dlo",
+          "filters": [],
+          "isQueryable": "Queryable",
+          "label": "Diverzify Bookings Fact",
+          "overriddenProperties": [],
+          "semanticDimensions": [
+            {
+              "apiName": "Account_Name5",
+              "dataObjectFieldName": "Account_Name__c",
+              "dataType": "Text",
+              "description": "Named customer account \u2014 use to drill to a specific National Account.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Account Name",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Account_Tier",
+              "dataObjectFieldName": "Account_Tier__c",
+              "dataType": "Text",
+              "description": "National (multi-site enterprise, served by DNA), Regional (multi-location within a region), Local (single-site). National accounts drive the cross-sell play.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Account Tier",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "cdp_sys_SourceVersion28",
+              "dataObjectFieldName": "cdp_sys_SourceVersion__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "cdp_sys_SourceVersion",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Contract_Type",
+              "dataObjectFieldName": "Contract_Type__c",
+              "dataType": "Text",
+              "description": "Lump Sum / T&M / Not-to-Exceed / MSA (Preferred Vendor).",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Contract Type",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Data_Source28",
+              "dataObjectFieldName": "DataSource__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Data Source",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Data_Source_Object28",
+              "dataObjectFieldName": "DataSourceObject__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Data Source Object",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Date25",
+              "dataObjectFieldName": "Date__c",
+              "dataType": "Date",
+              "description": "Weekly observation date \u2014 the week-ending date for all metrics on this row.",
+              "displayCategory": "Continuous",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Date",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Date"
+            },
+            {
+              "apiName": "KQ_Record_ID25",
+              "dataObjectFieldName": "KQ_Record_ID__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "KQ_Record_ID",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Operating_Brand",
+              "dataObjectFieldName": "Operating_Brand__c",
+              "dataType": "Text",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Operating_Brand",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Project_ID",
+              "dataObjectFieldName": "Project_ID__c",
+              "dataType": "Text",
+              "description": "Internal project identifier.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Project ID",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Project_Status",
+              "dataObjectFieldName": "Project_Status__c",
+              "dataType": "Text",
+              "description": "Bid / Won \u2014 Pre-Construction / In Flight / Punch List / Complete.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Project Status",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Record_ID26",
+              "dataObjectFieldName": "Record_ID__c",
+              "dataType": "Text",
+              "description": "Internal unique weekly key per project. Internal use only.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Record ID",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Service_Line",
+              "dataObjectFieldName": "Service_Line__c",
+              "dataType": "Text",
+              "description": "Type of work \u2014 Carpet/Resilient, Hardwood/LVT, Access Floor, Athletic Surface, Industrial Coatings, Surface Care, Prefab, Construction Cleaning.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Service Line",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "State12",
+              "dataObjectFieldName": "State__c",
+              "dataType": "Text",
+              "description": "Two-letter US state abbreviation of the project site.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "State",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "US_Region2",
+              "dataObjectFieldName": "US_Region__c",
+              "dataType": "Text",
+              "description": "Geographic region \u2014 Northeast, Southeast, Midwest, Southwest, West.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "US Region",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            },
+            {
+              "apiName": "Vertical3",
+              "dataObjectFieldName": "Vertical__c",
+              "dataType": "Text",
+              "description": "End-customer industry \u2014 Healthcare, Hospitality, Education, Corporate, Industrial, Retail, Government, Multifamily, Manufacturing. Healthcare is the largest vertical for Diverzify; Hospitality is counter-cyclical.",
+              "displayCategory": "Discrete",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Vertical",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "sortOrder": "None",
+              "storageDataType": "Text"
+            }
+          ],
+          "semanticMeasurements": [
+            {
+              "aggregationType": "Sum",
+              "apiName": "Backlog_Dollar",
+              "dataObjectFieldName": "Backlog_Dollar__c",
+              "dataType": "Number",
+              "decimalPlace": 2,
+              "description": "Dollar value of booked work not yet complete.",
+              "displayCategory": "Continuous",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Backlog $",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "shouldTreatNullsAsZeros": false,
+              "sortOrder": "None",
+              "storageDataType": "Number"
+            },
+            {
+              "aggregationType": "Sum",
+              "apiName": "Bookings_Dollar",
+              "dataObjectFieldName": "Bookings_Dollar__c",
+              "dataType": "Number",
+              "decimalPlace": 2,
+              "description": "Total contracted project value booked in the period.",
+              "displayCategory": "Continuous",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Bookings $",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "shouldTreatNullsAsZeros": false,
+              "sortOrder": "None",
+              "storageDataType": "Number"
+            },
+            {
+              "aggregationType": "Sum",
+              "apiName": "Cross_Sell_Opportunity_Count",
+              "dataObjectFieldName": "Cross_Sell_Opportunity_Count__c",
+              "dataType": "Number",
+              "decimalPlace": 2,
+              "description": "National-tier single-brand accounts qualified for cross-sell.",
+              "displayCategory": "Continuous",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Cross-Sell Opportunity Count",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "shouldTreatNullsAsZeros": false,
+              "sortOrder": "None",
+              "storageDataType": "Number"
+            },
+            {
+              "aggregationType": "Average",
+              "apiName": "Realized_Margin_Pct",
+              "dataObjectFieldName": "Realized_Margin_Pct__c",
+              "dataType": "Number",
+              "decimalPlace": 2,
+              "description": "Actual project margin \u2014 requires IFS cost + SF revenue.",
+              "displayCategory": "Continuous",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Realized Margin %",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "shouldTreatNullsAsZeros": false,
+              "sortOrder": "None",
+              "storageDataType": "Number"
+            },
+            {
+              "aggregationType": "Average",
+              "apiName": "Win_Rate1",
+              "dataObjectFieldName": "Win_Rate__c",
+              "dataType": "Number",
+              "decimalPlace": 2,
+              "description": "Percentage of bid opportunities converting to Won.",
+              "displayCategory": "Continuous",
+              "isPrimaryKey": false,
+              "isQueryable": "Queryable",
+              "isVisible": true,
+              "label": "Win Rate",
+              "overriddenProperties": [],
+              "semanticDataType": "None",
+              "shouldTreatNullsAsZeros": false,
+              "sortOrder": "None",
+              "storageDataType": "Number"
+            }
+          ],
+          "shouldIncludeAllFields": true,
+          "tableType": "Standard"
+        }
+      ],
+      "semanticDimensionHierarchies": [],
+      "semanticGroupings": [],
+      "semanticLogicalViews": [],
+      "semanticMetrics": [],
+      "semanticModelFilters": [],
+      "semanticModelInfo": {
+        "definitionsCount": 12,
+        "maxDefinitionCount": 5000,
+        "modelHierarchyDepth": 1
+      },
+      "semanticParameters": [],
+      "semanticPredictionModels": [],
+      "semanticRelationships": [],
+      "sourceCreation": "Other",
+      "tags": []
+    },
+    "dimensions": [
+      {
+        "apiName": "Display_Date",
+        "dataType": "Date",
+        "displayCategory": "Continuous",
+        "expression": "DATEADD(\"day\", DATEDIFF(\"day\", #2026-10-20#, [Diverzify_Bookings_Fact].[Date25]), TODAY())",
+        "filters": [],
+        "isOverrideBase": false,
+        "isQueryable": "Queryable",
+        "isVisible": true,
+        "label": "Display Date",
+        "level": "Row",
+        "overriddenProperties": [],
+        "semanticDataType": "None",
+        "sortOrder": "None"
+      }
+    ],
+    "measurements": [
+      {
+        "aggregationType": "UserAgg",
+        "apiName": "clc_backlog_dollar",
+        "dataType": "Number",
+        "decimalPlace": 4,
+        "directionality": "Up",
+        "displayCategory": "Continuous",
+        "expression": "SUM([Diverzify_Bookings_Fact].[Backlog_Dollar])",
+        "filters": [],
+        "isOverrideBase": false,
+        "isQueryable": "Queryable",
+        "isVisible": true,
+        "label": "Backlog $ CLC",
+        "level": "AggregateFunction",
+        "overriddenProperties": [],
+        "semanticDataType": "None",
+        "sentiment": "SentimentTypeUpIsGood",
+        "shouldTreatNullsAsZeros": false,
+        "sortOrder": "None",
+        "totalAggregationType": "Sum"
+      },
+      {
+        "aggregationType": "UserAgg",
+        "apiName": "clc_xsell_count",
+        "dataType": "Number",
+        "decimalPlace": 4,
+        "directionality": "Up",
+        "displayCategory": "Continuous",
+        "expression": "SUM([Diverzify_Bookings_Fact].[Cross_Sell_Opportunity_Count])",
+        "filters": [],
+        "isOverrideBase": false,
+        "isQueryable": "Queryable",
+        "isVisible": true,
+        "label": "Cross-Sell Opportunity Count CLC",
+        "level": "AggregateFunction",
+        "overriddenProperties": [],
+        "semanticDataType": "None",
+        "sentiment": "SentimentTypeUpIsGood",
+        "shouldTreatNullsAsZeros": false,
+        "sortOrder": "None",
+        "totalAggregationType": "Sum"
+      },
+      {
+        "aggregationType": "UserAgg",
+        "apiName": "clc_bookings_dollar",
+        "dataType": "Number",
+        "decimalPlace": 4,
+        "directionality": "Up",
+        "displayCategory": "Continuous",
+        "expression": "SUM([Diverzify_Bookings_Fact].[Bookings_Dollar])",
+        "filters": [],
+        "isOverrideBase": false,
+        "isQueryable": "Queryable",
+        "isVisible": true,
+        "label": "Bookings $ CLC",
+        "level": "AggregateFunction",
+        "overriddenProperties": [],
+        "semanticDataType": "None",
+        "sentiment": "SentimentTypeUpIsGood",
+        "shouldTreatNullsAsZeros": false,
+        "sortOrder": "None",
+        "totalAggregationType": "Sum"
+      },
+      {
+        "aggregationType": "UserAgg",
+        "apiName": "clc_realized_margin",
+        "dataType": "Number",
+        "decimalPlace": 4,
+        "directionality": "Up",
+        "displayCategory": "Continuous",
+        "expression": "AVG([Diverzify_Bookings_Fact].[Realized_Margin_Pct])",
+        "filters": [],
+        "isOverrideBase": false,
+        "isQueryable": "Queryable",
+        "isVisible": true,
+        "label": "Realized Margin % CLC",
+        "level": "AggregateFunction",
+        "overriddenProperties": [],
+        "semanticDataType": "None",
+        "sentiment": "SentimentTypeUpIsGood",
+        "shouldTreatNullsAsZeros": false,
+        "sortOrder": "None",
+        "totalAggregationType": "Sum"
+      },
+      {
+        "aggregationType": "UserAgg",
+        "apiName": "clc_win_rate",
+        "dataType": "Number",
+        "decimalPlace": 4,
+        "directionality": "Up",
+        "displayCategory": "Continuous",
+        "expression": "AVG([Diverzify_Bookings_Fact].[Win_Rate1])",
+        "filters": [],
+        "isOverrideBase": false,
+        "isQueryable": "Queryable",
+        "isVisible": true,
+        "label": "Win Rate CLC",
+        "level": "AggregateFunction",
+        "overriddenProperties": [],
+        "semanticDataType": "None",
+        "sentiment": "SentimentTypeUpIsGood",
+        "shouldTreatNullsAsZeros": false,
+        "sortOrder": "None",
+        "totalAggregationType": "Sum"
+      }
+    ],
+    "metrics": [
+      {
+        "additionalDimensions": [
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Account_Name5",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Account_Tier",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Contract_Type",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Operating_Brand",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Project_Status",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Service_Line",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "State12",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "US_Region2",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Vertical3",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          }
+        ],
+        "aggregationType": "UserAgg",
+        "apiName": "mtc_bookings_dollar",
+        "dataDefinedGoals": [],
+        "description": "Total contracted project value booked in the period. PRIMARY KPI for the Diverzify cross-brand roll-up view.",
+        "filters": [],
+        "insightsSettings": {
+          "insightTypes": [
+            {
+              "enabled": true,
+              "type": "TopContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ComparisonToExpectedRangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TrendChangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "BottomContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ConcentratedContributionAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TopDrivers"
+            },
+            {
+              "enabled": true,
+              "type": "TopDetractors"
+            },
+            {
+              "enabled": true,
+              "type": "CurrentTrend"
+            },
+            {
+              "enabled": false,
+              "type": "OutlierDetection"
+            },
+            {
+              "enabled": false,
+              "type": "RecordLevelTable"
+            }
+          ],
+          "insightsDimensionsReferences": [
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Account_Name5",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Account_Tier",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Contract_Type",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Operating_Brand",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Project_Status",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Service_Line",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "State12",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "US_Region2",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Vertical3",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            }
+          ],
+          "pluralNoun": "booking dollars",
+          "sentiment": "SentimentTypeUpIsGood",
+          "singularNoun": "booking dollar"
+        },
+        "isCumulative": false,
+        "isGoalEditingBlocked": false,
+        "isQueryable": "Queryable",
+        "label": "Bookings $",
+        "measurementReference": {
+          "calculatedFieldApiName": "clc_bookings_dollar"
+        },
+        "timeDimensionReference": {
+          "calculatedFieldApiName": "Display_Date"
+        },
+        "timeGrains": [
+          "Week",
+          "Month",
+          "Quarter",
+          "Year"
+        ]
+      },
+      {
+        "additionalDimensions": [
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Account_Name5",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Account_Tier",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Contract_Type",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Operating_Brand",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Project_Status",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Service_Line",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "State12",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "US_Region2",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Vertical3",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          }
+        ],
+        "aggregationType": "UserAgg",
+        "apiName": "mtc_win_rate",
+        "dataDefinedGoals": [],
+        "description": "Percentage of bid opportunities converting to Won status.",
+        "filters": [],
+        "insightsSettings": {
+          "insightTypes": [
+            {
+              "enabled": true,
+              "type": "TopContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ComparisonToExpectedRangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TrendChangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "BottomContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ConcentratedContributionAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TopDrivers"
+            },
+            {
+              "enabled": true,
+              "type": "TopDetractors"
+            },
+            {
+              "enabled": true,
+              "type": "CurrentTrend"
+            },
+            {
+              "enabled": false,
+              "type": "OutlierDetection"
+            },
+            {
+              "enabled": false,
+              "type": "RecordLevelTable"
+            }
+          ],
+          "insightsDimensionsReferences": [
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Account_Name5",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Account_Tier",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Contract_Type",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Operating_Brand",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Project_Status",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Service_Line",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "State12",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "US_Region2",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Vertical3",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            }
+          ],
+          "pluralNoun": "win rate points",
+          "sentiment": "SentimentTypeUpIsGood",
+          "singularNoun": "win rate point"
+        },
+        "isCumulative": false,
+        "isGoalEditingBlocked": false,
+        "isQueryable": "Queryable",
+        "label": "Win Rate",
+        "measurementReference": {
+          "calculatedFieldApiName": "clc_win_rate"
+        },
+        "timeDimensionReference": {
+          "calculatedFieldApiName": "Display_Date"
+        },
+        "timeGrains": [
+          "Week",
+          "Month",
+          "Quarter",
+          "Year"
+        ]
+      },
+      {
+        "additionalDimensions": [
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Account_Name5",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Account_Tier",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Contract_Type",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Operating_Brand",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Project_Status",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Service_Line",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "State12",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "US_Region2",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Vertical3",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          }
+        ],
+        "aggregationType": "UserAgg",
+        "apiName": "mtc_xsell_count",
+        "dataDefinedGoals": [],
+        "description": "National-tier accounts currently served by exactly ONE operating brand. Candidates for Diverzify National Accounts (DNA) cross-sell.",
+        "filters": [],
+        "insightsSettings": {
+          "insightTypes": [
+            {
+              "enabled": true,
+              "type": "TopContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ComparisonToExpectedRangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TrendChangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "BottomContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ConcentratedContributionAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TopDrivers"
+            },
+            {
+              "enabled": true,
+              "type": "TopDetractors"
+            },
+            {
+              "enabled": true,
+              "type": "CurrentTrend"
+            },
+            {
+              "enabled": false,
+              "type": "OutlierDetection"
+            },
+            {
+              "enabled": false,
+              "type": "RecordLevelTable"
+            }
+          ],
+          "insightsDimensionsReferences": [
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Account_Name5",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Account_Tier",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Contract_Type",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Operating_Brand",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Project_Status",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Service_Line",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "State12",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "US_Region2",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Vertical3",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            }
+          ],
+          "pluralNoun": "cross-sell opportunities",
+          "sentiment": "SentimentTypeUpIsGood",
+          "singularNoun": "cross-sell opportunity"
+        },
+        "isCumulative": false,
+        "isGoalEditingBlocked": false,
+        "isQueryable": "Queryable",
+        "label": "Cross-Sell Opportunity Count",
+        "measurementReference": {
+          "calculatedFieldApiName": "clc_xsell_count"
+        },
+        "timeDimensionReference": {
+          "calculatedFieldApiName": "Display_Date"
+        },
+        "timeGrains": [
+          "Week",
+          "Month",
+          "Quarter",
+          "Year"
+        ]
+      },
+      {
+        "additionalDimensions": [
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Account_Name5",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Account_Tier",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Contract_Type",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Operating_Brand",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Project_Status",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Service_Line",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "State12",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "US_Region2",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Vertical3",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          }
+        ],
+        "aggregationType": "UserAgg",
+        "apiName": "mtc_backlog_dollar",
+        "dataDefinedGoals": [],
+        "description": "Dollar value of booked work not yet complete. Leading indicator of future bookings.",
+        "filters": [],
+        "insightsSettings": {
+          "insightTypes": [
+            {
+              "enabled": true,
+              "type": "TopContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ComparisonToExpectedRangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TrendChangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "BottomContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ConcentratedContributionAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TopDrivers"
+            },
+            {
+              "enabled": true,
+              "type": "TopDetractors"
+            },
+            {
+              "enabled": true,
+              "type": "CurrentTrend"
+            },
+            {
+              "enabled": false,
+              "type": "OutlierDetection"
+            },
+            {
+              "enabled": false,
+              "type": "RecordLevelTable"
+            }
+          ],
+          "insightsDimensionsReferences": [
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Account_Name5",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Account_Tier",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Contract_Type",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Operating_Brand",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Project_Status",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Service_Line",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "State12",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "US_Region2",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Vertical3",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            }
+          ],
+          "pluralNoun": "backlog dollars",
+          "sentiment": "SentimentTypeUpIsGood",
+          "singularNoun": "backlog dollar"
+        },
+        "isCumulative": false,
+        "isGoalEditingBlocked": false,
+        "isQueryable": "Queryable",
+        "label": "Backlog $",
+        "measurementReference": {
+          "calculatedFieldApiName": "clc_backlog_dollar"
+        },
+        "timeDimensionReference": {
+          "calculatedFieldApiName": "Display_Date"
+        },
+        "timeGrains": [
+          "Week",
+          "Month",
+          "Quarter",
+          "Year"
+        ]
+      },
+      {
+        "additionalDimensions": [
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Account_Name5",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Account_Tier",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Contract_Type",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Operating_Brand",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Project_Status",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Service_Line",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "State12",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "US_Region2",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          },
+          {
+            "tableFieldReference": {
+              "fieldApiName": "Vertical3",
+              "tableApiName": "Diverzify_Bookings_Fact"
+            }
+          }
+        ],
+        "aggregationType": "UserAgg",
+        "apiName": "mtc_realized_margin",
+        "dataDefinedGoals": [],
+        "description": "Actual project margin: 1 - (IFS cost / Salesforce revenue). Requires joining IFS data from Snowflake to Salesforce revenue \u2014 unanswerable in a Salesforce report alone.",
+        "filters": [],
+        "insightsSettings": {
+          "insightTypes": [
+            {
+              "enabled": true,
+              "type": "TopContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ComparisonToExpectedRangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TrendChangeAlert"
+            },
+            {
+              "enabled": true,
+              "type": "BottomContributors"
+            },
+            {
+              "enabled": true,
+              "type": "ConcentratedContributionAlert"
+            },
+            {
+              "enabled": true,
+              "type": "TopDrivers"
+            },
+            {
+              "enabled": true,
+              "type": "TopDetractors"
+            },
+            {
+              "enabled": true,
+              "type": "CurrentTrend"
+            },
+            {
+              "enabled": false,
+              "type": "OutlierDetection"
+            },
+            {
+              "enabled": false,
+              "type": "RecordLevelTable"
+            }
+          ],
+          "insightsDimensionsReferences": [
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Account_Name5",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Account_Tier",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Contract_Type",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Operating_Brand",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Project_Status",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Service_Line",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "State12",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "US_Region2",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            },
+            {
+              "tableFieldReference": {
+                "fieldApiName": "Vertical3",
+                "tableApiName": "Diverzify_Bookings_Fact"
+              }
+            }
+          ],
+          "pluralNoun": "margin points",
+          "sentiment": "SentimentTypeUpIsGood",
+          "singularNoun": "margin point"
+        },
+        "isCumulative": false,
+        "isGoalEditingBlocked": false,
+        "isQueryable": "Queryable",
+        "label": "Realized Margin %",
+        "measurementReference": {
+          "calculatedFieldApiName": "clc_realized_margin"
+        },
+        "timeDimensionReference": {
+          "calculatedFieldApiName": "Display_Date"
+        },
+        "timeGrains": [
+          "Week",
+          "Month",
+          "Quarter",
+          "Year"
+        ]
+      }
+    ]
+  }
+}

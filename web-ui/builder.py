@@ -96,6 +96,16 @@ Rules:
 - pulse_agg: "AGGREGATION_AVERAGE" for rates, "AGGREGATION_SUM" for flows/counts.
 """
 
+# Minimum data requirements per dashboard template
+TEMPLATE_REQUIREMENTS = {
+    "z_layout":         {"min_metrics": 4, "min_dimensions": 3, "description": "Z Layout needs 4-6 metrics and 3+ dimensions for filters, grouping, and breakdowns"},
+    "f_layout":         {"min_metrics": 3, "min_dimensions": 3, "description": "F Layout needs 3 metrics and 3+ dimensions"},
+    "exec_summary":     {"min_metrics": 4, "min_dimensions": 2, "description": "Executive Summary needs 4-5 metrics and 2+ dimensions for entity rankings"},
+    "pharma_analytics": {"min_metrics": 4, "min_dimensions": 3, "description": "Pharma Analytics needs 4 metrics and 3 dimensions (specialty, geography, brand)"},
+    "multi_page_kpi":   {"min_metrics": 6, "min_dimensions": 4, "description": "Multi-Page KPI needs 6+ metrics and 4+ dimensions across 4 dashboard pages"},
+    "standard":         {"min_metrics": 3, "min_dimensions": 2, "description": "Standard layout needs 3+ metrics and 2+ dimensions"},
+}
+
 
 def _find_existing_demo(company):
     """Look for a previously built demo matching this company name."""
@@ -128,13 +138,29 @@ def _find_existing_demo(company):
     return None
 
 
-def generate_story(company, industry, use_case, audience, notes="", research_depth="quick"):
-    """Call Claude API to generate story + metrics. Returns dict."""
+def generate_story(company, industry, use_case, audience, notes="", research_depth="quick", dashboard_template=None):
+    """Call Claude API to generate story + metrics with web research. Returns dict."""
     from app import _get_chat_config, CHAT_MODEL
 
     cfg = _get_chat_config()
     if not cfg:
         raise RuntimeError("No API key configured for AI generation")
+
+    # --- Web research (same 5 areas as CLI /build-demo) ---
+    research_context = ""
+    brand_colors = {}
+    try:
+        from researcher import research_company, format_research_for_prompt
+        research = research_company(
+            company=company,
+            industry=industry,
+            use_case=use_case,
+            depth=research_depth,
+        )
+        research_context = format_research_for_prompt(research)
+        brand_colors = research.get("brand_colors", {})
+    except Exception:
+        pass
 
     prior_context = ""
     existing = _find_existing_demo(company)
@@ -161,12 +187,24 @@ Go deep on this company's actual business model, industry dynamics, and real KPI
 RESEARCH DEPTH: QUICK
 Generate a solid demo configuration using reasonable industry defaults. 3-4 metrics is fine. Use generic but realistic dimension values."""
 
+    # Generate enough metrics/dimensions to support any template
+    template_context = ""
+    if dashboard_template and dashboard_template in TEMPLATE_REQUIREMENTS:
+        tpl_reqs = TEMPLATE_REQUIREMENTS[dashboard_template]
+        template_context = f"""
+DASHBOARD REQUIREMENTS: Generate at least {tpl_reqs['min_metrics']} metrics and at least {tpl_reqs['min_dimensions']} dimensions."""
+    else:
+        template_context = """
+DASHBOARD REQUIREMENTS: Generate at least 4 metrics and at least 3 dimensions to support the widest range of dashboard templates."""
+
     user_msg = f"""Company: {company}
 Industry: {industry}
 Use case / topic: {use_case}
 Audience: {audience}
 Additional context: {notes or 'None'}
+{template_context}
 {depth_context}
+{research_context}
 {prior_context}"""
 
     if cfg["mode"] == "bedrock_gateway":
@@ -223,19 +261,23 @@ Additional context: {notes or 'None'}
     text = text.strip()
 
     # Try parsing the full text first, then fall back to extracting JSON block
+    result = None
     try:
-        return json.loads(text)
+        result = json.loads(text)
     except json.JSONDecodeError:
-        pass
+        match = re.search(r'\{[\s\S]*\}', text)
+        if not match:
+            raise RuntimeError(f"AI did not return valid JSON. Response: {text[:300]}")
+        try:
+            result = json.loads(match.group())
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"AI returned malformed JSON: {e}. Response: {text[:300]}")
 
-    match = re.search(r'\{[\s\S]*\}', text)
-    if not match:
-        raise RuntimeError(f"AI did not return valid JSON. Response: {text[:300]}")
+    # Attach brand colors from research (if found and not already in result)
+    if brand_colors and not result.get("brand_colors"):
+        result["brand_colors"] = brand_colors
 
-    try:
-        return json.loads(match.group())
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"AI returned malformed JSON: {e}. Response: {text[:300]}")
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -282,16 +324,41 @@ def generate_data(story_config, q=None, advanced=None):
         else:
             dim_values[dim] = [f"{dim} 1", f"{dim} 2", f"{dim} 3", f"{dim} 4"]
 
+    # Per-dimension signal multipliers: culprit (1.5-2.5x), moderate (0.8-1.2x),
+    # flat (0.0-0.3x), and one counter-trend (-0.10 to -0.15)
     segment_mults = {}
     for dim in dimensions:
         vals = dim_values[dim]
-        mults = [random.uniform(1.5, 2.5)]
-        mults.append(random.uniform(0.8, 1.2))
-        mults.append(random.uniform(0.0, 0.4))
+        mults = [random.uniform(1.8, 2.5)]   # culprit segment
+        mults.append(random.uniform(0.8, 1.2))  # moderate
+        mults.append(random.uniform(0.0, 0.3))  # flat
+        mults.append(random.uniform(-0.15, -0.08))  # counter-trend
         while len(mults) < len(vals):
-            mults.append(random.uniform(-0.15, 0.5))
+            mults.append(random.uniform(0.3, 1.0))
         random.shuffle(mults)
-        segment_mults[dim] = dict(zip(vals, mults))
+        segment_mults[dim] = dict(zip(vals, mults[:len(vals)]))
+
+    # 2D compound multiplier table for the primary culprit dimension pair
+    # Creates the "drill deeper" story: overall down → dim1 filtered → dim1+dim2 filtered → steeper
+    compound_2d = {}
+    if len(dimensions) >= 2:
+        dim1_vals = dim_values[dimensions[0]]
+        dim2_vals = dim_values[dimensions[1]]
+        culprit_dim1 = max(segment_mults[dimensions[0]], key=segment_mults[dimensions[0]].get)
+        for v1 in dim1_vals:
+            for v2 in dim2_vals:
+                if v1 == culprit_dim1:
+                    compound_2d[(v1, v2)] = random.uniform(1.2, 2.8)
+                else:
+                    compound_2d[(v1, v2)] = segment_mults[dimensions[0]].get(v1, 0.5)
+
+    # Noise scale by segment size (larger segments = smoother)
+    noise_scales = {}
+    for dim in dimensions:
+        vals = dim_values[dim]
+        sorted_vals = sorted(vals, key=lambda v: abs(segment_mults[dim].get(v, 0)), reverse=True)
+        for i, v in enumerate(sorted_vals):
+            noise_scales[(dim, v)] = 0.022 - (i * 0.004)
 
     grain = advanced.get("grain", "monthly")
     freq_map = {"daily": "D", "weekly": "W-MON", "monthly": "MS"}
@@ -314,7 +381,16 @@ def generate_data(story_config, q=None, advanced=None):
 
             for dt in dates:
                 ramp = signal_ramp(dt, onset=signal_onset, shape=signal_shape, duration=abs(signal_onset))
-                primary_mult = max(segment_mults[dimensions[0]].get(combo[0], 1.0), 0.0)
+
+                # 2D compound multiplier if available, else fall back to dim1 scalar
+                if compound_2d and len(dimensions) >= 2:
+                    combined_mult = compound_2d.get((combo[0], combo[1]),
+                                                     segment_mults[dimensions[0]].get(combo[0], 0.5))
+                else:
+                    combined_mult = segment_mults[dimensions[0]].get(combo[0], 0.5)
+
+                # Noise based on first dimension's segment size
+                ns = noise_scales.get((dimensions[0], combo[0]), 0.015)
 
                 row = {"Record ID": f"{eid}_{dt.strftime('%Y%m%d')}", "Date": dt, "Entity ID": eid}
                 for i, dim in enumerate(dimensions):
@@ -327,12 +403,12 @@ def generate_data(story_config, q=None, advanced=None):
 
                     if is_primary:
                         mag = signal_magnitude
-                        mult = primary_mult
+                        mult = combined_mult
                     else:
                         mag = supporting_magnitude
-                        mult = primary_mult * 0.7
+                        mult = combined_mult * 0.7
 
-                    noise = np.random.normal(0, 0.015)
+                    noise = np.random.normal(0, ns)
                     if sent == "up_is_good":
                         val = base * (1 - mag * ramp * mult) + noise
                     else:
@@ -344,6 +420,11 @@ def generate_data(story_config, q=None, advanced=None):
                         val = max(0, val * 1000)
 
                     row[mc["label"]] = round(val, 4)
+
+                    # Goal target column (constant)
+                    goal = mc.get("goal")
+                    if goal:
+                        row[goal.get("field", f"{mc['label']} Target")] = goal["value"]
 
                 day_offset = (dt - TODAY).days
                 row["Day_Offset"] = day_offset
@@ -473,6 +554,24 @@ def generate_walkthrough(slug, company, story_config, metric_config, build_type,
                 "To set up: Open metric → Edit → Goals → Select field from data → Choose the target column → Set direction."
             )
 
+    # --- Section 4b: Pulse Discover Questions (Pulse only, if insights captured) ---
+    if build_type == "pulse":
+        discover = checkpoint.get("pulse_discover_results", [])
+        if discover:
+            doc.add_heading("Pulse Discover Questions", level=1)
+            doc.add_paragraph(
+                "Each question below was asked to Pulse Discover at build time. "
+                "The responses are live AI-generated answers based on the actual demo data."
+            )
+            for i, dr in enumerate(discover):
+                doc.add_heading(f"Q{i+1} — {dr.get('metric', '')}", level=2)
+                p_ask = doc.add_paragraph("")
+                p_ask.add_run("Ask: ").bold = True
+                p_ask.add_run(f'"{dr["question"]}"')
+                p_resp = doc.add_paragraph("")
+                p_resp.add_run("Expected response: ").bold = True
+                p_resp.add_run(dr.get("answer", "(no response captured)"))
+
     # --- Section 5: Business Preferences (Next only) ---
     if build_type == "next":
         doc.add_heading("Business Preferences (SDM)", level=1)
@@ -536,6 +635,45 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
     server, auth_token, site_id = get_tableau_token(config)
     import tableauserverclient as TSC
 
+    # Cleanup: delete only assets this script previously created (tracked in checkpoint)
+    base = config["tableau"]["server_url"].rstrip("/")
+    api_ver = server.version or "3.24"
+    h_pulse_std = {"x-tableau-auth": auth_token, "Accept": "application/json"}
+    try:
+        # Delete prior project (by ID from checkpoint)
+        if cp.get("pulse_project_id"):
+            try:
+                server.projects.delete(cp["pulse_project_id"])
+                progress(q, "cleanup", f"Deleted prior project: {cp.get('pulse_project_name', cp['pulse_project_id'])}", -1)
+            except Exception:
+                pass
+
+        # Delete prior group (by ID from checkpoint)
+        if cp.get("pulse_group_id"):
+            try:
+                req.delete(f"{base}/api/{api_ver}/sites/{site_id}/groups/{cp['pulse_group_id']}",
+                           headers={"x-tableau-auth": auth_token})
+                progress(q, "cleanup", f"Deleted prior group", -1)
+            except Exception:
+                pass
+
+        # Delete prior Pulse definitions (by ID from checkpoint)
+        for did in cp.get("pulse_def_ids", []):
+            try:
+                req.delete(f"{base}/api/-/pulse/definitions/{did}", headers=h_pulse_std)
+                progress(q, "cleanup", f"Deleted prior definition: {did}", -1)
+            except Exception:
+                pass
+
+        # Clear checkpoint tracking for Pulse assets
+        for k in ("pulse_project_id", "pulse_project_name", "pulse_group_id",
+                   "pulse_def_ids", "pulse_metric_ids", "pulse_datasource_id",
+                   "pulse_datasource_name", "pulse_insights_done", "pulse_discover_results"):
+            cp.pop(k, None)
+        _save_cp(cp, slug, demo_dir)
+    except Exception as e:
+        progress(q, "info", f"Cleanup partial: {e}", -1)
+
     project_name = f"{company} | {TODAY.strftime('%Y-%m-%d %H:%M')}"
     new_project = TSC.ProjectItem(name=project_name)
     project = server.projects.create(new_project)
@@ -585,12 +723,20 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
                     "GRANULARITY_BY_YEAR",
                 ],
                 "offset_from_today": 0,
+                "use_dynamic_offset": True,
+                "correlation_candidate_definition_ids": [],
             },
             "insights_options": {"show_insights": True, "settings": []},
             "comparisons": {"comparisons": [
                 {"compare_config": {"comparison": "TIME_COMPARISON_PREVIOUS_PERIOD", "comparison_period_override": []}, "index": "0"}
             ]},
         }
+
+        # Add sentiment if available
+        sentiment_map = {"up_is_good": "SENTIMENT_UP_IS_GOOD", "down_is_good": "SENTIMENT_DOWN_IS_GOOD"}
+        sent = sentiment_map.get(mc.get("sentiment", ""), "")
+        if sent:
+            payload["representation_options"]["sentiment_type"] = sent
 
         r = req.post(f"{base}/api/-/pulse/definitions", headers=h_pulse, json=payload)
         if r.status_code not in (200, 201):
@@ -673,7 +819,102 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
             progress(q, "warn", f"Pulse Dashboard skipped: {e}", -1)
         _save_cp(cp, slug, demo_dir)
 
-    progress(q, "walkthrough", "Generating walkthrough document...", 85)
+    # --- Pulse Discover Questions (Brief API) ---
+    if cp.get("pulse_def_ids") and not cp.get("pulse_insights_done"):
+        progress(q, "insights", "Capturing Pulse AI insights...", 87)
+        try:
+            import tableauserverclient as TSC
+            auth_token = server.auth_token
+            server_url = server.server_address
+            site_id = server.site_id
+
+            h_std = {"x-tableau-auth": auth_token, "Accept": "application/json"}
+            h_brief = {
+                "x-tableau-auth": auth_token,
+                "Content-Type": "application/vnd.tableau.pulse.embeddingsservice.v1.GenerateInsightBriefRequest+json",
+            }
+
+            discover_results = []
+            questions = [
+                f"Summarize the overall trend for {mc['label']}" for mc in metric_config[:4]
+            ]
+            primary = [mc for mc in metric_config if mc.get("is_primary")]
+            if primary:
+                questions.append(f"What is driving the change in {primary[0]['label']}?")
+                questions.append(f"Which segments are most affected by the {primary[0]['label']} decline?")
+
+            for i, (def_id, metric_id) in enumerate(zip(
+                cp.get("pulse_def_ids", []), cp.get("pulse_metric_ids", [])
+            )):
+                if i >= len(questions):
+                    break
+                question = questions[i]
+                mc = metric_config[i] if i < len(metric_config) else metric_config[0]
+
+                try:
+                    # GET definition + metric data for context
+                    r_def = req.get(f"{server_url}/api/-/pulse/definitions/{def_id}", headers=h_std)
+                    r_met = req.get(f"{server_url}/api/-/pulse/definitions/{def_id}/metrics", headers=h_std)
+                    if not (r_def.ok and r_met.ok):
+                        continue
+
+                    d = r_def.json()
+                    m_list = r_met.json().get("metrics", [])
+                    m = m_list[0] if m_list else {}
+
+                    metric_context = {
+                        "metadata": {
+                            "definition_id": def_id,
+                            "metric_id": metric_id,
+                            "name": f"{company} — {mc['label']}",
+                            "tags": [],
+                        },
+                        "metric": {
+                            "definition": d.get("specification", {}),
+                            "extension_options": d.get("extension_options", {}),
+                            "metric_specification": m.get("specification", {}),
+                            "representation_options": d.get("representation_options", {}),
+                        },
+                    }
+
+                    brief_payload = {
+                        "language": "LANGUAGE_EN_US",
+                        "locale": "LOCALE_EN_US",
+                        "now": TODAY.isoformat(),
+                        "messages": [{
+                            "content": question,
+                            "action_type": "ACTION_TYPE_SUMMARIZE",
+                            "role": "ROLE_USER",
+                            "metric_group_context": [metric_context],
+                            "metric_group_context_resolved": False,
+                        }],
+                    }
+
+                    r_brief = req.post(f"{server_url}/api/-/pulse/insights/brief",
+                                       headers=h_brief, json=brief_payload, timeout=30)
+                    if r_brief.status_code == 201:
+                        markup = r_brief.json().get("markup", "")
+                        clean = re.sub(r'<span[^>]*>(.*?)</span>', r'\1', markup)
+                        clean = re.sub(r'\[\[\d+\]\]\([^)]+\)', '', clean)
+                        clean = re.sub(r'\*\*', '', clean).strip()
+                        discover_results.append({"question": question, "answer": clean, "metric": mc["label"]})
+                        progress(q, "insights", f"Q{i+1}: {mc['label']} — got response", -1)
+                    else:
+                        progress(q, "info", f"Brief API {r_brief.status_code} for {mc['label']}", -1)
+                except Exception as e:
+                    progress(q, "info", f"Insight {i+1} failed: {str(e)[:100]}", -1)
+
+            if discover_results:
+                cp["pulse_discover_results"] = discover_results
+                progress(q, "insights", f"Captured {len(discover_results)} Pulse AI insights", -1)
+            cp["pulse_insights_done"] = True
+            _save_cp(cp, slug, demo_dir)
+        except Exception as e:
+            progress(q, "warn", f"Pulse insights phase failed (non-blocking): {e}", -1)
+            cp["pulse_insights_done"] = True
+            _save_cp(cp, slug, demo_dir)
+
+    progress(q, "walkthrough", "Generating walkthrough document...", 90)
     wt_path = generate_walkthrough(slug, company, story_config, metric_config, "pulse", cp, demo_dir)
 
     server.auth.sign_out()
@@ -856,6 +1097,21 @@ def _validate_next_build(config, cp, metric_config, q):
         progress(q, "validate", f"⚠ {summary}", -1)
     else:
         progress(q, "validate", f"✓ {summary} — all assets verified", -1)
+
+
+def _cleanup_assets(asset_list, api_base, headers, asset_type, q):
+    """Delete previously created assets before recreating. Skips 404s silently."""
+    import requests as req
+    for name in list(asset_list):
+        try:
+            r = req.delete(f"{api_base}/{name}", headers=headers)
+            if r.status_code in (204, 200):
+                progress(q, "cleanup", f"Deleted prior {asset_type}: {name}", -1)
+            elif r.status_code == 404:
+                pass
+        except Exception:
+            pass
+    asset_list.clear()
 
 
 def next_build(build_id, df, slug, company, config, metric_config, story_config, demo_dir, q, cp, build_config=None):
@@ -1108,6 +1364,25 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         sf_token, sf_instance = get_sf_token(config)
         h = sf_headers(sf_token)
 
+        # Retry cleanup: delete prior workspace/SDM assets from failed runs
+        if cp.get("all_dash_apis"):
+            _cleanup_assets(cp["all_dash_apis"],
+                f"{sf_instance}/services/data/v66.0/tableau/dashboards", h, "dashboard", q)
+        if cp.get("all_viz_apis"):
+            _cleanup_assets(cp["all_viz_apis"],
+                f"{sf_instance}/services/data/v66.0/tableau/visualizations", h, "viz", q)
+        if cp.get("all_sdm_apis"):
+            _cleanup_assets(cp["all_sdm_apis"],
+                f"{sf_instance}/services/data/v65.0/ssot/semantic/models", h, "SDM", q)
+        if cp.get("all_ws_apis"):
+            _cleanup_assets(cp["all_ws_apis"],
+                f"{sf_instance}/services/data/v65.0/tableau/workspaces", h, "workspace", q)
+        for k in ("ws_api", "sdm_api", "do_api", "dim_field_map", "measurement_map",
+                   "display_date_api", "metric_apis", "viz_apis", "dash_api",
+                   "viz_done", "dash_done", "metrics_done"):
+            cp.pop(k, None)
+        _save_cp(cp, slug, demo_dir)
+
         build_config = build_config or {}
         demo_label = build_config.get("demo_name", "") or company
         ws_label = f"{demo_label} Analytics"
@@ -1119,7 +1394,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
         sdm_label = f"{demo_label} Analytics"
         r_sdm = req.post(f"{sf_instance}/services/data/v65.0/ssot/semantic/models",
-                         headers=h, json={"label": sdm_label, "dataspace": "default"})
+                         headers=h, json={"label": sdm_label, "dataspace": "default", "agentEnabled": True})
         r_sdm.raise_for_status()
         cp["sdm_api"] = r_sdm.json().get("apiName", "")
         cp["all_sdm_apis"].append(cp["sdm_api"])
@@ -1169,6 +1444,27 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                         "aggregationType": agg,
                         "description": mc.get("description", ""),
                     })
+
+        # PUT descriptions on dimensions so Concierge understands what each field means
+        dim_descriptions = story_config.get("dim_descriptions", {})
+        for dim in do_data.get("semanticDimensions", []):
+            dim_api = dim["apiName"]
+            base = dim.get("dataObjectFieldName", "").replace("__c", "")
+            label = dim.get("label", base)
+            desc = dim_descriptions.get(base, dim_descriptions.get(label, ""))
+            if not desc:
+                desc = f"Use this field to filter or group by {label}."
+            try:
+                req.put(
+                    f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{cp['sdm_api']}/data-objects/{cp['do_api']}/dimensions/{dim_api}",
+                    headers=h, json={
+                        "apiName": dim_api,
+                        "label": label,
+                        "dataObjectFieldName": dim.get("dataObjectFieldName", ""),
+                        "description": desc,
+                    })
+            except Exception:
+                pass
 
         progress(q, "sdm", "Creating self-healing Display Date...", 50)
         build_date_str = TODAY.strftime("%Y-%m-%d")
@@ -1279,18 +1575,122 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         sf_token, sf_instance = get_sf_token(config)
         h = sf_headers(sf_token)
 
-        # Try MCP path first for higher quality dashboards
-        mcp_available = False
+        # Retry cleanup: delete prior viz/dashboard assets from failed runs
+        if cp.get("all_dash_apis"):
+            _cleanup_assets(cp["all_dash_apis"],
+                f"{sf_instance}/services/data/v66.0/tableau/dashboards", h, "dashboard", q)
+        if cp.get("all_viz_apis"):
+            _cleanup_assets(cp["all_viz_apis"],
+                f"{sf_instance}/services/data/v66.0/tableau/visualizations", h, "viz", q)
+        for k in ("viz_apis", "dash_api", "dash_done"):
+            cp.pop(k, None)
+        _save_cp(cp, slug, demo_dir)
+
+        # --- Primary path: Package & Deploy templates (pixel-perfect, 72-col grid) ---
+        template_deployed = False
         try:
-            from mcp_client import MCPClient
-            mcp = MCPClient(config)
-            if mcp.available:
-                mcp.authenticate()
+            from template_deployer import deploy_template, AVAILABLE_TEMPLATES
+            template_name = build_config.get("dashboard_template", "z_layout") if build_config else "z_layout"
+            if template_name in AVAILABLE_TEMPLATES:
+                progress(q, "viz", f"Deploying {template_name.replace('_', ' ').title()} template...", 72)
+
+                # Get workspace ID and SDM info
+                r_ws = req.get(f"{sf_instance}/services/data/v65.0/tableau/workspaces/{cp['ws_api']}", headers=h)
+                ws_info = r_ws.json() if r_ws.ok else {}
+                ws_id = ws_info.get("id", "")
+                ws_label = ws_info.get("label", cp["ws_api"])
+
+                r_sdm = req.get(f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{cp['sdm_api']}", headers=h)
+                sdm_info = r_sdm.json() if r_sdm.ok else {}
+                sdm_label = sdm_info.get("label", cp["sdm_api"])
+                sdm_id = sdm_info.get("id", "")
+
+                # Build field_map: template uses D16 field names, remap to target SDM
+                # The template vizzes reference _clc calc measures and DO dimensions
+                clc_apis = [f"{mc['field']}_clc" for mc in metric_config]
+                dim_map = cp.get("dim_field_map", {})
+                SYSTEM_DIMS = {"date", "record_id", "entity_id", "day_offset", "kq_record_id",
+                               "datasourceobject", "datasource", "cdp_sys_sourceversion",
+                               "data_source_object", "data_source"}
+                user_dims = [(k, v) for k, v in dim_map.items()
+                             if k.lower().replace(" ", "_") not in SYSTEM_DIMS]
+
+                # Map template fields to this demo's fields
+                field_map = {}
+                # Primary measure for hero trend line
+                if clc_apis:
+                    field_map["platform_utilization_rate_clc"] = clc_apis[0]
+                # Breakdown measure for detail vizzes
+                if len(clc_apis) > 1:
+                    field_map["reports_migrated_to_tableau_clc"] = clc_apis[1]
+                # Dimensions for grouping/breakdown/detail
+                dim_template_names = ["team1", "report_type1", "system_source1", "request_status1"]
+                for i, tmpl_dim in enumerate(dim_template_names):
+                    if i < len(user_dims):
+                        field_map[tmpl_dim] = user_dims[i][1]  # map to target dim apiName
+
+                # Filter fields
+                filter_fields = [
+                    {"fieldName": api, "objectName": cp["do_api"], "label": name.replace("_", " ").title()}
+                    for name, api in user_dims[:6]
+                ]
+
+                demo_label = build_config.get("demo_name", "") or company if build_config else company
+                results = deploy_template(
+                    template_name=template_name,
+                    sf_token=sf_token,
+                    sf_instance=sf_instance,
+                    sdm_api=cp["sdm_api"],
+                    sdm_label=sdm_label,
+                    sdm_id=sdm_id,
+                    ws_api=cp["ws_api"],
+                    ws_label=ws_label,
+                    ws_id=ws_id,
+                    do_api=cp.get("do_api", ""),
+                    slug=slug,
+                    dash_label=f"{demo_label} Dashboard",
+                    metric_apis=[m for m in cp.get("metric_apis", [])],
+                    filter_fields=filter_fields,
+                    title_text=demo_label,
+                    detail_header="Details",
+                    field_map=field_map if field_map else None,
+                )
+
+                if results.get("dashboard") and not results.get("errors"):
+                    cp["viz_apis"] = [v["name"] for v in results["vizzes_created"].values()]
+                    cp["all_viz_apis"].extend(cp["viz_apis"])
+                    cp["dash_api"] = results["dashboard"]["name"]
+                    cp["all_dash_apis"].append(cp["dash_api"])
+                    cp["viz_done"] = True
+                    cp["dash_done"] = True
+                    template_deployed = True
+                    progress(q, "dash", f"Template dashboard deployed: {cp['dash_api']} ({len(cp['viz_apis'])} vizzes)", 85)
+                    _save_cp(cp, slug, demo_dir)
+                elif results.get("vizzes_created"):
+                    # Vizzes created but dashboard failed
+                    cp["viz_apis"] = [v["name"] for v in results["vizzes_created"].values()]
+                    cp["all_viz_apis"].extend(cp["viz_apis"])
+                    cp["viz_done"] = True
+                    _save_cp(cp, slug, demo_dir)
+                    progress(q, "warn", f"Template vizzes created but dashboard failed: {results['errors']}", -1)
+                else:
+                    progress(q, "warn", f"Template deploy failed: {results.get('errors', ['unknown'])}", -1)
+        except Exception as e:
+            progress(q, "info", f"Template deployer not available ({e}) — falling back", -1)
+
+        # --- Fallback: MCP path (only if template deploy didn't succeed) ---
+        mcp_available = False
+        if not template_deployed and not cp.get("viz_done"):
+            try:
+                from mcp_client import MCPClient
+                mcp = MCPClient(config)
+                if mcp.available:
+                    mcp.authenticate()
                 mcp.initialize()
                 mcp_available = True
                 progress(q, "viz", "MCP connected — using premium dashboard builder", -1)
-        except Exception as e:
-            progress(q, "info", f"MCP not available ({e}) — using REST fallback", -1)
+            except Exception as e:
+                progress(q, "info", f"MCP not available ({e}) — using REST fallback", -1)
 
         def _parse_mcp_result(result):
             """Extract the actual data from an MCP tool response.
@@ -1537,7 +1937,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 progress(q, "warn", f"MCP viz/dash failed ({e}) — falling back to REST", -1)
                 mcp_available = False
 
-        if not mcp_available and not cp.get("viz_done"):
+        if not template_deployed and not mcp_available and not cp.get("viz_done"):
             # --- REST fallback for viz creation ---
             try:
                 from viz_builder import build_viz_payload
@@ -1713,7 +2113,39 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
         result = upload_dataset(sf_instance, sf_token, slug, slug.replace("_", " ").title(),
                                 metadata, csv_bytes, f"{company} Analytics")
         cp["crma_dataset_id"] = result.get("id", "")
+        cp["crma_dataset_name"] = slug
         progress(q, "crma", "Dataset uploaded", 60)
+
+        # Create CRMA dashboard
+        progress(q, "crma", "Building CRM Analytics dashboard...", 65)
+        try:
+            from crma_dashboard_builder import build_dashboard_state, create_dashboard, find_or_create_app
+
+            dims = story_config.get("dimensions", [])
+            state = build_dashboard_state(
+                dataset_name=slug,
+                metric_configs=metric_config,
+                dimensions=dims,
+                company=company,
+            )
+
+            app_id = find_or_create_app(sf_instance, sf_token, f"{company} Analytics")
+            dash_id = create_dashboard(
+                sf_instance=sf_instance,
+                sf_token=sf_token,
+                dashboard_label=f"{company} — Analytics Dashboard",
+                state=state,
+                app_id=app_id,
+                description=f"CRM Analytics dashboard for {company} demo",
+            )
+            if dash_id:
+                cp["crma_dashboard_id"] = dash_id
+                progress(q, "crma", f"CRMA dashboard created: {dash_id}", 80)
+            else:
+                progress(q, "warn", "CRMA dashboard creation returned no ID", -1)
+        except Exception as e:
+            progress(q, "warn", f"CRMA dashboard failed (non-blocking): {e}", -1)
+
     except Exception as e:
         progress(q, "warn", f"CRMA upload failed: {e}", -1)
 
@@ -1766,6 +2198,23 @@ def run_build(build_id, build_config, progress_queue):
         config = load_config(profile_key)
 
         advanced = build_config.get("advanced", {})
+
+        # Save story context to checkpoint for /close-loop and /studio interop
+        if not cp.get("story"):
+            primary = [mc for mc in metric_config if mc.get("is_primary")]
+            dims = story_config.get("dimensions", [])
+            cp["story"] = {
+                "headline": story_config.get("story_summary", ""),
+                "signal_description": story_config.get("signal_description", ""),
+                "primary_metric": primary[0]["label"] if primary else (metric_config[0]["label"] if metric_config else ""),
+                "dimensions": dims,
+                "audience": story_config.get("audience", build_config.get("audience", "")),
+                "root_cause": story_config.get("root_cause", ""),
+                "entity_field": "entity_id",
+            }
+            cp["company"] = company
+            cp["build_type"] = "next" if outputs.get("next") else "pulse" if outputs.get("pulse") else "csv"
+            _save_cp(cp, slug, demo_dir)
 
         progress(q, "init", "Generating data...", 0)
         df = generate_data(story_config, q, advanced=advanced)
