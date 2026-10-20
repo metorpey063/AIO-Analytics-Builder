@@ -2,45 +2,59 @@
   AIO Analytics Builder — Quick Start
 ═══════════════════════════════════════════════════════
 
-  OPTION 1: One-Line Install (easiest)
-  ─────────────────────────────────────
+
+  INSTALL (first time only)
+  ─────────────────────────
   Open Terminal (Spotlight → type "Terminal" → Enter)
   and paste this single line:
 
     curl -sL https://raw.githubusercontent.com/metorpey063/AIO-Analytics-Builder/main/install_remote.sh | bash
 
   That's it. It downloads everything, installs
-  dependencies, and opens the Web UI automatically.
+  dependencies, opens the Web UI, and puts an
+  "AIO Builder" app on your Desktop.
 
 
-  OPTION 2: Already downloaded the zip?
-  ──────────────────────────────────────
-  Open Terminal and paste these two lines:
+  LAUNCH (every time after)
+  ─────────────────────────
+  Double-click "AIO Builder" on your Desktop.
 
-    cd "DRAG_FOLDER_HERE"
-    xattr -cr . && python3 install.py
+  It automatically:
+    • Checks for updates (~2 seconds)
+    • Starts the web server
+    • Opens your browser to http://localhost:5100
 
-  TIP: Type  cd  then drag the AIO folder from
-  Finder into the Terminal window — it fills in
-  the path automatically.
-
-
-  OPTION 3: Fix the Gatekeeper popup
-  ───────────────────────────────────
-  If "Install AIO.command" shows a security warning,
-  open Terminal and paste:
-
-    xattr -cr ~/Downloads/AIO-Analytics-Builder
-
-  (adjust the path to wherever you unzipped it)
-  Then double-click "Install AIO.command" again.
+  If macOS blocks it on first launch:
+    Right-click → Open → click "Open" in the dialog.
+    You only need to do this once.
 
 
-  WHAT THIS SETS UP
-  ─────────────────
-  • Python virtual environment with all dependencies
-  • Web UI at http://localhost:5050
-  • Guided setup wizard for Tableau Cloud + Salesforce
-  • One-click demo builder for Pulse, Next, and CRMA
+  TROUBLESHOOTING
+  ───────────────
+  Server won't start?
+    Close Terminal and double-click AIO Builder again.
+
+  Need a clean update?
+    Open Terminal and paste:
+    cd ~/AIO-Analytics-Builder && git reset --hard origin/main && git pull
+
+  Need a full rebuild?
+    Open Terminal and paste:
+    cd ~/AIO-Analytics-Builder && rm -rf .venv && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+
+  Lost your connections?
+    They're saved in ~/AIO-Analytics-Builder/config.json
+    and survive updates.
+
+
+  WHAT AIO DOES
+  ─────────────
+  • Generates story-driven demo data with engineered signals
+  • Publishes to Tableau Pulse, Tableau Next, or CRM Analytics
+  • Creates dashboards, metrics, and visualizations automatically
+  • Produces a walkthrough document for the demo
+
+  Web UI: http://localhost:5100
+  GitHub: https://github.com/metorpey063/AIO-Analytics-Builder
 
 ═══════════════════════════════════════════════════════
