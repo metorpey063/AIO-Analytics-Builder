@@ -253,7 +253,7 @@ body::before {
     position: fixed;
     top: 0; left: var(--sidebar-w); right: 0; bottom: 0;
     background: url('/static/img/bg-analytics.jpg') center center / cover no-repeat;
-    opacity: 0.50;
+    opacity: 0.60;
     z-index: 0;
     pointer-events: none;
 }
