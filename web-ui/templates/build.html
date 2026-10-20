@@ -104,13 +104,13 @@
                     <div class="form-group">
                         <label>Supporting Documents <span class="optional">(optional)</span></label>
                         <p class="form-hint" style="margin-bottom:8px">Upload call transcripts, meeting notes, screenshots, or any context that helps build a better demo.</p>
-                        <div class="file-upload-area" id="w-upload-area">
+                        <div class="file-upload-area" id="w-upload-area" onclick="document.getElementById('w-file-input').click()" style="cursor:pointer; display:flex; align-items:center; gap:12px; padding:14px 18px; border:2px dashed rgba(59,130,246,0.3); border-radius:12px; background:rgba(59,130,246,0.04); transition:border-color 200ms ease, background 200ms ease" onmouseenter="this.style.borderColor='rgba(59,130,246,0.5)';this.style.background='rgba(59,130,246,0.08)'" onmouseleave="this.style.borderColor='rgba(59,130,246,0.3)';this.style.background='rgba(59,130,246,0.04)'">
                             <input type="file" id="w-file-input" multiple accept=".pdf,.docx,.txt,.csv,.md,.png,.jpg,.jpeg,.gif,.webp" style="display:none" onchange="handleFileUpload(this.files)">
-                            <button type="button" class="btn btn-ghost" onclick="document.getElementById('w-file-input').click()" style="gap:6px">
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="vertical-align:middle"><path d="M8 1v10M4 5l4-4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v2a2 2 0 002 2h8a2 2 0 002-2v-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                Upload Files
-                            </button>
-                            <span class="form-hint" style="margin-left:8px">PDF, DOCX, TXT, CSV, screenshots</span>
+                            <svg width="20" height="20" viewBox="0 0 16 16" fill="none" style="flex-shrink:0; color:var(--blue)"><path d="M8 1v10M4 5l4-4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v2a2 2 0 002 2h8a2 2 0 002-2v-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            <div>
+                                <div style="font-size:13px; font-weight:600; color:var(--blue)">Upload Files</div>
+                                <div style="font-size:11.5px; color:var(--text-muted)">PDF, DOCX, TXT, CSV, or screenshots</div>
+                            </div>
                         </div>
                         <div id="uploaded-files" class="uploaded-files-list"></div>
                     </div>
