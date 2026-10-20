@@ -36,13 +36,23 @@
     </div>
     <div class="stat-divider"></div>
     <div class="stat-item">
-        <span class="stat-value" id="stat-connections">&mdash;</span>
-        <span class="stat-label">Connections</span>
+        <span class="stat-value" id="stat-metrics">&mdash;</span>
+        <span class="stat-label">Metrics Created</span>
     </div>
     <div class="stat-divider"></div>
     <div class="stat-item">
-        <span class="stat-value">{{ changelog|length }}</span>
-        <span class="stat-label">Releases</span>
+        <span class="stat-value" id="stat-vizzes">&mdash;</span>
+        <span class="stat-label">Visualizations</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+        <span class="stat-value" id="stat-dashboards">&mdash;</span>
+        <span class="stat-label">Dashboards</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+        <span class="stat-value" id="stat-rows">&mdash;</span>
+        <span class="stat-label">Data Rows</span>
     </div>
 </div>
 
@@ -206,21 +216,18 @@ function togglePanel(panelId) {
 
 /* Populate live stats */
 (function() {
-    fetch('/api/demos/list').then(r => r.json()).then(data => {
-        const el = document.getElementById('stat-demos');
-        if (el && data.demos) el.textContent = data.demos.length;
-    }).catch(() => {});
-
-    fetch('/api/profiles/list').then(r => r.json()).then(data => {
-        const el = document.getElementById('stat-connections');
-        if (el && data.profiles) {
-            let count = 0;
-            data.profiles.forEach(p => {
-                if (p.has_tableau) count++;
-                if (p.has_salesforce) count++;
-            });
-            el.textContent = count;
-        }
+    function fmt(n) {
+        if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+        if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+        return n.toString();
+    }
+    fetch('/api/stats').then(r => r.json()).then(s => {
+        const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        set('stat-demos', s.demos || 0);
+        set('stat-metrics', s.metrics || 0);
+        set('stat-vizzes', s.vizzes || 0);
+        set('stat-dashboards', s.dashboards || 0);
+        set('stat-rows', fmt(s.rows || 0));
     }).catch(() => {});
 })();
 </script>
