@@ -29,9 +29,7 @@
         <!-- Core workflow -->
         <div class="card-grid">
             <div class="card card-action" onclick="location.href='/setup'">
-                <div class="card-step-badge {% if has_tableau or has_salesforce %}step-done{% endif %}">
-                    {% if has_tableau or has_salesforce %}&#10003;{% else %}1{% endif %}
-                </div>
+                <div class="card-step-badge">1</div>
                 <h3>Setup</h3>
                 <p>Connect to Tableau Cloud and Salesforce — required before building demos</p>
                 <span class="card-cta">
