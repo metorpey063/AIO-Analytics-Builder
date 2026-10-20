@@ -52,7 +52,14 @@ class MCPClient:
             "client_id": self.mcp_client_id,
         }
 
+        # Try without code_verifier first (works for most ECAs)
         r = requests.post(f"{self.sf_login_url}/services/oauth2/token", data=data)
+
+        # If that fails with "invalid code verifier", retry WITH the verifier (PKCE-enforced ECAs)
+        if r.status_code != 200 and "code verifier" in r.text.lower() and self.sf.get("mcp_code_verifier"):
+            data["code_verifier"] = self.sf["mcp_code_verifier"]
+            r = requests.post(f"{self.sf_login_url}/services/oauth2/token", data=data)
+
         if r.status_code != 200:
             raise RuntimeError(f"MCP auth failed: {r.status_code} {r.text[:300]}")
 
