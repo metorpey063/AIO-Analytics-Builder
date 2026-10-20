@@ -548,25 +548,24 @@ def version_check():
 
 @app.route("/api/update", methods=["POST"])
 def update():
-    """Pull latest from git, restart server if code changed."""
+    """Reset to origin/main (same strategy as /update CLI skill). Protects config.json and demos/."""
     import subprocess
+    run = lambda cmd: subprocess.run(cmd, cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=30)
     try:
-        result = subprocess.run(
-            ["git", "pull", "--ff-only"],
-            cwd=str(PROJECT_ROOT),
-            capture_output=True, text=True, timeout=30,
-        )
-        output = (result.stdout + result.stderr).strip()
-        already_up_to_date = "Already up to date" in output or "Already up-to-date" in output
-        updated = result.returncode == 0 and not already_up_to_date
-
-        return jsonify({
-            "ok": result.returncode == 0,
-            "updated": updated,
-            "output": output,
-        })
+        run(["git", "fetch", "origin", "main", "--quiet"])
+        rev_before = run(["git", "rev-parse", "HEAD"]).stdout.strip()
+        run(["git", "stash", "push", "-m", "pre-update-stash", "--", "config.json"])
+        result = run(["git", "reset", "--hard", "origin/main"])
+        run(["git", "stash", "pop"])
+        rev_after = run(["git", "rev-parse", "HEAD"]).stdout.strip()
+        updated = rev_before != rev_after
+        output = result.stdout.strip() or result.stderr.strip()
+        if updated:
+            log = run(["git", "log", "--oneline", f"{rev_before[:8]}..HEAD"])
+            output += "\n" + log.stdout.strip()
+        return jsonify({"ok": True, "updated": updated, "output": output})
     except Exception as e:
-        return jsonify({"ok": False, "updated": False, "restarting": False, "output": str(e)})
+        return jsonify({"ok": False, "updated": False, "output": str(e)})
 
 
 @app.route("/api/setup/create-profile", methods=["POST"])
