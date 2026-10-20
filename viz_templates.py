@@ -134,6 +134,20 @@ TEMPLATES: Dict[str, Dict[str, Any]] = {
         "stacked": True,
         "is_funnel": True,
     },
+
+    "dual_axis": {
+        "description": "Dual-axis: bar (primary) + line (secondary) over time, independent Y-axes",
+        "chart_type": "dual_axis",
+        "mark_type": "Bar",
+        "required_fields": {
+            "date": {"role": "Dimension"},
+            "bar_measure": {"role": "Measure"},
+            "line_measure": {"role": "Measure"},
+        },
+        "use_date_hierarchy": True,
+        "fit": "Entire",
+        "stacked": False,
+    },
 }
 
 
@@ -146,6 +160,10 @@ def recommend_chart_type(metric_config: Dict[str, Any]) -> str:
     agg = metric_config.get("agg", "").lower()
     field = metric_config.get("field", "").lower()
     has_category = bool(metric_config.get("category_field"))
+    has_secondary = bool(metric_config.get("secondary_field"))
+
+    if has_secondary:
+        return "dual_axis"
 
     if "rate" in field or "percent" in field or "ratio" in field or agg == "average":
         return "trend_over_time"
@@ -172,7 +190,9 @@ def recommend_dashboard_vizzes(metric_configs: List[Dict[str, Any]], dimensions:
         template = recommend_chart_type(mc)
 
         if template in used_types and len(metric_configs) > 2:
-            if "stacked_bar" not in used_types and dimensions:
+            if "dual_axis" not in used_types and mc.get("secondary_field"):
+                template = "dual_axis"
+            elif "stacked_bar" not in used_types and dimensions:
                 template = "stacked_bar"
             elif "bar_by_category" not in used_types:
                 template = "bar_by_category"

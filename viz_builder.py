@@ -11,6 +11,8 @@ from style_defaults import (
     build_fonts, build_lines, build_shading, build_field_labels,
     resolve_fit, axis_field_entry, encoding_field_entry, header_field_entry,
     marks_headers_style, marks_panes_style, DEFAULT_PALETTE, num_fmt,
+    dual_axis_marks_fields, dual_axis_marks_style_fields,
+    reference_line_entry, reference_line_style,
 )
 from viz_templates import TEMPLATES
 from viz_validator import is_valid, print_results
@@ -24,12 +26,13 @@ VIZQL_MARK_HEADERS = {
 }
 
 CHART_CONFIGS = {
-    "line":    {"fit": "Entire",   "size_type": "Pixel",      "size_val": 3,   "reverse": False, "banding": False, "auto_size": False},
-    "bar":     {"fit": "Entire",   "size_type": "Percentage", "size_val": 75,  "reverse": True,  "banding": True,  "auto_size": True},
-    "donut":   {"fit": "Entire",   "size_type": "Percentage", "size_val": 80,  "reverse": True,  "banding": True,  "auto_size": True},
-    "scatter": {"fit": "Standard", "size_type": "Pixel",      "size_val": 10,  "reverse": False, "banding": False, "auto_size": False},
-    "heatmap": {"fit": "Entire",   "size_type": "Percentage", "size_val": 100, "reverse": True,  "banding": True,  "auto_size": True},
-    "funnel":  {"fit": "Entire",   "size_type": "Percentage", "size_val": 75,  "reverse": True,  "banding": True,  "auto_size": True},
+    "line":       {"fit": "Entire",   "size_type": "Pixel",      "size_val": 3,   "reverse": False, "banding": False, "auto_size": False},
+    "bar":        {"fit": "Entire",   "size_type": "Percentage", "size_val": 75,  "reverse": True,  "banding": True,  "auto_size": True},
+    "donut":      {"fit": "Entire",   "size_type": "Percentage", "size_val": 80,  "reverse": True,  "banding": True,  "auto_size": True},
+    "scatter":    {"fit": "Standard", "size_type": "Pixel",      "size_val": 10,  "reverse": False, "banding": False, "auto_size": False},
+    "heatmap":    {"fit": "Entire",   "size_type": "Percentage", "size_val": 100, "reverse": True,  "banding": True,  "auto_size": True},
+    "funnel":     {"fit": "Entire",   "size_type": "Percentage", "size_val": 75,  "reverse": True,  "banding": True,  "auto_size": True},
+    "dual_axis":  {"fit": "Entire",   "size_type": "Percentage", "size_val": 75,  "reverse": True,  "banding": True,  "auto_size": True},
 }
 
 
@@ -60,6 +63,7 @@ def build_viz_payload(
     measurements: Dict[str, str],
     style_overrides: Dict[str, Any] = None,
     palette: List[str] = None,
+    ref_lines: List[Dict[str, Any]] = None,
     validate: bool = True,
 ) -> Dict[str, Any]:
     """Build a complete visualization payload from a template.
@@ -77,6 +81,12 @@ def build_viz_payload(
         measurements: Maps base field names to measurement apiNames
         style_overrides: Brand color overrides
         palette: Custom color palette
+        ref_lines: Optional reference lines. Each dict has:
+                   - field: base field name to anchor the line on
+                   - function: "Avg", "Median", "Min", "Max" (default "Avg")
+                   - label_type: "Value", "None", "Custom" (default "Value")
+                   - color: hex color (default "#999999")
+                   - dash_style: "Dashed", "Solid", "Dotted" (default "Dashed")
         validate: Whether to run pre-POST validation
 
     Returns:
@@ -346,10 +356,73 @@ def build_viz_payload(
 
         sort_orders["fields"][stage_key] = {"byField": count_key, "order": "Descending", "type": "Nested"}
 
+    elif template_name == "dual_axis":
+        date_field = field_map.get("date", "date")
+        bar_field = field_map.get("bar_measure", list(field_map.values())[0])
+        line_field = field_map.get("line_measure", list(field_map.values())[1] if len(field_map) > 1 else bar_field)
+
+        year_key, month_key = _add_date_hierarchy(date_field)
+        columns.extend([year_key, month_key])
+        hdr_fields[year_key] = header_field_entry()
+        hdr_fields[month_key] = header_field_entry()
+
+        fmt_bar, dec_bar, suf_bar = _infer_format(bar_field)
+        bar_key = _add_field("Measure", "Continuous", bar_field)
+        rows.append(bar_key)
+        axis_fields[bar_key] = axis_field_entry(fmt_bar, dec_bar, suf_bar)
+        enc_fields[bar_key] = encoding_field_entry(fmt_bar, dec_bar, suf_bar)
+
+        fmt_line, dec_line, suf_line = _infer_format(line_field)
+        line_key = _add_field("Measure", "Continuous", line_field)
+        rows.append(line_key)
+        axis_fields[line_key] = axis_field_entry(fmt_line, dec_line, suf_line)
+        enc_fields[line_key] = encoding_field_entry(fmt_line, dec_line, suf_line)
+
     # Build the complete payload
     mark_type = template["mark_type"]
     is_stacked = template.get("stacked", False)
     is_funnel = template.get("is_funnel", False)
+    is_dual = template_name == "dual_axis"
+
+    # Dual-axis: per-field mark types and style
+    spec_marks_fields = {}
+    style_marks_fields = {}
+    if is_dual and len(rows) == 2:
+        bar_key, line_key = rows[0], rows[1]
+        spec_marks_fields = dual_axis_marks_fields(
+            [bar_key, line_key], ["Bar", "Line"], stacked=[True, False],
+        )
+        bar_color = (style_overrides or {}).get("primary", palette[0])
+        line_color = (style_overrides or {}).get("secondary", palette[1])
+        style_marks_fields = dual_axis_marks_style_fields(
+            [bar_key, line_key], colors=[bar_color, line_color], line_indices={1},
+        )
+
+    # Reference lines
+    spec_ref_lines = {}
+    style_ref_lines = {}
+    if ref_lines:
+        for i, rl in enumerate(ref_lines):
+            rl_field = rl.get("field", "")
+            rl_key = None
+            for fk, fdef in fields.items():
+                base = fdef.get("fieldName", "").replace("__c", "")
+                if base == rl_field or fdef.get("fieldName") == rl_field:
+                    if fdef.get("role") == "Measure" and fk in set(rows) | set(columns):
+                        rl_key = fk
+                        break
+            if rl_key:
+                rl_name = f"RL{i + 1}"
+                spec_ref_lines[rl_name] = reference_line_entry(
+                    rl_key,
+                    function=rl.get("function", "Avg"),
+                    label_type=rl.get("label_type", "Value"),
+                    scope=rl.get("scope", "Table"),
+                )
+                style_ref_lines[rl_name] = reference_line_style(
+                    color=rl.get("color", "#999999"),
+                    dash_style=rl.get("dash_style", "Dashed"),
+                )
 
     style = {
         "axis": {"fields": axis_fields},
@@ -364,7 +437,7 @@ def build_viz_payload(
         },
         "lines": build_lines(style_overrides),
         "marks": {
-            "fields": {},
+            "fields": style_marks_fields,
             "headers": marks_headers_style(reverse=cfg["reverse"]),
             "panes": marks_panes_style(
                 reverse=cfg["reverse"],
@@ -374,7 +447,7 @@ def build_viz_payload(
                 is_funnel=is_funnel,
             ),
         },
-        "referenceLines": {},
+        "referenceLines": style_ref_lines,
         "shading": build_shading(style_overrides, with_banding=cfg["banding"]),
         "showDataPlaceholder": False,
         "title": {"isVisible": True},
@@ -393,10 +466,10 @@ def build_viz_payload(
             "rows": rows,
             "forecasts": {},
             "measureValues": [],
-            "referenceLines": {},
+            "referenceLines": spec_ref_lines,
             "legends": legends,
             "marks": {
-                "fields": {},
+                "fields": spec_marks_fields,
                 "headers": copy.deepcopy(VIZQL_MARK_HEADERS),
                 "panes": {
                     "encodings": encodings,

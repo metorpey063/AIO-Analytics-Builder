@@ -323,6 +323,7 @@ def build_z_layout_ops(
         })
 
     # --- Metrics (up to 6, two rows of 3) ---
+    z_cv = z["metric_layout"]["componentVisibility"]
     all_metric_slots = slots["metrics_row1"] + slots["metrics_row2"]
     for i, (mapi, mlabel) in enumerate(zip(metric_apis[:6], metric_labels[:6])):
         slot = all_metric_slots[i]
@@ -338,6 +339,7 @@ def build_z_layout_ops(
                     "metricOption": {
                         "sdmApiName": sdm_api,
                         "sdmId": sdm_id,
+                        "layout": {"componentVisibility": z_cv},
                     },
                     "receiveFilterSource": {"filterMode": "all", "publishers": [], "widgetIds": []},
                     "widgetStyle": m_style,
@@ -535,6 +537,8 @@ def build_dashboard_payload(
     viz_apis: List[str],
     layout: str = "auto",
     style_overrides: Dict[str, Any] = None,
+    sdm_id: str = None,
+    component_visibility: Dict[str, bool] = None,
 ) -> Dict[str, Any]:
     """Build a complete dashboard payload.
 
@@ -564,18 +568,24 @@ def build_dashboard_payload(
     widgets_dict = {}
     page_widgets = []
 
+    cv = component_visibility or DEFAULT_COMPONENT_VISIBILITY
+
     metric_slots = pattern["slots"]["metrics"]
     for i, mtc_api in enumerate(metric_apis):
         if i >= len(metric_slots):
             break
         slot = metric_slots[i]
         wname = f"metric_{i}"
+        metric_option = {"sdmApiName": sdm_api}
+        if sdm_id:
+            metric_option["sdmId"] = sdm_id
+        metric_option["layout"] = {"componentVisibility": cv}
         widgets_dict[wname] = {
             "name": wname,
             "type": "metric",
             "source": {"name": mtc_api},
             "parameters": {
-                "metricOption": {"sdmApiName": sdm_api},
+                "metricOption": metric_option,
             },
             "actions": [],
         }
@@ -974,13 +984,17 @@ def build_perf_overview_ops(
                 "placement": {"name": "text_section_top", **slots["section_header_top"]}})
 
     # --- Hero metric (large, with chart) ---
+    hero_cv = p["metric_layout_hero"]["componentVisibility"]
     ops.append({
         "operation": "upsert_metric_widget",
         "widget": {
             "type": "metric", "name": "metric_1", "label": hero_metric_label,
             "source": {"name": hero_metric_api},
             "parameters": {
-                "metricOption": {"sdmApiName": sdm_api, "sdmId": sdm_id},
+                "metricOption": {
+                    "sdmApiName": sdm_api, "sdmId": sdm_id,
+                    "layout": {"componentVisibility": hero_cv},
+                },
                 "receiveFilterSource": _recv, "widgetStyle": m_hero,
             },
         },
@@ -989,6 +1003,7 @@ def build_perf_overview_ops(
                 "placement": {"name": "metric_1", **slots["metric_hero"]}})
 
     # --- BAN metrics (up to 4, 2x2 grid) ---
+    ban_cv = p["metric_layout_ban"]["componentVisibility"]
     for i, (mapi, mlabel) in enumerate(zip(ban_metric_apis[:4], ban_metric_labels[:4])):
         mname = f"metric_{i+2}"
         ops.append({
@@ -997,7 +1012,10 @@ def build_perf_overview_ops(
                 "type": "metric", "name": mname, "label": mlabel,
                 "source": {"name": mapi},
                 "parameters": {
-                    "metricOption": {"sdmApiName": sdm_api, "sdmId": sdm_id},
+                    "metricOption": {
+                        "sdmApiName": sdm_api, "sdmId": sdm_id,
+                        "layout": {"componentVisibility": ban_cv},
+                    },
                     "receiveFilterSource": _recv, "widgetStyle": m_ban,
                 },
             },
@@ -1135,3 +1153,86 @@ def build_perf_overview_ops(
                 "placement": {"name": "viz_bottom", **slots["viz_bottom"]}})
 
     return ops
+
+
+# --- Dynamic token text widget builder ---
+
+DEFAULT_COMPONENT_VISIBILITY = {
+    "details": True, "title": True, "value": True,
+    "comparison": True, "chart": False, "insights": False,
+}
+
+DEFAULT_COMPONENT_VISIBILITY_WITH_CHART = {
+    "details": True, "title": True, "value": True,
+    "comparison": True, "chart": True, "insights": False,
+}
+
+
+def build_dynamic_token_text_widget(
+    *,
+    name: str,
+    sdm_id: str,
+    tokens: List[Dict[str, Any]],
+    prefix_text: str = "",
+    text_color: str = "#2E2E2E",
+    text_size: str = "20px",
+    widget_style: Dict[str, Any] = None,
+) -> Dict[str, Any]:
+    """Build a text widget with dynamic tokens that show live metric values.
+
+    Each token queries a calc measurement from the SDM and renders its value
+    inline. Values update when dashboard filters change.
+
+    Args:
+        name: Widget name
+        sdm_id: SDM Salesforce ID (2SM...)
+        tokens: List of token dicts, each with:
+            - field_name: calc measurement apiName (e.g. "Closed_Won_Sales_RI_clc")
+            - agg_type: aggregation type (default "UserAgg")
+            - label: display label shown while loading (e.g. "$1.2M")
+            - size: optional font size override (e.g. "32px")
+        prefix_text: Static text before the first token
+        text_color: Hex color for static text
+        text_size: Default font size for tokens
+        widget_style: Optional widget border/background style
+
+    Returns:
+        Widget dict ready for dashboard widgets or add_widget_to_dashboard
+    """
+    dynamic_tokens = {}
+    content = []
+
+    if prefix_text:
+        content.append({"attributes": {"color": text_color, "size": "14px"}, "insert": prefix_text})
+        content.append({"insert": "\n"})
+
+    for i, tok in enumerate(tokens):
+        tok_name = f"token_{i}"
+        dynamic_tokens[tok_name] = {
+            "name": tok_name,
+            "source": {"id": sdm_id},
+            "tokenSpec": {
+                "aggregationType": tok.get("agg_type", "UserAgg"),
+                "fieldName": tok["field_name"],
+                "fieldType": "Measure",
+            },
+            "type": "query",
+        }
+        tok_size = tok.get("size", text_size)
+        content.append({
+            "attributes": {"size": tok_size},
+            "insert": {"token": {"name": tok_name, "label": tok.get("label", "—")}},
+        })
+        content.append({"insert": "\n"})
+
+    return {
+        "name": name,
+        "type": "text",
+        "parameters": {
+            "content": content,
+            "dynamicTokens": dynamic_tokens,
+            "lineSpacing": 1.5,
+            "widgetStyle": widget_style or {"borderEdges": []},
+        },
+        "actions": [],
+    }

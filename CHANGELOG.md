@@ -4,6 +4,23 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-10-20 — Viz/dashboard builder enhancements from Sales Insights patterns
+
+### Added
+- **Dual-axis template** (`viz_templates.py`, `viz_builder.py`, `style_defaults.py`): new `dual_axis` chart type — bar (primary) + line (secondary) over time with independent Y-axes, per-field mark types in `marks.fields`, per-field colors in `style.marks.fields`. Auto-recommended when `secondary_field` is present in metric config
+- **Reference lines** (`viz_builder.py`, `style_defaults.py`): new `ref_lines` parameter on `build_viz_payload()` — pass `{field, function, color, dash_style}` dicts to add Avg/Median/Min/Max reference lines to any chart
+- **Dynamic token text widgets** (`dashboard_builder.py`): new `build_dynamic_token_text_widget()` — creates text widgets with live BAN values from SDM calc fields that update with dashboard filters
+- **`componentVisibility` wired into all metric widgets** (`dashboard_builder.py`): REST `build_dashboard_payload()` now accepts `sdm_id` + `component_visibility`; MCP templates (`build_z_layout_ops`, `build_perf_overview_ops`) now pass their defined visibility configs through to widget parameters
+- **`DEFAULT_COMPONENT_VISIBILITY` / `DEFAULT_COMPONENT_VISIBILITY_WITH_CHART`** constants in `dashboard_builder.py`
+- **`axis_field_entry()` enhancements** (`style_defaults.py`): new `is_visible` and `title_text` keyword args for hidden axes and custom axis labels (backward-compatible)
+- **Dual-axis `marks.fields` validation** (`viz_validator.py`): validates per-field type and stack config
+
+### Patterns reference
+- Analyzed `Sales_Insights_Standalone_package.json` (80+ vizzes, 12 dashboards, 11 DOs, ~300 calc fields)
+- Extracted reusable patterns into `demos/sales_insights_packages/PACKAGE_PATTERNS.md`
+
+---
+
 ## 2026-10-19 — /close-loop + /studio integration, measurement PUT fix
 
 ### Added

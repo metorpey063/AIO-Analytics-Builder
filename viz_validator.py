@@ -171,6 +171,21 @@ def _check_marks_structure(p: dict) -> List[ValidationResult]:
     elif has_headers and isinstance(headers, dict):
         results.append(ValidationResult(True, "marks_headers_stack", "marks.headers.stack present."))
 
+    marks_fields = marks.get("fields", {})
+    if marks_fields:
+        for fk, mf in marks_fields.items():
+            if isinstance(mf, dict):
+                mf_type = mf.get("type")
+                if mf_type and mf_type not in VALID_MARK_TYPES:
+                    results.append(ValidationResult(False, "marks_fields_type",
+                        f"marks.fields.{fk}.type '{mf_type}' is not valid. Must be one of: {', '.join(sorted(VALID_MARK_TYPES))}"))
+                if "stack" not in mf:
+                    results.append(ValidationResult(False, "marks_fields_stack",
+                        f"marks.fields.{fk} is missing 'stack'.",
+                        f'Add "stack": {{"isAutomatic": true, "isStacked": false}} to marks.fields.{fk}.'))
+        if all(isinstance(mf, dict) and mf.get("type") in VALID_MARK_TYPES for mf in marks_fields.values()):
+            results.append(ValidationResult(True, "marks_fields_type", f"marks.fields has {len(marks_fields)} valid per-field mark entries (dual-axis)."))
+
     return results
 
 

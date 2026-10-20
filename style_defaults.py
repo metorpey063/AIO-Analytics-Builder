@@ -102,14 +102,25 @@ def num_fmt(fmt_type: str = "Number", decimal_places: int = 2, suffix: str = "",
     }
 
 
-def axis_field_entry(fmt_type: str = "Number", decimal_places: int = 2, suffix: str = "", prefix: str = "") -> dict:
-    return {
-        "isVisible": True,
+def axis_field_entry(
+    fmt_type: str = "Number",
+    decimal_places: int = 2,
+    suffix: str = "",
+    prefix: str = "",
+    *,
+    is_visible: bool = True,
+    title_text: str = None,
+) -> dict:
+    entry = {
+        "isVisible": is_visible,
         "isZeroLineVisible": True,
         "range": {"includeZero": False, "type": "Auto"},
         "scale": {"format": {"numberFormatInfo": num_fmt(fmt_type, decimal_places, suffix, prefix)}},
         "ticks": {"majorTicks": {"type": "Auto"}, "minorTicks": {"type": "Auto"}},
     }
+    if title_text is not None:
+        entry["titleText"] = title_text
+    return entry
 
 
 def encoding_field_entry(fmt_type: str = "Number", decimal_places: int = 2, suffix: str = "", prefix: str = "") -> dict:
@@ -160,3 +171,79 @@ def marks_panes_style(
     else:
         panes["isStackingAxisCentered"] = False
     return panes
+
+
+def dual_axis_marks_fields(
+    measure_keys: list,
+    mark_types: list,
+    stacked: list = None,
+) -> dict:
+    """Per-measure mark types for dual-axis: visualSpecification.marks.fields."""
+    stacked = stacked or [True, False]
+    return {
+        fk: {
+            "type": mt,
+            "encodings": [],
+            "isAutomatic": False,
+            "stack": {"isAutomatic": True, "isStacked": stacked[i] if i < len(stacked) else False},
+        }
+        for i, (fk, mt) in enumerate(zip(measure_keys, mark_types))
+    }
+
+
+def dual_axis_marks_style_fields(
+    measure_keys: list,
+    colors: list = None,
+    line_indices: set = None,
+) -> dict:
+    """Per-field mark style for dual-axis: style.marks.fields."""
+    colors = colors or []
+    line_indices = line_indices if line_indices is not None else {1}
+    result = {}
+    for i, fk in enumerate(measure_keys):
+        is_line = i in line_indices
+        result[fk] = {
+            "color": {"color": colors[i] if i < len(colors) else ""},
+            "isAutomaticSize": not is_line,
+            "label": {
+                "canOverlapLabels": False,
+                "marksToLabel": {"type": "All"},
+                "showMarkLabels": False,
+            },
+            "range": {"reverse": False},
+            "size": {
+                "isAutomatic": not is_line,
+                "type": "Pixel" if is_line else "Percentage",
+                "value": 3 if is_line else 75,
+            },
+        }
+    return result
+
+
+def reference_line_entry(
+    axis_field_key: str,
+    *,
+    function: str = "Avg",
+    label_type: str = "Value",
+    scope: str = "Table",
+) -> dict:
+    """Build a reference line for visualSpecification.referenceLines."""
+    return {
+        "fieldKey": axis_field_key,
+        "line": {
+            "fieldKey": axis_field_key,
+            "function": function,
+            "label": {"type": label_type},
+            "valueType": "Computation",
+        },
+        "scope": scope,
+        "type": "Line",
+    }
+
+
+def reference_line_style(*, color: str = "#999999", dash_style: str = "Dashed") -> dict:
+    """Build a style entry for style.referenceLines."""
+    return {
+        "line": {"color": color, "dashStyle": dash_style},
+        "label": {"isVisible": True},
+    }
