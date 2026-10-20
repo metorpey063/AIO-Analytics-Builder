@@ -2145,6 +2145,147 @@ body.dark-theme .org-provision-card.card-sf .card-subtitle { color: #60A5FA; }
 body.dark-theme .org-provision-card.card-tab .card-title { color: #E8EAED; }
 body.dark-theme .org-provision-card.card-tab .card-subtitle { color: #5EEAD4; }
 
+/* -- Stats strip --------------------------------------------------------- */
+body.dark-theme .stats-strip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    padding: 14px 24px;
+    margin-bottom: 24px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    opacity: 0;
+    animation: card-enter 600ms ease 50ms forwards;
+}
+body.dark-theme .stat-item { text-align: center; }
+body.dark-theme .stat-value { display: block; font-size: 18px; font-weight: 700; color: #E8EAED; }
+body.dark-theme .stat-label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #6B7280; margin-top: 2px; }
+body.dark-theme .stat-divider { width: 1px; height: 28px; background: rgba(255, 255, 255, 0.08); }
+
+/* -- Colored accent bar on top of cards ---------------------------------- */
+body.dark-theme .card-grid .card-action {
+    position: relative;
+    overflow: hidden;
+}
+body.dark-theme .card-grid .card-action::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    z-index: 1;
+}
+body.dark-theme .card-grid:first-of-type .card-action:nth-child(1)::before {
+    background: linear-gradient(90deg, #3B82F6, #06B6D4);
+}
+body.dark-theme .card-grid:first-of-type .card-action:nth-child(2)::before {
+    background: linear-gradient(90deg, #14B8A6, #10B981);
+}
+body.dark-theme .card-grid:first-of-type .card-action:nth-child(3)::before {
+    background: linear-gradient(90deg, #8B5CF6, #6366F1);
+}
+body.dark-theme .card-grid:last-of-type .card-action:nth-child(1)::before {
+    background: linear-gradient(90deg, #3B82F6, #60A5FA);
+}
+body.dark-theme .card-grid:last-of-type .card-action:nth-child(2)::before {
+    background: linear-gradient(90deg, #EA580C, #FB923C);
+}
+body.dark-theme .card-grid:last-of-type .card-action:nth-child(3)::before {
+    background: linear-gradient(90deg, #14B8A6, #34D399);
+}
+body.dark-theme .card-grid:last-of-type .card-action:nth-child(4)::before {
+    background: linear-gradient(90deg, #3B82F6, #60A5FA);
+}
+
+/* -- 3D tilt on card hover ----------------------------------------------- */
+body.dark-theme .card-action {
+    transition: transform 300ms ease, box-shadow 300ms ease;
+    transform-style: preserve-3d;
+}
+body.dark-theme .home-layout .card-action:hover {
+    transform: perspective(800px) rotateX(-2deg) rotateY(2deg) translateY(-4px);
+}
+
+/* -- Animated gradient border on "Build a Demo" card --------------------- */
+@property --angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+}
+body.dark-theme .card-grid:first-of-type .card-action:nth-child(2)::after {
+    content: '';
+    position: absolute;
+    top: -2px; left: -2px; right: -2px; bottom: -2px;
+    background: conic-gradient(from var(--angle, 0deg), #3B82F6, #14B8A6, #8B5CF6, #3B82F6);
+    border-radius: 18px;
+    z-index: -1;
+    animation: rotate-gradient 4s linear infinite;
+    opacity: 0;
+    transition: opacity 500ms ease;
+}
+body.dark-theme .card-grid:first-of-type .card-action:nth-child(2):hover::after {
+    opacity: 1;
+}
+@keyframes rotate-gradient {
+    to { --angle: 360deg; }
+}
+
+/* -- Gradient divider line on section labels ----------------------------- */
+body.dark-theme .card-grid-section-label::after {
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.4), transparent);
+}
+
+/* -- Icon pulse/glow on card hover --------------------------------------- */
+body.dark-theme .card-action:hover .card-icon {
+    box-shadow: 0 0 16px rgba(59, 130, 246, 0.3);
+    transform: scale(1.08);
+    transition: box-shadow 300ms ease, transform 300ms ease;
+}
+body.dark-theme .card-action:hover .card-icon.accent-green {
+    box-shadow: 0 0 16px rgba(20, 184, 166, 0.3);
+}
+body.dark-theme .card-action:hover .card-icon.accent-orange {
+    box-shadow: 0 0 16px rgba(234, 88, 12, 0.3);
+}
+
+/* -- Card entrance animation (stagger) ----------------------------------- */
+body.dark-theme .card-action {
+    opacity: 0;
+    animation: card-enter 500ms ease forwards;
+}
+body.dark-theme .card-grid:first-of-type .card-action:nth-child(1) { animation-delay: 100ms; }
+body.dark-theme .card-grid:first-of-type .card-action:nth-child(2) { animation-delay: 200ms; }
+body.dark-theme .card-grid:first-of-type .card-action:nth-child(3) { animation-delay: 300ms; }
+body.dark-theme .card-grid:last-of-type .card-action:nth-child(1) { animation-delay: 400ms; }
+body.dark-theme .card-grid:last-of-type .card-action:nth-child(2) { animation-delay: 500ms; }
+body.dark-theme .card-grid:last-of-type .card-action:nth-child(3) { animation-delay: 600ms; }
+body.dark-theme .card-grid:last-of-type .card-action:nth-child(4) { animation-delay: 700ms; }
+
+@keyframes card-enter {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* -- Hero text fade-in --------------------------------------------------- */
+body.dark-theme .page-header {
+    opacity: 0;
+    animation: card-enter 500ms ease forwards;
+}
+
+/* -- Right panel slide-in ------------------------------------------------ */
+body.dark-theme .home-changelog {
+    opacity: 0;
+    animation: slide-in-right 600ms ease 300ms forwards;
+}
+@keyframes slide-in-right {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
 /* -- Update banner (dark theme adaptation) ------------------------------- */
 body.dark-theme .update-banner {
     background: rgba(220, 38, 38, 0.08);

@@ -24,6 +24,28 @@
     </p>
 </div>
 
+<div class="stats-strip">
+    <div class="stat-item">
+        <span class="stat-value">v{{ app_version }}</span>
+        <span class="stat-label">Version</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+        <span class="stat-value" id="stat-demos">&mdash;</span>
+        <span class="stat-label">Demos Built</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+        <span class="stat-value" id="stat-connections">&mdash;</span>
+        <span class="stat-label">Connections</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+        <span class="stat-value">{{ changelog|length }}</span>
+        <span class="stat-label">Releases</span>
+    </div>
+</div>
+
 <div class="home-layout">
     <div class="home-main">
         <!-- Core workflow -->
@@ -181,5 +203,25 @@ function togglePanel(panelId) {
     const panel = document.getElementById(panelId);
     if (panel) panel.classList.toggle('expanded');
 }
+
+/* Populate live stats */
+(function() {
+    fetch('/api/demos/list').then(r => r.json()).then(data => {
+        const el = document.getElementById('stat-demos');
+        if (el && data.demos) el.textContent = data.demos.length;
+    }).catch(() => {});
+
+    fetch('/api/profiles/list').then(r => r.json()).then(data => {
+        const el = document.getElementById('stat-connections');
+        if (el && data.profiles) {
+            let count = 0;
+            data.profiles.forEach(p => {
+                if (p.has_tableau) count++;
+                if (p.has_salesforce) count++;
+            });
+            el.textContent = count;
+        }
+    }).catch(() => {});
+})();
 </script>
 {% endblock %}
