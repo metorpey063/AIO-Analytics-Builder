@@ -300,15 +300,15 @@
                         <div class="guide-step">
                             <span class="guide-num">6</span>
                             <div>
-                                <strong>Security settings</strong>
-                                <p>Leave <strong>"Require Proof Key for Code Exchange (PKCE)"</strong> checked — AIO supports it. No other changes needed.</p>
+                                <strong>Security &amp; Create</strong>
+                                <p>Leave <strong>"Require Proof Key for Code Exchange (PKCE)"</strong> checked — AIO supports it. No other changes needed. Click <strong>Create</strong> to save the app.</p>
                             </div>
                         </div>
                         <div class="guide-step">
                             <span class="guide-num">7</span>
                             <div>
                                 <strong>Get Consumer Key &amp; Secret</strong>
-                                <p>Click <strong>Create</strong>. Then go to the app's <strong>Settings</strong> tab &rarr; <strong>OAuth Settings</strong> &rarr; <strong>"Consumer Key and Secret"</strong>. You may need to verify your identity. Copy both values and paste them in the form.</p>
+                                <p>Go to the app's <strong>Settings</strong> tab &rarr; <strong>OAuth Settings</strong> &rarr; click <strong>"Consumer Key and Secret"</strong>. You may need to verify your identity. Copy both values and paste them in the form on the left.</p>
                             </div>
                         </div>
                         <div class="guide-step" style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(0,0,0,0.06)">
@@ -345,11 +345,22 @@
                                 <ul class="guide-list">
                                     <li>Setup &rarr; <strong>External Client App Manager</strong> &rarr; <strong>New External Client App</strong></li>
                                     <li>Name: <code>AIO MCP Client</code></li>
-                                    <li>Enable OAuth, Callback URL: <code>http://localhost:8080/callback</code></li>
-                                    <li>Scopes: <code>mcp_api</code> + <code>refresh_token</code></li>
-                                    <li><strong>Uncheck:</strong> Require secret for Web Server Flow, Require secret for Refresh Token Flow</li>
-                                    <li><strong>Check:</strong> Require PKCE, Issue JWT-based access tokens for named users</li>
-                                    <li>Copy the <strong>Consumer Key</strong> and paste it in the MCP Client ID field below</li>
+                                    <li>Enable OAuth, Callback URL:<br><code>http://localhost:8080/callback</code></li>
+                                    <li>Add these scopes:<br>
+                                        <code>mcp_api</code> — MCP Server Access<br>
+                                        <code>refresh_token</code> — Perform requests at any time
+                                    </li>
+                                    <li><strong>Uncheck:</strong><br>
+                                        Require secret for Web Server Flow<br>
+                                        Require secret for Refresh Token Flow
+                                    </li>
+                                    <li><strong>Check:</strong><br>
+                                        Require PKCE<br>
+                                        Issue JWT-based access tokens for named users
+                                    </li>
+                                    <li>Click <strong>Create</strong> to save the app</li>
+                                    <li>Go to the app's <strong>Settings</strong> tab &rarr; <strong>OAuth Settings</strong> &rarr; click <strong>"Consumer Key and Secret"</strong></li>
+                                    <li>Copy the <strong>Consumer Key</strong> and paste it in the MCP Consumer Key field on the left</li>
                                 </ul>
                             </div>
                         </div>
