@@ -1454,14 +1454,14 @@ textarea.mono { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-s
 .guide-step > div > strong:first-child { cursor: pointer; user-select: none; }
 .guide-step > div > strong:first-child::after {
     content: '−';
-    font-size: 16px;
-    font-weight: 300;
+    font-size: 12px;
+    font-weight: 400;
     color: #fff;
-    width: 20px; height: 20px;
+    width: 16px; height: 16px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 6px;
+    border-radius: 4px;
     background: var(--blue);
     flex-shrink: 0;
     margin-left: 6px;
