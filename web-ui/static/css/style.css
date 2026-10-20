@@ -1916,7 +1916,48 @@ body.dark-theme {
     color: #E8EAED;
 }
 body.dark-theme::before {
-    opacity: 0.35;
+    background:
+        /* Soft orb top-right (teal) */
+        radial-gradient(ellipse 600px 500px at 85% 15%, rgba(20, 184, 166, 0.12), transparent),
+        /* Soft orb center-left (blue) */
+        radial-gradient(ellipse 500px 600px at 15% 50%, rgba(59, 130, 246, 0.10), transparent),
+        /* Soft orb bottom-right (purple) */
+        radial-gradient(ellipse 400px 400px at 75% 85%, rgba(139, 92, 246, 0.08), transparent),
+        /* Subtle dot grid */
+        radial-gradient(circle 1px at center, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        /* Base dark gradient */
+        linear-gradient(160deg, #0A0D14 0%, #0F1724 40%, #0D1117 100%);
+    background-size: 100% 100%, 100% 100%, 100% 100%, 24px 24px, 100% 100%;
+    opacity: 1;
+}
+
+/* Animated ambient glow that drifts slowly */
+body.dark-theme::after {
+    content: '';
+    position: fixed;
+    top: 0; left: var(--sidebar-w); right: 0; bottom: 0;
+    background:
+        radial-gradient(ellipse 700px 500px at var(--glow-x, 60%) var(--glow-y, 30%),
+            rgba(59, 130, 246, 0.06), transparent);
+    z-index: 0;
+    pointer-events: none;
+    animation: ambient-drift 20s ease-in-out infinite alternate;
+}
+@keyframes ambient-drift {
+    0%   { --glow-x: 60%; --glow-y: 25%; }
+    33%  { --glow-x: 40%; --glow-y: 55%; }
+    66%  { --glow-x: 75%; --glow-y: 45%; }
+    100% { --glow-x: 50%; --glow-y: 20%; }
+}
+@property --glow-x {
+    syntax: '<percentage>';
+    initial-value: 60%;
+    inherits: false;
+}
+@property --glow-y {
+    syntax: '<percentage>';
+    initial-value: 30%;
+    inherits: false;
 }
 
 /* -- Sidebar ------------------------------------------------------------- */
