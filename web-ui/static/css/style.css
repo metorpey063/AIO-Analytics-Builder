@@ -1958,6 +1958,278 @@ textarea.mono { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-s
 .org-provision-card.card-tab .card-subtitle { font-size: 10.5px; color: #16A34A; }
 
 /* =========================================================================
+   Light theme — Polished overrides (body:not(.dark-theme))
+   Elevates the default light experience to match dark theme polish:
+   gradient background, entrance animations, accent bars, hover effects.
+   ========================================================================= */
+
+/* -- Background: subtle gradient with colored orbs (replaces stock image) - */
+body:not(.dark-theme)::before {
+    background:
+        radial-gradient(ellipse 600px 500px at 85% 15%, rgba(59, 130, 246, 0.06), transparent),
+        radial-gradient(ellipse 500px 600px at 15% 50%, rgba(20, 184, 166, 0.04), transparent),
+        radial-gradient(ellipse 400px 400px at 75% 85%, rgba(139, 92, 246, 0.04), transparent),
+        linear-gradient(160deg, #F8FAFC 0%, #EFF6FF 40%, #F0FDFA 100%);
+    background-size: 100%;
+    opacity: 1;
+}
+
+/* -- Cards: elevated gradient with refined shadows ------------------------ */
+body:not(.dark-theme) .card {
+    background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(255,255,255,0.85));
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03);
+}
+body:not(.dark-theme) .card-action:hover {
+    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.1), 0 1px 3px rgba(0,0,0,0.04);
+    border-color: rgba(59, 130, 246, 0.15);
+    background: linear-gradient(135deg, rgba(255,255,255,0.98), rgba(255,255,255,0.92));
+}
+/* Per-accent hover glows */
+body:not(.dark-theme) .home-layout .card-action:has(.accent-green):hover {
+    box-shadow: 0 4px 20px rgba(20, 184, 166, 0.1), 0 1px 3px rgba(0,0,0,0.04);
+    border-color: rgba(20, 184, 166, 0.15);
+}
+body:not(.dark-theme) .home-layout .card-action:has(.accent-orange):hover {
+    box-shadow: 0 4px 20px rgba(245, 158, 11, 0.1), 0 1px 3px rgba(0,0,0,0.04);
+    border-color: rgba(245, 158, 11, 0.15);
+}
+
+/* -- Colored accent bar on top of cards ----------------------------------- */
+body:not(.dark-theme) .card-grid .card-action {
+    position: relative;
+    overflow: hidden;
+}
+body:not(.dark-theme) .card-grid .card-action::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    z-index: 1;
+    border-radius: 16px 16px 0 0;
+}
+body:not(.dark-theme) .card-grid:first-of-type .card-action:nth-child(1)::before {
+    background: linear-gradient(90deg, #3B82F6, #06B6D4);
+}
+body:not(.dark-theme) .card-grid:first-of-type .card-action:nth-child(2)::before {
+    background: linear-gradient(90deg, #14B8A6, #10B981);
+}
+body:not(.dark-theme) .card-grid:first-of-type .card-action:nth-child(3)::before {
+    background: linear-gradient(90deg, #8B5CF6, #6366F1);
+}
+body:not(.dark-theme) .card-grid:last-of-type .card-action:nth-child(1)::before {
+    background: linear-gradient(90deg, #3B82F6, #60A5FA);
+}
+body:not(.dark-theme) .card-grid:last-of-type .card-action:nth-child(2)::before {
+    background: linear-gradient(90deg, #EA580C, #FB923C);
+}
+body:not(.dark-theme) .card-grid:last-of-type .card-action:nth-child(3)::before {
+    background: linear-gradient(90deg, #14B8A6, #34D399);
+}
+body:not(.dark-theme) .card-grid:last-of-type .card-action:nth-child(4)::before {
+    background: linear-gradient(90deg, #3B82F6, #60A5FA);
+}
+
+/* -- Card step badges: gradient ------------------------------------------- */
+body:not(.dark-theme) .card-step-badge {
+    background: linear-gradient(135deg, #3B82F6, #06B6D4);
+    color: #fff;
+}
+body:not(.dark-theme) .card-step-badge.step-done {
+    background: linear-gradient(135deg, #14B8A6, #10B981);
+}
+
+/* -- Hero title gradient (cycling animation) ------------------------------ */
+body:not(.dark-theme) .hero-title-gradient {
+    background: linear-gradient(90deg, #2563EB, #0891B2, #7C3AED, #2563EB);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: title-gradient-cycle 6s ease infinite;
+}
+
+/* -- Page header ---------------------------------------------------------- */
+body:not(.dark-theme) .page-header h1 {
+    font-size: 28px;
+    font-weight: 800;
+    color: #1E293B;
+}
+body:not(.dark-theme) .page-header .subtitle {
+    color: #475569;
+}
+body:not(.dark-theme) .page-header .subtitle strong {
+    color: #1E293B;
+}
+
+/* -- Stats strip: more opaque frosted glass ------------------------------- */
+body:not(.dark-theme) .stats-strip {
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03);
+    opacity: 0;
+    animation: card-enter 600ms ease 50ms forwards;
+}
+
+/* -- Card grid section label: readable text + gradient divider ------------ */
+body:not(.dark-theme) .card-grid-section-label {
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+body:not(.dark-theme) .card-grid-section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.3), transparent);
+}
+
+/* -- 3D tilt + transition on card hover ----------------------------------- */
+body:not(.dark-theme) .card-action {
+    transition: transform 300ms ease, box-shadow 300ms ease, background 300ms ease, border-color 300ms ease;
+    transform-style: preserve-3d;
+}
+body:not(.dark-theme) .home-layout .card-action:hover {
+    transform: perspective(800px) rotateX(-1.5deg) rotateY(1.5deg) translateY(-3px);
+}
+
+/* -- Icon glow on hover --------------------------------------------------- */
+body:not(.dark-theme) .card-action:hover .card-icon {
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
+    transform: scale(1.05);
+    transition: box-shadow 300ms ease, transform 300ms ease;
+}
+body:not(.dark-theme) .card-action:hover .card-icon.accent-green {
+    box-shadow: 0 0 12px rgba(20, 184, 166, 0.2);
+}
+body:not(.dark-theme) .card-action:hover .card-icon.accent-orange {
+    box-shadow: 0 0 12px rgba(234, 88, 12, 0.2);
+}
+
+/* -- Card entrance animation (stagger) ------------------------------------ */
+body:not(.dark-theme) .card-action {
+    opacity: 0;
+    animation: card-enter 500ms ease forwards;
+}
+body:not(.dark-theme) .card-grid:first-of-type .card-action:nth-child(1) { animation-delay: 100ms; }
+body:not(.dark-theme) .card-grid:first-of-type .card-action:nth-child(2) { animation-delay: 200ms; }
+body:not(.dark-theme) .card-grid:first-of-type .card-action:nth-child(3) { animation-delay: 300ms; }
+body:not(.dark-theme) .card-grid:last-of-type .card-action:nth-child(1) { animation-delay: 400ms; }
+body:not(.dark-theme) .card-grid:last-of-type .card-action:nth-child(2) { animation-delay: 500ms; }
+body:not(.dark-theme) .card-grid:last-of-type .card-action:nth-child(3) { animation-delay: 600ms; }
+body:not(.dark-theme) .card-grid:last-of-type .card-action:nth-child(4) { animation-delay: 700ms; }
+
+/* -- Animated gradient border on "Build a Demo" card ---------------------- */
+body:not(.dark-theme) .card-grid:first-of-type .card-action:nth-child(2)::after {
+    content: '';
+    position: absolute;
+    top: -2px; left: -2px; right: -2px; bottom: -2px;
+    background: conic-gradient(from var(--angle, 0deg),
+        rgba(59, 130, 246, 0.35), rgba(20, 184, 166, 0.25),
+        rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.35));
+    border-radius: 18px;
+    z-index: -1;
+    animation: rotate-gradient 4s linear infinite;
+    opacity: 0;
+    transition: opacity 500ms ease;
+}
+body:not(.dark-theme) .card-grid:first-of-type .card-action:nth-child(2):hover::after {
+    opacity: 0.4;
+}
+
+/* -- Hero text fade-in ---------------------------------------------------- */
+body:not(.dark-theme) .page-header {
+    opacity: 0;
+    animation: card-enter 500ms ease forwards;
+}
+
+/* -- Right panel slide-in ------------------------------------------------- */
+body:not(.dark-theme) .home-changelog {
+    opacity: 0;
+    animation: slide-in-right 600ms ease 300ms forwards;
+}
+
+/* -- Right panels: colored left border ------------------------------------ */
+body:not(.dark-theme) .changelog-panel {
+    border-left: 3px solid rgba(59, 130, 246, 0.3);
+}
+
+/* -- Org provision cards: colored left border ----------------------------- */
+body:not(.dark-theme) .org-provision-card.card-sf {
+    border-left: 3px solid #3B82F6;
+}
+body:not(.dark-theme) .org-provision-card.card-tab {
+    border-left: 3px solid #14B8A6;
+}
+
+/* -- Repo link: pill style ------------------------------------------------ */
+body:not(.dark-theme) .repo-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 14px;
+    background: rgba(37, 99, 235, 0.08);
+    border: 1px solid rgba(37, 99, 235, 0.2);
+    border-radius: 20px;
+    color: var(--blue);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    margin-top: 8px;
+    transition: background 150ms ease, border-color 150ms ease;
+}
+body:not(.dark-theme) .repo-link:hover {
+    background: rgba(37, 99, 235, 0.14);
+    border-color: rgba(37, 99, 235, 0.35);
+    text-decoration: none;
+}
+
+/* -- Changelog panel: refined glass --------------------------------------- */
+body:not(.dark-theme) .changelog-panel {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    border-left: 3px solid rgba(59, 130, 246, 0.3);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03);
+}
+
+/* -- Accordion cards: refined glass --------------------------------------- */
+body:not(.dark-theme) .accordion-card {
+    background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(255,255,255,0.85));
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03);
+}
+
+/* -- Getting Started steps: gradient badges ------------------------------- */
+body:not(.dark-theme) .gs-num {
+    background: linear-gradient(135deg, #3B82F6, #14B8A6);
+}
+
+/* -- Guide panel: refined glass ------------------------------------------- */
+body:not(.dark-theme) .guide-panel {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03);
+}
+
+/* -- Guide step numbers: gradient ----------------------------------------- */
+body:not(.dark-theme) .guide-num {
+    background: linear-gradient(135deg, #3B82F6, #14B8A6);
+}
+
+/* -- Stepper: refined glass ----------------------------------------------- */
+body:not(.dark-theme) .stepper {
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03);
+}
+
+
+/* =========================================================================
    Dark theme — Home page only (body.dark-theme)
    Applied conditionally via Jinja when active == 'home'.
    All overrides are scoped so other pages keep white frosted glass.
