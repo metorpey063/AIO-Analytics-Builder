@@ -308,6 +308,26 @@ body.dark-theme .theme-icon-moon { display: none; }
 }
 .repo-link:hover { text-decoration: underline; }
 
+/* Stats strip (light theme base) */
+.stats-strip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    padding: 14px 24px;
+    margin-bottom: 24px;
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 12px;
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.06);
+}
+.stat-item { text-align: center; }
+.stat-value { display: block; font-size: 18px; font-weight: 700; color: var(--text); }
+.stat-label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-top: 2px; }
+.stat-divider { width: 1px; height: 28px; background: rgba(0, 0, 0, 0.1); }
+
 /* =========================================================================
    Home page two-column layout
    ========================================================================= */
