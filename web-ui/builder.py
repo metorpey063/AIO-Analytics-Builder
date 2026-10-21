@@ -453,58 +453,157 @@ def generate_data(story_config, q=None, advanced=None):
 # ---------------------------------------------------------------------------
 
 def generate_walkthrough(slug, company, story_config, metric_config, build_type, checkpoint, demo_dir):
-    """Generate a .docx walkthrough following the standard format. Returns file path."""
+    """Generate a .docx walkthrough following the CLAUDE.md standard format.
+
+    Supports multi-output builds: includes sections for every output that was built
+    (Pulse, Next, CRMA), not just the last one.
+    """
     from docx import Document
     doc = Document()
     dims = story_config.get("dimensions", [])
+    dim_values = story_config.get("dimension_values", {})
 
-    # --- Section 1: Demo Scenario ---
+    # Determine which outputs were actually built
+    built_pulse = checkpoint.get("pulse_done", False) or build_type == "pulse"
+    built_next = checkpoint.get("sdm_done", False) or checkpoint.get("viz_done", False) or build_type == "next"
+    built_crma = bool(checkpoint.get("crma_dataset_id")) or build_type == "crma"
+
+    primary = [mc for mc in metric_config if mc.get("is_primary")]
+    supporting = [mc for mc in metric_config if not mc.get("is_primary")]
+    lead_metric = primary[0]["label"] if primary else metric_config[0]["label"]
+    counter = [mc for mc in metric_config if mc.get("sentiment") == "up_is_good" and not mc.get("is_primary")]
+
+    # ── Section 1: Demo Scenario (ALL builds) ────────────────────────────────
     doc.add_heading("Demo Scenario", level=1)
+
     doc.add_heading(f"About {company}", level=2)
-    doc.add_paragraph(story_config.get("story_summary", ""))
+    overview = story_config.get("company_overview", story_config.get("story_summary", ""))
+    doc.add_paragraph(overview)
+
+    # Products & Services
+    products = story_config.get("products_services", [])
+    if products:
+        p = doc.add_paragraph()
+        p.add_run("Products & Services: ").bold = True
+        p.add_run(", ".join(products))
+
+    # Territories & Regions
+    territories = story_config.get("territories_regions", [])
+    if territories:
+        p = doc.add_paragraph()
+        p.add_run("Territories & Regions: ").bold = True
+        p.add_run(", ".join(territories))
+
+    # Key KPIs
+    kpis = story_config.get("key_kpis", [])
+    if kpis:
+        p = doc.add_paragraph()
+        p.add_run("Key Industry KPIs: ").bold = True
+        p.add_run(", ".join(kpis))
+
+    # Strategic Initiatives
+    initiatives = story_config.get("strategic_initiatives", [])
+    if initiatives:
+        p = doc.add_paragraph()
+        p.add_run("Strategic Initiatives: ").bold = True
+        p.add_run("; ".join(initiatives))
+
     doc.add_heading("Audience & Story", level=2)
-    audience = story_config.get("audience", "")
+    audience = story_config.get("audience_context", story_config.get("audience", ""))
     if audience:
         p = doc.add_paragraph()
         p.add_run("Audience: ").bold = True
         p.add_run(audience)
-    doc.add_paragraph(story_config.get("signal_description", ""))
+    doc.add_paragraph(story_config.get("story_summary", ""))
 
-    # --- Section 2: Metrics Reference ---
+    signal = story_config.get("signal_description", "")
+    if signal:
+        p = doc.add_paragraph()
+        p.add_run("Signal: ").bold = True
+        p.add_run(signal)
+
+    # Dimensions & values
+    if dims:
+        p = doc.add_paragraph()
+        p.add_run("Dimensions: ").bold = True
+        dim_parts = []
+        for d in dims:
+            vals = dim_values.get(d, [])
+            dim_parts.append(f"{d} ({', '.join(vals)})" if vals else d)
+        p.add_run("; ".join(dim_parts))
+
+    # ── Section 2: Metrics Reference (ALL builds) ────────────────────────────
     doc.add_heading("Metrics Reference", level=1)
     doc.add_paragraph(
         "Each metric below includes its definition and why it matters to the client. "
         "Primary metrics show the main signal; supporting metrics explain the cause or consequence."
     )
     for mc in metric_config:
-        doc.add_heading(mc["label"], level=2)
+        role = " (Primary)" if mc.get("is_primary") else ""
+        doc.add_heading(f"{mc['label']}{role}", level=2)
         p = doc.add_paragraph()
         p.add_run("What it measures: ").bold = True
-        p.add_run(mc.get("description", ""))
+        desc = mc.get("description", "")
+        agg = mc.get("agg", "Average")
+        sentiment = "higher is better" if mc.get("sentiment") == "up_is_good" else "lower is better"
+        p.add_run(f"{desc} Aggregation: {agg}. Direction: {sentiment}.")
         p2 = doc.add_paragraph()
         p2.add_run("Why it matters: ").bold = True
         p2.add_run(mc.get("why_it_matters", ""))
 
-    # --- Section 3: Click Path / Concierge Prompts ---
-    if build_type == "pulse":
-        doc.add_heading("Demo Click Path", level=1)
+    # ── Section 3: Pulse — Demo Click Path ────────────────────────────────────
+    if built_pulse:
+        doc.add_heading("Tableau Pulse — Demo Click Path", level=1)
         doc.add_paragraph(
             "Each step below shows the action to take in Pulse followed by what the audience will see."
         )
-        primary = [mc for mc in metric_config if mc.get("is_primary")]
-        lead_metric = primary[0]["label"] if primary else metric_config[0]["label"]
 
         steps = [
-            ("Opening — Surface Level", f"Open {company} metrics in Pulse", f"The {lead_metric} sparkline shows a recent decline, with a red comparison arrow vs. prior period."),
+            ("Opening — Surface Level",
+             f"Open the {company} metric group in Pulse",
+             f"The {lead_metric} sparkline shows a recent decline, with a red comparison arrow vs. prior period. "
+             f"Other metrics ({', '.join(mc['label'] for mc in metric_config[1:3])}) are visible but the primary signal is in {lead_metric}."),
         ]
         if dims:
-            steps.append((f"Drill 1 — {dims[0]}", f"Click into {lead_metric} and filter by {dims[0]}", f"One {dims[0].lower()} segment is declining significantly faster than others."))
+            d0_vals = dim_values.get(dims[0], [])
+            worst_hint = f" (e.g. {d0_vals[0]})" if d0_vals else ""
+            steps.append((
+                f"Drill 1 — {dims[0]}",
+                f"Click into {lead_metric} and filter by {dims[0]}",
+                f"One {dims[0].lower()} segment{worst_hint} is declining significantly faster than the overall average."))
         if len(dims) >= 2:
-            steps.append((f"Drill 2 — {dims[1]}", f"Within the worst {dims[0].lower()}, break down by {dims[1]}", f"The decline is concentrated in a specific {dims[1].lower()} segment."))
-        counter = [mc for mc in metric_config if not mc.get("is_primary") and mc.get("sentiment") != "up_is_good"]
+            d1_vals = dim_values.get(dims[1], [])
+            worst_d1 = f" (e.g. {d1_vals[0]})" if d1_vals else ""
+            steps.append((
+                f"Drill 2 — {dims[1]}",
+                f"Within the worst {dims[0].lower()}, break down by {dims[1]}",
+                f"The decline is concentrated in a specific {dims[1].lower()} segment{worst_d1}, compounding the effect."))
+        if supporting:
+            steps.append((
+                f"Root Cause — {supporting[0]['label']}",
+                f"Switch to {supporting[0]['label']}",
+                f"This supporting metric shows a lagged decline, confirming the root cause: {supporting[0].get('why_it_matters', 'it drives the primary metric')}."))
+        if len(supporting) >= 2:
+            steps.append((
+                f"Leading Indicator — {supporting[1]['label']}",
+                f"Check {supporting[1]['label']}",
+                f"This metric moved first — it's the leading indicator that preceded the decline in {lead_metric}."))
         if counter:
-            steps.append(("Counter-Trend", f"Switch to {counter[0]['label']}", f"This metric is actually improving — it masks the severity of the decline in the primary metric."))
-        steps.append(("Action", "Summarize findings", "The audience now has a clear signal, knows where it's concentrated, and can identify at-risk entities."))
+            steps.append((
+                "Counter-Trend",
+                f"Switch to {counter[0]['label']}",
+                f"{counter[0]['label']} is actually improving while {lead_metric} declines — this masks the severity of the problem in the overall average."))
+        if len(dims) >= 3:
+            steps.append((
+                f"At-Risk Identification — {dims[2]}",
+                f"Filter to the worst segment and break down by {dims[2]}",
+                f"Specific entities emerge as highest-risk, ready for targeted outreach or intervention."))
+        steps.append((
+            "Action / Summary",
+            "Summarize findings and discuss next steps",
+            f"The audience now sees the signal ({lead_metric} declining), where it's worst ({dims[0] if dims else 'segment'}), "
+            f"the root cause ({supporting[0]['label'] if supporting else 'supporting metric'}), "
+            f"and can identify at-risk entities for action."))
 
         for title, action, sees in steps:
             doc.add_heading(title, level=2)
@@ -515,59 +614,8 @@ def generate_walkthrough(slug, company, story_config, metric_config, build_type,
             p2.add_run("Audience sees: ").bold = True
             p2.add_run(sees)
 
-    elif build_type == "next":
-        doc.add_heading("Concierge Prompts", level=1)
-        doc.add_paragraph(
-            "Each step below shows the question to ask Concierge followed by the expected response."
-        )
-        primary = [mc for mc in metric_config if mc.get("is_primary")]
-        lead_metric = primary[0]["label"] if primary else metric_config[0]["label"]
-
-        prompts = [
-            ("Opening", f"How is {lead_metric.lower()} trending?", f"Concierge shows the overall trend with a decline emerging in recent months."),
-        ]
-        if dims:
-            prompts.append((f"Drill — {dims[0]}", f"Which {dims[0].lower()} has the worst {lead_metric.lower()}?", f"Concierge identifies the worst-performing {dims[0].lower()} segment with specific numbers."))
-        if len(dims) >= 2:
-            prompts.append((f"Drill — {dims[1]}", f"Within that {dims[0].lower()}, break it down by {dims[1].lower()}", f"Concierge drills deeper, revealing the compounding effect in a specific {dims[1].lower()} segment."))
-        supporting = [mc for mc in metric_config if not mc.get("is_primary")]
-        if supporting:
-            prompts.append(("Root Cause", f"What about {supporting[0]['label'].lower()}?", f"Concierge shows the supporting metric lagging the primary, confirming the root cause."))
-        prompts.append(("Action", "Which entities are most at risk?", "Concierge lists specific entities with the steepest declines, ready for outreach."))
-
-        for title, ask, expected in prompts:
-            doc.add_heading(title, level=2)
-            p = doc.add_paragraph()
-            p.add_run("Ask: ").bold = True
-            p.add_run(f'"{ask}"')
-            p2 = doc.add_paragraph()
-            p2.add_run("Expected response: ").bold = True
-            p2.add_run(expected)
-
-    elif build_type == "crma":
-        doc.add_heading("Demo Click Path", level=1)
-        doc.add_paragraph("Navigate the CRM Analytics dashboard to explore the story.")
-
-    # --- Section 4: Goal Lines (Pulse only, if any metric has goals) ---
-    if build_type == "pulse":
-        goals = [mc for mc in metric_config if mc.get("goal")]
-        if goals:
-            doc.add_heading("Setting Up Goal Lines", level=1)
-            doc.add_paragraph(
-                "The datasource includes target columns for easy goal setup in the Pulse UI:"
-            )
-            for mc in goals:
-                g = mc["goal"]
-                doc.add_paragraph(
-                    f"{mc['label']}: select \"{g.get('field', '')}\" → target {g.get('value', '')} → direction: {g.get('direction', 'above')}",
-                    style="List Bullet"
-                )
-            doc.add_paragraph(
-                "To set up: Open metric → Edit → Goals → Select field from data → Choose the target column → Set direction."
-            )
-
-    # --- Section 4b: Pulse Discover Questions (Pulse only, if insights captured) ---
-    if build_type == "pulse":
+    # ── Section 3b: Pulse Discover Questions ──────────────────────────────────
+    if built_pulse:
         discover = checkpoint.get("pulse_discover_results", [])
         if discover:
             doc.add_heading("Pulse Discover Questions", level=1)
@@ -584,27 +632,104 @@ def generate_walkthrough(slug, company, story_config, metric_config, build_type,
                 p_resp.add_run("Expected response: ").bold = True
                 p_resp.add_run(dr.get("answer", "(no response captured)"))
 
-    # --- Section 5: Business Preferences (Next only) ---
-    if build_type == "next":
-        doc.add_heading("Business Preferences (SDM)", level=1)
+    # ── Section 3c: Setting Up Goal Lines (Pulse, if goals exist) ─────────────
+    if built_pulse:
+        goals = [mc for mc in metric_config if mc.get("goal")]
+        if goals:
+            doc.add_heading("Setting Up Goal Lines", level=1)
+            doc.add_paragraph("The datasource includes target columns for easy goal setup in the Pulse UI:")
+            for mc in goals:
+                g = mc["goal"]
+                doc.add_paragraph(
+                    f"{mc['label']}: select \"{g.get('field', '')}\" → target {g.get('value', '')} → direction: {g.get('direction', 'above')}",
+                    style="List Bullet")
+            doc.add_paragraph("To set up: Open metric → Edit → Goals → Select field from data → Choose the target column → Set direction.")
+
+    # ── Section 4: Tableau Next — Concierge Prompts ───────────────────────────
+    if built_next:
+        doc.add_heading("Tableau Next — Concierge Prompts", level=1)
         doc.add_paragraph(
-            "Copy the text below and paste it into: Data 360 → Semantic Model → [SDM name] "
+            "Each step below shows the question to ask Concierge followed by the expected response. "
+            "Ask these in the Tableau Next workspace where the SDM and dashboard were created."
+        )
+
+        prompts = [
+            ("Opening",
+             f"How is {lead_metric.lower()} trending?",
+             f"Concierge shows the overall trend with a decline emerging in recent months, comparing current period vs. prior."),
+        ]
+        if dims:
+            prompts.append((
+                f"Drill — {dims[0]}",
+                f"Which {dims[0].lower()} has the worst {lead_metric.lower()}?",
+                f"Concierge identifies the worst-performing {dims[0].lower()} segment with specific numbers and percentage decline."))
+        if len(dims) >= 2:
+            prompts.append((
+                f"Drill — {dims[1]}",
+                f"Within that {dims[0].lower()}, break it down by {dims[1].lower()}",
+                f"Concierge drills deeper, revealing the compounding effect in a specific {dims[1].lower()} segment."))
+        if supporting:
+            prompts.append((
+                f"Root Cause — {supporting[0]['label']}",
+                f"What about {supporting[0]['label'].lower()}?",
+                f"Concierge shows {supporting[0]['label']} lagging the primary metric, confirming the root cause."))
+        if len(supporting) >= 2:
+            prompts.append((
+                f"Consequence — {supporting[1]['label']}",
+                f"How has {supporting[1]['label'].lower()} been affected?",
+                f"The downstream consequence is visible — {supporting[1]['label']} has degraded as a result of the primary decline."))
+        if counter:
+            prompts.append((
+                "Counter-Trend",
+                f"Is {counter[0]['label'].lower()} also declining?",
+                f"No — {counter[0]['label']} is actually improving, which masks the severity of the problem in the overall average."))
+        prompts.append((
+            "At-Risk Identification",
+            f"Which entities are most at risk?",
+            f"Concierge lists specific entities with the steepest declines across {', '.join(dims[:2]) if len(dims) >= 2 else dims[0] if dims else 'segments'}, ready for outreach."))
+        prompts.append((
+            "Action",
+            "What should we do about this?",
+            f"Concierge recommends focusing on the worst {dims[0].lower() if dims else 'segment'} segment and monitoring {supporting[0]['label'] if supporting else 'supporting metrics'} as the leading indicator."))
+
+        for title, ask, expected in prompts:
+            doc.add_heading(title, level=2)
+            p = doc.add_paragraph()
+            p.add_run("Ask: ").bold = True
+            p.add_run(f'"{ask}"')
+            p2 = doc.add_paragraph()
+            p2.add_run("Expected response: ").bold = True
+            p2.add_run(expected)
+
+    # ── Section 4b: Business Preferences (Next only) ──────────────────────────
+    if built_next:
+        doc.add_heading("Business Preferences (SDM)", level=1)
+        sdm_name = checkpoint.get("sdm_api", "[SDM name]")
+        doc.add_paragraph(
+            f"Copy the text below and paste it into: Data 360 → Semantic Model → {sdm_name} "
             "→ AI Optimization → Manage Business Preferences"
         )
         dims_str = ", ".join(dims) if dims else "Region, Category"
         metric_defs = "\n".join([f"- {mc['label']}: {mc.get('description', '')}" for mc in metric_config])
+        dim_guidance_parts = []
+        for d in dims:
+            vals = dim_values.get(d, [])
+            dim_guidance_parts.append(f"- {d}: {', '.join(vals)}" if vals else f"- {d}")
+        dim_guidance = "\n".join(dim_guidance_parts) if dim_guidance_parts else f"Available dimensions: {dims_str}"
+
         bp_text = (
             f"# COMPANY CONTEXT\n"
-            f"This data represents {company}'s operational analytics.\n\n"
+            f"This data represents {company}'s operational analytics. "
+            f"{story_config.get('company_overview', '')}\n\n"
             f"# METRIC DEFINITIONS\n{metric_defs}\n\n"
-            f"# DIMENSION GUIDANCE\n"
-            f"Available dimensions: {dims_str}. Use these to segment and filter data.\n\n"
+            f"# DIMENSION GUIDANCE\n{dim_guidance}\n\n"
             f"# THRESHOLDS AND TARGETS\n"
             f"A decline of more than 10 percentage points is significant. Track metrics against prior period.\n\n"
             f"# QUESTION INTENT\n"
-            f"\"worst\" = steepest decline over the analysis period\n"
+            f"\"worst\" = steepest percentage-point decline over the analysis period\n"
             f"\"most affected\" = steepest decline segmented by the most recently mentioned dimension\n"
-            f"\"at risk\" = entities with the steepest recent decline\n\n"
+            f"\"at risk\" = entities with the steepest recent decline\n"
+            f"\"flag for outreach\" = filter to the culprit segment and list entities below threshold\n\n"
             f"# ANSWER STYLE\n"
             f"Lead with the answer, then supporting data. Do not open with questions back to the user.\n\n"
             f"# TIME CONTEXT\n"
@@ -613,6 +738,35 @@ def generate_walkthrough(slug, company, story_config, metric_config, build_type,
         doc.add_paragraph(bp_text)
         checkpoint["business_preferences"] = bp_text
 
+    # ── Section 5: CRM Analytics — Dashboard Navigation ───────────────────────
+    if built_crma:
+        doc.add_heading("CRM Analytics — Dashboard Navigation", level=1)
+        doc.add_paragraph(
+            f"The CRM Analytics dashboard for {company} provides an interactive overview with KPI tiles, "
+            f"trend charts, bar charts, and filters. Navigate using the controls at the top."
+        )
+        doc.add_heading("KPI Row", level=2)
+        kpi_text = ", ".join([mc["label"] for mc in metric_config[:5]])
+        doc.add_paragraph(f"The top row shows at-a-glance numbers for: {kpi_text}.")
+
+        doc.add_heading("Charts", level=2)
+        p = doc.add_paragraph()
+        p.add_run("Trend Chart: ").bold = True
+        p.add_run(f"Shows {lead_metric} over time, broken down by {dims[1] if len(dims) >= 2 else 'segment'}.")
+        p2 = doc.add_paragraph()
+        p2.add_run("Bar Chart: ").bold = True
+        p2.add_run(f"Ranks {dims[0] if dims else 'segments'} by {lead_metric} to show where performance is weakest.")
+        if len(metric_config) >= 2:
+            p3 = doc.add_paragraph()
+            p3.add_run("Scatter Chart: ").bold = True
+            p3.add_run(f"Plots {metric_config[0]['label']} vs {metric_config[1]['label']} to reveal correlation patterns.")
+
+        if dims:
+            doc.add_heading("Filters", level=2)
+            doc.add_paragraph(f"Use the filter dropdowns at the top to narrow by: {', '.join(dims[:3])}. "
+                              "Start broad, then filter to the worst segment to reveal the story.")
+
+    # ── Save ──────────────────────────────────────────────────────────────────
     path = os.path.join(demo_dir, f"{slug}_demo_walkthrough.docx")
     doc.save(path)
     return path
