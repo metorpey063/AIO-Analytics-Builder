@@ -1794,13 +1794,25 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         h = sf_headers(sf_token)
 
         cp["metric_apis"] = []
+        mmap = cp.get("measurement_map", {})
         for i, mc in enumerate(metric_config):
             pct = 55 + int(10 * (i / len(metric_config)))
             progress(q, "metrics", f"Creating metric {i+1}/{len(metric_config)}: {mc['label']}...", pct)
 
+            # Match measurement by trying: mc["field"], sanitized label, and fuzzy match
             field_key = mc["field"]
-            meas_api = cp.get("measurement_map", {}).get(field_key, "")
+            label_key = re.sub(r"[^a-z0-9_]", "", mc["label"].lower().replace(" ", "_").replace("-", ""))
+            meas_api = mmap.get(field_key) or mmap.get(label_key) or mmap.get(f"X{label_key}")
             if not meas_api:
+                # Fuzzy: find closest key containing most of the label words
+                label_words = set(mc["label"].lower().replace("-", " ").split())
+                for mk, mv in mmap.items():
+                    mk_words = set(mk.lower().replace("_", " ").split())
+                    if len(label_words & mk_words) >= max(2, len(label_words) - 1):
+                        meas_api = mv
+                        break
+            if not meas_api:
+                progress(q, "warn", f"No measurement found for {mc['label']} (tried {field_key}, {label_key})", -1)
                 continue
 
             clc_api = f"{field_key}_clc"
