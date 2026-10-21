@@ -30,10 +30,20 @@ def inject_connection_status():
     version_path = PROJECT_ROOT / "VERSION"
     if version_path.exists():
         version = version_path.read_text().strip()
+    commit_count = ""
+    try:
+        import subprocess
+        commit_count = subprocess.check_output(
+            ["git", "rev-list", "--count", "HEAD"],
+            cwd=str(PROJECT_ROOT), stderr=subprocess.DEVNULL
+        ).decode().strip()
+    except Exception:
+        commit_count = "—"
     return {
         "has_tableau": bool(config.get("tableau", {}).get("pat_secret")),
         "has_salesforce": bool(config.get("salesforce", {}).get("refresh_token")),
         "app_version": version,
+        "commit_count": commit_count,
     }
 
 # ---------------------------------------------------------------------------
