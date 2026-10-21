@@ -16,7 +16,21 @@
         <div class="demo-card-header">
             <div>
                 <h3>{{ demo.company or demo.slug }}</h3>
-                <span class="badge badge-neutral">{{ demo.get('build_type', 'unknown') | title }}</span>
+                <div style="display:flex; gap:6px; align-items:center; margin-top:2px">
+                    {% set bt = demo.get('build_type', 'unknown') %}
+                    {% if bt == 'pulse' %}
+                    <span class="badge" style="background:rgba(37,99,235,0.15); color:var(--blue)">Pulse</span>
+                    {% elif bt == 'next' %}
+                    <span class="badge" style="background:rgba(16,185,129,0.15); color:#10b981">Tableau Next</span>
+                    {% elif bt == 'crma' %}
+                    <span class="badge" style="background:rgba(245,158,11,0.15); color:#f59e0b">CRMA</span>
+                    {% else %}
+                    <span class="badge badge-neutral">{{ bt | title }}</span>
+                    {% endif %}
+                    {% if demo.get('build_date') %}
+                    <span style="font-size:11px; color:var(--text-muted)">{{ demo.build_date }}</span>
+                    {% endif %}
+                </div>
             </div>
             <div class="demo-actions">
                 <button class="btn btn-secondary btn-sm" title="Open folder in Finder" onclick="openFolder('{{ demo.slug }}')">

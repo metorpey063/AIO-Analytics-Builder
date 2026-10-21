@@ -376,13 +376,15 @@
                         </select>
                     </div>
                 </div>
-                <label class="output-card">
-                    <input type="checkbox" id="w-out-csv" class="sync-field" data-sync="out-csv">
-                    <div class="output-card-inner">
-                        <strong>CSV Export</strong>
-                        <p>Export the generated dataset for manual use in any viz tool</p>
-                    </div>
-                </label>
+                <div class="output-card">
+                    <label style="display:flex; gap:10px; align-items:flex-start; cursor:pointer">
+                        <input type="checkbox" id="w-out-csv" class="sync-field" data-sync="out-csv" style="margin-top:3px; accent-color:var(--blue)">
+                        <div class="output-card-inner">
+                            <strong>CSV Export</strong>
+                            <p>Export the generated dataset for manual use in any viz tool</p>
+                        </div>
+                    </label>
+                </div>
             </div>
 
             <!-- Additional Build Options -->
@@ -448,6 +450,10 @@
     <div class="wizard-step hidden" id="step-5">
         <div class="card" id="build-progress-card">
             <h2>Building Demo</h2>
+            <div id="build-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding:8px 12px; background:rgba(37,99,235,0.08); border-radius:8px; font-size:12px">
+                <span id="build-header-name" style="font-weight:600; color:var(--text-primary)"></span>
+                <span id="build-header-time" style="color:var(--text-muted)"></span>
+            </div>
             <div class="progress-container">
                 <div class="progress-bar">
                     <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
@@ -1046,6 +1052,14 @@ async function startBuild() {
     document.getElementById('build-retry-btn').classList.add('hidden');
     const summaryEl = document.getElementById('build-summary');
     if (summaryEl) summaryEl.classList.add('hidden');
+
+    // Set build header with company name + timestamp
+    const companyName = getVal('company') || 'Demo';
+    const demoName = getVal('demo-name') || companyName;
+    const now = new Date();
+    const timeStr = now.toLocaleString('en-US', {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'});
+    document.getElementById('build-header-name').textContent = demoName;
+    document.getElementById('build-header-time').textContent = `Started ${timeStr}`;
 
     if (currentMode === 'wizard') {
         goStep(5);

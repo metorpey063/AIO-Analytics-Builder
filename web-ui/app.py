@@ -153,16 +153,25 @@ def demos():
                         cp = json.loads(checkpoint.read_text())
                         info["company"] = cp.get("company", d.name)
                         info["build_type"] = cp.get("build_type", "unknown")
-                        info["phases_done"] = cp.get("phases_done", [])
+                        info["build_date"] = cp.get("build_date", "")
                     except json.JSONDecodeError:
                         info["company"] = d.name
                 else:
                     info["company"] = d.name
 
+                # Get folder modified time as fallback date
+                if not info.get("build_date"):
+                    import datetime
+                    mtime = d.stat().st_mtime
+                    info["build_date"] = datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d")
+
                 walkthroughs = sorted(d.glob("*walkthrough*.docx"))
                 info["walkthroughs"] = [{"name": w.name, "slug": d.name} for w in walkthroughs]
 
                 demo_list.append(info)
+
+    # Sort by build date (most recent first), then by name
+    demo_list.sort(key=lambda x: x.get("build_date", ""), reverse=True)
     return render_template("demos.html", demos=demo_list)
 
 
