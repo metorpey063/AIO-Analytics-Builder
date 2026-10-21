@@ -395,7 +395,7 @@
                 <div class="advanced-body">
                     <div class="form-stack" style="gap:12px">
                         <!-- Pulse Dashboard -->
-                        <label class="output-card" style="padding:10px 14px" id="pulse-dash-option">
+                        <label class="output-card" style="padding:10px 14px; display:none" id="pulse-dash-option">
                             <input type="checkbox" id="w-out-pulse-dash" class="sync-field" data-sync="out-pulse-dash">
                             <div class="output-card-inner" style="gap:4px">
                                 <strong style="font-size:13px">Tableau Dashboard with Pulse Tiles</strong>
@@ -404,7 +404,7 @@
                         </label>
 
                         <!-- CRM Actionability -->
-                        <label class="output-card" style="padding:10px 14px" id="crm-action-option">
+                        <label class="output-card" style="padding:10px 14px; display:none" id="crm-action-option">
                             <input type="checkbox" id="w-out-crm-action" class="sync-field" data-sync="out-crm-action">
                             <div class="output-card-inner" style="gap:4px">
                                 <strong style="font-size:13px">CRM Actionability</strong>
@@ -823,9 +823,13 @@ async function loadProfiles() {
 document.addEventListener('change', (e) => {
     if (e.target.id === 'w-out-pulse') {
         document.getElementById('pulse-connection').style.display = e.target.checked ? 'block' : 'none';
+        document.getElementById('pulse-dash-option').style.display = e.target.checked ? 'flex' : 'none';
+        if (!e.target.checked) document.getElementById('w-out-pulse-dash').checked = false;
     }
     if (e.target.id === 'w-out-next') {
         document.getElementById('next-connection').style.display = e.target.checked ? 'block' : 'none';
+        document.getElementById('crm-action-option').style.display = e.target.checked ? 'flex' : 'none';
+        if (!e.target.checked) document.getElementById('w-out-crm-action').checked = false;
     }
     if (e.target.id === 'w-out-crma') {
         document.getElementById('crma-connection').style.display = e.target.checked ? 'block' : 'none';
