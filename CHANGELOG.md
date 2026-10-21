@@ -4,6 +4,21 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-10-21 — Z Layout template fixes, X-prefix ingest bug, dimension values (v2.7.2)
+
+### Fixed
+- **Trend line empty** — `Display_Date` SDM calc dim wasn't mapped in the template deployer's `field_map`, so the Trend_Line viz couldn't find its date field. Now mapped from `cp["display_date_api"]`.
+- **Empty 3rd chart slot** — Z Layout template had 5 viz widget slots but only 4 viz definitions. `visualization_4` rendered as "Add Visualization". Template deployer now auto-generates `Detail_Bar_2` by cloning `Horizontal_Bar` with the first user dimension.
+- **"Section Subheader" raw text** — Dashboard text widgets (`text_1` through `text_8`) weren't reached by `label_map` substitution. Added `label_map` and `detail_headers` params to `prepare_dashboard_payload()` — text now shows company name and metric-by-dimension headers.
+- **Generic viz titles** — Viz labels were template defaults ("Trend Line", "Donut Chart"). Now set via `label_map` to meaningful titles like "30-Day Readmission Rate Over Time".
+- **X-prefix bulk ingest bug** — Data Cloud auto-prepends `X` to schema fields starting with a digit (e.g. `30day_readmission_rate` → `X30day_readmission_rate`), but CSV upload headers weren't X-prefixed. Data for those columns silently ingested as NULL. Fixed in both `_clean_field_name()` and CSV column rename.
+- **Generic dimension values in data** — `generate_data()` ignored `dimension_values` from the story config and fell back to hardcoded patterns, producing "Service Line 1, 2, 3, 4" instead of realistic values. Now reads story-generated values first.
+
+### Changed
+- **AIO Builder.app launcher** — no longer hardcodes `~/AIO-Analytics-Builder`. Auto-detects install directory from the `.app` bundle location, so it works from any folder.
+
+---
+
 ## 2026-10-20 — CRMA golden template: complete field substitution (v2.7.1)
 
 ### Fixed
