@@ -1228,23 +1228,53 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         r_stream = req.post(f"{sf_instance}/services/data/v62.0/ssot/data-streams",
                             headers=h, json=stream_payload)
         if r_stream.status_code not in (200, 201):
-            # Try to find an existing stream — creation failures often mean it already exists
+            # Try to find an existing stream — "already in use" means the schema/DLO exists
             progress(q, "stream", f"Stream creation returned {r_stream.status_code} — checking for existing stream...", -1)
             r_list = req.get(f"{sf_instance}/services/data/v62.0/ssot/data-streams", headers=h)
-            streams = r_list.json()
-            stream_list = streams.get("dataStreams", []) if isinstance(streams, dict) else streams
+            streams_resp = r_list.json()
+            stream_list = streams_resp.get("dataStreams", []) if isinstance(streams_resp, dict) else streams_resp
             found = False
+            # Search by schema name OR DLO name (stream names have connector prefix + hash suffix)
+            schema_lower = schema_name.lower().replace("_", "")
             for s in stream_list:
-                if isinstance(s, dict) and schema_name in s.get("name", ""):
+                if not isinstance(s, dict):
+                    continue
+                sname = s.get("name", "").lower()
+                dlo_name = s.get("dataLakeObjectInfo", {}).get("name", "") if isinstance(s.get("dataLakeObjectInfo"), dict) else ""
+                if schema_name in sname or schema_lower in sname.replace("_", "") or schema_name in dlo_name:
                     cp["stream_name"] = s["name"]
                     dlo_info = s.get("dataLakeObjectInfo", {})
                     if isinstance(dlo_info, dict):
                         cp["dlo_name"] = dlo_info.get("name", "")
-                    progress(q, "stream", f"Found existing stream: {cp['stream_name']}", -1)
+                    progress(q, "stream", f"Found existing stream: {cp['stream_name']} (DLO: {cp.get('dlo_name','')})", -1)
                     found = True
                     break
             if not found:
-                raise RuntimeError(f"Stream creation failed and no existing stream found: {r_stream.status_code} {r_stream.text[:300]}")
+                # Schema is "in use" but no stream found — the old stream was deleted
+                # but the schema registration persists. Try with a unique suffix.
+                import hashlib as _hl
+                suffix = _hl.md5(f"{schema_name}{time.time()}".encode()).hexdigest()[:8].upper()
+                unique_schema = f"{schema_name}_{suffix}"
+                progress(q, "stream", f"Retrying with unique schema name: {unique_schema}", -1)
+                new_schema = {"name": unique_schema, "label": unique_schema,
+                              "schemaType": "IngestApi", "fields": schema_fields}
+                req.put(f"{sf_instance}/services/data/v62.0/ssot/connections/{connector_id}/schema",
+                        headers=h, json={"schemas": [new_schema]})
+                time.sleep(5)
+                stream_payload["name"] = unique_schema
+                stream_payload["label"] = unique_schema
+                stream_payload["connectorInfo"]["connectorDetails"]["events"] = [unique_schema]
+                stream_payload["dataLakeObjectInfo"]["label"] = unique_schema
+                r_stream2 = req.post(f"{sf_instance}/services/data/v62.0/ssot/data-streams", headers=h, json=stream_payload)
+                if r_stream2.status_code in (200, 201):
+                    resp2 = r_stream2.json()
+                    if isinstance(resp2, list): resp2 = resp2[0] if resp2 else {}
+                    cp["stream_name"] = resp2.get("name", unique_schema)
+                    cp["dlo_name"] = resp2.get("dataLakeObjectInfo", {}).get("name", "")
+                    cp["schema_name"] = unique_schema
+                    progress(q, "stream", f"Created stream with new schema: {cp['stream_name']}", -1)
+                else:
+                    raise RuntimeError(f"Stream creation failed: {r_stream2.status_code} {r_stream2.text[:300]}")
         else:
             resp = r_stream.json()
             if isinstance(resp, list):
