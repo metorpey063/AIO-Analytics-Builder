@@ -702,38 +702,44 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
         pct = 40 + int(20 * (i / len(metric_config)))
         progress(q, "metrics", f"Creating metric {i+1}/{len(metric_config)}: {mc['label']}...", pct)
 
+        # Payload matches the working CLI pattern: specification wrapper with basic_specification
+        is_sum = mc.get("pulse_agg") == "AGGREGATION_SUM"
         payload = {
             "name": f"{company} — {mc['label']}",
-            "description": mc.get("description", ""),
-            "measurement": {"field": mc["label"], "aggregation": mc.get("pulse_agg", "AGGREGATION_AVERAGE")},
-            "time_dimension": {"field": "Date"},
-            "datasource": {"id": ds_luid},
-            "is_running_total": mc.get("pulse_agg") == "AGGREGATION_SUM",
+            "description": mc.get("why_it_matters", mc.get("description", "")),
+            "specification": {
+                "datasource": {"id": ds_luid},
+                "basic_specification": {
+                    "measure": {"field": mc["label"], "aggregation": mc.get("pulse_agg", "AGGREGATION_AVERAGE")},
+                    "time_dimension": {"field": "Date"},
+                    "filters": [],
+                },
+                "is_running_total": is_sum,
+            },
             "representation_options": {
                 "type": "NUMBER_FORMAT_TYPE_NUMBER",
-                "number_format": {
-                    "number_of_decimal_places": 2,
+                "number_units": {
+                    "singular_noun": mc.get("singular", mc["label"].lower()),
+                    "plural_noun": mc.get("plural", mc["label"].lower() + "s"),
                 },
+                "sentiment_type": "SENTIMENT_TYPE_UP_IS_GOOD" if mc.get("sentiment") == "up_is_good" else "SENTIMENT_TYPE_DOWN_IS_GOOD" if mc.get("sentiment") == "down_is_good" else "SENTIMENT_TYPE_UP_IS_GOOD",
             },
             "extension_options": {
                 "allowed_dimensions": dimensions,
                 "allowed_granularities": [
-                    "GRANULARITY_BY_MONTH",
-                    "GRANULARITY_BY_QUARTER",
                     "GRANULARITY_BY_YEAR",
+                    "GRANULARITY_BY_QUARTER",
+                    "GRANULARITY_BY_MONTH",
                 ],
                 "offset_from_today": 0,
-                "use_dynamic_offset": True,
                 "correlation_candidate_definition_ids": [],
+                "use_dynamic_offset": False,
             },
             "insights_options": {"show_insights": True, "settings": []},
             "comparisons": {"comparisons": [
-                {"compare_config": {"comparison": "TIME_COMPARISON_PREVIOUS_PERIOD", "comparison_period_override": []}, "index": "0"}
+                {"compare_config": {"comparison": "TIME_COMPARISON_PREVIOUS_PERIOD", "comparison_period_override": []}, "index": "0"},
             ]},
         }
-
-        # Note: sentiment_type is NOT accepted in the Pulse definition POST payload
-        # (causes 400 "Invalid request"). Sentiment is set via the Pulse UI only.
 
         r = req.post(f"{base}/api/-/pulse/definitions", headers=h_pulse, json=payload)
         if r.status_code not in (200, 201):
