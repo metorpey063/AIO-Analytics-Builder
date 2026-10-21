@@ -229,6 +229,13 @@ def _reauth_via_browser(sf, profile_key=None):
         if tokens.get("code_verifier"):
             full["profiles"][key]["salesforce"]["code_verifier"] = tokens["code_verifier"]
         full["profiles"][key]["salesforce"].pop("pkce_refresh_mode", None)
+        # Cache the fresh access token for other sessions
+        import time as _time
+        full["profiles"][key]["_token_cache"] = {
+            "access_token": tokens["access_token"],
+            "instance_url": tokens["instance_url"],
+            "expires_at": _time.time() + 7200,
+        }
         save_full_config(full)
 
     return tokens["access_token"], tokens["instance_url"]
@@ -239,10 +246,26 @@ def get_sf_token(config=None, profile_key=None):
     Supports PKCE orgs (includes code_verifier if saved in config).
     Handles orgs that reject code_verifier by retrying without it.
     Saves rotated refresh token back to config.json if one is returned.
-    Auto-triggers browser re-auth if the refresh token has expired."""
+    Auto-triggers browser re-auth if the refresh token has expired.
+
+    Caches the access_token to avoid refresh token rotation races when
+    multiple sessions share the same config.json. Access tokens have a
+    ~2 hour TTL and can be safely reused across sessions."""
     if config is None:
         config = load_config(profile_key)
     sf = config["salesforce"]
+
+    # Check for a cached access token that's still valid
+    import time as _time
+    full = load_full_config()
+    key = profile_key or full.get("active_profile")
+    if key and key in full.get("profiles", {}):
+        cached = full["profiles"][key].get("_token_cache", {})
+        cached_token = cached.get("access_token", "")
+        cached_instance = cached.get("instance_url", "")
+        cached_expiry = cached.get("expires_at", 0)
+        if cached_token and cached_instance and _time.time() < cached_expiry - 60:
+            return cached_token, cached_instance
 
     data = {
         "grant_type": "refresh_token",
@@ -293,7 +316,7 @@ def get_sf_token(config=None, profile_key=None):
     r.raise_for_status()
     body = r.json()
 
-    # Handle refresh token rotation: save new token + learned PKCE mode
+    # Handle refresh token rotation: save new token + learned PKCE mode + cache access token
     new_refresh = body.get("refresh_token")
     full = load_full_config()
     key = profile_key or full.get("active_profile")
@@ -306,6 +329,14 @@ def get_sf_token(config=None, profile_key=None):
         if pkce_mode and sf.get("pkce_refresh_mode") != pkce_mode:
             full["profiles"][key]["salesforce"]["pkce_refresh_mode"] = pkce_mode
             changed = True
+        # Cache access token so other sessions don't need to refresh (and revoke this token)
+        import time as _time
+        full["profiles"][key]["_token_cache"] = {
+            "access_token": body["access_token"],
+            "instance_url": body["instance_url"],
+            "expires_at": _time.time() + 7200,  # SF access tokens last ~2 hours
+        }
+        changed = True
         if changed:
             save_full_config(full)
 
