@@ -808,24 +808,95 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
     if outputs.get("pulse_dashboard"):
         progress(q, "twb", "Creating Pulse Dashboard workbook...", 78)
         try:
-            from twb_builder import build_pulse_workbook
-            from connections import get_datasource_content_url
-            ds_content_url = get_datasource_content_url(server, cp["pulse_datasource_id"])
-            twb_path = build_pulse_workbook(
-                df=df,
-                metric_config=metric_config,
-                ds_content_url=ds_content_url,
-                company=company,
-                slug=slug,
-                demo_dir=demo_dir,
-                server=server,
-                project_id=cp["pulse_project_id"],
-                datasource_id=cp["pulse_datasource_id"],
-                def_ids=cp.get("pulse_def_ids", []),
-                metric_ids=cp.get("pulse_metric_ids", []),
-            )
+            from twb_builder import build_twb, publish_twb, get_datasource_content_url
+
+            ds_content_url = get_datasource_content_url(
+                cp["pulse_datasource_name"], cp["pulse_project_id"], server)
+            site_name = config["tableau"].get("site_name", "")
+            server_pod = config["tableau"]["server_url"].replace("https://", "").rstrip("/")
+
+            dims = story_config.get("dimensions", [])
+            columns = [{"name": "Date", "role": "dimension", "datatype": "datetime"}]
+            for d in dims:
+                columns.append({"name": d, "role": "dimension", "datatype": "string"})
+            for mc in metric_config:
+                fmt = "percentage" if mc.get("agg") == "Average" else "decimal"
+                columns.append({"name": mc["field"], "role": "measure", "datatype": "real", "format": fmt})
+
+            # Build worksheets: trend line (primary metric), bar chart (primary by first dim),
+            # multi-line by second dim, dual-axis (metric 1 vs metric 2)
+            worksheets = []
+            m0 = metric_config[0]
+            worksheets.append({
+                "name": f"{m0['label']} Trend",
+                "type": "line",
+                "title": f"{m0['label']} — Monthly Trend",
+                "rows_field": m0["field"], "cols_field": "Date",
+                "aggregation": "Avg" if m0.get("agg") == "Average" else "Sum",
+                "date_derivation": "Month-Trunc",
+            })
+            if dims:
+                worksheets.append({
+                    "name": f"{m0['label']} by {dims[0]}",
+                    "type": "horizontal_bar",
+                    "title": f"{m0['label']} by {dims[0]}",
+                    "rows_field": dims[0], "cols_field": m0["field"],
+                    "aggregation": "Avg" if m0.get("agg") == "Average" else "Sum",
+                    "sort": "desc",
+                })
+            if len(dims) >= 2:
+                worksheets.append({
+                    "name": f"{m0['label']} by {dims[1]}",
+                    "type": "line",
+                    "title": f"{m0['label']} by {dims[1]}",
+                    "rows_field": m0["field"], "cols_field": "Date",
+                    "aggregation": "Avg" if m0.get("agg") == "Average" else "Sum",
+                    "date_derivation": "Month-Trunc",
+                    "color_field": dims[1],
+                })
+            if len(metric_config) >= 2:
+                m1 = metric_config[1]
+                worksheets.append({
+                    "name": f"{m0['label']} vs {m1['label']}",
+                    "type": "dual_axis",
+                    "title": f"{m0['label']} vs {m1['label']}",
+                    "rows_field": m0["field"], "rows_field_2": m1["field"],
+                    "cols_field": "Date",
+                    "aggregation": "Avg" if m0.get("agg") == "Average" else "Sum",
+                    "aggregation_2": "Avg" if m1.get("agg") == "Average" else "Sum",
+                    "date_derivation": "Month-Trunc",
+                    "mark_1": "Bar", "mark_2": "Line",
+                    "color_1": "#4E9FD1", "color_2": "#FF6B35",
+                })
+
+            # Build Pulse tiles from saved def/metric IDs
+            pulse_tiles = []
+            def_ids = cp.get("pulse_def_ids", [])
+            met_ids = cp.get("pulse_metric_ids", [])
+            for i, mc in enumerate(metric_config):
+                if i < len(def_ids) and i < len(met_ids) and def_ids[i] and met_ids[i]:
+                    pulse_tiles.append({"field": mc["field"], "def_id": def_ids[i], "metric_id": met_ids[i]})
+
+            twb_config = {
+                "workbook_name": f"{company} — Dashboard",
+                "datasource_name": cp["pulse_datasource_name"],
+                "datasource_content_url": ds_content_url,
+                "server_pod": server_pod,
+                "site_name": site_name,
+                "output_dir": demo_dir,
+                "columns": columns,
+                "worksheets": worksheets,
+                "pulse_tiles": pulse_tiles,
+                "filters": dims[:2],
+                "dashboard_name": f"{company} — Overview",
+                "brand": story_config.get("brand", {"primary": "#1B3A6B", "secondary": "#4E9FD1", "border": "#bfb18c"}),
+            }
+
+            twb_path = build_twb(twb_config)
+            wb_luid = publish_twb(twb_path, cp["pulse_project_id"], twb_config["workbook_name"], server)
             cp["pulse_twb_path"] = twb_path
-            progress(q, "twb", "Pulse Dashboard published", -1)
+            cp["pulse_wb_luid"] = wb_luid
+            progress(q, "twb", f"Pulse Dashboard published: {wb_luid}", -1)
         except Exception as e:
             progress(q, "warn", f"Pulse Dashboard skipped: {e}", -1)
         _save_cp(cp, slug, demo_dir)
