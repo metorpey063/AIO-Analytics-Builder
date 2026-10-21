@@ -87,6 +87,13 @@ def setup():
         active_label = active_profile.get("label", "")
         tc = active_profile.get("tableau", {})
         sf = active_profile.get("salesforce", {})
+    elif full.get("active_profile") and full["active_profile"] in full.get("profiles", {}):
+        edit_key = full["active_profile"]
+        active_profile = full["profiles"][edit_key]
+        config = _load_config()
+        active_label = active_profile.get("label", "")
+        tc = active_profile.get("tableau", {})
+        sf = active_profile.get("salesforce", {})
     else:
         config = {"tableau": {}, "salesforce": {}}
         active_label = ""
