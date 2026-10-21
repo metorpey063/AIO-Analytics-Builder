@@ -64,9 +64,21 @@ Return ONLY valid JSON with this exact structure:
     "use_case": "inferred use case if user left it blank",
     "audience": "inferred audience if user left it blank"
   },
-  "story_summary": "2-3 sentence narrative describing the company context and the analytical story",
-  "signal_description": "1 sentence describing the engineered signal (e.g., 'accelerating decline in X over 3 months, concentrated in Y segment')",
-  "dimensions": ["Region", "Department", "Category"],
+  "company_overview": "2-3 sentences about the company: what they do, their scale, market position, and operating model",
+  "products_services": ["Product/service line 1", "Product/service line 2", "Product/service line 3"],
+  "territories_regions": ["Region or territory 1", "Region or territory 2", "Region or territory 3"],
+  "key_kpis": ["Industry KPI 1 they likely track", "Industry KPI 2", "Industry KPI 3"],
+  "strategic_initiatives": ["Current initiative or priority 1", "Initiative 2"],
+  "story_summary": "3-5 sentence narrative: what is happening (the problem), where it's concentrated (segment), what's causing it (root cause), and the counter-trend that masks it. This is the demo story the presenter will walk through.",
+  "signal_description": "1-2 sentences describing the engineered data signal: which metric declines, when it starts, where it's worst, and what the counter-trend is",
+  "audience_context": "1 sentence: who the audience is and what decision this demo helps them make",
+  "dimensions": ["Region", "Department", "Category", "Segment"],
+  "dimension_values": {
+    "Region": ["Northeast", "West", "South", "Midwest"],
+    "Department": ["Sales", "Engineering", "Operations"],
+    "Category": ["Enterprise", "Mid-Market", "SMB"],
+    "Segment": ["Premium", "Standard", "Basic"]
+  },
   "metric_config": [
     {
       "label": "Revenue Growth Rate",
@@ -84,10 +96,10 @@ Return ONLY valid JSON with this exact structure:
 }
 
 Rules:
-- Generate 3-5 metrics. 1-2 should be primary (is_primary: true) with strong signal, rest are supporting.
+- Generate 6 metrics. 1-2 should be primary (is_primary: true) with strong signal, rest are supporting.
 - Primary metrics show the "uh oh" moment. Supporting metrics explain why or show consequences.
 - Include at least one counter-trend metric (one that improves while others decline).
-- Dimensions should enable drill-down: at least one "where" dimension (Region, Location), one "what" dimension (Category, Type), one "who" dimension (Team, Rep).
+- Generate at least 4 dimensions to support dashboard filters. Include one "where" (Region, Location), one "what" (Category, Type), one "who" (Team, Rep), and one "segment" (Size Band, Tier).
 - Field names use snake_case with no spaces. Keep field names SHORT — max 35 characters.
 - Metric LABELS should be short and business-focused (max 5 words). Example: "Client Retention Rate" not "Salesforce CRM Client Retention Tracking Rate".
 - Sentiment: "up_is_good" or "down_is_good".
@@ -98,12 +110,12 @@ Rules:
 
 # Minimum data requirements per dashboard template
 TEMPLATE_REQUIREMENTS = {
-    "z_layout":         {"min_metrics": 4, "min_dimensions": 3, "description": "Z Layout needs 4-6 metrics and 3+ dimensions for filters, grouping, and breakdowns"},
-    "f_layout":         {"min_metrics": 3, "min_dimensions": 3, "description": "F Layout needs 3 metrics and 3+ dimensions"},
-    "exec_summary":     {"min_metrics": 4, "min_dimensions": 2, "description": "Executive Summary needs 4-5 metrics and 2+ dimensions for entity rankings"},
-    "pharma_analytics": {"min_metrics": 4, "min_dimensions": 3, "description": "Pharma Analytics needs 4 metrics and 3 dimensions (specialty, geography, brand)"},
-    "multi_page_kpi":   {"min_metrics": 6, "min_dimensions": 4, "description": "Multi-Page KPI needs 6+ metrics and 4+ dimensions across 4 dashboard pages"},
-    "standard":         {"min_metrics": 3, "min_dimensions": 2, "description": "Standard layout needs 3+ metrics and 2+ dimensions"},
+    "z_layout":         {"min_metrics": 6, "min_dimensions": 4, "description": "Z Layout needs 6 metrics and 4 dimensions for BAN tiles, filters, and breakdowns"},
+    "f_layout":         {"min_metrics": 6, "min_dimensions": 4, "description": "F Layout needs 6 metrics and 4 dimensions"},
+    "exec_summary":     {"min_metrics": 6, "min_dimensions": 4, "description": "Executive Summary needs 6 metrics and 4 dimensions"},
+    "pharma_analytics": {"min_metrics": 6, "min_dimensions": 4, "description": "Pharma Analytics needs 6 metrics and 4 dimensions"},
+    "multi_page_kpi":   {"min_metrics": 11, "min_dimensions": 4, "description": "Multi-Page KPI needs 11+ metrics and 4+ dimensions across 4 dashboard pages"},
+    "standard":         {"min_metrics": 6, "min_dimensions": 4, "description": "Standard layout needs 6 metrics and 4 dimensions"},
 }
 
 
@@ -181,11 +193,11 @@ Reuse the same metrics, dimensions, and field names from the prior build. Match 
     if research_depth == "detailed":
         depth_context = """
 RESEARCH DEPTH: DETAILED
-Go deep on this company's actual business model, industry dynamics, and real KPIs. Use real department names, real product lines, real geographic footprint where possible. The story should reference plausible industry benchmarks and use terminology the audience would recognize from their day-to-day work. Generate 5 metrics (not 3). Include dimension values that match the company's real operations (e.g. actual regions they operate in, actual product categories they sell)."""
+Go deep on this company's actual business model, industry dynamics, and real KPIs. Use real department names, real product lines, real geographic footprint where possible. The story should reference plausible industry benchmarks and use terminology the audience would recognize from their day-to-day work. Include dimension values that match the company's real operations (e.g. actual regions they operate in, actual product categories they sell)."""
     else:
         depth_context = """
 RESEARCH DEPTH: QUICK
-Generate a solid demo configuration using reasonable industry defaults. 3-4 metrics is fine. Use generic but realistic dimension values."""
+Generate a solid demo configuration using reasonable industry defaults. Use generic but realistic dimension values."""
 
     # Generate enough metrics/dimensions to support any template
     template_context = ""

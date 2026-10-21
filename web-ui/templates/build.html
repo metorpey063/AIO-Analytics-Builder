@@ -156,14 +156,61 @@
                 <p>Generating story...</p>
             </div>
             <div id="story-content" class="hidden">
-                <div class="form-group">
-                    <label>Story Summary</label>
-                    <textarea id="story-summary" rows="5" class="mono"></textarea>
+                <div class="story-panel">
+                    <div class="story-section">
+                        <h3>Company Overview</h3>
+                        <p id="story-overview"></p>
+                    </div>
+                    <div class="story-columns">
+                        <div class="story-section">
+                            <h4>Products & Services</h4>
+                            <ul id="story-products"></ul>
+                        </div>
+                        <div class="story-section">
+                            <h4>Territories & Regions</h4>
+                            <ul id="story-territories"></ul>
+                        </div>
+                        <div class="story-section">
+                            <h4>Key KPIs</h4>
+                            <ul id="story-kpis"></ul>
+                        </div>
+                    </div>
+                    <div id="story-initiatives-section" class="story-section" style="display:none">
+                        <h4>Strategic Initiatives</h4>
+                        <ul id="story-initiatives"></ul>
+                    </div>
+                    <div class="story-divider"></div>
+                    <div class="story-section">
+                        <h3>Demo Story</h3>
+                        <p id="story-narrative" class="story-narrative"></p>
+                    </div>
+                    <div class="story-columns">
+                        <div class="story-section">
+                            <h4>Signal</h4>
+                            <p id="story-signal-text" class="story-signal"></p>
+                        </div>
+                        <div class="story-section">
+                            <h4>Audience</h4>
+                            <p id="story-audience-text"></p>
+                        </div>
+                    </div>
+                    <div class="story-divider"></div>
+                    <div class="story-columns">
+                        <div class="story-section">
+                            <h4>Dimensions (<span id="story-dim-count">0</span>)</h4>
+                            <div id="story-dims" class="story-tags"></div>
+                        </div>
+                        <div class="story-section">
+                            <h4>Metrics (<span id="story-metric-count">0</span>)</h4>
+                            <div id="story-metrics-tags" class="story-tags"></div>
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Signal Description</label>
-                    <textarea id="story-signal" rows="3" class="mono"></textarea>
+                <div class="form-group" style="margin-top:12px">
+                    <label>Edit Story <span style="font-weight:400; color:var(--text-muted)">(optional — changes here update the build)</span></label>
+                    <textarea id="story-summary" rows="4" placeholder="Edit the story narrative if needed..."></textarea>
                 </div>
+                <input type="hidden" id="story-signal">
             </div>
             <div class="wizard-actions">
                 <button class="btn btn-ghost" onclick="goStep(1)">&larr; Back</button>
@@ -294,6 +341,10 @@
                         <select id="pulse-profile" style="width:100%; margin-top:4px; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--glass-bg); color:var(--text-primary); font-size:12px">
                             <option value="">Loading...</option>
                         </select>
+                        <label style="display:flex; gap:8px; align-items:center; margin-top:10px; cursor:pointer; font-size:12px; color:var(--text-primary)">
+                            <input type="checkbox" id="w-out-pulse-dash" class="sync-field" data-sync="out-pulse-dash" style="accent-color:var(--blue)">
+                            <span>Also create a <strong>Tableau Dashboard</strong> with embedded Pulse metric tiles</span>
+                        </label>
                     </div>
                 </div>
                 <div class="output-card">
@@ -394,15 +445,6 @@
                 </button>
                 <div class="advanced-body">
                     <div class="form-stack" style="gap:12px">
-                        <!-- Pulse Dashboard -->
-                        <label class="output-card" style="padding:10px 14px; display:none" id="pulse-dash-option">
-                            <input type="checkbox" id="w-out-pulse-dash" class="sync-field" data-sync="out-pulse-dash">
-                            <div class="output-card-inner" style="gap:4px">
-                                <strong style="font-size:13px">Tableau Dashboard with Pulse Tiles</strong>
-                                <p style="font-size:11.5px">Create a .twb workbook with embedded Pulse metric tiles (requires Pulse output)</p>
-                            </div>
-                        </label>
-
                         <!-- CRM Actionability -->
                         <label class="output-card" style="padding:10px 14px; display:none" id="crm-action-option">
                             <input type="checkbox" id="w-out-crm-action" class="sync-field" data-sync="out-crm-action">
@@ -823,7 +865,6 @@ async function loadProfiles() {
 document.addEventListener('change', (e) => {
     if (e.target.id === 'w-out-pulse') {
         document.getElementById('pulse-connection').style.display = e.target.checked ? 'block' : 'none';
-        document.getElementById('pulse-dash-option').style.display = e.target.checked ? 'flex' : 'none';
         if (!e.target.checked) document.getElementById('w-out-pulse-dash').checked = false;
     }
     if (e.target.id === 'w-out-next') {
@@ -940,6 +981,47 @@ async function generateStory() {
             storyConfig = j;
             document.getElementById('story-summary').value = j.story_summary || '';
             document.getElementById('story-signal').value = j.signal_description || '';
+
+            // Populate rich story panel
+            document.getElementById('story-overview').textContent = j.company_overview || j.story_summary || '';
+            const fillList = (id, items) => {
+                const ul = document.getElementById(id);
+                ul.innerHTML = '';
+                (items || []).forEach(item => { const li = document.createElement('li'); li.textContent = item; ul.appendChild(li); });
+            };
+            fillList('story-products', j.products_services);
+            fillList('story-territories', j.territories_regions);
+            fillList('story-kpis', j.key_kpis);
+            if (j.strategic_initiatives && j.strategic_initiatives.length > 0) {
+                fillList('story-initiatives', j.strategic_initiatives);
+                document.getElementById('story-initiatives-section').style.display = 'block';
+            }
+            document.getElementById('story-narrative').textContent = j.story_summary || '';
+            document.getElementById('story-signal-text').textContent = j.signal_description || '';
+            document.getElementById('story-audience-text').textContent = j.audience_context || '';
+
+            // Dimensions tags
+            const dimsEl = document.getElementById('story-dims');
+            dimsEl.innerHTML = '';
+            (j.dimensions || []).forEach(d => {
+                const vals = (j.dimension_values || {})[d];
+                const tag = document.createElement('span');
+                tag.className = 'story-tag';
+                tag.textContent = vals ? d + ': ' + vals.join(', ') : d;
+                dimsEl.appendChild(tag);
+            });
+            document.getElementById('story-dim-count').textContent = (j.dimensions || []).length;
+
+            // Metrics tags
+            const metsEl = document.getElementById('story-metrics-tags');
+            metsEl.innerHTML = '';
+            (j.metric_config || []).forEach(mc => {
+                const tag = document.createElement('span');
+                tag.className = 'story-tag' + (mc.is_primary ? ' story-tag-primary' : '');
+                tag.textContent = mc.label;
+                metsEl.appendChild(tag);
+            });
+            document.getElementById('story-metric-count').textContent = (j.metric_config || []).length;
 
             // Auto-fill empty fields from AI suggestions
             if (j.suggestions) {
