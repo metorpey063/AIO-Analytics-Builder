@@ -1558,7 +1558,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         dc_token, dc_domain = get_dc_token(sf_token, sf_instance)
         dch = dc_headers(dc_token)
         connector_name = sf.get("ingestion_connector_name", "analytics_builder_demo")
-        schema_name = slug  # same as what was registered in Phase 2
+        schema_name = cp.get("schema_name", slug)
 
         # Rename columns to match sanitized schema field names
         col_rename = {}
