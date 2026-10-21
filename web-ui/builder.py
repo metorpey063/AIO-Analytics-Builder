@@ -2222,12 +2222,24 @@ def run_build(build_id, build_config, progress_queue):
             cp = {"all_ws_apis": [], "all_sdm_apis": [], "all_viz_apis": [], "all_dash_apis": []}
 
         from connections import load_config, load_full_config, set_active_profile
-        profile_key = build_config.get("profile_key")
-        if profile_key:
+
+        # Per-output profile keys — each output can use a different connection
+        pulse_profile = build_config.get("pulse_profile_key") or build_config.get("profile_key")
+        next_profile = build_config.get("next_profile_key") or build_config.get("profile_key")
+        crma_profile = build_config.get("crma_profile_key") or build_config.get("profile_key")
+
+        # Default config for non-output-specific operations (data gen, etc.)
+        default_profile = next_profile or pulse_profile or crma_profile
+        if default_profile:
             full = load_full_config()
-            if profile_key in full.get("profiles", {}):
-                set_active_profile(full, profile_key)
-        config = load_config(profile_key)
+            if default_profile in full.get("profiles", {}):
+                set_active_profile(full, default_profile)
+        config = load_config(default_profile)
+
+        # Pre-load per-output configs (only if they differ from default)
+        pulse_config = load_config(pulse_profile) if pulse_profile and pulse_profile != default_profile else config
+        next_config = load_config(next_profile) if next_profile and next_profile != default_profile else config
+        crma_config = load_config(crma_profile) if crma_profile and crma_profile != default_profile else config
 
         advanced = build_config.get("advanced", {})
 
@@ -2256,15 +2268,15 @@ def run_build(build_id, build_config, progress_queue):
 
         if outputs.get("pulse"):
             progress(q, "pulse", "Starting Pulse build...", 15)
-            pulse_build(build_id, df, slug, company, config, metric_config, story_config, demo_dir, q, cp, build_config)
+            pulse_build(build_id, df, slug, company, pulse_config, metric_config, story_config, demo_dir, q, cp, build_config)
 
         if outputs.get("next"):
             progress(q, "next", "Starting Tableau Next build...", 10)
-            next_build(build_id, df, slug, company, config, metric_config, story_config, demo_dir, q, cp, build_config)
+            next_build(build_id, df, slug, company, next_config, metric_config, story_config, demo_dir, q, cp, build_config)
 
         if outputs.get("crma"):
             progress(q, "crma", "Starting CRM Analytics build...", 10)
-            crma_build(build_id, df, slug, company, config, metric_config, story_config, demo_dir, q, cp)
+            crma_build(build_id, df, slug, company, crma_config, metric_config, story_config, demo_dir, q, cp)
 
         progress(q, "done", f"Build complete! Demo saved to demos/{slug}/", 100)
 
