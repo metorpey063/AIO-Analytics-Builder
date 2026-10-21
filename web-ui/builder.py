@@ -732,11 +732,8 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
             ]},
         }
 
-        # Add sentiment if available
-        sentiment_map = {"up_is_good": "SENTIMENT_UP_IS_GOOD", "down_is_good": "SENTIMENT_DOWN_IS_GOOD"}
-        sent = sentiment_map.get(mc.get("sentiment", ""), "")
-        if sent:
-            payload["representation_options"]["sentiment_type"] = sent
+        # Note: sentiment_type is NOT accepted in the Pulse definition POST payload
+        # (causes 400 "Invalid request"). Sentiment is set via the Pulse UI only.
 
         r = req.post(f"{base}/api/-/pulse/definitions", headers=h_pulse, json=payload)
         if r.status_code not in (200, 201):
