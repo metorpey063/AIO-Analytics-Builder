@@ -406,6 +406,8 @@ For Pulse demos, optionally publish a Tableau workbook (.twb) alongside the metr
 - Instance IDs for tiles must be uppercase hex without hyphens
 - Zone-before-zone-style rule (TD-017): child `<zone>` elements must precede `<zone-style>` in every container
 - Window/zone/viewpoint lockstep: every worksheet name in a dashboard zone must also appear in `<windows>` and in the dashboard window's `<viewpoints>`
+- **Column names MUST use labels (not snake_case field names):** The published `.hyper` datasource uses the original DataFrame column names (e.g. `"30-Day Unplanned Readmission Rate"` not `"30_day_unplanned_readmission_rate"`). All TWB `columns`, `rows_field`, `cols_field`, `color_field`, and sort references must use `mc["label"]` (the display name), not `mc["field"]` (the snake_case API name). Using `mc["field"]` causes "The sort on X is invalid" publish errors.
+- **Golden config template:** See `demos/twb_config_template.json` for the reference pattern. Key rule: every field reference in the TWB config must match the `.hyper` column name exactly.
 
 ## Credentials & config
 

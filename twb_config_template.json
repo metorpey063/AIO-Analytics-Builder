@@ -1,0 +1,102 @@
+{
+  "_comment": "Golden TWB config template \u2014 field names MUST use labels (matching .hyper columns), not snake_case field names",
+  "workbook_name": "{company} \u2014 Dashboard",
+  "datasource_name": "{pulse_datasource_name from checkpoint}",
+  "datasource_content_url": "{from get_datasource_content_url()}",
+  "server_pod": "{server_url without https://}",
+  "site_name": "{from config.tableau.site_name}",
+  "output_dir": "{demo_dir}",
+  "columns": {
+    "_rule": "Use LABEL names (with spaces/caps) for all fields \u2014 must match the .hyper column names exactly",
+    "pattern": [
+      {
+        "name": "Date",
+        "role": "dimension",
+        "datatype": "datetime",
+        "_note": "always Date"
+      },
+      {
+        "name": "{dim label e.g. Region}",
+        "role": "dimension",
+        "datatype": "string"
+      },
+      {
+        "name": "{metric label e.g. Membership Retention Rate}",
+        "role": "measure",
+        "datatype": "real",
+        "format": "percentage|currency|decimal|integer"
+      }
+    ],
+    "format_rules": {
+      "percentage": "for rates/averages (agg=Average)",
+      "currency": "for revenue/dollar amounts",
+      "decimal": "for ratios/indexes",
+      "integer": "for counts/headcounts"
+    }
+  },
+  "worksheets": {
+    "_rule": "rows_field and cols_field use LABEL names, not field names",
+    "pattern": [
+      {
+        "type": "line",
+        "name": "{metric label} Trend",
+        "title": "{metric label} \u2014 Monthly Trend",
+        "rows_field": "{metric LABEL}",
+        "cols_field": "Date",
+        "aggregation": "Avg|Sum",
+        "date_derivation": "Month-Trunc"
+      },
+      {
+        "type": "horizontal_bar",
+        "name": "{metric label} by {dim}",
+        "title": "{metric label} by {dim}",
+        "rows_field": "{dim LABEL}",
+        "cols_field": "{metric LABEL}",
+        "aggregation": "Avg|Sum",
+        "sort": "desc"
+      },
+      {
+        "type": "line",
+        "_note": "multi-line with color_field",
+        "name": "{metric label} by {dim2}",
+        "rows_field": "{metric LABEL}",
+        "cols_field": "Date",
+        "aggregation": "Avg|Sum",
+        "date_derivation": "Month-Trunc",
+        "color_field": "{dim2 LABEL}"
+      },
+      {
+        "type": "dual_axis",
+        "name": "{metric1} vs {metric2}",
+        "rows_field": "{metric1 LABEL}",
+        "rows_field_2": "{metric2 LABEL}",
+        "cols_field": "Date",
+        "aggregation": "Avg|Sum",
+        "aggregation_2": "Avg|Sum",
+        "date_derivation": "Month-Trunc",
+        "mark_1": "Bar",
+        "mark_2": "Line",
+        "color_1": "#4E9FD1",
+        "color_2": "#FF6B35"
+      }
+    ]
+  },
+  "pulse_tiles": {
+    "_rule": "Only include metrics with valid def_id AND metric_id from checkpoint",
+    "pattern": {
+      "field": "{metric LABEL}",
+      "def_id": "{from pulse_def_ids}",
+      "metric_id": "{from pulse_metric_ids}"
+    }
+  },
+  "filters": [
+    "{dim1 LABEL}",
+    "{dim2 LABEL}"
+  ],
+  "dashboard_name": "{company} \u2014 Overview",
+  "brand": {
+    "primary": "#hex",
+    "secondary": "#hex",
+    "border": "#hex"
+  }
+}
