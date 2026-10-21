@@ -21,9 +21,10 @@ from urllib.parse import quote_plus
 def _ddg_search(query: str, max_results: int = 5) -> List[Dict[str, str]]:
     """Search DuckDuckGo and return results as [{title, snippet, url}]."""
     try:
-        import warnings
-        warnings.filterwarnings("ignore", category=RuntimeWarning, module="duckduckgo_search")
-        from duckduckgo_search import DDGS
+        try:
+            from ddgs import DDGS
+        except ImportError:
+            from duckduckgo_search import DDGS
         with DDGS() as ddgs:
             raw = list(ddgs.text(query, max_results=max_results))
             time.sleep(1)
