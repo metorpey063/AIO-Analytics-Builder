@@ -2260,12 +2260,16 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
 
             # Update widget titles to match this demo's metric/dimension names
             golden_labels = ["Participation Rate", "Goal Achievement", "Redemption", "Active Reps", "Points per Rep"]
+            golden_short_labels = ["Participation", "Goal Achievement", "Redemption", "Active Reps", "Points per Rep"]
             golden_dim_labels = ["Vertical", "Program"]
             new_labels = [mc.get("label", mc["field"]) for mc in metric_config]
             new_dim_labels = dims[:len(golden_dim_labels)]
             label_map = {}
             for i, gl in enumerate(golden_labels):
                 label_map[gl] = new_labels[i] if i < len(new_labels) else new_labels[0]
+            for i, gl in enumerate(golden_short_labels):
+                if gl not in label_map:
+                    label_map[gl] = new_labels[i] if i < len(new_labels) else new_labels[0]
             for i, gl in enumerate(golden_dim_labels):
                 label_map[gl] = new_dim_labels[i] if i < len(new_dim_labels) else new_dim_labels[0]
             # Also map the chart titles
