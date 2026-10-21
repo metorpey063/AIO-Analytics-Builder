@@ -2180,9 +2180,9 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
             dims = story_config.get("dimensions", [])
             state = build_dashboard_state(
                 dataset_name=slug,
+                dashboard_label=f"{company} — Analytics Dashboard",
                 metric_configs=metric_config,
                 dimensions=dims,
-                company=company,
             )
             dash_id = create_dashboard(
                 sf_instance=sf_instance,
