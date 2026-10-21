@@ -169,7 +169,7 @@ def demos():
                 if not info.get("build_date"):
                     import datetime
                     mtime = d.stat().st_mtime
-                    info["build_date"] = datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d")
+                    info["build_date"] = datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
 
                 walkthroughs = sorted(d.glob("*walkthrough*.docx"))
                 info["walkthroughs"] = [{"name": w.name, "slug": d.name} for w in walkthroughs]

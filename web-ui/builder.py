@@ -929,10 +929,11 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
     wt_path = generate_walkthrough(slug, company, story_config, metric_config, "pulse", cp, demo_dir)
 
     server.auth.sign_out()
+    from datetime import datetime as _dt
     cp["pulse_done"] = True
     cp["build_type"] = "pulse"
     cp["company"] = company
-    cp["build_date"] = TODAY.isoformat()
+    cp["build_date"] = _dt.now().strftime("%Y-%m-%d %H:%M")
     _save_cp(cp, slug, demo_dir)
     return cp
 
@@ -2122,9 +2123,10 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
     progress(q, "validate", "Running post-build validation...", 95)
     _validate_next_build(config, cp, metric_config, q)
 
+    from datetime import datetime as _dt
     cp["build_type"] = "next"
     cp["company"] = company
-    cp["build_date"] = TODAY.isoformat()
+    cp["build_date"] = _dt.now().strftime("%Y-%m-%d %H:%M")
     _save_cp(cp, slug, demo_dir)
     return cp
 
@@ -2321,9 +2323,10 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
     progress(q, "walkthrough", "Generating walkthrough document...", 85)
     generate_walkthrough(slug, company, story_config, metric_config, "crma", cp, demo_dir)
 
+    from datetime import datetime as _dt
     cp["build_type"] = "crma"
     cp["company"] = company
-    cp["build_date"] = TODAY.isoformat()
+    cp["build_date"] = _dt.now().strftime("%Y-%m-%d %H:%M")
     _save_cp(cp, slug, demo_dir)
     return cp
 

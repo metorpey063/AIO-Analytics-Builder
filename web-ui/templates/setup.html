@@ -201,9 +201,15 @@
                 <p class="subtitle" style="margin-bottom:16px">Create an ECA so AIO can access Data Cloud and Tableau Next APIs.</p>
                 <div class="form-stack">
                     <div class="form-group">
-                        <label for="w-sf-login-url">Login URL</label>
-                        <input type="url" id="w-sf-login-url" class="setup-sync" data-field="sf-login-url" placeholder="https://login.salesforce.com"
-                               value="{{ config.get('salesforce', {}).get('sf_login_url', '') }}">
+                        <label>Environment</label>
+                        <input type="hidden" id="w-sf-login-url" class="setup-sync" data-field="sf-login-url"
+                               value="{{ config.get('salesforce', {}).get('sf_login_url', 'https://login.salesforce.com') }}">
+                        <div class="env-toggle">
+                            <button type="button" class="env-toggle-btn {% if config.get('salesforce', {}).get('sf_login_url', 'https://login.salesforce.com') != 'https://test.salesforce.com' %}active{% endif %}"
+                                    onclick="setSfEnv(this, 'https://login.salesforce.com')">Production</button>
+                            <button type="button" class="env-toggle-btn {% if config.get('salesforce', {}).get('sf_login_url') == 'https://test.salesforce.com' %}active{% endif %}"
+                                    onclick="setSfEnv(this, 'https://test.salesforce.com')">Sandbox</button>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="w-sf-client-id">Consumer Key (Client ID)</label>
@@ -536,12 +542,15 @@
         </div>
         <form id="sf-form" class="form-stack">
             <div class="form-group">
-                <label for="sf-login-url">
-                    Login URL
-                    <span class="tooltip-trigger" data-tooltip="https://login.salesforce.com for production, https://test.salesforce.com for sandboxes, or your custom domain.">?</span>
-                </label>
-                <input type="url" id="sf-login-url" class="setup-sync" data-field="sf-login-url" placeholder="https://login.salesforce.com"
-                       value="{{ config.get('salesforce', {}).get('sf_login_url', '') }}">
+                <label>Environment</label>
+                <input type="hidden" id="sf-login-url" class="setup-sync" data-field="sf-login-url"
+                       value="{{ config.get('salesforce', {}).get('sf_login_url', 'https://login.salesforce.com') }}">
+                <div class="env-toggle">
+                    <button type="button" class="env-toggle-btn {% if config.get('salesforce', {}).get('sf_login_url', 'https://login.salesforce.com') != 'https://test.salesforce.com' %}active{% endif %}"
+                            onclick="setSfEnv(this, 'https://login.salesforce.com')">Production</button>
+                    <button type="button" class="env-toggle-btn {% if config.get('salesforce', {}).get('sf_login_url') == 'https://test.salesforce.com' %}active{% endif %}"
+                            onclick="setSfEnv(this, 'https://test.salesforce.com')">Sandbox</button>
+                </div>
             </div>
             <div class="form-group">
                 <label for="sf-client-id">
@@ -977,6 +986,18 @@ async function nextAfterTableau() {
 function getSetupVal(field) {
     const el = document.querySelector(`.setup-sync[data-field="${field}"]`);
     return el ? el.value : '';
+}
+
+function setSfEnv(btn, url) {
+    document.querySelectorAll('.setup-sync[data-field="sf-login-url"]').forEach(el => el.value = url);
+    btn.parentElement.querySelectorAll('.env-toggle-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    // Sync both wizard and main form toggles
+    document.querySelectorAll('.env-toggle').forEach(group => {
+        group.querySelectorAll('.env-toggle-btn').forEach(b => {
+            b.classList.toggle('active', b.textContent === btn.textContent);
+        });
+    });
 }
 
 function togglePwdVis(inputId, btn) {
