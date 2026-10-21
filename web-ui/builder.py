@@ -323,9 +323,12 @@ def generate_data(story_config, q=None, advanced=None):
     signal_onset = advanced.get("signal_onset", -3)
     signal_shape = advanced.get("signal_shape", "accelerating")
 
+    story_dim_values = story_config.get("dimension_values", {})
     dim_values = {}
     for dim in dimensions:
-        if dim.lower() in ("region", "location", "geography"):
+        if dim in story_dim_values and story_dim_values[dim]:
+            dim_values[dim] = story_dim_values[dim]
+        elif dim.lower() in ("region", "location", "geography"):
             dim_values[dim] = ["Northeast", "Southeast", "Midwest", "Southwest", "West"]
         elif dim.lower() in ("category", "type", "product", "product category"):
             dim_values[dim] = ["Category A", "Category B", "Category C", "Category D"]
