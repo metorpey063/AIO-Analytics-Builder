@@ -4,6 +4,13 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-10-20 — CRMA golden template: complete field substitution (v2.7.1)
+
+### Fixed
+- **CRMA golden template** — all 5 golden metrics + 3 dimensions now map to the demo's actual fields, not just the first 2. Recursive `_sub_field_values` replaces field names in SAQL queries, lens source arrays, step `visualizationParameters` (plots, columnMap, dimensionAxis), and widget parameters — while preserving dict keys (widget/step names) to prevent duplicate widget errors.
+
+---
+
 ## 2026-10-20 — Dark theme, design refresh, UX improvements (v2.7.0)
 
 ### Added

@@ -2216,27 +2216,40 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
             if safe_date != "date":
                 field_map["date"] = safe_date
 
-            # Substitute fields in SAQL queries and field reference arrays only
-            # (NOT in widget/step names which contain dim names like "w_filter_vertical")
+            # Substitute fields in step queries AND widget parameters
+            # Skip dict KEYS (widget/step names like "w_filter_vertical") — only replace VALUES
+            def _sub_field_values(obj):
+                """Recursively replace field_map values in strings, lists, and dict values (not keys)."""
+                if isinstance(obj, str):
+                    for old_f, new_f in field_map.items():
+                        obj = obj.replace(old_f, new_f)
+                    return obj
+                elif isinstance(obj, list):
+                    return [_sub_field_values(v) for v in obj]
+                elif isinstance(obj, dict):
+                    return {k: _sub_field_values(v) for k, v in obj.items()}
+                return obj
+
             for step in state.get("steps", {}).values():
                 q_obj = step.get("query", {})
                 # Compact JSON query string format
                 if isinstance(q_obj.get("query"), str):
-                    q_str = q_obj["query"]
-                    for old_f, new_f in field_map.items():
-                        q_str = q_str.replace(old_f, new_f)
-                    q_obj["query"] = q_str
+                    q_obj["query"] = _sub_field_values(q_obj["query"])
                 # Sources/columns format (lens queries)
                 for src in q_obj.get("sources", []):
-                    for col in src.get("columns", []):
-                        field_arr = col.get("field", [])
-                        if isinstance(field_arr, list):
-                            for j, val in enumerate(field_arr):
-                                if val in field_map:
-                                    field_arr[j] = field_map[val]
-                    for gi, grp in enumerate(src.get("groups", [])):
-                        if isinstance(grp, str) and grp in field_map:
-                            src["groups"][gi] = field_map[grp]
+                    src["columns"] = _sub_field_values(src.get("columns", []))
+                    src["groups"] = _sub_field_values(src.get("groups", []))
+                # Chart config embedded in step (plots, columnMap, dimensionAxis, etc.)
+                if "visualizationParameters" in step:
+                    step["visualizationParameters"] = _sub_field_values(step["visualizationParameters"])
+
+            # Also substitute in widget parameters (chart plots, columnMap, etc.)
+            for wdef in state.get("widgets", {}).values():
+                params = wdef.get("parameters", {})
+                for pkey in list(params.keys()):
+                    if pkey in ("step", "title"):
+                        continue  # skip step refs and titles (handled separately)
+                    params[pkey] = _sub_field_values(params[pkey])
 
             # Decode HTML entities in SAQL queries
             import html as _html_mod
