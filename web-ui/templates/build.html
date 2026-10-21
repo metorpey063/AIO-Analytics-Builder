@@ -310,51 +310,54 @@
                             <option value="">Loading...</option>
                         </select>
                     </div>
-                </div>
-                <!-- Dashboard Template Picker (shown when Tableau Next is selected) -->
-                <div id="template-picker-section" style="display:none; margin-top:8px; margin-bottom:12px">
-                    <label style="font-weight:600; font-size:13px; margin-bottom:8px; display:block; color:var(--text-secondary)">Dashboard Template</label>
-                    <div class="template-grid">
-                        <label class="template-card selected" data-template="z_layout">
-                            <input type="radio" name="dash-template" value="z_layout" checked style="display:none">
-                            <img src="{{ url_for('static', filename='img/templates/z_layout.png') }}" alt="Z Layout">
-                            <div class="template-info">
-                                <strong>Z Layout</strong>
-                                <span>6 KPIs, hero viz, 3-up detail, table</span>
-                            </div>
-                        </label>
-                        <label class="template-card" data-template="f_layout">
-                            <input type="radio" name="dash-template" value="f_layout" style="display:none">
-                            <img src="{{ url_for('static', filename='img/templates/f_layout.png') }}" alt="F Layout">
-                            <div class="template-info">
-                                <strong>F Layout</strong>
-                                <span>3 KPIs + hero side-by-side</span>
-                            </div>
-                        </label>
-                        <label class="template-card" data-template="exec_summary">
-                            <input type="radio" name="dash-template" value="exec_summary" style="display:none">
-                            <img src="{{ url_for('static', filename='img/templates/exec_summary.png') }}" alt="Executive Summary">
-                            <div class="template-info">
-                                <strong>Executive Summary</strong>
-                                <span>5 KPIs, YoY trend, entity rankings</span>
-                            </div>
-                        </label>
-                        <label class="template-card" data-template="pharma_analytics">
-                            <input type="radio" name="dash-template" value="pharma_analytics" style="display:none">
-                            <img src="{{ url_for('static', filename='img/templates/pharma_analytics.png') }}" alt="Pharma Analytics">
-                            <div class="template-info">
-                                <strong>Pharma Analytics</strong>
-                                <span>4 KPIs, trend, donut + bar</span>
-                            </div>
-                        </label>
-                        <label class="template-card" data-template="multi_page_kpi">
-                            <input type="radio" name="dash-template" value="multi_page_kpi" style="display:none">
-                            <img src="{{ url_for('static', filename='img/templates/multi_page_kpi.png') }}" alt="Multi-Page KPI">
-                            <div class="template-info">
-                                <strong>Multi-Page KPI</strong>
-                                <span>4 tabs, 15 metrics, 8 vizzes</span>
-                            </div>
-                        </label>
+                    <!-- Dashboard Templates (inside the Tableau Next card) -->
+                    <div id="template-picker-section" style="display:none; padding:12px 12px 14px 32px; border-top:1px solid var(--border)">
+                        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px">
+                            <label style="font-size:11px; color:var(--text-muted); font-weight:600">Dashboard Templates</label>
+                            <span style="font-size:10px; color:var(--text-muted)">Select one or more to create</span>
+                        </div>
+                        <div class="template-grid">
+                            <label class="template-card selected" data-template="z_layout">
+                                <input type="checkbox" name="dash-template" value="z_layout" checked style="display:none">
+                                <img src="{{ url_for('static', filename='img/templates/z_layout.png') }}" alt="Z Layout">
+                                <div class="template-info">
+                                    <strong>Z Layout</strong>
+                                    <span>6 KPIs, hero viz, 3-up detail, table</span>
+                                </div>
+                            </label>
+                            <label class="template-card" data-template="f_layout">
+                                <input type="checkbox" name="dash-template" value="f_layout" style="display:none">
+                                <img src="{{ url_for('static', filename='img/templates/f_layout.png') }}" alt="F Layout">
+                                <div class="template-info">
+                                    <strong>F Layout</strong>
+                                    <span>3 KPIs + hero side-by-side</span>
+                                </div>
+                            </label>
+                            <label class="template-card" data-template="exec_summary">
+                                <input type="checkbox" name="dash-template" value="exec_summary" style="display:none">
+                                <img src="{{ url_for('static', filename='img/templates/exec_summary.png') }}" alt="Executive Summary">
+                                <div class="template-info">
+                                    <strong>Executive Summary</strong>
+                                    <span>5 KPIs, YoY trend, entity rankings</span>
+                                </div>
+                            </label>
+                            <label class="template-card" data-template="pharma_analytics">
+                                <input type="checkbox" name="dash-template" value="pharma_analytics" style="display:none">
+                                <img src="{{ url_for('static', filename='img/templates/pharma_analytics.png') }}" alt="Pharma Analytics">
+                                <div class="template-info">
+                                    <strong>Pharma Analytics</strong>
+                                    <span>4 KPIs, trend, donut + bar</span>
+                                </div>
+                            </label>
+                            <label class="template-card" data-template="multi_page_kpi">
+                                <input type="checkbox" name="dash-template" value="multi_page_kpi" style="display:none">
+                                <img src="{{ url_for('static', filename='img/templates/multi_page_kpi.png') }}" alt="Multi-Page KPI">
+                                <div class="template-info">
+                                    <strong>Multi-Page KPI</strong>
+                                    <span>4 tabs, 15 metrics, 8 vizzes</span>
+                                </div>
+                            </label>
+                        </div>
                     </div>
                 </div>
 
@@ -685,12 +688,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cb && conn) conn.style.display = cb.checked ? 'block' : 'none';
     });
 
-    // Template card selection
+    // Template card selection (multi-select via checkboxes)
     document.querySelectorAll('.template-card').forEach(card => {
         card.addEventListener('click', () => {
-            document.querySelectorAll('.template-card').forEach(c => c.classList.remove('selected'));
-            card.classList.add('selected');
-            card.querySelector('input[type="radio"]').checked = true;
+            const cb = card.querySelector('input[type="checkbox"]');
+            cb.checked = !cb.checked;
+            card.classList.toggle('selected', cb.checked);
         });
     });
 });
@@ -1089,7 +1092,8 @@ async function startBuild() {
             pulse_dashboard: getChecked('out-pulse-dash'),
             crm_actionable: getChecked('out-crm-action'),
         },
-        dashboard_template: (document.querySelector('input[name="dash-template"]:checked') || {}).value || 'z_layout',
+        dashboard_templates: Array.from(document.querySelectorAll('input[name="dash-template"]:checked')).map(cb => cb.value),
+        dashboard_template: (document.querySelectorAll('input[name="dash-template"]:checked')[0] || {}).value || 'z_layout',
         brand: {
             primary: getVal('brand-primary') || '',
             secondary: getVal('brand-secondary') || '',
