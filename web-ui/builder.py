@@ -2167,7 +2167,8 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
         result = upload_dataset(sf_instance, sf_token, slug, slug.replace("_", " ").title(),
                                 metadata, csv_bytes, operation="Overwrite",
                                 app_name=app_id)
-        cp["crma_dataset_id"] = result.get("id", "")
+        job_id, dataset_id = result
+        cp["crma_dataset_id"] = dataset_id
         cp["crma_dataset_name"] = slug
         progress(q, "crma", "Dataset uploaded", 60)
 
