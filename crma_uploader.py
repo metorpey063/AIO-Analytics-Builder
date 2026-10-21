@@ -84,8 +84,10 @@ def fields_from_metric_config(
         build_field("record_id", "Record ID", "Text"),
         build_field("date", "Date", "Date", format="yyyy-MM-dd"),
     ]
+    import re as _re
     for dim in dimension_names:
-        fields.append(build_field(dim, dim.replace("_", " ").title(), "Text"))
+        safe_name = _re.sub(r'[^a-zA-Z0-9_]', '_', dim).strip('_').lower()
+        fields.append(build_field(safe_name, dim.replace("_", " ").title(), "Text"))
     for mc in metric_configs:
         fname = mc["field"]
         flabel = mc["label"]

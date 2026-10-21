@@ -2150,8 +2150,11 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
         fields_spec = fields_from_metric_config(metric_config, dims)
         metadata = build_metadata(slug, slug.replace("_", " ").title(), fields_spec)
 
+        # Sanitize column names for CRMA (no spaces, snake_case)
+        import re as _re
+        crma_df = df.rename(columns={c: _re.sub(r'[^a-zA-Z0-9_]', '_', c).strip('_').lower() for c in df.columns})
         csv_buf = io.BytesIO()
-        df.to_csv(csv_buf, index=False)
+        crma_df.to_csv(csv_buf, index=False)
         csv_bytes = csv_buf.getvalue()
 
         # Find or create the CRMA app FIRST (upload needs the app ID, not the name)
