@@ -2182,56 +2182,61 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
                 state = json.load(_gf)
 
             dims = story_config.get("dimensions", [])
-            safe_dims = [_re.sub(r'[^a-zA-Z0-9_]', '_', d).strip('_').lower() for d in dims]
-            metric_fields = [mc["field"] for mc in metric_config]
+            _sanitize = lambda s: _re.sub(r'[^a-zA-Z0-9_]', '_', s).strip('_').lower()
+            safe_dims = [_sanitize(d) for d in dims]
+            safe_metrics = [_sanitize(mc["field"]) for mc in metric_config]
+
+            # Determine the demo's date field name (sanitized to match CRMA dataset)
+            date_col = story_config.get("date_field", "Date")
+            safe_date = _sanitize(date_col)
 
             # Substitute dataset references (safe — IDs and names are unique)
             state_str = json.dumps(state)
             state_str = state_str.replace("biw_incentive", slug)
             state_str = state_str.replace("0Fbfj0000010m0rCAA", dataset_id)
             state_str = state_str.replace("BI Worldwide Sales Incentive", f"{company} Analytics")
+            # Remap date time-dimension fields if the demo uses a different date column
+            if safe_date != "date":
+                state_str = state_str.replace("date_Year", f"{safe_date}_Year")
+                state_str = state_str.replace("date_Month", f"{safe_date}_Month")
+                # Also replace bare "date" references in the date selector step
+                # (careful: only replace the exact dataset group reference, not substrings)
             state = json.loads(state_str)
 
-            # Map golden template fields to this demo's fields
+            # Map ALL golden template fields to this demo's fields
+            # Golden: 5 metrics + 3 dims; demo may have fewer
+            golden_metrics = ["participation_rate", "goal_achievement_rate", "redemption_rate", "active_reps", "points_per_rep"]
+            golden_dims = ["vertical", "program_type", "client_name"]
             field_map = {}
-            if len(metric_fields) >= 1: field_map["participation_rate"] = metric_fields[0]
-            if len(metric_fields) >= 2: field_map["goal_achievement_rate"] = metric_fields[1]
-            if len(safe_dims) >= 1: field_map["vertical"] = safe_dims[0]
-            if len(safe_dims) >= 2: field_map["program_type"] = safe_dims[1]
-            if len(safe_dims) >= 3: field_map["client_name"] = safe_dims[2]
-            elif len(safe_dims) >= 1: field_map["client_name"] = safe_dims[0]
+            for i, gm in enumerate(golden_metrics):
+                field_map[gm] = safe_metrics[i] if i < len(safe_metrics) else safe_metrics[0]
+                field_map[f"avg_{gm}"] = f"avg_{field_map[gm]}"
+            for i, gd in enumerate(golden_dims):
+                field_map[gd] = safe_dims[i] if i < len(safe_dims) else safe_dims[0]
+            if safe_date != "date":
+                field_map["date"] = safe_date
 
-            # Substitute field names in SAQL queries (both quoted and unquoted forms)
+            # Substitute fields in SAQL queries and field reference arrays only
+            # (NOT in widget/step names which contain dim names like "w_filter_vertical")
             for step in state.get("steps", {}).values():
                 q_obj = step.get("query", {})
-                if isinstance(q_obj, dict) and "query" in q_obj:
+                # Compact JSON query string format
+                if isinstance(q_obj.get("query"), str):
                     q_str = q_obj["query"]
                     for old_f, new_f in field_map.items():
-                        q_str = q_str.replace(f'"{old_f}"', f'"{new_f}"')
                         q_str = q_str.replace(old_f, new_f)
                     q_obj["query"] = q_str
-                # Also substitute in selectMode/groups for compact JSON queries
-                for ds in step.get("datasets", []):
-                    ds_name = ds.get("name", "")
-                    if ds_name:
-                        ds["name"] = slug
-
-            # Substitute KPI widget title labels
-            old_labels = ["Participation", "Goal Achievement", "Redemption", "Active Reps", "Points per Rep"]
-            for wname, w in state.get("widgets", {}).items():
-                params = w.get("parameters", {})
-                title = params.get("title", {})
-                if isinstance(title, dict) and "label" in title:
-                    for i, mc in enumerate(metric_config[:5]):
-                        if i < len(old_labels) and old_labels[i] in str(title.get("label", "")):
-                            title["label"] = title["label"].replace(old_labels[i], mc["label"])
-                # Substitute number widget step references
-                if w.get("type") == "number" and "step" in params:
-                    step_ref = params["step"]
-                    if isinstance(step_ref, str):
-                        for old_f, new_f in field_map.items():
-                            step_ref = step_ref.replace(old_f, new_f)
-                        params["step"] = step_ref
+                # Sources/columns format (lens queries)
+                for src in q_obj.get("sources", []):
+                    for col in src.get("columns", []):
+                        field_arr = col.get("field", [])
+                        if isinstance(field_arr, list):
+                            for j, val in enumerate(field_arr):
+                                if val in field_map:
+                                    field_arr[j] = field_map[val]
+                    for gi, grp in enumerate(src.get("groups", [])):
+                        if isinstance(grp, str) and grp in field_map:
+                            src["groups"][gi] = field_map[grp]
 
             # Decode HTML entities in SAQL queries
             import html as _html_mod
@@ -2239,6 +2244,30 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
                 q_obj = step.get("query", {})
                 if isinstance(q_obj, dict) and "query" in q_obj:
                     q_obj["query"] = _html_mod.unescape(q_obj["query"])
+
+            # Update widget titles to match this demo's metric/dimension names
+            golden_labels = ["Participation Rate", "Goal Achievement", "Redemption", "Active Reps", "Points per Rep"]
+            golden_dim_labels = ["Vertical", "Program"]
+            new_labels = [mc.get("label", mc["field"]) for mc in metric_config]
+            new_dim_labels = dims[:len(golden_dim_labels)]
+            label_map = {}
+            for i, gl in enumerate(golden_labels):
+                label_map[gl] = new_labels[i] if i < len(new_labels) else new_labels[0]
+            for i, gl in enumerate(golden_dim_labels):
+                label_map[gl] = new_dim_labels[i] if i < len(new_dim_labels) else new_dim_labels[0]
+            # Also map the chart titles
+            label_map["Goal Attainment"] = new_labels[1] if len(new_labels) > 1 else new_labels[0]
+            label_map["Goal and Participation Rates"] = f"{new_labels[1]} and {new_labels[0]}" if len(new_labels) > 1 else new_labels[0]
+
+            for wdef in state.get("widgets", {}).values():
+                params = wdef.get("parameters", {})
+                title = params.get("title")
+                if isinstance(title, str) and title in label_map:
+                    params["title"] = label_map[title]
+                elif isinstance(title, dict):
+                    lbl = title.get("label", "")
+                    if lbl in label_map:
+                        title["label"] = label_map[lbl]
 
             # Strip read-only fields the Wave API rejects on POST
             for step in state.get("steps", {}).values():
