@@ -89,8 +89,8 @@ def fields_from_metric_config(
         safe_name = _re.sub(r'[^a-zA-Z0-9_]', '_', dim).strip('_').lower()
         fields.append(build_field(safe_name, dim.replace("_", " ").title(), "Text"))
     for mc in metric_configs:
-        fname = mc["field"]
-        flabel = mc["label"]
+        fname = _re.sub(r'[^a-zA-Z0-9_]', '_', mc["field"]).strip('_').lower()
+        flabel = mc.get("label", mc["field"])
         scale = 4 if mc.get("agg") == "Average" else 2
         fields.append(build_field(fname, flabel, "Numeric", precision=18, scale=scale))
     return fields
