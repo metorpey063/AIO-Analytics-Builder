@@ -2143,6 +2143,7 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
     try:
         from connections import get_sf_token, sf_headers
         from crma_uploader import upload_dataset, build_metadata, fields_from_metric_config
+        from crma_dashboard_builder import find_or_create_app
 
         sf_token, sf_instance = get_sf_token(config)
         dims = story_config.get("dimensions", [])
@@ -2153,9 +2154,12 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
         df.to_csv(csv_buf, index=False)
         csv_bytes = csv_buf.getvalue()
 
+        # Find or create the CRMA app FIRST (upload needs the app ID, not the name)
+        app_id = find_or_create_app(sf_instance, sf_token, f"{company} Analytics")
+
         result = upload_dataset(sf_instance, sf_token, slug, slug.replace("_", " ").title(),
                                 metadata, csv_bytes, operation="Overwrite",
-                                app_name=f"{company} Analytics")
+                                app_name=app_id)
         cp["crma_dataset_id"] = result.get("id", "")
         cp["crma_dataset_name"] = slug
         progress(q, "crma", "Dataset uploaded", 60)
@@ -2163,7 +2167,7 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
         # Create CRMA dashboard
         progress(q, "crma", "Building CRM Analytics dashboard...", 65)
         try:
-            from crma_dashboard_builder import build_dashboard_state, create_dashboard, find_or_create_app
+            from crma_dashboard_builder import build_dashboard_state, create_dashboard
 
             dims = story_config.get("dimensions", [])
             state = build_dashboard_state(
@@ -2172,8 +2176,6 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
                 dimensions=dims,
                 company=company,
             )
-
-            app_id = find_or_create_app(sf_instance, sf_token, f"{company} Analytics")
             dash_id = create_dashboard(
                 sf_instance=sf_instance,
                 sf_token=sf_token,
