@@ -669,8 +669,9 @@ body.dark-theme .theme-icon-moon { display: none; }
 /* Story panel — dark theme */
 body.dark-theme .story-section h3 { color: #F3F4F6; }
 body.dark-theme .story-section h4 { color: #9CA3AF; }
-body.dark-theme .story-section p, body.dark-theme .story-section ul { color: #D1D5DB; }
+body.dark-theme .story-section p, body.dark-theme .story-section ul { color: #E8EAED; }
 body.dark-theme .story-signal { color: #93C5FD !important; }
+body.dark-theme .story-panel { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); }
 body.dark-theme .story-tag { background: rgba(255,255,255,0.08); color: #D1D5DB; border-color: rgba(255,255,255,0.15); }
 body.dark-theme .story-tag-primary { background: rgba(59,130,246,0.15); color: #93C5FD; border-color: rgba(59,130,246,0.4); }
 .optional { font-weight: 400; color: var(--text-light); }
