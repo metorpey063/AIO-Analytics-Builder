@@ -758,7 +758,15 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
             "Accept": "application/json",
         }
         req.patch(f"{base}/api/-/pulse/definitions/{def_id}", headers=patch_h,
-                  json={"extension_options": {"use_dynamic_offset": True}})
+                  json={"extension_options": {
+                      "allowed_dimensions": dimensions,
+                      "allowed_granularities": [
+                          "GRANULARITY_BY_YEAR", "GRANULARITY_BY_QUARTER", "GRANULARITY_BY_MONTH",
+                      ],
+                      "offset_from_today": 0,
+                      "correlation_candidate_definition_ids": [],
+                      "use_dynamic_offset": True,
+                  }})
 
     _save_cp(cp, slug, demo_dir)
 
