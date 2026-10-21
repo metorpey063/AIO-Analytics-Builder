@@ -281,31 +281,36 @@
             <p class="subtitle" style="margin-bottom:16px">Choose what to build and which org to publish to.</p>
 
             <div class="output-options" style="margin-bottom:20px">
-                <label class="output-card {% if not has_tableau %}disabled{% endif %}">
-                    <input type="checkbox" id="w-out-pulse" class="sync-field" data-sync="out-pulse" {% if has_tableau %}checked{% endif %} {% if not has_tableau %}disabled{% endif %}>
-                    <div class="output-card-inner">
-                        <strong>Tableau Pulse</strong>
-                        <p>Publish .hyper datasource + Pulse metric definitions + group subscriptions</p>
-                        {% if not has_tableau %}<span class="form-hint">Requires Tableau Cloud connection</span>{% endif %}
-                    </div>
-                </label>
-                <label class="output-card {% if not has_salesforce %}disabled{% endif %}">
-                    <input type="checkbox" id="w-out-next" class="sync-field" data-sync="out-next" {% if has_salesforce %}checked{% endif %} {% if not has_salesforce %}disabled{% endif %}>
-                    <div class="output-card-inner">
-                        <strong>Tableau Next</strong>
-                        <p>Push to Data Cloud + build SDM, metrics, visualizations, and dashboard</p>
-                        {% if not has_salesforce %}<span class="form-hint">Requires Salesforce connection</span>{% endif %}
-                        <div class="output-prereqs">
-                            <span class="form-hint" style="font-weight:600; color:var(--text-muted)">Prerequisites:</span>
-                            <ul class="prereq-list">
-                                <li>Data Cloud (Data 360) enabled on the org</li>
-                                <li>Tableau Next enabled (Setup &rarr; Tableau &rarr; Tableau Next)</li>
-                                <li>AI features enabled (Einstein Generative AI, Tableau Pulse AI)</li>
-                                <li>Ingest API connector created (Setup &rarr; Ingestion API)</li>
-                            </ul>
+                <div class="output-card">
+                    <label style="display:flex; gap:10px; align-items:flex-start; cursor:pointer">
+                        <input type="checkbox" id="w-out-pulse" class="sync-field" data-sync="out-pulse" style="margin-top:3px; accent-color:var(--blue)">
+                        <div class="output-card-inner">
+                            <strong>Tableau Pulse</strong>
+                            <p>Publish .hyper datasource + Pulse metric definitions + group subscriptions</p>
                         </div>
+                    </label>
+                    <div class="output-connection" id="pulse-connection" style="display:none; padding:8px 12px 10px 32px">
+                        <label style="font-size:11px; color:var(--text-muted); font-weight:600">Tableau Cloud Connection</label>
+                        <select id="pulse-profile" style="width:100%; margin-top:4px; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--glass-bg); color:var(--text-primary); font-size:12px">
+                            <option value="">Loading...</option>
+                        </select>
                     </div>
-                </label>
+                </div>
+                <div class="output-card">
+                    <label style="display:flex; gap:10px; align-items:flex-start; cursor:pointer">
+                        <input type="checkbox" id="w-out-next" class="sync-field" data-sync="out-next" checked style="margin-top:3px; accent-color:var(--blue)">
+                        <div class="output-card-inner">
+                            <strong>Tableau Next</strong>
+                            <p>Push to Data Cloud + build SDM, metrics, visualizations, and dashboard</p>
+                        </div>
+                    </label>
+                    <div class="output-connection" id="next-connection" style="display:none; padding:8px 12px 10px 32px">
+                        <label style="font-size:11px; color:var(--text-muted); font-weight:600">Salesforce / Data Cloud Connection</label>
+                        <select id="next-profile" style="width:100%; margin-top:4px; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--glass-bg); color:var(--text-primary); font-size:12px">
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
+                </div>
                 <!-- Dashboard Template Picker (shown when Tableau Next is selected) -->
                 <div id="template-picker-section" style="display:none; margin-top:8px; margin-bottom:12px">
                     <label style="font-weight:600; font-size:13px; margin-bottom:8px; display:block; color:var(--text-secondary)">Dashboard Template</label>
@@ -353,14 +358,21 @@
                     </div>
                 </div>
 
-                <label class="output-card {% if not has_salesforce %}disabled{% endif %}">
-                    <input type="checkbox" id="w-out-crma" class="sync-field" data-sync="out-crma" {% if not has_salesforce %}disabled{% endif %}>
-                    <div class="output-card-inner">
-                        <strong>CRM Analytics</strong>
-                        <p>Upload dataset + create CRMA dashboard from template</p>
-                        {% if not has_salesforce %}<span class="form-hint">Requires Salesforce connection</span>{% endif %}
+                <div class="output-card">
+                    <label style="display:flex; gap:10px; align-items:flex-start; cursor:pointer">
+                        <input type="checkbox" id="w-out-crma" class="sync-field" data-sync="out-crma" style="margin-top:3px; accent-color:var(--blue)">
+                        <div class="output-card-inner">
+                            <strong>CRM Analytics</strong>
+                            <p>Upload dataset + create CRMA dashboard from template</p>
+                        </div>
+                    </label>
+                    <div class="output-connection" id="crma-connection" style="display:none; padding:8px 12px 10px 32px">
+                        <label style="font-size:11px; color:var(--text-muted); font-weight:600">Salesforce Connection</label>
+                        <select id="crma-profile" style="width:100%; margin-top:4px; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--glass-bg); color:var(--text-primary); font-size:12px">
+                            <option value="">Loading...</option>
+                        </select>
                     </div>
-                </label>
+                </div>
                 <label class="output-card">
                     <input type="checkbox" id="w-out-csv" class="sync-field" data-sync="out-csv">
                     <div class="output-card-inner">
@@ -420,11 +432,7 @@
                 </div>
             </div>
 
-            <h3 style="font-size:14px; margin-bottom:10px">Destination Org</h3>
-            <p class="subtitle" style="margin-bottom:12px">Select which connection profile to use for this build.</p>
-            <div id="profile-picker" class="profile-picker-list">
-                <div class="loading-state" style="padding:12px 0"><div class="spinner" style="width:20px; height:20px; margin-bottom:6px"></div><p style="font-size:12px">Loading profiles...</p></div>
-            </div>
+            <div id="profile-picker" style="display:none"></div>
 
             <div class="wizard-actions">
                 <button class="btn btn-ghost" onclick="goStep(3)">&larr; Back</button>
@@ -661,7 +669,7 @@ document.addEventListener('change', (e) => {
 document.addEventListener('DOMContentLoaded', () => {
     setMode('wizard');
 
-    // Template picker: show when Tableau Next is checked
+    // Template picker + connection pickers: show when outputs are checked
     const nextCb = document.getElementById('w-out-next');
     const tplSection = document.getElementById('template-picker-section');
     function toggleTemplatePicker() {
@@ -669,6 +677,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (nextCb) nextCb.addEventListener('change', toggleTemplatePicker);
     toggleTemplatePicker();
+
+    // Show connection pickers for initially-checked outputs
+    ['pulse', 'next', 'crma'].forEach(id => {
+        const cb = document.getElementById('w-out-' + id);
+        const conn = document.getElementById(id + '-connection');
+        if (cb && conn) conn.style.display = cb.checked ? 'block' : 'none';
+    });
 
     // Template card selection
     document.querySelectorAll('.template-card').forEach(card => {
@@ -744,39 +759,69 @@ async function selectExistingDemo(slug, company) {
     setTimeout(() => document.getElementById('w-company').style.borderColor = '', 2000);
 }
 
-// ---- Profile picker (Step 4) ----
+// ---- Per-output connection pickers (Step 4) ----
 let selectedProfileKey = null;
+let allProfiles = [];
 
 async function loadProfiles() {
-    const container = document.getElementById('profile-picker');
     try {
         const r = await fetch('/api/profiles/list');
-        const profiles = await r.json();
+        allProfiles = await r.json();
 
-        container.innerHTML = '';
-        profiles.forEach(p => {
-            const el = document.createElement('label');
-            el.className = 'profile-pick-item' + (p.active ? ' profile-pick-active' : '');
-            const details = [];
-            if (p.has_tableau) details.push('Tableau: ' + p.tableau_site);
-            if (p.has_salesforce) details.push('SF: ' + (p.dc_domain || p.sf_login_url || 'connected'));
-            if (!p.has_tableau && !p.has_salesforce) details.push('Not configured');
+        // Populate Tableau Cloud dropdown (for Pulse)
+        const pulseSelect = document.getElementById('pulse-profile');
+        pulseSelect.innerHTML = '';
+        const tabProfiles = allProfiles.filter(p => p.has_tableau);
+        if (tabProfiles.length === 0) {
+            pulseSelect.innerHTML = '<option value="">No Tableau Cloud connections</option>';
+        } else {
+            tabProfiles.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.key;
+                opt.textContent = `${p.label} (${p.tableau_site})`;
+                if (p.active) opt.selected = true;
+                pulseSelect.appendChild(opt);
+            });
+        }
 
-            el.innerHTML = `
-                <input type="radio" name="build-profile" value="${p.key}" ${p.active ? 'checked' : ''} onchange="selectedProfileKey='${p.key}'">
-                <div class="profile-pick-info">
-                    <strong>${p.label}</strong>
-                    ${p.active ? '<span class="badge badge-ok" style="font-size:9px; margin-left:4px">Active</span>' : ''}
-                    <div class="profile-pick-details">${details.join(' · ')}</div>
-                </div>
-            `;
-            container.appendChild(el);
-            if (p.active) selectedProfileKey = p.key;
+        // Populate Salesforce dropdowns (for Next + CRMA)
+        const sfProfiles = allProfiles.filter(p => p.has_salesforce);
+        ['next-profile', 'crma-profile'].forEach(id => {
+            const sel = document.getElementById(id);
+            sel.innerHTML = '';
+            if (sfProfiles.length === 0) {
+                sel.innerHTML = '<option value="">No Salesforce connections</option>';
+            } else {
+                sfProfiles.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.key;
+                    opt.textContent = `${p.label} (${p.dc_domain || p.sf_login_url || 'connected'})`;
+                    if (p.active) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+            }
         });
+
+        // Set default selectedProfileKey for backward compat
+        const active = allProfiles.find(p => p.active);
+        if (active) selectedProfileKey = active.key;
     } catch (e) {
-        container.innerHTML = '<p style="color:var(--red); font-size:12px">Failed to load profiles</p>';
+        console.error('Failed to load profiles', e);
     }
 }
+
+// Toggle connection pickers when output checkboxes change
+document.addEventListener('change', (e) => {
+    if (e.target.id === 'w-out-pulse') {
+        document.getElementById('pulse-connection').style.display = e.target.checked ? 'block' : 'none';
+    }
+    if (e.target.id === 'w-out-next') {
+        document.getElementById('next-connection').style.display = e.target.checked ? 'block' : 'none';
+    }
+    if (e.target.id === 'w-out-crma') {
+        document.getElementById('crma-connection').style.display = e.target.checked ? 'block' : 'none';
+    }
+});
 
 // ---- Wizard navigation ----
 function goStep(n) {
@@ -1024,7 +1069,10 @@ async function startBuild() {
         notes: getVal('notes') + getUploadedContext(),
         research_depth: document.querySelector('input[name="research-depth"]:checked')?.value || 'quick',
         story_config: finalStoryConfig,
-        profile_key: selectedProfileKey,
+        profile_key: document.getElementById('next-profile')?.value || document.getElementById('crma-profile')?.value || selectedProfileKey,
+        pulse_profile_key: document.getElementById('pulse-profile')?.value || selectedProfileKey,
+        next_profile_key: document.getElementById('next-profile')?.value || selectedProfileKey,
+        crma_profile_key: document.getElementById('crma-profile')?.value || selectedProfileKey,
         advanced: {
             history_months: parseInt(getVal('history') || '24'),
             grain: getVal('grain') || 'monthly',
