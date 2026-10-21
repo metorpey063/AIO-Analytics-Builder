@@ -694,6 +694,8 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
 
     from tdsx_builder import publish_hyper_for_indexing
     ds_name = slug.replace("_", " ").title()
+    if len(ds_name) < 10:
+        ds_name = f"{company} - {story_config.get('use_case', ds_name)}"[:80]
     ds_luid = publish_hyper_for_indexing(df, "Date", ds_name, project.id, server, demo_dir)
     cp["pulse_datasource_id"] = ds_luid
     cp["pulse_datasource_name"] = ds_name
