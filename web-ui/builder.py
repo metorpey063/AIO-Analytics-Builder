@@ -2172,18 +2172,81 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
         cp["crma_dataset_name"] = slug
         progress(q, "crma", "Dataset uploaded", 60)
 
-        # Create CRMA dashboard
-        progress(q, "crma", "Building CRM Analytics dashboard...", 65)
+        # Create CRMA dashboard from golden template
+        progress(q, "crma", "Building CRM Analytics dashboard from template...", 65)
         try:
-            from crma_dashboard_builder import build_dashboard_state, create_dashboard
+            from crma_dashboard_builder import create_dashboard
+
+            golden_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "crma_golden_template.json")
+            with open(golden_path) as _gf:
+                state = json.load(_gf)
 
             dims = story_config.get("dimensions", [])
-            state = build_dashboard_state(
-                dataset_name=slug,
-                dashboard_label=f"{company} — Analytics Dashboard",
-                metric_configs=metric_config,
-                dimensions=dims,
-            )
+            safe_dims = [_re.sub(r'[^a-zA-Z0-9_]', '_', d).strip('_').lower() for d in dims]
+            metric_fields = [mc["field"] for mc in metric_config]
+
+            # Substitute dataset references (safe — IDs and names are unique)
+            state_str = json.dumps(state)
+            state_str = state_str.replace("biw_incentive", slug)
+            state_str = state_str.replace("0Fbfj0000010m0rCAA", dataset_id)
+            state_str = state_str.replace("BI Worldwide Sales Incentive", f"{company} Analytics")
+            state = json.loads(state_str)
+
+            # Map golden template fields to this demo's fields
+            field_map = {}
+            if len(metric_fields) >= 1: field_map["participation_rate"] = metric_fields[0]
+            if len(metric_fields) >= 2: field_map["goal_achievement_rate"] = metric_fields[1]
+            if len(safe_dims) >= 1: field_map["vertical"] = safe_dims[0]
+            if len(safe_dims) >= 2: field_map["program_type"] = safe_dims[1]
+            if len(safe_dims) >= 3: field_map["client_name"] = safe_dims[2]
+            elif len(safe_dims) >= 1: field_map["client_name"] = safe_dims[0]
+
+            # Substitute field names ONLY in SAQL queries (not in widget/step names)
+            for step in state.get("steps", {}).values():
+                q_obj = step.get("query", {})
+                if isinstance(q_obj, dict) and "query" in q_obj:
+                    q_str = q_obj["query"]
+                    for old_f, new_f in field_map.items():
+                        q_str = q_str.replace(f'"{old_f}"', f'"{new_f}"')
+                    q_obj["query"] = q_str
+
+            # Substitute KPI widget title labels
+            old_labels = ["Participation", "Goal Achievement", "Redemption", "Active Reps", "Points per Rep"]
+            for wname, w in state.get("widgets", {}).items():
+                params = w.get("parameters", {})
+                title = params.get("title", {})
+                if isinstance(title, dict) and "label" in title:
+                    for i, mc in enumerate(metric_config[:5]):
+                        if i < len(old_labels) and old_labels[i] in str(title.get("label", "")):
+                            title["label"] = title["label"].replace(old_labels[i], mc["label"])
+                # Substitute number widget step references
+                if w.get("type") == "number" and "step" in params:
+                    step_ref = params["step"]
+                    if isinstance(step_ref, str):
+                        for old_f, new_f in field_map.items():
+                            step_ref = step_ref.replace(old_f, new_f)
+                        params["step"] = step_ref
+
+            # Decode HTML entities in SAQL queries
+            import html as _html_mod
+            for step in state.get("steps", {}).values():
+                q_obj = step.get("query", {})
+                if isinstance(q_obj, dict) and "query" in q_obj:
+                    q_obj["query"] = _html_mod.unescape(q_obj["query"])
+
+            # Strip read-only fields the Wave API rejects on POST
+            for step in state.get("steps", {}).values():
+                step.pop("label", None)
+                step.pop("isGlobal", None)
+                step.pop("broadcastFacet", None)
+                for ds in step.get("datasets", []):
+                    ds.pop("url", None)
+                    ds.pop("label", None)
+            # Strip page labels in gridLayouts
+            for gl in state.get("gridLayouts", []):
+                for page in gl.get("pages", []):
+                    page.pop("label", None)
+
             dash_id = create_dashboard(
                 sf_instance=sf_instance,
                 sf_token=sf_token,
