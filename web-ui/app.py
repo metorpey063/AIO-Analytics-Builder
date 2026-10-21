@@ -33,9 +33,10 @@ def inject_connection_status():
     commit_count = ""
     try:
         import subprocess
+        git_env = {**os.environ, "PATH": os.environ.get("PATH", "") + ":/opt/homebrew/bin:/usr/local/bin:/usr/bin"}
         commit_count = subprocess.check_output(
             ["git", "rev-list", "--count", "HEAD"],
-            cwd=str(PROJECT_ROOT), stderr=subprocess.DEVNULL
+            cwd=str(PROJECT_ROOT), stderr=subprocess.DEVNULL, env=git_env,
         ).decode().strip()
     except Exception:
         commit_count = "—"
