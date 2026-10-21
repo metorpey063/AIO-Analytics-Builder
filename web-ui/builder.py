@@ -456,17 +456,16 @@ def generate_data(story_config, q=None, advanced=None):
 # ---------------------------------------------------------------------------
 
 def generate_walkthrough(slug, company, story_config, metric_config, build_type, checkpoint, demo_dir):
-    """Generate a .docx walkthrough following the CLAUDE.md standard format.
+    """Generate an HTML walkthrough following the CLAUDE.md standard format.
 
     Supports multi-output builds: includes sections for every output that was built
-    (Pulse, Next, CRMA), not just the last one.
+    (Pulse, Next, CRMA), not just the last one. Opens directly in any browser.
     """
-    from docx import Document
-    doc = Document()
+    import html as _html
+    e = _html.escape
     dims = story_config.get("dimensions", [])
     dim_values = story_config.get("dimension_values", {})
 
-    # Determine which outputs were actually built
     built_pulse = checkpoint.get("pulse_done", False) or build_type == "pulse"
     built_next = checkpoint.get("sdm_done", False) or checkpoint.get("viz_done", False) or build_type == "next"
     built_crma = bool(checkpoint.get("crma_dataset_id")) or build_type == "crma"
@@ -476,91 +475,76 @@ def generate_walkthrough(slug, company, story_config, metric_config, build_type,
     lead_metric = primary[0]["label"] if primary else metric_config[0]["label"]
     counter = [mc for mc in metric_config if mc.get("sentiment") == "up_is_good" and not mc.get("is_primary")]
 
-    # ── Section 1: Demo Scenario (ALL builds) ────────────────────────────────
-    doc.add_heading("Demo Scenario", level=1)
+    h = []
+    h.append(f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{e(company)} — Demo Walkthrough</title>
+<style>
+:root{{--bg:#fff;--text:#1a1a2e;--muted:#555;--accent:#1565c0;--border:#e0e0e0;--code-bg:#f5f5f5;--card-bg:#fafafa}}
+@media(prefers-color-scheme:dark){{:root{{--bg:#0d1117;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--border:#30363d;--code-bg:#161b22;--card-bg:#161b22}}}}
+*{{box-sizing:border-box}}body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;max-width:820px;margin:0 auto;padding:24px 20px;background:var(--bg);color:var(--text);line-height:1.7}}
+h1{{font-size:1.6em;margin:2em 0 0.5em;padding-bottom:8px;border-bottom:2px solid var(--accent);color:var(--accent)}}
+h2{{font-size:1.15em;margin:1.5em 0 0.4em;color:var(--text)}}
+p{{margin:0.5em 0}}b{{color:var(--text)}}
+.subtitle{{color:var(--muted);font-size:0.92em}}
+.step{{background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:14px 18px;margin:12px 0}}
+.step h2{{margin:0 0 8px;font-size:1.05em}}
+pre{{background:var(--code-bg);border:1px solid var(--border);border-radius:6px;padding:14px;font-size:0.85em;overflow-x:auto;white-space:pre-wrap;line-height:1.5}}
+ul{{padding-left:1.5em}}li{{margin:4px 0}}
+.badge{{display:inline-block;font-size:0.75em;padding:2px 8px;border-radius:10px;background:var(--accent);color:#fff;vertical-align:middle;margin-left:6px}}
+@media print{{body{{max-width:100%;padding:12px}}h1{{break-before:page}}.step{{break-inside:avoid}}}}
+</style></head><body>""")
 
-    doc.add_heading(f"About {company}", level=2)
+    # ── Section 1: Demo Scenario ─────────────────────────────────────────────
+    h.append(f"<h1>Demo Scenario</h1>")
+    h.append(f"<h2>About {e(company)}</h2>")
     overview = story_config.get("company_overview", story_config.get("story_summary", ""))
-    doc.add_paragraph(overview)
+    h.append(f"<p>{e(overview)}</p>")
 
-    # Products & Services
     products = story_config.get("products_services", [])
     if products:
-        p = doc.add_paragraph()
-        p.add_run("Products & Services: ").bold = True
-        p.add_run(", ".join(products))
-
-    # Territories & Regions
+        h.append(f"<p><b>Products &amp; Services:</b> {e(', '.join(products))}</p>")
     territories = story_config.get("territories_regions", [])
     if territories:
-        p = doc.add_paragraph()
-        p.add_run("Territories & Regions: ").bold = True
-        p.add_run(", ".join(territories))
-
-    # Key KPIs
+        h.append(f"<p><b>Territories &amp; Regions:</b> {e(', '.join(territories))}</p>")
     kpis = story_config.get("key_kpis", [])
     if kpis:
-        p = doc.add_paragraph()
-        p.add_run("Key Industry KPIs: ").bold = True
-        p.add_run(", ".join(kpis))
-
-    # Strategic Initiatives
+        h.append(f"<p><b>Key Industry KPIs:</b> {e(', '.join(kpis))}</p>")
     initiatives = story_config.get("strategic_initiatives", [])
     if initiatives:
-        p = doc.add_paragraph()
-        p.add_run("Strategic Initiatives: ").bold = True
-        p.add_run("; ".join(initiatives))
+        h.append(f"<p><b>Strategic Initiatives:</b> {e('; '.join(initiatives))}</p>")
 
-    doc.add_heading("Audience & Story", level=2)
+    h.append(f"<h2>Audience &amp; Story</h2>")
     audience = story_config.get("audience_context", story_config.get("audience", ""))
     if audience:
-        p = doc.add_paragraph()
-        p.add_run("Audience: ").bold = True
-        p.add_run(audience)
-    doc.add_paragraph(story_config.get("story_summary", ""))
-
+        h.append(f"<p><b>Audience:</b> {e(audience)}</p>")
+    h.append(f"<p>{e(story_config.get('story_summary', ''))}</p>")
     signal = story_config.get("signal_description", "")
     if signal:
-        p = doc.add_paragraph()
-        p.add_run("Signal: ").bold = True
-        p.add_run(signal)
-
-    # Dimensions & values
+        h.append(f"<p><b>Signal:</b> {e(signal)}</p>")
     if dims:
-        p = doc.add_paragraph()
-        p.add_run("Dimensions: ").bold = True
         dim_parts = []
         for d in dims:
             vals = dim_values.get(d, [])
             dim_parts.append(f"{d} ({', '.join(vals)})" if vals else d)
-        p.add_run("; ".join(dim_parts))
+        h.append(f"<p><b>Dimensions:</b> {e('; '.join(dim_parts))}</p>")
 
-    # ── Section 2: Metrics Reference (ALL builds) ────────────────────────────
-    doc.add_heading("Metrics Reference", level=1)
-    doc.add_paragraph(
-        "Each metric below includes its definition and why it matters to the client. "
-        "Primary metrics show the main signal; supporting metrics explain the cause or consequence."
-    )
+    # ── Section 2: Metrics Reference ─────────────────────────────────────────
+    h.append(f"<h1>Metrics Reference</h1>")
+    h.append("<p class='subtitle'>Each metric below includes its definition and why it matters. Primary metrics show the main signal; supporting metrics explain the cause or consequence.</p>")
     for mc in metric_config:
-        role = " (Primary)" if mc.get("is_primary") else ""
-        doc.add_heading(f"{mc['label']}{role}", level=2)
-        p = doc.add_paragraph()
-        p.add_run("What it measures: ").bold = True
+        role = ' <span class="badge">Primary</span>' if mc.get("is_primary") else ""
         desc = mc.get("description", "")
         agg = mc.get("agg", "Average")
         sentiment = "higher is better" if mc.get("sentiment") == "up_is_good" else "lower is better"
-        p.add_run(f"{desc} Aggregation: {agg}. Direction: {sentiment}.")
-        p2 = doc.add_paragraph()
-        p2.add_run("Why it matters: ").bold = True
-        p2.add_run(mc.get("why_it_matters", ""))
+        h.append(f"<h2>{e(mc['label'])}{role}</h2>")
+        h.append(f"<p><b>What it measures:</b> {e(desc)} Aggregation: {e(agg)}. Direction: {sentiment}.</p>")
+        h.append(f"<p><b>Why it matters:</b> {e(mc.get('why_it_matters', ''))}</p>")
 
-    # ── Section 3: Pulse — Demo Click Path ────────────────────────────────────
+    # ── Section 3: Pulse — Demo Click Path ───────────────────────────────────
     if built_pulse:
-        doc.add_heading("Tableau Pulse — Demo Click Path", level=1)
-        doc.add_paragraph(
-            "Each step below shows the action to take in Pulse followed by what the audience will see."
-        )
-
+        h.append(f"<h1>Tableau Pulse — Demo Click Path</h1>")
+        h.append("<p class='subtitle'>Each step shows the action to take in Pulse followed by what the audience will see.</p>")
         steps = [
             ("Opening — Surface Level",
              f"Open the {company} metric group in Pulse",
@@ -570,148 +554,89 @@ def generate_walkthrough(slug, company, story_config, metric_config, build_type,
         if dims:
             d0_vals = dim_values.get(dims[0], [])
             worst_hint = f" (e.g. {d0_vals[0]})" if d0_vals else ""
-            steps.append((
-                f"Drill 1 — {dims[0]}",
-                f"Click into {lead_metric} and filter by {dims[0]}",
-                f"One {dims[0].lower()} segment{worst_hint} is declining significantly faster than the overall average."))
+            steps.append((f"Drill 1 — {dims[0]}", f"Click into {lead_metric} and filter by {dims[0]}",
+                          f"One {dims[0].lower()} segment{worst_hint} is declining significantly faster than the overall average."))
         if len(dims) >= 2:
             d1_vals = dim_values.get(dims[1], [])
             worst_d1 = f" (e.g. {d1_vals[0]})" if d1_vals else ""
-            steps.append((
-                f"Drill 2 — {dims[1]}",
-                f"Within the worst {dims[0].lower()}, break down by {dims[1]}",
-                f"The decline is concentrated in a specific {dims[1].lower()} segment{worst_d1}, compounding the effect."))
+            steps.append((f"Drill 2 — {dims[1]}", f"Within the worst {dims[0].lower()}, break down by {dims[1]}",
+                          f"The decline is concentrated in a specific {dims[1].lower()} segment{worst_d1}, compounding the effect."))
         if supporting:
-            steps.append((
-                f"Root Cause — {supporting[0]['label']}",
-                f"Switch to {supporting[0]['label']}",
-                f"This supporting metric shows a lagged decline, confirming the root cause: {supporting[0].get('why_it_matters', 'it drives the primary metric')}."))
+            steps.append((f"Root Cause — {supporting[0]['label']}", f"Switch to {supporting[0]['label']}",
+                          f"This supporting metric shows a lagged decline, confirming the root cause: {supporting[0].get('why_it_matters', 'it drives the primary metric')}."))
         if len(supporting) >= 2:
-            steps.append((
-                f"Leading Indicator — {supporting[1]['label']}",
-                f"Check {supporting[1]['label']}",
-                f"This metric moved first — it's the leading indicator that preceded the decline in {lead_metric}."))
+            steps.append((f"Leading Indicator — {supporting[1]['label']}", f"Check {supporting[1]['label']}",
+                          f"This metric moved first — it's the leading indicator that preceded the decline in {lead_metric}."))
         if counter:
-            steps.append((
-                "Counter-Trend",
-                f"Switch to {counter[0]['label']}",
-                f"{counter[0]['label']} is actually improving while {lead_metric} declines — this masks the severity of the problem in the overall average."))
+            steps.append(("Counter-Trend", f"Switch to {counter[0]['label']}",
+                          f"{counter[0]['label']} is actually improving while {lead_metric} declines — this masks the severity of the problem in the overall average."))
         if len(dims) >= 3:
-            steps.append((
-                f"At-Risk Identification — {dims[2]}",
-                f"Filter to the worst segment and break down by {dims[2]}",
-                f"Specific entities emerge as highest-risk, ready for targeted outreach or intervention."))
-        steps.append((
-            "Action / Summary",
-            "Summarize findings and discuss next steps",
-            f"The audience now sees the signal ({lead_metric} declining), where it's worst ({dims[0] if dims else 'segment'}), "
-            f"the root cause ({supporting[0]['label'] if supporting else 'supporting metric'}), "
-            f"and can identify at-risk entities for action."))
-
+            steps.append((f"At-Risk Identification — {dims[2]}", f"Filter to the worst segment and break down by {dims[2]}",
+                          f"Specific entities emerge as highest-risk, ready for targeted outreach or intervention."))
+        steps.append(("Action / Summary", "Summarize findings and discuss next steps",
+                       f"The audience now sees the signal ({lead_metric} declining), where it's worst ({dims[0] if dims else 'segment'}), "
+                       f"the root cause ({supporting[0]['label'] if supporting else 'supporting metric'}), "
+                       f"and can identify at-risk entities for action."))
         for title, action, sees in steps:
-            doc.add_heading(title, level=2)
-            p = doc.add_paragraph()
-            p.add_run("Action: ").bold = True
-            p.add_run(action)
-            p2 = doc.add_paragraph()
-            p2.add_run("Audience sees: ").bold = True
-            p2.add_run(sees)
+            h.append(f'<div class="step"><h2>{e(title)}</h2><p><b>Action:</b> {e(action)}</p><p><b>Audience sees:</b> {e(sees)}</p></div>')
 
-    # ── Section 3b: Pulse Discover Questions ──────────────────────────────────
+    # ── Pulse Discover Questions ──────────────────────────────────────────────
     if built_pulse:
         discover = checkpoint.get("pulse_discover_results", [])
         if discover:
-            doc.add_heading("Pulse Discover Questions", level=1)
-            doc.add_paragraph(
-                "Each question below was asked to Pulse Discover at build time. "
-                "The responses are live AI-generated answers based on the actual demo data."
-            )
+            h.append(f"<h1>Pulse Discover Questions</h1>")
+            h.append("<p class='subtitle'>Each question was asked to Pulse Discover at build time. Responses are live AI-generated answers based on the actual demo data.</p>")
             for i, dr in enumerate(discover):
-                doc.add_heading(f"Q{i+1} — {dr.get('metric', '')}", level=2)
-                p_ask = doc.add_paragraph("")
-                p_ask.add_run("Ask: ").bold = True
-                p_ask.add_run(f'"{dr["question"]}"')
-                p_resp = doc.add_paragraph("")
-                p_resp.add_run("Expected response: ").bold = True
-                p_resp.add_run(dr.get("answer", "(no response captured)"))
+                h.append(f'<div class="step"><h2>Q{i+1} — {e(dr.get("metric", ""))}</h2>')
+                h.append(f'<p><b>Ask:</b> &ldquo;{e(dr["question"])}&rdquo;</p>')
+                h.append(f'<p><b>Expected response:</b> {e(dr.get("answer", "(no response captured)"))}</p></div>')
 
-    # ── Section 3c: Setting Up Goal Lines (Pulse, if goals exist) ─────────────
+    # ── Setting Up Goal Lines ─────────────────────────────────────────────────
     if built_pulse:
         goals = [mc for mc in metric_config if mc.get("goal")]
         if goals:
-            doc.add_heading("Setting Up Goal Lines", level=1)
-            doc.add_paragraph("The datasource includes target columns for easy goal setup in the Pulse UI:")
+            h.append(f"<h1>Setting Up Goal Lines</h1>")
+            h.append("<p>The datasource includes target columns for easy goal setup in the Pulse UI:</p><ul>")
             for mc in goals:
                 g = mc["goal"]
-                doc.add_paragraph(
-                    f"{mc['label']}: select \"{g.get('field', '')}\" → target {g.get('value', '')} → direction: {g.get('direction', 'above')}",
-                    style="List Bullet")
-            doc.add_paragraph("To set up: Open metric → Edit → Goals → Select field from data → Choose the target column → Set direction.")
+                h.append(f'<li>{e(mc["label"])}: select &ldquo;{e(g.get("field", ""))}&rdquo; → target {g.get("value", "")} → direction: {e(g.get("direction", "above"))}</li>')
+            h.append("</ul><p>To set up: Open metric → Edit → Goals → Select field from data → Choose the target column → Set direction.</p>")
 
-    # ── Section 4: Tableau Next — Concierge Prompts ───────────────────────────
+    # ── Section 4: Tableau Next — Concierge Prompts ──────────────────────────
     if built_next:
-        doc.add_heading("Tableau Next — Concierge Prompts", level=1)
-        doc.add_paragraph(
-            "Each step below shows the question to ask Concierge followed by the expected response. "
-            "Ask these in the Tableau Next workspace where the SDM and dashboard were created."
-        )
-
+        h.append(f"<h1>Tableau Next — Concierge Prompts</h1>")
+        h.append("<p class='subtitle'>Each step shows the question to ask Concierge followed by the expected response. Ask these in the Tableau Next workspace where the SDM and dashboard were created.</p>")
         prompts = [
-            ("Opening",
-             f"How is {lead_metric.lower()} trending?",
+            ("Opening", f"How is {lead_metric.lower()} trending?",
              f"Concierge shows the overall trend with a decline emerging in recent months, comparing current period vs. prior."),
         ]
         if dims:
-            prompts.append((
-                f"Drill — {dims[0]}",
-                f"Which {dims[0].lower()} has the worst {lead_metric.lower()}?",
-                f"Concierge identifies the worst-performing {dims[0].lower()} segment with specific numbers and percentage decline."))
+            prompts.append((f"Drill — {dims[0]}", f"Which {dims[0].lower()} has the worst {lead_metric.lower()}?",
+                            f"Concierge identifies the worst-performing {dims[0].lower()} segment with specific numbers and percentage decline."))
         if len(dims) >= 2:
-            prompts.append((
-                f"Drill — {dims[1]}",
-                f"Within that {dims[0].lower()}, break it down by {dims[1].lower()}",
-                f"Concierge drills deeper, revealing the compounding effect in a specific {dims[1].lower()} segment."))
+            prompts.append((f"Drill — {dims[1]}", f"Within that {dims[0].lower()}, break it down by {dims[1].lower()}",
+                            f"Concierge drills deeper, revealing the compounding effect in a specific {dims[1].lower()} segment."))
         if supporting:
-            prompts.append((
-                f"Root Cause — {supporting[0]['label']}",
-                f"What about {supporting[0]['label'].lower()}?",
-                f"Concierge shows {supporting[0]['label']} lagging the primary metric, confirming the root cause."))
+            prompts.append((f"Root Cause — {supporting[0]['label']}", f"What about {supporting[0]['label'].lower()}?",
+                            f"Concierge shows {supporting[0]['label']} lagging the primary metric, confirming the root cause."))
         if len(supporting) >= 2:
-            prompts.append((
-                f"Consequence — {supporting[1]['label']}",
-                f"How has {supporting[1]['label'].lower()} been affected?",
-                f"The downstream consequence is visible — {supporting[1]['label']} has degraded as a result of the primary decline."))
+            prompts.append((f"Consequence — {supporting[1]['label']}", f"How has {supporting[1]['label'].lower()} been affected?",
+                            f"The downstream consequence is visible — {supporting[1]['label']} has degraded as a result of the primary decline."))
         if counter:
-            prompts.append((
-                "Counter-Trend",
-                f"Is {counter[0]['label'].lower()} also declining?",
-                f"No — {counter[0]['label']} is actually improving, which masks the severity of the problem in the overall average."))
-        prompts.append((
-            "At-Risk Identification",
-            f"Which entities are most at risk?",
-            f"Concierge lists specific entities with the steepest declines across {', '.join(dims[:2]) if len(dims) >= 2 else dims[0] if dims else 'segments'}, ready for outreach."))
-        prompts.append((
-            "Action",
-            "What should we do about this?",
-            f"Concierge recommends focusing on the worst {dims[0].lower() if dims else 'segment'} segment and monitoring {supporting[0]['label'] if supporting else 'supporting metrics'} as the leading indicator."))
-
+            prompts.append(("Counter-Trend", f"Is {counter[0]['label'].lower()} also declining?",
+                            f"No — {counter[0]['label']} is actually improving, which masks the severity of the problem in the overall average."))
+        prompts.append(("At-Risk Identification", f"Which entities are most at risk?",
+                        f"Concierge lists specific entities with the steepest declines across {', '.join(dims[:2]) if len(dims) >= 2 else dims[0] if dims else 'segments'}, ready for outreach."))
+        prompts.append(("Action", "What should we do about this?",
+                        f"Concierge recommends focusing on the worst {dims[0].lower() if dims else 'segment'} segment and monitoring {supporting[0]['label'] if supporting else 'supporting metrics'} as the leading indicator."))
         for title, ask, expected in prompts:
-            doc.add_heading(title, level=2)
-            p = doc.add_paragraph()
-            p.add_run("Ask: ").bold = True
-            p.add_run(f'"{ask}"')
-            p2 = doc.add_paragraph()
-            p2.add_run("Expected response: ").bold = True
-            p2.add_run(expected)
+            h.append(f'<div class="step"><h2>{e(title)}</h2><p><b>Ask:</b> &ldquo;{e(ask)}&rdquo;</p><p><b>Expected response:</b> {e(expected)}</p></div>')
 
-    # ── Section 4b: Business Preferences (Next only) ──────────────────────────
+    # ── Business Preferences (Next only) ─────────────────────────────────────
     if built_next:
-        doc.add_heading("Business Preferences (SDM)", level=1)
+        h.append(f"<h1>Business Preferences (SDM)</h1>")
         sdm_name = checkpoint.get("sdm_api", "[SDM name]")
-        doc.add_paragraph(
-            f"Copy the text below and paste it into: Data 360 → Semantic Model → {sdm_name} "
-            "→ AI Optimization → Manage Business Preferences"
-        )
+        h.append(f"<p>Copy the text below and paste it into: <b>Data 360 → Semantic Model → {e(sdm_name)} → AI Optimization → Manage Business Preferences</b></p>")
         dims_str = ", ".join(dims) if dims else "Region, Category"
         metric_defs = "\n".join([f"- {mc['label']}: {mc.get('description', '')}" for mc in metric_config])
         dim_guidance_parts = []
@@ -719,59 +644,43 @@ def generate_walkthrough(slug, company, story_config, metric_config, build_type,
             vals = dim_values.get(d, [])
             dim_guidance_parts.append(f"- {d}: {', '.join(vals)}" if vals else f"- {d}")
         dim_guidance = "\n".join(dim_guidance_parts) if dim_guidance_parts else f"Available dimensions: {dims_str}"
-
         bp_text = (
-            f"# COMPANY CONTEXT\n"
-            f"This data represents {company}'s operational analytics. "
+            f"# COMPANY CONTEXT\nThis data represents {company}'s operational analytics. "
             f"{story_config.get('company_overview', '')}\n\n"
             f"# METRIC DEFINITIONS\n{metric_defs}\n\n"
             f"# DIMENSION GUIDANCE\n{dim_guidance}\n\n"
-            f"# THRESHOLDS AND TARGETS\n"
-            f"A decline of more than 10 percentage points is significant. Track metrics against prior period.\n\n"
-            f"# QUESTION INTENT\n"
-            f"\"worst\" = steepest percentage-point decline over the analysis period\n"
+            f"# THRESHOLDS AND TARGETS\nA decline of more than 10 percentage points is significant. Track metrics against prior period.\n\n"
+            f"# QUESTION INTENT\n\"worst\" = steepest percentage-point decline over the analysis period\n"
             f"\"most affected\" = steepest decline segmented by the most recently mentioned dimension\n"
             f"\"at risk\" = entities with the steepest recent decline\n"
             f"\"flag for outreach\" = filter to the culprit segment and list entities below threshold\n\n"
-            f"# ANSWER STYLE\n"
-            f"Lead with the answer, then supporting data. Do not open with questions back to the user.\n\n"
-            f"# TIME CONTEXT\n"
-            f"Default comparison: current period vs. prior period (same duration)."
+            f"# ANSWER STYLE\nLead with the answer, then supporting data. Do not open with questions back to the user.\n\n"
+            f"# TIME CONTEXT\nDefault comparison: current period vs. prior period (same duration)."
         )
-        doc.add_paragraph(bp_text)
+        h.append(f"<pre>{e(bp_text)}</pre>")
         checkpoint["business_preferences"] = bp_text
 
-    # ── Section 5: CRM Analytics — Dashboard Navigation ───────────────────────
+    # ── Section 5: CRM Analytics — Dashboard Navigation ──────────────────────
     if built_crma:
-        doc.add_heading("CRM Analytics — Dashboard Navigation", level=1)
-        doc.add_paragraph(
-            f"The CRM Analytics dashboard for {company} provides an interactive overview with KPI tiles, "
-            f"trend charts, bar charts, and filters. Navigate using the controls at the top."
-        )
-        doc.add_heading("KPI Row", level=2)
+        h.append(f"<h1>CRM Analytics — Dashboard Navigation</h1>")
+        h.append(f"<p>The CRM Analytics dashboard for {e(company)} provides an interactive overview with KPI tiles, trend charts, bar charts, and filters.</p>")
+        h.append(f"<h2>KPI Row</h2>")
         kpi_text = ", ".join([mc["label"] for mc in metric_config[:5]])
-        doc.add_paragraph(f"The top row shows at-a-glance numbers for: {kpi_text}.")
-
-        doc.add_heading("Charts", level=2)
-        p = doc.add_paragraph()
-        p.add_run("Trend Chart: ").bold = True
-        p.add_run(f"Shows {lead_metric} over time, broken down by {dims[1] if len(dims) >= 2 else 'segment'}.")
-        p2 = doc.add_paragraph()
-        p2.add_run("Bar Chart: ").bold = True
-        p2.add_run(f"Ranks {dims[0] if dims else 'segments'} by {lead_metric} to show where performance is weakest.")
+        h.append(f"<p>The top row shows at-a-glance numbers for: {e(kpi_text)}.</p>")
+        h.append(f"<h2>Charts</h2>")
+        h.append(f"<p><b>Trend Chart:</b> Shows {e(lead_metric)} over time, broken down by {e(dims[1] if len(dims) >= 2 else 'segment')}.</p>")
+        h.append(f"<p><b>Bar Chart:</b> Ranks {e(dims[0] if dims else 'segments')} by {e(lead_metric)} to show where performance is weakest.</p>")
         if len(metric_config) >= 2:
-            p3 = doc.add_paragraph()
-            p3.add_run("Scatter Chart: ").bold = True
-            p3.add_run(f"Plots {metric_config[0]['label']} vs {metric_config[1]['label']} to reveal correlation patterns.")
-
+            h.append(f"<p><b>Scatter Chart:</b> Plots {e(metric_config[0]['label'])} vs {e(metric_config[1]['label'])} to reveal correlation patterns.</p>")
         if dims:
-            doc.add_heading("Filters", level=2)
-            doc.add_paragraph(f"Use the filter dropdowns at the top to narrow by: {', '.join(dims[:3])}. "
-                              "Start broad, then filter to the worst segment to reveal the story.")
+            h.append(f"<h2>Filters</h2>")
+            h.append(f"<p>Use the filter dropdowns at the top to narrow by: {e(', '.join(dims[:3]))}. Start broad, then filter to the worst segment to reveal the story.</p>")
 
-    # ── Save ──────────────────────────────────────────────────────────────────
-    path = os.path.join(demo_dir, f"{slug}_demo_walkthrough.docx")
-    doc.save(path)
+    h.append("</body></html>")
+
+    path = os.path.join(demo_dir, f"{slug}_demo_walkthrough.html")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(h))
     return path
 
 
@@ -843,7 +752,8 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
     except Exception as e:
         progress(q, "info", f"Cleanup partial: {e}", -1)
 
-    project_name = f"{company} | {TODAY.strftime('%Y-%m-%d %H:%M')}"
+    from datetime import datetime as _dt
+    project_name = f"{company} | {_dt.now().strftime('%Y-%m-%d %H:%M')}"
     new_project = TSC.ProjectItem(name=project_name)
     project = server.projects.create(new_project)
     cp["pulse_project_id"] = project.id
@@ -950,7 +860,7 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
 
     progress(q, "group", "Creating group and subscriptions...", 70)
     try:
-        group_name = f"{company} | {TODAY.strftime('%Y-%m-%d %H:%M')}"
+        group_name = f"{company} | {_dt.now().strftime('%Y-%m-%d %H:%M')}"
         api_ver = "3.24"
         xml_body = f'<tsRequest><group name="{group_name}" /></tsRequest>'
         gh = {"x-tableau-auth": auth_token, "Content-Type": "application/xml", "Accept": "application/xml"}

@@ -194,7 +194,7 @@ def demos():
                     mtime = d.stat().st_mtime
                     info["build_date"] = bd + " " + datetime.datetime.fromtimestamp(mtime).strftime("%H:%M")
 
-                walkthroughs = sorted(d.glob("*walkthrough*.docx"))
+                walkthroughs = sorted(list(d.glob("*walkthrough*.html")) + list(d.glob("*walkthrough*.docx")))
                 info["walkthroughs"] = [{"name": w.name, "slug": d.name} for w in walkthroughs]
 
                 demo_list.append(info)
@@ -212,7 +212,7 @@ def delete_demo(slug):
     if not demos_dir.exists():
         return jsonify({"ok": False, "error": "Demo not found"})
 
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     delete_remote = data.get("delete_remote", False)
     remote_results = []
 
@@ -359,11 +359,11 @@ def view_build_log(slug):
 
 @app.route("/api/demos/<slug>/walkthrough/<filename>")
 def open_walkthrough(slug, filename):
-    """Open a walkthrough .docx file with the system default application."""
+    """Open a walkthrough file with the system default application."""
     import subprocess, platform as plat
     demos_dir = PROJECT_ROOT / "demos" / slug
     filepath = demos_dir / filename
-    if not filepath.exists() or not filename.endswith(".docx"):
+    if not filepath.exists() or not (filename.endswith(".html") or filename.endswith(".docx")):
         return jsonify({"ok": False, "error": "File not found"}), 404
     try:
         if plat.system() == "Darwin":
@@ -387,7 +387,7 @@ def test_tableau():
     try:
         from connections import get_tableau_token, tableau_headers, load_config
         import requests as req
-        profile_key = (request.json or {}).get("profile_key")
+        profile_key = (request.get_json(silent=True) or {}).get("profile_key")
         config = load_config(profile_key)
         tc = config["tableau"]
         server, token, site_id = get_tableau_token(config)
@@ -447,7 +447,7 @@ def test_salesforce():
     try:
         from connections import get_sf_token, get_dc_token, sf_headers as sfh, load_config
         import requests as req
-        profile_key = (request.json or {}).get("profile_key")
+        profile_key = (request.get_json(silent=True) or {}).get("profile_key")
         config = load_config(profile_key)
         sf_token, sf_instance = get_sf_token(config)
         h = sfh(sf_token)
@@ -574,7 +574,7 @@ def switch_profile():
     """Switch the active connection profile."""
     try:
         from connections import load_full_config, set_active_profile
-        data = request.json
+        data = request.get_json(silent=True)
         key = data.get("key")
         if not key:
             return jsonify({"ok": False, "error": "No profile key provided"})
@@ -652,7 +652,7 @@ def create_profile():
     """Create a new connection profile (or switch to existing) with the given label."""
     try:
         from connections import load_full_config, save_profile, set_active_profile, make_profile_key, get_profile
-        data = request.json or {}
+        data = request.get_json(silent=True) or {}
         label = data.get("label", "").strip()
         if not label:
             return jsonify({"ok": False, "error": "Profile name is required"})
@@ -680,7 +680,7 @@ def oauth_mcp():
     """Run OAuth flow specifically for the MCP ECA to get an MCP refresh token."""
     try:
         from connections import load_full_config, save_full_config
-        data = request.json or {}
+        data = request.get_json(silent=True) or {}
         full = load_full_config()
         key = data.get("profile_key") or full.get("active_profile")
         if not key or key not in full.get("profiles", {}):
@@ -714,7 +714,7 @@ def oauth_start():
     try:
         from connections import load_full_config, save_full_config
 
-        data = request.json or {}
+        data = request.get_json(silent=True) or {}
         full = load_full_config()
         key = data.get("profile_key") or full.get("active_profile")
         if not key or key not in full.get("profiles", {}):
@@ -751,7 +751,7 @@ def save_config():
     """Save config.json — updates the active profile within the full config structure."""
     try:
         from connections import load_full_config, save_full_config
-        data = request.json
+        data = request.get_json(silent=True)
         full = load_full_config()
 
         # Anthropic API key is global (not per-profile) — save it even without a profile
@@ -883,7 +883,7 @@ def build_upload():
 @app.route("/api/build/generate-story", methods=["POST"])
 def build_generate_story():
     """Use Claude API to generate story + metrics from user inputs."""
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     try:
         from builder import generate_story
         result = generate_story(
@@ -908,7 +908,7 @@ def build_generate_story():
 def build_start():
     """Kick off a real demo build in a background thread."""
     import re as _re
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     company = data.get("company", "Demo")
     build_id = _re.sub(r"[^a-z0-9]+", "_", company.lower()).strip("_")
 
@@ -1056,7 +1056,7 @@ def chat():
         return jsonify({"ok": False, "error": "No API key found. "
                         "Set ANTHROPIC_API_KEY env var or add it in Setup."}), 400
 
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     messages = data.get("messages", [])
     if not messages:
         return jsonify({"ok": False, "error": "No messages provided"}), 400
@@ -1174,7 +1174,7 @@ def chat_save_key():
     """Save AI chat credentials to config.json (global, not per-profile)."""
     try:
         from connections import load_full_config, save_full_config
-        data = request.json or {}
+        data = request.get_json(silent=True) or {}
         full = load_full_config()
 
         mode = data.get("mode", "anthropic")
