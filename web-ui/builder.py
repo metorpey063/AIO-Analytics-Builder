@@ -2151,8 +2151,12 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
         metadata = build_metadata(slug, slug.replace("_", " ").title(), fields_spec)
 
         # Sanitize column names for CRMA (no spaces, snake_case)
+        # Drop internal columns that aren't in the metadata
         import re as _re
-        crma_df = df.rename(columns={c: _re.sub(r'[^a-zA-Z0-9_]', '_', c).strip('_').lower() for c in df.columns})
+        drop_cols = [c for c in df.columns if c.lower().replace(" ", "_") in
+                     ("entity_id", "day_offset", "kq_record_id")]
+        crma_df = df.drop(columns=drop_cols, errors="ignore")
+        crma_df = crma_df.rename(columns={c: _re.sub(r'[^a-zA-Z0-9_]', '_', c).strip('_').lower() for c in crma_df.columns})
         csv_buf = io.BytesIO()
         crma_df.to_csv(csv_buf, index=False)
         csv_bytes = csv_buf.getvalue()
