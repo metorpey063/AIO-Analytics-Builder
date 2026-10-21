@@ -1078,12 +1078,12 @@ async function generateMetrics() {
 
     if (metrics.length > 0) {
         metrics.forEach(mc => {
-            const sent = mc.sentiment === 'up_is_good' ? 'Up is good' : 'Down is bad';
+            const sent = mc.sentiment === 'down_is_good' ? 'Down is good' : 'Up is good';
             addMetricRow({name: mc.label, type: mc.agg === 'Sum' ? 'Flow' : 'Rate', agg: mc.agg || 'Average', sentiment: sent});
         });
     } else {
         // Fallback — empty table for manual entry
-        addMetricRow({name: '', type: 'Rate', agg: 'Average', sentiment: 'Down is bad'});
+        addMetricRow({name: '', type: 'Rate', agg: 'Average', sentiment: 'Up is good'});
     }
 
     document.getElementById('metrics-loading').classList.add('hidden');
@@ -1091,14 +1091,14 @@ async function generateMetrics() {
 }
 
 function addMetricRow(m) {
-    m = m || {name: '', type: 'Rate', agg: 'Average', sentiment: 'Down is bad'};
+    m = m || {name: '', type: 'Rate', agg: 'Average', sentiment: 'Up is good'};
     const tbody = document.getElementById('metrics-body');
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td><input type="text" value="${m.name}" placeholder="Metric name" class="table-input"></td>
         <td><select class="table-input"><option ${m.type==='Rate'?'selected':''}>Rate</option><option ${m.type==='Flow'?'selected':''}>Flow</option><option ${m.type==='Snapshot'?'selected':''}>Snapshot</option></select></td>
         <td><select class="table-input"><option ${m.agg==='Average'?'selected':''}>Average</option><option ${m.agg==='Sum'?'selected':''}>Sum</option></select></td>
-        <td><select class="table-input"><option>Down is bad</option><option>Up is good</option></select></td>
+        <td><select class="table-input"><option ${m.sentiment==='Up is good'?'selected':''}>Up is good</option><option ${m.sentiment==='Down is good'?'selected':''}>Down is good</option></select></td>
         <td><button class="btn-icon" onclick="this.closest('tr').remove()" title="Remove">&times;</button></td>
     `;
     tbody.appendChild(tr);
@@ -1113,7 +1113,7 @@ function collectMetricsFromTable() {
         if (cells.length >= 4 && cells[0].value.trim()) {
             const name = cells[0].value.trim();
             const agg = cells[2].value;
-            const sent = cells[3].value.includes('Up') ? 'up_is_good' : 'down_is_bad';
+            const sent = cells[3].value.includes('Down') ? 'down_is_good' : 'up_is_good';
             const field = name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
             metrics.push({
                 label: name, field: field, agg: agg,

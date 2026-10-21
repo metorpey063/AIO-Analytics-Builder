@@ -1574,8 +1574,18 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
             "sourceName": connector_name,
             "operation": "upsert",
         }
-        r_job = req.post(f"https://{dc_domain}/api/v1/ingest/jobs", headers=dch, json=job_payload)
-        r_job.raise_for_status()
+        # Retry with backoff — schema takes 15-30s to propagate after DLO ACTIVE
+        r_job = None
+        for _retry in range(5):
+            r_job = req.post(f"https://{dc_domain}/api/v1/ingest/jobs", headers=dch, json=job_payload)
+            if r_job.status_code == 404:
+                progress(q, "ingest", f"Schema not ready yet, retrying in 15s... ({_retry+1}/5)", 25)
+                time.sleep(15)
+                continue
+            r_job.raise_for_status()
+            break
+        else:
+            r_job.raise_for_status()
         job_id = r_job.json()["id"]
 
         csv_buf = io.StringIO()
