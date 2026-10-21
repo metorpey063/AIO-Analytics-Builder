@@ -225,12 +225,12 @@ Additional context: {notes or 'None'}
         headers = {"x-api-key": cfg["token"], "Content-Type": "application/json"}
         body = {
             "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 2048,
+            "max_tokens": 4096,
             "system": STORY_SYSTEM_PROMPT,
             "messages": [{"role": "user", "content": user_msg}],
         }
         r = req.post(url, headers=headers, json=body,
-                     verify=cfg.get("ca_bundle", True), timeout=60)
+                     verify=cfg.get("ca_bundle", True), timeout=90)
         r.raise_for_status()
         text = ""
         for block in r.json().get("content", []):
@@ -246,11 +246,11 @@ Additional context: {notes or 'None'}
         }
         body = {
             "model": CHAT_MODEL,
-            "max_tokens": 2048,
+            "max_tokens": 4096,
             "system": STORY_SYSTEM_PROMPT,
             "messages": [{"role": "user", "content": user_msg}],
         }
-        r = req.post(url, headers=headers, json=body, timeout=60)
+        r = req.post(url, headers=headers, json=body, timeout=90)
         r.raise_for_status()
         text = ""
         for block in r.json().get("content", []):
@@ -261,7 +261,7 @@ Additional context: {notes or 'None'}
         client = anthropic.Anthropic(api_key=cfg["api_key"])
         resp = client.messages.create(
             model=CHAT_MODEL,
-            max_tokens=2048,
+            max_tokens=4096,
             system=STORY_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_msg}],
         )
