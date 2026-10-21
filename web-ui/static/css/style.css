@@ -351,6 +351,7 @@ body.dark-theme .theme-icon-moon { display: none; }
 .stat-item { text-align: center; }
 .stat-value { display: block; font-size: 18px; font-weight: 700; color: var(--text); }
 .stat-label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-top: 2px; }
+.stat-value.stat-subtle { color: var(--text-muted); font-weight: 600; }
 .stat-divider { width: 1px; height: 28px; background: rgba(0, 0, 0, 0.1); }
 
 /* =========================================================================
@@ -2653,6 +2654,7 @@ body.dark-theme .stats-strip {
 body.dark-theme .stat-item { text-align: center; }
 body.dark-theme .stat-value { display: block; font-size: 18px; font-weight: 700; color: #E8EAED; }
 body.dark-theme .stat-label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #6B7280; margin-top: 2px; }
+body.dark-theme .stat-value.stat-subtle { color: #6B7280; }
 body.dark-theme .stat-divider { width: 1px; height: 28px; background: rgba(255, 255, 255, 0.08); }
 
 /* -- Colored accent bar on top of cards ---------------------------------- */
