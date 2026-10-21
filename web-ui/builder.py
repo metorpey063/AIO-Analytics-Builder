@@ -2201,14 +2201,20 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
             if len(safe_dims) >= 3: field_map["client_name"] = safe_dims[2]
             elif len(safe_dims) >= 1: field_map["client_name"] = safe_dims[0]
 
-            # Substitute field names ONLY in SAQL queries (not in widget/step names)
+            # Substitute field names in SAQL queries (both quoted and unquoted forms)
             for step in state.get("steps", {}).values():
                 q_obj = step.get("query", {})
                 if isinstance(q_obj, dict) and "query" in q_obj:
                     q_str = q_obj["query"]
                     for old_f, new_f in field_map.items():
                         q_str = q_str.replace(f'"{old_f}"', f'"{new_f}"')
+                        q_str = q_str.replace(old_f, new_f)
                     q_obj["query"] = q_str
+                # Also substitute in selectMode/groups for compact JSON queries
+                for ds in step.get("datasets", []):
+                    ds_name = ds.get("name", "")
+                    if ds_name:
+                        ds["name"] = slug
 
             # Substitute KPI widget title labels
             old_labels = ["Participation", "Goal Achievement", "Redemption", "Active Reps", "Points per Rep"]
