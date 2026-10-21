@@ -289,7 +289,7 @@
                             <p>Publish .hyper datasource + Pulse metric definitions + group subscriptions</p>
                         </div>
                     </label>
-                    <div class="output-connection" id="pulse-connection" style="display:none; padding:8px 12px 10px 32px">
+                    <div class="output-connection" id="pulse-connection" class="output-connection" style="display:none">
                         <label style="font-size:11px; color:var(--text-muted); font-weight:600">Tableau Cloud Connection</label>
                         <select id="pulse-profile" style="width:100%; margin-top:4px; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--glass-bg); color:var(--text-primary); font-size:12px">
                             <option value="">Loading...</option>
@@ -304,14 +304,14 @@
                             <p>Push to Data Cloud + build SDM, metrics, visualizations, and dashboard</p>
                         </div>
                     </label>
-                    <div class="output-connection" id="next-connection" style="display:none; padding:8px 12px 10px 32px">
+                    <div class="output-connection" id="next-connection" class="output-connection" style="display:none">
                         <label style="font-size:11px; color:var(--text-muted); font-weight:600">Salesforce / Data Cloud Connection</label>
                         <select id="next-profile" style="width:100%; margin-top:4px; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--glass-bg); color:var(--text-primary); font-size:12px">
                             <option value="">Loading...</option>
                         </select>
                     </div>
                     <!-- Dashboard Templates (inside the Tableau Next card) -->
-                    <div id="template-picker-section" style="display:none; padding:14px 16px; border-top:1px solid var(--border)">
+                    <div id="template-picker-section" class="output-connection" style="display:none">
                         <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px">
                             <label style="font-size:12px; color:var(--text-primary); font-weight:600">Dashboard Templates</label>
                             <span style="font-size:11px; color:var(--text-muted)">Select one or more to create</span>
@@ -369,7 +369,7 @@
                             <p>Upload dataset + create CRMA dashboard from template</p>
                         </div>
                     </label>
-                    <div class="output-connection" id="crma-connection" style="display:none; padding:8px 12px 10px 32px">
+                    <div class="output-connection" id="crma-connection" class="output-connection" style="display:none">
                         <label style="font-size:11px; color:var(--text-muted); font-weight:600">Salesforce Connection</label>
                         <select id="crma-profile" style="width:100%; margin-top:4px; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--glass-bg); color:var(--text-primary); font-size:12px">
                             <option value="">Loading...</option>
