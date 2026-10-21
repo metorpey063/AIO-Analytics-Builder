@@ -1418,9 +1418,13 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
         def _clean_field_name(name):
             """Sanitize field name for Data Cloud schema: lowercase, underscores, alphanumeric only, max 40 chars.
-            Also strips reserved prefixes (salesforce, tableau, data_cloud)."""
+            Also strips reserved prefixes (salesforce, tableau, data_cloud).
+            Prepends X to names starting with a digit (DC does this automatically; we match it
+            so CSV headers align with the schema field names during bulk ingest)."""
             clean = re.sub(r"[^a-z0-9_]", "", name.lower().replace(" ", "_"))
             clean = re.sub(r"_+", "_", clean).strip("_")
+            if clean and clean[0].isdigit():
+                clean = "X" + clean
             for prefix in ("salesforce_", "tableau_", "data_cloud_", "sfdc_"):
                 if clean.startswith(prefix):
                     clean = clean[len(prefix):]
@@ -1565,6 +1569,8 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         for col in df.columns:
             clean = re.sub(r"[^a-z0-9_]", "", col.lower().replace(" ", "_"))
             clean = re.sub(r"_+", "_", clean).strip("_") or "field"
+            if clean[0].isdigit():
+                clean = "X" + clean
             col_rename[col] = clean
         df_ingest = df.rename(columns=col_rename)
 
@@ -1921,6 +1927,10 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
                 # Map template fields to this demo's fields
                 field_map = {}
+                # Display Date calc dim
+                display_date_api = cp.get("display_date_api", "Display_Date")
+                if display_date_api and display_date_api != "Display_Date":
+                    field_map["Display_Date"] = display_date_api
                 # Primary measure for hero trend line
                 if clc_apis:
                     field_map["platform_utilization_rate_clc"] = clc_apis[0]
@@ -1958,6 +1968,25 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                     if i < len(user_dims):
                         label_map[d16_label] = user_dims[i][0].replace("_", " ").title()
 
+                # Viz title labels — replace generic template labels with meaningful ones
+                primary_label = metric_config[0]["label"] if metric_config else "Metric"
+                detail_label = metric_config[1]["label"] if len(metric_config) > 1 else primary_label
+                dim_labels = [ud[0].replace("_", " ").title() for ud in user_dims]
+                label_map["Trend Line"] = f"{primary_label} Over Time"
+                label_map["Donut Chart"] = f"{detail_label} by {dim_labels[2]}" if len(dim_labels) > 2 else detail_label
+                label_map["Horizontal Bar"] = f"{detail_label} by {dim_labels[1]}" if len(dim_labels) > 1 else detail_label
+                label_map["Detail Bar 2"] = f"{detail_label} by {dim_labels[0]}" if dim_labels else detail_label
+                label_map["Details Table"] = "Details"
+
+                # Detail chart section headers for text_6, text_7, text_8
+                detail_headers = []
+                # text_6 → Donut header (dim[2])
+                detail_headers.append(f"{detail_label} by {dim_labels[2]}" if len(dim_labels) > 2 else detail_label)
+                # text_7 → Horizontal Bar header (dim[1])
+                detail_headers.append(f"{detail_label} by {dim_labels[1]}" if len(dim_labels) > 1 else detail_label)
+                # text_8 → Detail Bar 2 header (dim[0])
+                detail_headers.append(f"{detail_label} by {dim_labels[0]}" if dim_labels else detail_label)
+
                 demo_label = build_config.get("demo_name", "") or company if build_config else company
                 results = deploy_template(
                     template_name=template_name,
@@ -1978,6 +2007,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                     detail_header="Details",
                     field_map=field_map if field_map else None,
                     label_map=label_map if label_map else None,
+                    detail_headers=detail_headers,
                 )
 
                 if results.get("dashboard") and not results.get("errors"):

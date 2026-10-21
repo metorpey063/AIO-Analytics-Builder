@@ -161,7 +161,18 @@ def prepare_viz_payloads(
             if on and not on.startswith("{{"):
                 template_do_names.add(on)
 
-    vizzes = package["components"]["visualizations"]
+    vizzes = dict(package["components"]["visualizations"])
+
+    # Generate Detail_Bar_2 for the empty 3rd detail slot (Z Layout)
+    if "Detail_Bar_2" not in vizzes and "Horizontal_Bar" in vizzes:
+        bar2 = copy.deepcopy(vizzes["Horizontal_Bar"])
+        for fk, fv in bar2.get("fields", {}).items():
+            if fv.get("role") == "Dimension":
+                fv["fieldName"] = "team1"
+                break
+        bar2["label"] = "Detail Bar 2"
+        vizzes["Detail_Bar_2"] = bar2
+
     payloads = {}
 
     for viz_name, viz_def in vizzes.items():
@@ -272,6 +283,8 @@ def prepare_dashboard_payload(
     filter_fields: Optional[List[Dict[str, str]]] = None,
     title_text: Optional[str] = None,
     detail_header: Optional[str] = None,
+    label_map: Optional[Dict[str, str]] = None,
+    detail_headers: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Prepare a dashboard payload from a template package.
 
@@ -288,6 +301,8 @@ def prepare_dashboard_payload(
         filter_fields: List of dicts with fieldName, objectName, label, dataType
         title_text: Override for the hero title text
         detail_header: Override for the detail section header text
+        label_map: Optional text substitutions for dashboard text widget content
+        detail_headers: Optional chart section headers for text_6, text_7, text_8
     """
     dash_def = copy.deepcopy(package["components"]["dashboard"])
 
@@ -337,6 +352,12 @@ def prepare_dashboard_payload(
             }
         # Leave unconfigured filter slots as-is (empty placeholders)
 
+    # Wire Detail_Bar_2 into any empty viz slot
+    for wname, w in widgets.items():
+        if w.get("type") == "visualization" and not w.get("source", {}).get("name"):
+            if "Detail_Bar_2" in viz_name_map:
+                w["source"] = {"name": viz_name_map["Detail_Bar_2"]}
+
     # Override text widgets
     if title_text:
         for wname in ["text_1"]:
@@ -351,6 +372,29 @@ def prepare_dashboard_payload(
                 content = widgets[wname]["parameters"].get("content", [])
                 if content:
                     content[0]["insert"] = detail_header
+
+    # Set detail chart section headers (text_6, text_7, text_8)
+    detail_text_slots = ["text_6", "text_7", "text_8"]
+    for i, slot_name in enumerate(detail_text_slots):
+        if slot_name in widgets and widgets[slot_name]["type"] == "text":
+            content = widgets[slot_name]["parameters"].get("content", [])
+            if detail_headers and i < len(detail_headers):
+                if content:
+                    content[0]["insert"] = detail_headers[i]
+            elif label_map and content:
+                for entry in content:
+                    if "insert" in entry and isinstance(entry["insert"], str):
+                        for old, new in label_map.items():
+                            entry["insert"] = entry["insert"].replace(old, new)
+
+    # Apply label_map to remaining text widgets (Section Subheader etc.)
+    if label_map:
+        for wname, w in widgets.items():
+            if w.get("type") == "text" and wname not in detail_text_slots:
+                for entry in w.get("parameters", {}).get("content", []):
+                    if "insert" in entry and isinstance(entry["insert"], str):
+                        for old, new in label_map.items():
+                            entry["insert"] = entry["insert"].replace(old, new)
 
     # Clean all widgets for REST POST compatibility
     dash_def["widgets"] = {
@@ -380,6 +424,7 @@ def deploy_template(
     detail_header: Optional[str] = None,
     field_map: Optional[Dict[str, str]] = None,
     label_map: Optional[Dict[str, str]] = None,
+    detail_headers: Optional[List[str]] = None,
     do_api: str = "",
     api_version: str = "v66.0",
 ) -> Dict[str, Any]:
@@ -401,6 +446,8 @@ def deploy_template(
         title_text: Optional hero title override
         detail_header: Optional detail section header override
         field_map: Optional field name remapping
+        label_map: Optional text substitutions for viz titles and dashboard text
+        detail_headers: Optional chart section headers [text_6, text_7, text_8]
         api_version: Salesforce API version
     """
     package = load_template(template_name)
@@ -457,6 +504,8 @@ def deploy_template(
             filter_fields=filter_fields,
             title_text=title_text,
             detail_header=detail_header,
+            label_map=label_map,
+            detail_headers=detail_headers,
         )
 
         print(f"  Creating dashboard: {dash_label}...")
