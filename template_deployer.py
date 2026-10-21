@@ -125,6 +125,7 @@ def prepare_viz_payloads(
     do_api: str = "",
     slug: str,
     field_map: Optional[Dict[str, str]] = None,
+    label_map: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Prepare viz creation payloads from a template package.
 
@@ -186,10 +187,13 @@ def prepare_viz_payloads(
             # Note: keep 'role' and 'type' — the REST API needs both for field validation
 
         # Also substitute field names in the DO-qualified expressions throughout the payload
-        # (e.g. axis titles, style references that embed field names as strings)
         if do_api and template_do_names:
             for old_do in template_do_names:
                 payload = _substitute(payload, {old_do: do_api})
+
+        # Substitute display labels (axis titles, viz titles, etc.)
+        if label_map:
+            payload = _substitute(payload, label_map)
 
         payloads[viz_name] = payload
 
@@ -375,6 +379,7 @@ def deploy_template(
     title_text: Optional[str] = None,
     detail_header: Optional[str] = None,
     field_map: Optional[Dict[str, str]] = None,
+    label_map: Optional[Dict[str, str]] = None,
     do_api: str = "",
     api_version: str = "v66.0",
 ) -> Dict[str, Any]:
@@ -418,7 +423,7 @@ def deploy_template(
         package,
         sdm_api=sdm_api, sdm_label=sdm_label, sdm_id=sdm_id,
         ws_api=ws_api, ws_label=ws_label, ws_id=ws_id,
-        do_api=do_api, slug=slug, field_map=field_map,
+        do_api=do_api, slug=slug, field_map=field_map, label_map=label_map,
     )
 
     viz_name_map = {}

@@ -1939,6 +1939,25 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                     for name, api in user_dims[:6]
                 ]
 
+                # Build label_map: remap D16 display labels → this demo's labels
+                label_map = {
+                    "Section Subheader": company,
+                }
+                # Map D16 metric labels to this demo's metric labels
+                d16_metric_labels = [
+                    "Tableau Platform Utilization Rate",
+                    "Reports Migrated to Tableau",
+                    "Report Fulfillment Cycle Time",
+                    "SF Native Report Usage",
+                ]
+                d16_dim_labels = ["Team", "Report Type", "System Source", "Request Status"]
+                for i, d16_label in enumerate(d16_metric_labels):
+                    if i < len(metric_config):
+                        label_map[d16_label] = metric_config[i]["label"]
+                for i, d16_label in enumerate(d16_dim_labels):
+                    if i < len(user_dims):
+                        label_map[d16_label] = user_dims[i][0].replace("_", " ").title()
+
                 demo_label = build_config.get("demo_name", "") or company if build_config else company
                 results = deploy_template(
                     template_name=template_name,
@@ -1958,6 +1977,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                     title_text=demo_label,
                     detail_header="Details",
                     field_map=field_map if field_map else None,
+                    label_map=label_map if label_map else None,
                 )
 
                 if results.get("dashboard") and not results.get("errors"):
