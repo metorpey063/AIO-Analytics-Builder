@@ -989,17 +989,16 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
                 columns.append({"name": d, "role": "dimension", "datatype": "string"})
             for mc in metric_config:
                 fmt = "percentage" if mc.get("agg") == "Average" else "decimal"
-                columns.append({"name": mc["field"], "role": "measure", "datatype": "real", "format": fmt})
+                columns.append({"name": mc["label"], "role": "measure", "datatype": "real", "format": fmt})
 
-            # Build worksheets: trend line (primary metric), bar chart (primary by first dim),
-            # multi-line by second dim, dual-axis (metric 1 vs metric 2)
+            # Build worksheets using label names (matching the published .hyper columns)
             worksheets = []
             m0 = metric_config[0]
             worksheets.append({
                 "name": f"{m0['label']} Trend",
                 "type": "line",
                 "title": f"{m0['label']} — Monthly Trend",
-                "rows_field": m0["field"], "cols_field": "Date",
+                "rows_field": m0["label"], "cols_field": "Date",
                 "aggregation": "Avg" if m0.get("agg") == "Average" else "Sum",
                 "date_derivation": "Month-Trunc",
             })
@@ -1008,7 +1007,7 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
                     "name": f"{m0['label']} by {dims[0]}",
                     "type": "horizontal_bar",
                     "title": f"{m0['label']} by {dims[0]}",
-                    "rows_field": dims[0], "cols_field": m0["field"],
+                    "rows_field": dims[0], "cols_field": m0["label"],
                     "aggregation": "Avg" if m0.get("agg") == "Average" else "Sum",
                     "sort": "desc",
                 })
@@ -1017,7 +1016,7 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
                     "name": f"{m0['label']} by {dims[1]}",
                     "type": "line",
                     "title": f"{m0['label']} by {dims[1]}",
-                    "rows_field": m0["field"], "cols_field": "Date",
+                    "rows_field": m0["label"], "cols_field": "Date",
                     "aggregation": "Avg" if m0.get("agg") == "Average" else "Sum",
                     "date_derivation": "Month-Trunc",
                     "color_field": dims[1],
@@ -1028,7 +1027,7 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
                     "name": f"{m0['label']} vs {m1['label']}",
                     "type": "dual_axis",
                     "title": f"{m0['label']} vs {m1['label']}",
-                    "rows_field": m0["field"], "rows_field_2": m1["field"],
+                    "rows_field": m0["label"], "rows_field_2": m1["label"],
                     "cols_field": "Date",
                     "aggregation": "Avg" if m0.get("agg") == "Average" else "Sum",
                     "aggregation_2": "Avg" if m1.get("agg") == "Average" else "Sum",
