@@ -165,11 +165,16 @@ def demos():
                 else:
                     info["company"] = d.name
 
-                # Get folder modified time as fallback date
-                if not info.get("build_date"):
-                    import datetime
+                # Ensure build_date always includes time
+                import datetime
+                bd = info.get("build_date", "")
+                if not bd:
                     mtime = d.stat().st_mtime
                     info["build_date"] = datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
+                elif len(bd) == 10:
+                    # Date-only from older checkpoint — append time from folder mtime
+                    mtime = d.stat().st_mtime
+                    info["build_date"] = bd + " " + datetime.datetime.fromtimestamp(mtime).strftime("%H:%M")
 
                 walkthroughs = sorted(d.glob("*walkthrough*.docx"))
                 info["walkthroughs"] = [{"name": w.name, "slug": d.name} for w in walkthroughs]
