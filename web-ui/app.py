@@ -152,8 +152,14 @@ def demos():
                     try:
                         cp = json.loads(checkpoint.read_text())
                         info["company"] = cp.get("company", d.name)
-                        info["build_type"] = cp.get("build_type", "unknown")
                         info["build_date"] = cp.get("build_date", "")
+                        # Show all output types that were built
+                        types = []
+                        if cp.get("pulse_done"): types.append("pulse")
+                        if cp.get("sdm_done") or cp.get("viz_done"): types.append("next")
+                        if cp.get("crma_dataset_id") or cp.get("crma_dashboard_id"): types.append("crma")
+                        info["build_type"] = ", ".join(types) if types else cp.get("build_type", "unknown")
+                        info["build_types"] = types
                     except json.JSONDecodeError:
                         info["company"] = d.name
                 else:

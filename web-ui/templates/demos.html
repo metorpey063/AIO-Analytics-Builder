@@ -16,8 +16,8 @@
         <div class="demo-card-header">
             <div>
                 <h3>{{ demo.company or demo.slug }}</h3>
-                <div style="display:flex; gap:6px; align-items:center; margin-top:2px">
-                    {% set bt = demo.get('build_type', 'unknown') %}
+                <div style="display:flex; gap:6px; align-items:center; margin-top:2px; flex-wrap:wrap">
+                    {% for bt in demo.get('build_types', [demo.get('build_type', 'unknown')]) %}
                     {% if bt == 'pulse' %}
                     <span class="badge" style="background:rgba(37,99,235,0.15); color:var(--blue)">Pulse</span>
                     {% elif bt == 'next' %}
@@ -27,6 +27,7 @@
                     {% else %}
                     <span class="badge badge-neutral">{{ bt | title }}</span>
                     {% endif %}
+                    {% endfor %}
                     {% if demo.get('build_date') %}
                     <span style="font-size:11px; color:var(--text-muted)">{{ demo.build_date }}</span>
                     {% endif %}
