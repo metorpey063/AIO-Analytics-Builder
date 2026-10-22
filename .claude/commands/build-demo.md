@@ -1224,12 +1224,39 @@ DIM_DESCRIPTIONS = {
 
 Generate descriptions using company/use-case context from the research step — they should be written for the Concierge AI to read, so phrase them as instructions: *"Use this field to..."* or *"This metric represents..."*
 
-**Phase 4b — Business preferences (Concierge language)**
-After all metrics are created, PUT each metric back with natural-language nouns that Concierge uses to generate responses. Pattern: GET the metric, update `insightsSettings.singularNoun` / `pluralNoun` / `sentiment`, strip read-only fields, PUT back.
-- Endpoint: `PUT /services/data/v66.0/ssot/semantic/models/{sdm}/metrics/{metric_api}?minorVersion=12`
-- Strip these fields before PUT: `id`, `createdBy`, `createdDate`, `lastModifiedBy`, `lastModifiedDate`
-- Good noun examples: `"deal closed"` / `"deals closed"`, `"in-person sales activity"` / `"in-person sales activities"`
-- Sentiment: `"SentimentTypeUpIsGood"` or `"SentimentTypeUpIsBad"`
+**Phase 4b — SDM Enhancement (MCP-powered Concierge tuning)**
+
+After metrics are created, use MCP to optimize the SDM for Concierge. This phase updates field descriptions, labels, sentiment, hides system fields, and deploys business preferences — all via the MCP `update_semantic_model_*` tools through `mcp_client.py`.
+
+**Step 1 — Measurement updates** (via `mcp.update_measure()`):
+- Set `label` to the human-friendly metric name
+- Set `description` to the Concierge-facing explanation from `METRIC_CONFIG`
+- Set `aggregationType` (Average, Sum, etc.)
+- Set `sentiment` (`SentimentTypeUpIsGood` or `SentimentTypeUpIsBad`)
+- Hide `day_offset` (system field, not a metric)
+
+**Step 2 — Dimension updates** (via `mcp.update_dimension()`):
+- Set `label` to human-friendly name from story config dimensions (e.g. "Service Line" not "service_line")
+- Set `description` including dimension values when known (e.g. "Filter by Facility Type. Values: Urban Tertiary, Rural, Outpatient Clinic.")
+- Hide system dimensions: `cdp_sys_SourceVersion`, `DataSource`, `DataSourceObject`, `KQ_record_id`, `record_id`, `entity_id`
+
+**Step 3 — Calculated measurement descriptions** (via `mcp.update_calculated_measure()`):
+- Full PUT — GET the SDM with `includeModelContent=True`, then for each `_clc` calc measure, rebuild the full body with `description` added from `METRIC_CONFIG`
+- Must preserve all existing fields (`expression`, `aggregationType`, `displayCategory`, `decimalPlace`, `directionality`, `filters`)
+
+**Step 4 — Metric descriptions** (via `mcp.update_metric()`):
+- Full PUT — must re-send `label`, `measurementReference`, `timeDimensionReference`, and `insightsSettings` (omitting `insightsSettings` crashes the metric UI)
+- Set `description` to `"{mc.description} {mc.why_it_matters}"` — both the technical definition and the business context
+
+**Step 5 — Business preferences** (via `mcp.update_business_preferences()`):
+- Generate using `generate_business_preferences()` — atomic `# ` prefixed lines, intent-driven (not data dictionary)
+- Format: one instruction per line, each starting with `# `. Up to 30,000 chars.
+- Categories: jargon resolution, default query behaviors, metric relationships, sorting/display defaults, counter-trends, answer style
+- Do NOT duplicate field descriptions — those belong on the measurement/dimension `description` field
+- Deploy directly to the SDM via MCP — no manual paste required
+- Save to `cp["business_preferences"]` and set `cp["sdm_enhanced"] = True`
+
+**Fallback**: if MCP is not configured, the REST-based description PUTs from Phase 4c still apply, and business preferences are generated for the walkthrough with manual paste instructions.
 
 **Phase 5 — Visualizations + Dashboard**
 

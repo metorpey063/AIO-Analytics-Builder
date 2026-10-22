@@ -228,6 +228,43 @@ class MCPClient:
     def analyze_data(self, **kwargs):
         return self.call_tool("analyze_data", kwargs)
 
+    def update_business_preferences(self, model_api, preferences_text):
+        return self.call_tool("update_semantic_model_business_preferences", {
+            "modelApiNameOrId": model_api,
+            "businessPreferences": preferences_text,
+        })
+
+    def update_measure(self, model_api, do_api, meas_api, **kwargs):
+        kwargs.update({"modelApiNameOrId": model_api, "dataObjectNameOrId": do_api,
+                       "measurementNameOrId": meas_api, "apiName": meas_api})
+        return self.call_tool("update_semantic_model_measure", kwargs)
+
+    def update_dimension(self, model_api, do_api, dim_api, **kwargs):
+        kwargs.update({"modelApiNameOrId": model_api, "dataObjectNameOrId": do_api,
+                       "dimensionNameOrId": dim_api, "apiName": dim_api})
+        return self.call_tool("update_semantic_model_dimension", kwargs)
+
+    def list_semantic_models(self, **kwargs):
+        return self.call_tool("list_semantic_models", kwargs)
+
+    def update_calculated_measure(self, model_api, clc_api, body):
+        return self.call_tool("update_semantic_model_calculated_measure", {
+            "modelApiNameOrId": model_api,
+            "calculatedMeasurementNameOrId": clc_api,
+            "body": body,
+        })
+
+    def update_calculated_dimension(self, model_api, cld_api, body):
+        return self.call_tool("update_semantic_model_calculated_dimension", {
+            "modelApiNameOrId": model_api,
+            "calculatedDimensionNameOrId": cld_api,
+            "body": body,
+        })
+
+    def update_metric(self, model_api, mtc_api, **kwargs):
+        kwargs.update({"modelApiNameOrId": model_api, "metricNameOrId": mtc_api})
+        return self.call_tool("update_semantic_model_metric", kwargs)
+
 
 def test_mcp_connection(config=None):
     """Quick test — try to list workspaces via MCP."""

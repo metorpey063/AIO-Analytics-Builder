@@ -4,6 +4,20 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-10-22 — Auto-deploy SDM business preferences, field descriptions, and sentiment via MCP (v2.8.0)
+
+### Added
+- **Phase 5b: SDM Enhancement** — new build phase after metrics creation. Uses MCP to automatically set measurement descriptions, labels, aggregation types, and sentiment; dimension labels and descriptions with actual dimension values; calculated measurement and metric descriptions; and business preferences. All deployed directly to the SDM — no manual steps required.
+- **`generate_business_preferences()`** — new function in `builder.py` that produces intent-driven business preference lines matching Tableau's `# ` format. Generates jargon resolution, default query behaviors, metric relationships, sorting defaults, counter-trend guidance, and answer style rules.
+- **7 new MCP client methods** — `update_business_preferences()`, `update_measure()`, `update_dimension()`, `update_calculated_measure()`, `update_calculated_dimension()`, `update_metric()`, `list_semantic_models()` in `mcp_client.py`.
+- **System field hiding** — Phase 5b automatically hides `cdp_sys_SourceVersion`, `DataSource`, `DataSourceObject`, `KQ_record_id`, `record_id`, `entity_id`, and `day_offset` so Concierge and the UI only show user-facing fields.
+
+### Changed
+- **Business preferences format** — switched from paragraph-style sections (`# COMPANY CONTEXT\n...`) to atomic one-instruction-per-line format matching Tableau's UI examples. Each line is an intent-driven instruction (jargon resolution, default behaviors, metric relationships) rather than a data dictionary restatement.
+- **Walkthrough HTML** — business preferences section now shows "automatically deployed" when MCP was used, with a link to review/edit in the UI. Falls back to manual paste instructions if MCP is unavailable.
+
+---
+
 ## 2026-10-21 — Z Layout template fixes, X-prefix ingest bug, dimension values (v2.7.2)
 
 ### Fixed

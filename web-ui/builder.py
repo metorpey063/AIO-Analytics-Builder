@@ -24,6 +24,76 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 TODAY = date.today()
 
+SYSTEM_DIM_BASES = {"cdp_sys_sourceversion", "datasource", "datasourceobject",
+                    "kq_record_id", "record_id", "entity_id", "data_source",
+                    "data_source_object", "day_offset"}
+
+SENTIMENT_MAP = {"up_is_good": "SentimentTypeUpIsGood", "up_is_bad": "SentimentTypeUpIsBad"}
+
+
+def generate_business_preferences(company, story_config, metric_config, dim_values):
+    """Generate atomic '# ' prefixed business preference lines for Concierge.
+
+    These are intent-driven instructions that map how the company talks about
+    their data to how Concierge should query it — resolving ambiguity, setting
+    default behaviors, and mapping business jargon to data operations.
+    """
+    lines = []
+    dims = story_config.get("dimensions", [])
+    lead = metric_config[0] if metric_config else {}
+    lead_label = lead.get("label", "the primary metric")
+    supporting = [mc for mc in metric_config[1:4]]
+    counter = [mc for mc in metric_config if mc.get("sentiment") == "up_is_good"]
+
+    # --- Jargon and ambiguity resolution ---
+    up_bad = [mc for mc in metric_config if mc.get("sentiment") == "up_is_bad"]
+    up_good = [mc for mc in metric_config if mc.get("sentiment") == "up_is_good"]
+    if up_bad:
+        worst_names = " or ".join(f"'{mc['label']}'" for mc in up_bad[:3])
+        lines.append(f"# 'Worst performing' or 'worst' means the highest value for {worst_names} — higher is worse for these metrics.")
+    if up_good:
+        best_names = " or ".join(f"'{mc['label']}'" for mc in up_good[:3])
+        lines.append(f"# 'Best performing' or 'strongest' means the highest value for {best_names} — higher is better for these metrics.")
+    if lead:
+        lines.append(f"# When a user asks about 'performance' or 'how things are going', use {lead_label} as the primary measure.")
+
+    # --- Default query behaviors ---
+    if dims:
+        lines.append(f"# When asked about performance, always include {dims[0]} in the breakdown.")
+    if len(dims) >= 2:
+        lines.append(f"# When comparing across {dims[0].lower()}, also show {dims[1].lower()} as a secondary grouping.")
+    for d in dims[:4]:
+        vals = dim_values.get(d, [])
+        if vals:
+            lines.append(f"# When asked about {d.lower()}, the valid values are: {', '.join(vals[:8])}.")
+
+    # --- Metric relationships and drill paths ---
+    if supporting:
+        lines.append(f"# When asked 'why' {lead_label.lower()} is changing, look at {supporting[0]['label']} first — it is the leading indicator.")
+    if len(supporting) >= 2:
+        lines.append(f"# When asked about downstream impact, show {supporting[1]['label']} — it is the consequence metric.")
+    if counter:
+        lines.append(f"# {counter[0]['label']} trends in the opposite direction from the other metrics — use it as the benchmark when asked 'is everything declining'.")
+
+    # --- Company-specific jargon ---
+    overview = story_config.get("company_overview", "")
+    if overview:
+        first_sentence = overview.split(".")[0].strip() + "."
+        lines.append(f"# {company} is {first_sentence[0].lower() + first_sentence[1:]}")
+
+    # --- Sorting and display defaults ---
+    if up_bad:
+        lines.append(f"# When ranking or sorting {dims[0].lower() if dims else 'segments'}, sort by {lead_label} descending — worst first.")
+    lines.append(f"# When asked about trends, default to the last 6 months compared to the prior 6 months.")
+    if len(metric_config) >= 2:
+        lines.append(f"# When asked to 'summarize' or 'give an overview', show {lead_label} and {metric_config[1]['label']} together.")
+
+    # --- Answer style ---
+    lines.append("# Always lead with the answer, then supporting data. Never open with a question back to the user.")
+    lines.append("# When showing numbers, include both the value and the period-over-period change.")
+
+    return "\n".join(lines)
+
 
 # ---------------------------------------------------------------------------
 # Progress helper
@@ -636,29 +706,17 @@ ul{{padding-left:1.5em}}li{{margin:4px 0}}
     if built_next:
         h.append(f"<h1>Business Preferences (SDM)</h1>")
         sdm_name = checkpoint.get("sdm_api", "[SDM name]")
-        h.append(f"<p>Copy the text below and paste it into: <b>Data 360 → Semantic Model → {e(sdm_name)} → AI Optimization → Manage Business Preferences</b></p>")
-        dims_str = ", ".join(dims) if dims else "Region, Category"
-        metric_defs = "\n".join([f"- {mc['label']}: {mc.get('description', '')}" for mc in metric_config])
-        dim_guidance_parts = []
-        for d in dims:
-            vals = dim_values.get(d, [])
-            dim_guidance_parts.append(f"- {d}: {', '.join(vals)}" if vals else f"- {d}")
-        dim_guidance = "\n".join(dim_guidance_parts) if dim_guidance_parts else f"Available dimensions: {dims_str}"
-        bp_text = (
-            f"# COMPANY CONTEXT\nThis data represents {company}'s operational analytics. "
-            f"{story_config.get('company_overview', '')}\n\n"
-            f"# METRIC DEFINITIONS\n{metric_defs}\n\n"
-            f"# DIMENSION GUIDANCE\n{dim_guidance}\n\n"
-            f"# THRESHOLDS AND TARGETS\nA decline of more than 10 percentage points is significant. Track metrics against prior period.\n\n"
-            f"# QUESTION INTENT\n\"worst\" = steepest percentage-point decline over the analysis period\n"
-            f"\"most affected\" = steepest decline segmented by the most recently mentioned dimension\n"
-            f"\"at risk\" = entities with the steepest recent decline\n"
-            f"\"flag for outreach\" = filter to the culprit segment and list entities below threshold\n\n"
-            f"# ANSWER STYLE\nLead with the answer, then supporting data. Do not open with questions back to the user.\n\n"
-            f"# TIME CONTEXT\nDefault comparison: current period vs. prior period (same duration)."
-        )
+        bp_text = checkpoint.get("business_preferences", "")
+        if not bp_text:
+            bp_text = generate_business_preferences(
+                company, story_config, metric_config,
+                story_config.get("dimension_values", dim_values))
+            checkpoint["business_preferences"] = bp_text
+        if checkpoint.get("sdm_enhanced"):
+            h.append(f"<p>These business preferences were <b>automatically deployed</b> to the SDM <code>{e(sdm_name)}</code>. To review or edit: <b>Data 360 → Semantic Model → {e(sdm_name)} → AI Optimization → Manage Business Preferences</b></p>")
+        else:
+            h.append(f"<p>Copy the text below and paste into: <b>Data 360 → Semantic Model → {e(sdm_name)} → AI Optimization → Manage Business Preferences</b></p>")
         h.append(f"<pre>{e(bp_text)}</pre>")
-        checkpoint["business_preferences"] = bp_text
 
     # ── Section 5: CRM Analytics — Dashboard Navigation ──────────────────────
     if built_crma:
@@ -1788,6 +1846,209 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 progress(q, "warn", f"Metric {mc['label']} failed: {r_mtc.text[:200]}", -1)
 
         cp["metrics_done"] = True
+        _save_cp(cp, slug, demo_dir)
+
+    # --- Phase 5b: SDM Enhancement (MCP) — field descriptions, sentiment, business preferences ---
+    if not cp.get("sdm_enhanced") and cp.get("sdm_done"):
+        progress(q, "sdm", "Enhancing SDM for Concierge (descriptions, sentiment, preferences)...", 66)
+        mcp_ok = False
+        try:
+            from mcp_client import MCPClient
+            mcp = MCPClient(config)
+            if mcp.available:
+                mcp.authenticate()
+                mcp.initialize()
+                mcp_ok = True
+        except Exception as e:
+            progress(q, "warn", f"MCP not available, skipping SDM enhancement: {str(e)[:150]}", -1)
+
+        if mcp_ok:
+            sdm_api = cp["sdm_api"]
+            do_api = cp["do_api"]
+
+            # --- Measurement updates: label, description, aggregation, sentiment ---
+            mmap = cp.get("measurement_map", {})
+            for mc in metric_config:
+                field_key = mc["field"]
+                label_key = re.sub(r"[^a-z0-9_]", "", mc["label"].lower().replace(" ", "_").replace("-", ""))
+                meas_api = mmap.get(field_key) or mmap.get(label_key) or mmap.get(f"X{label_key}")
+                if not meas_api:
+                    label_words = set(mc["label"].lower().replace("-", " ").split())
+                    for mk, mv in mmap.items():
+                        if len(label_words & set(mk.lower().replace("_", " ").split())) >= max(2, len(label_words) - 1):
+                            meas_api = mv
+                            break
+                if not meas_api:
+                    continue
+
+                # Build the dataObjectFieldName from the measurement_map key
+                for mk, mv in mmap.items():
+                    if mv == meas_api:
+                        do_field = mk + "__c"
+                        break
+                else:
+                    do_field = meas_api.rstrip("0123456789") + "__c"
+
+                sentiment = SENTIMENT_MAP.get(mc.get("sentiment", ""), "SentimentTypeUpIsGood")
+                try:
+                    mcp.update_measure(sdm_api, do_api, meas_api,
+                        dataObjectFieldName=do_field, isVisible=True,
+                        label=mc["label"], description=mc.get("description", ""),
+                        aggregationType=mc.get("agg", "Average"), sentiment=sentiment)
+                    progress(q, "info", f"  Measure updated: {mc['label']}", -1)
+                except Exception as e:
+                    progress(q, "warn", f"  Measure update failed ({mc['label']}): {str(e)[:150]}", -1)
+
+            # Hide day_offset measurement
+            day_api = mmap.get("day_offset")
+            if day_api:
+                try:
+                    mcp.update_measure(sdm_api, do_api, day_api,
+                        dataObjectFieldName="day_offset__c", isVisible=False)
+                except Exception:
+                    pass
+
+            # --- Dimension updates: label, description, hide system fields ---
+            dim_map = cp.get("dim_field_map", {})
+            dim_descs = story_config.get("dim_descriptions", {})
+            dim_vals = story_config.get("dimension_values", {})
+            user_dims = story_config.get("dimensions", [])
+
+            for base_name, dim_api in dim_map.items():
+                is_system = base_name.lower().replace(" ", "_") in SYSTEM_DIM_BASES
+                do_field = base_name + "__c" if not base_name.endswith("__c") else base_name
+                # Fix DC system fields that don't follow the __c pattern
+                if base_name == "DataSource":
+                    do_field = "DataSource__c"
+                elif base_name == "DataSourceObject":
+                    do_field = "DataSourceObject__c"
+
+                if is_system:
+                    try:
+                        mcp.update_dimension(sdm_api, do_api, dim_api,
+                            dataObjectFieldName=do_field, isVisible=False)
+                    except Exception:
+                        pass
+                    continue
+
+                # Human-friendly label
+                label = base_name.replace("_", " ").title()
+                for ud in user_dims:
+                    if ud.lower().replace(" ", "_") == base_name.lower().replace(" ", "_"):
+                        label = ud
+                        break
+
+                # Description from story config or auto-generate with values
+                desc = dim_descs.get(base_name, dim_descs.get(label, ""))
+                if not desc:
+                    vals = dim_vals.get(label, dim_vals.get(base_name, []))
+                    if vals:
+                        desc = f"Filter or group by {label}. Values: {', '.join(vals[:8])}."
+                    else:
+                        desc = f"Use to filter or group by {label}."
+
+                try:
+                    mcp.update_dimension(sdm_api, do_api, dim_api,
+                        dataObjectFieldName=do_field, isVisible=True,
+                        label=label, description=desc)
+                    progress(q, "info", f"  Dimension updated: {label}", -1)
+                except Exception as e:
+                    progress(q, "warn", f"  Dimension update failed ({label}): {str(e)[:150]}", -1)
+
+            # --- Calculated Measurement descriptions ---
+            progress(q, "sdm", "Setting calc field and metric descriptions...", 68)
+            try:
+                sdm_full = mcp.get_semantic_model(
+                    modelApiNameOrId=sdm_api, includeModelContent=True)
+                sdm_text = sdm_full.get("content", [{}])[0].get("text", "{}")
+                sdm_data = json.loads(sdm_text) if isinstance(sdm_text, str) else sdm_text
+            except Exception:
+                sdm_data = {}
+
+            mc_by_field = {mc["field"]: mc for mc in metric_config}
+            for cm in sdm_data.get("semanticCalculatedMeasurements", []):
+                base_key = cm["apiName"].replace("_clc", "")
+                mc = mc_by_field.get(base_key, {})
+                desc = mc.get("description", "")
+                why = mc.get("why_it_matters", "")
+                if not desc:
+                    continue
+                body = {
+                    "apiName": cm["apiName"], "label": cm.get("label", ""),
+                    "expression": cm.get("expression", ""),
+                    "dataType": cm.get("dataType", "Number"),
+                    "aggregationType": cm.get("aggregationType", "UserAgg"),
+                    "displayCategory": cm.get("displayCategory", "Continuous"),
+                    "decimalPlace": cm.get("decimalPlace", 4),
+                    "directionality": cm.get("directionality", "Up"),
+                    "isVisible": cm.get("isVisible", True),
+                    "isOverrideBase": cm.get("isOverrideBase", False),
+                    "semanticDataType": cm.get("semanticDataType", "None"),
+                    "filters": cm.get("filters", []),
+                    "description": desc,
+                }
+                try:
+                    mcp.update_calculated_measure(sdm_api, cm["apiName"], body)
+                    progress(q, "info", f"  Calc measure desc: {cm.get('label', cm['apiName'])}", -1)
+                except Exception as e:
+                    progress(q, "warn", f"  Calc measure desc failed ({cm['apiName']}): {str(e)[:120]}", -1)
+
+            # --- Calculated Dimension descriptions ---
+            for cd in sdm_data.get("semanticCalculatedDimensions", []):
+                desc = "Self-healing date anchored to today." if "date" in cd["apiName"].lower() else ""
+                if not desc:
+                    continue
+                body = {
+                    "apiName": cd["apiName"], "label": cd.get("label", ""),
+                    "expression": cd.get("expression", ""),
+                    "dataType": cd.get("dataType", "Date"),
+                    "displayCategory": cd.get("displayCategory", "Discrete"),
+                    "isVisible": cd.get("isVisible", True),
+                    "isOverrideBase": cd.get("isOverrideBase", False),
+                    "description": desc,
+                }
+                try:
+                    mcp.update_calculated_dimension(sdm_api, cd["apiName"], body)
+                    progress(q, "info", f"  Calc dim desc: {cd.get('label', cd['apiName'])}", -1)
+                except Exception as e:
+                    progress(q, "warn", f"  Calc dim desc failed ({cd['apiName']}): {str(e)[:120]}", -1)
+
+            # --- Metric descriptions (full PUT — must preserve insightsSettings) ---
+            for m in sdm_data.get("semanticMetrics", []):
+                base_key = m["apiName"].replace("_mtc", "")
+                mc = mc_by_field.get(base_key, {})
+                desc = mc.get("description", "")
+                why = mc.get("why_it_matters", "")
+                full_desc = f"{desc} {why}".strip() if desc else ""
+                if not full_desc:
+                    continue
+                try:
+                    mcp.update_metric(sdm_api, m["apiName"],
+                        label=m.get("label", ""),
+                        description=full_desc,
+                        measurementReference=m.get("measurementReference", {}),
+                        timeDimensionReference=m.get("timeDimensionReference", {}),
+                        aggregationType=m.get("aggregationType", "UserAgg"),
+                        timeGrains=m.get("timeGrains", ["Month", "Quarter", "Year"]),
+                        additionalDimensions=m.get("additionalDimensions", []),
+                        insightsSettings=m.get("insightsSettings", {}))
+                    progress(q, "info", f"  Metric desc: {m.get('label', m['apiName'])}", -1)
+                except Exception as e:
+                    progress(q, "warn", f"  Metric desc failed ({m['apiName']}): {str(e)[:120]}", -1)
+
+            # --- Business Preferences ---
+            bp_text = generate_business_preferences(
+                company, story_config, metric_config,
+                story_config.get("dimension_values", {}))
+            try:
+                mcp.update_business_preferences(sdm_api, bp_text)
+                cp["business_preferences"] = bp_text
+                progress(q, "info", f"  Business preferences set ({len(bp_text)} chars)", -1)
+            except Exception as e:
+                progress(q, "warn", f"  Business preferences failed: {str(e)[:200]}", -1)
+                cp["business_preferences"] = bp_text
+
+        cp["sdm_enhanced"] = True
         _save_cp(cp, slug, demo_dir)
 
     # --- Phase 6: Visualizations + Dashboard ---
