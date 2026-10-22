@@ -8,13 +8,21 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ### Added
 - **Phase 5b: SDM Enhancement** — new build phase after metrics creation. Uses MCP to automatically set measurement descriptions, labels, aggregation types, and sentiment; dimension labels and descriptions with actual dimension values; calculated measurement and metric descriptions; and business preferences. All deployed directly to the SDM — no manual steps required.
+- **Phase 7b: Live Concierge testing** — new post-build phase that runs each walkthrough prompt against the live SDM via MCP `analyze_data` and captures real AI-generated responses. The walkthrough HTML now shows actual Concierge answers (with real numbers and segment names) instead of static template text. Falls back to static prompts when MCP is unavailable.
 - **`generate_business_preferences()`** — new function in `builder.py` that produces intent-driven business preference lines matching Tableau's `# ` format. Generates jargon resolution, default query behaviors, metric relationships, sorting defaults, counter-trend guidance, and answer style rules.
 - **7 new MCP client methods** — `update_business_preferences()`, `update_measure()`, `update_dimension()`, `update_calculated_measure()`, `update_calculated_dimension()`, `update_metric()`, `list_semantic_models()` in `mcp_client.py`.
+- **Per-metric `base_range`** — story prompt now requires `[min, max]` decimal range per metric (e.g. `[0.10, 0.16]` for readmission rates). Eliminates the hardcoded `0.55-0.85` range that produced unrealistic values.
 - **System field hiding** — Phase 5b automatically hides `cdp_sys_SourceVersion`, `DataSource`, `DataSourceObject`, `KQ_record_id`, `record_id`, `entity_id`, and `day_offset` so Concierge and the UI only show user-facing fields.
+
+### Fixed
+- **Generic dimension values ("Service Line 1")** — dimension values lookup is now case-insensitive and whitespace-normalized. Warns when falling back to generic placeholders.
+- **Weak signal on "up_is_bad" metrics** — removed 0.3x dampener that made primary signal nearly invisible for metrics like readmission rates.
+- **Column name mismatch causing NULL ingest** — consolidated schema registration and CSV ingest rename into single `clean_field_name()` function, preventing drift between the two algorithms.
+- **Legacy sentiment normalization** — `"down_is_good"` auto-converts to `"up_is_bad"` at data gen time.
 
 ### Changed
 - **Business preferences format** — switched from paragraph-style sections (`# COMPANY CONTEXT\n...`) to atomic one-instruction-per-line format matching Tableau's UI examples. Each line is an intent-driven instruction (jargon resolution, default behaviors, metric relationships) rather than a data dictionary restatement.
-- **Walkthrough HTML** — business preferences section now shows "automatically deployed" when MCP was used, with a link to review/edit in the UI. Falls back to manual paste instructions if MCP is unavailable.
+- **Walkthrough HTML** — Concierge section now shows live AI responses when captured; business preferences section shows "automatically deployed" when MCP was used. Both fall back gracefully when MCP is unavailable.
 
 ---
 
