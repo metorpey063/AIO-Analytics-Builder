@@ -31,6 +31,20 @@ SYSTEM_DIM_BASES = {"cdp_sys_sourceversion", "datasource", "datasourceobject",
 SENTIMENT_MAP = {"up_is_good": "SentimentTypeUpIsGood", "up_is_bad": "SentimentTypeUpIsBad"}
 
 
+def clean_field_name(name):
+    """Sanitize a column/field name for Data Cloud: lowercase, alphanumeric + underscores,
+    X-prefix for digit-leading names, strip reserved prefixes, max 40 chars.
+    Used by BOTH schema registration AND CSV ingest rename — must be identical."""
+    clean = re.sub(r"[^a-z0-9_]", "", name.lower().replace(" ", "_"))
+    clean = re.sub(r"_+", "_", clean).strip("_")
+    if clean and clean[0].isdigit():
+        clean = "X" + clean
+    for prefix in ("salesforce_", "tableau_", "data_cloud_", "sfdc_"):
+        if clean.startswith(prefix):
+            clean = clean[len(prefix):]
+    return (clean[:40] if clean else "field")
+
+
 def generate_business_preferences(company, story_config, metric_config, dim_values):
     """Generate atomic '# ' prefixed business preference lines for Concierge.
 
@@ -1406,22 +1420,8 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         for mc in metric_config:
             fields.append({"name": mc["label"], "dataType": "Number"})
 
-        def _clean_field_name(name):
-            """Sanitize field name for Data Cloud schema: lowercase, underscores, alphanumeric only, max 40 chars.
-            Also strips reserved prefixes (salesforce, tableau, data_cloud).
-            Prepends X to names starting with a digit (DC does this automatically; we match it
-            so CSV headers align with the schema field names during bulk ingest)."""
-            clean = re.sub(r"[^a-z0-9_]", "", name.lower().replace(" ", "_"))
-            clean = re.sub(r"_+", "_", clean).strip("_")
-            if clean and clean[0].isdigit():
-                clean = "X" + clean
-            for prefix in ("salesforce_", "tableau_", "data_cloud_", "sfdc_"):
-                if clean.startswith(prefix):
-                    clean = clean[len(prefix):]
-            return (clean[:40] if clean else "field")
-
-        schema_fields = [{"name": _clean_field_name(f["name"]),
-                          "label": _clean_field_name(f["name"]),
+        schema_fields = [{"name": clean_field_name(f["name"]),
+                          "label": clean_field_name(f["name"]),
                           "dataType": f["dataType"]}
                          for f in fields]
 
@@ -1554,14 +1554,8 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         connector_name = sf.get("ingestion_connector_name", "analytics_builder_demo")
         schema_name = cp.get("schema_name", slug)
 
-        # Rename columns to match sanitized schema field names
-        col_rename = {}
-        for col in df.columns:
-            clean = re.sub(r"[^a-z0-9_]", "", col.lower().replace(" ", "_"))
-            clean = re.sub(r"_+", "_", clean).strip("_") or "field"
-            if clean[0].isdigit():
-                clean = "X" + clean
-            col_rename[col] = clean
+        # Rename columns to match sanitized schema field names (same function used for registration)
+        col_rename = {col: clean_field_name(col) for col in df.columns}
         df_ingest = df.rename(columns=col_rename)
 
         job_payload = {

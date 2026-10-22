@@ -1190,7 +1190,7 @@ for field_name, dim_api in dim_field_map.items():
 
 **Where to define descriptions in the script:**
 
-Add a `description` key to every `METRIC_CONFIG` entry:
+Every `METRIC_CONFIG` entry MUST include `description`, `sentiment`, and `base_range`:
 
 ```python
 METRIC_CONFIG = [
@@ -1198,14 +1198,26 @@ METRIC_CONFIG = [
         'label':       'Benefits Enrollment Rate',
         'field':       'benefits_enrollment_rate',
         'agg':         'Average',
-        'is_rate':     True,
-        'description': 'Percentage of eligible employees actively enrolled in at least one core benefits plan. Primary KPI — a sustained decline signals client health risk.',
+        'description': 'Percentage of eligible employees actively enrolled in at least one core benefits plan.',
+        'why_it_matters': 'Primary KPI — a sustained decline signals client health risk.',
         'singular':    'benefits enrollment rate',
         'plural':      'benefits enrollment rates',
+        'sentiment':   'up_is_good',     # "up_is_good" or "up_is_bad" — NEVER "down_is_good"
+        'base_range':  [0.70, 0.88],     # realistic starting range BEFORE the signal
+        'is_primary':  True,
+        'pulse_agg':   'AGGREGATION_AVERAGE',
     },
     ...
 ]
 ```
+
+**`base_range` is required** — without it the generator defaults to `[0.55, 0.85]`, which produces unrealistic values for metrics like readmission rates (should be 0.10-0.16) or churn rates (should be 0.03-0.08). Set the range to match the real-world scale of each metric.
+
+**`sentiment` values:** `"up_is_good"` (retention, satisfaction, utilization) or `"up_is_bad"` (readmission rate, churn, error rate). Legacy `"down_is_good"` is auto-normalized but should not be used in new builds.
+
+**`dimension_values` in the story config is required** — ensures the data generator uses real business terms ("Cardiac Surgery") instead of generic placeholders ("Service Line 1").
+
+**Column name cleaning:** the builder uses `clean_field_name()` (lowercase, alphanumeric + underscores, X-prefix for digits, strip reserved prefixes, max 40 chars) for BOTH schema registration AND CSV ingest. CLI builds must use the same algorithm to prevent NULL column mismatches. Import it: `from builder import clean_field_name`.
 
 Add a separate `DIM_DESCRIPTIONS` dict at the top of the script (near `METRIC_CONFIG`) with a description for every dimension the audience might filter by:
 
