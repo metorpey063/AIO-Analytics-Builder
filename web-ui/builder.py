@@ -160,7 +160,8 @@ Return ONLY valid JSON with this exact structure:
       "plural": "revenue growth rates",
       "sentiment": "up_is_good",
       "pulse_agg": "AGGREGATION_AVERAGE",
-      "is_primary": true
+      "is_primary": true,
+      "base_range": [0.05, 0.12]
     }
   ]
 }
@@ -172,7 +173,8 @@ Rules:
 - Generate at least 4 dimensions to support dashboard filters. Include one "where" (Region, Location), one "what" (Category, Type), one "who" (Team, Rep), and one "segment" (Size Band, Tier).
 - Field names use snake_case with no spaces. Keep field names SHORT — max 35 characters.
 - Metric LABELS should be short and business-focused (max 5 words). Example: "Client Retention Rate" not "Salesforce CRM Client Retention Tracking Rate".
-- Sentiment: "up_is_good" or "down_is_good".
+- Sentiment: "up_is_good" or "up_is_bad". Use "up_is_good" when high values are desirable (retention, satisfaction, utilization). Use "up_is_bad" when high values are undesirable (readmission rate, churn rate, error rate).
+- base_range: realistic [min, max] decimal range for the metric's starting value BEFORE the signal. Examples: readmission rate [0.10, 0.16], retention rate [0.80, 0.92], satisfaction score [0.70, 0.88], churn rate [0.03, 0.08], utilization rate [0.55, 0.75]. This MUST match the real-world scale of the metric.
 - CRITICAL: Metrics must be about the CUSTOMER'S BUSINESS, not about Salesforce/Tableau platform features. If uploaded documents mention Salesforce reports, dashboards, or platform features, IGNORE those — focus on the customer's industry KPIs (revenue, retention, efficiency, satisfaction, etc.).
 - All metrics should be rates/averages stored as decimals (0.0-1.0 range) OR flow metrics stored as raw numbers.
 - pulse_agg: "AGGREGATION_AVERAGE" for rates, "AGGREGATION_SUM" for flows/counts.
@@ -384,6 +386,10 @@ def signal_ramp(d, onset=-3, shape="accelerating", duration=3):
 def generate_data(story_config, q=None, advanced=None):
     """Generate synthetic data from story config. Returns DataFrame."""
     metric_config = story_config["metric_config"]
+    # Normalize legacy "down_is_good" sentiment to "up_is_bad"
+    for mc in metric_config:
+        if mc.get("sentiment") == "down_is_good":
+            mc["sentiment"] = "up_is_bad"
     dimensions = story_config.get("dimensions", ["Region", "Category", "Segment"])
     advanced = advanced or {}
 
@@ -394,20 +400,26 @@ def generate_data(story_config, q=None, advanced=None):
     signal_shape = advanced.get("signal_shape", "accelerating")
 
     story_dim_values = story_config.get("dimension_values", {})
+    # Build case-insensitive lookup for dimension values
+    _sdv_lower = {k.lower().replace("_", " "): v for k, v in story_dim_values.items()}
     dim_values = {}
     for dim in dimensions:
-        if dim in story_dim_values and story_dim_values[dim]:
-            dim_values[dim] = story_dim_values[dim]
-        elif dim.lower() in ("region", "location", "geography"):
+        dim_key = dim.lower().replace("_", " ")
+        matched = story_dim_values.get(dim) or _sdv_lower.get(dim_key)
+        if matched:
+            dim_values[dim] = matched
+        elif dim_key in ("region", "location", "geography"):
             dim_values[dim] = ["Northeast", "Southeast", "Midwest", "Southwest", "West"]
-        elif dim.lower() in ("category", "type", "product", "product category"):
+        elif dim_key in ("category", "type", "product", "product category"):
             dim_values[dim] = ["Category A", "Category B", "Category C", "Category D"]
-        elif dim.lower() in ("department", "team", "group"):
+        elif dim_key in ("department", "team", "group"):
             dim_values[dim] = ["Sales", "Marketing", "Operations", "Support"]
-        elif dim.lower() in ("segment", "tier", "level"):
+        elif dim_key in ("segment", "tier", "level"):
             dim_values[dim] = ["Enterprise", "Mid-Market", "SMB", "Startup"]
         else:
             dim_values[dim] = [f"{dim} 1", f"{dim} 2", f"{dim} 3", f"{dim} 4"]
+            if q:
+                progress(q, "warn", f"No dimension values for '{dim}' — using generic placeholders", -1)
 
     # Per-dimension signal multipliers: culprit (1.5-2.5x), moderate (0.8-1.2x),
     # flat (0.0-0.3x), and one counter-trend (-0.10 to -0.15)
@@ -462,7 +474,10 @@ def generate_data(story_config, q=None, advanced=None):
         for ent in range(n_entities):
             entity_id += 1
             eid = f"E-{entity_id:04d}"
-            base_values = {m["field"]: random.uniform(0.55, 0.85) for m in metric_config}
+            base_values = {}
+            for m in metric_config:
+                br = m.get("base_range", [0.55, 0.85])
+                base_values[m["field"]] = random.uniform(br[0], br[1])
 
             for dt in dates:
                 ramp = signal_ramp(dt, onset=signal_onset, shape=signal_shape, duration=abs(signal_onset))
@@ -494,13 +509,17 @@ def generate_data(story_config, q=None, advanced=None):
                         mult = combined_mult * 0.7
 
                     noise = np.random.normal(0, ns)
+                    # Signal direction: "up_is_good" metrics decline, others increase
                     if sent == "up_is_good":
                         val = base * (1 - mag * ramp * mult) + noise
                     else:
-                        val = base * (1 + mag * ramp * mult * 0.3) + noise
+                        val = base * (1 + mag * ramp * mult) + noise
 
                     if mc["agg"] == "Average":
-                        val = max(0.01, min(1.0, val))
+                        br = mc.get("base_range", [0.55, 0.85])
+                        floor = max(0.001, br[0] * 0.3)
+                        ceiling = min(1.0, br[1] * 2.5)
+                        val = max(floor, min(ceiling, val))
                     else:
                         val = max(0, val * 1000)
 
