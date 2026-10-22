@@ -707,33 +707,37 @@ ul{{padding-left:1.5em}}li{{margin:4px 0}}
 
     # ── Section 4: Tableau Next — Concierge Prompts ──────────────────────────
     if built_next:
-        h.append(f"<h1>Tableau Next — Concierge Prompts</h1>")
-        h.append("<p class='subtitle'>Each step shows the question to ask Concierge followed by the expected response. Ask these in the Tableau Next workspace where the SDM and dashboard were created.</p>")
-        prompts = [
-            ("Opening", f"How is {lead_metric.lower()} trending?",
-             f"Concierge shows the overall trend with a decline emerging in recent months, comparing current period vs. prior."),
-        ]
-        if dims:
-            prompts.append((f"Drill — {dims[0]}", f"Which {dims[0].lower()} has the worst {lead_metric.lower()}?",
-                            f"Concierge identifies the worst-performing {dims[0].lower()} segment with specific numbers and percentage decline."))
-        if len(dims) >= 2:
-            prompts.append((f"Drill — {dims[1]}", f"Within that {dims[0].lower()}, break it down by {dims[1].lower()}",
-                            f"Concierge drills deeper, revealing the compounding effect in a specific {dims[1].lower()} segment."))
-        if supporting:
-            prompts.append((f"Root Cause — {supporting[0]['label']}", f"What about {supporting[0]['label'].lower()}?",
-                            f"Concierge shows {supporting[0]['label']} lagging the primary metric, confirming the root cause."))
-        if len(supporting) >= 2:
-            prompts.append((f"Consequence — {supporting[1]['label']}", f"How has {supporting[1]['label'].lower()} been affected?",
-                            f"The downstream consequence is visible — {supporting[1]['label']} has degraded as a result of the primary decline."))
-        if counter:
-            prompts.append(("Counter-Trend", f"Is {counter[0]['label'].lower()} also declining?",
-                            f"No — {counter[0]['label']} is actually improving, which masks the severity of the problem in the overall average."))
-        prompts.append(("At-Risk Identification", f"Which entities are most at risk?",
-                        f"Concierge lists specific entities with the steepest declines across {', '.join(dims[:2]) if len(dims) >= 2 else dims[0] if dims else 'segments'}, ready for outreach."))
-        prompts.append(("Action", "What should we do about this?",
-                        f"Concierge recommends focusing on the worst {dims[0].lower() if dims else 'segment'} segment and monitoring {supporting[0]['label'] if supporting else 'supporting metrics'} as the leading indicator."))
-        for title, ask, expected in prompts:
-            h.append(f'<div class="step"><h2>{e(title)}</h2><p><b>Ask:</b> &ldquo;{e(ask)}&rdquo;</p><p><b>Expected response:</b> {e(expected)}</p></div>')
+        concierge_live = checkpoint.get("concierge_results", [])
+        if concierge_live:
+            h.append(f"<h1>Tableau Next — Concierge Prompts</h1>")
+            h.append("<p class='subtitle'>Each question was asked to Concierge at build time. Responses are live AI-generated answers based on the actual demo data.</p>")
+            for cr in concierge_live:
+                h.append(f'<div class="step"><h2>{e(cr["title"])}</h2>')
+                h.append(f'<p><b>Ask:</b> &ldquo;{e(cr["question"])}&rdquo;</p>')
+                h.append(f'<p><b>Expected response:</b> {e(cr.get("answer", "(no response captured)"))}</p></div>')
+        else:
+            h.append(f"<h1>Tableau Next — Concierge Prompts</h1>")
+            h.append("<p class='subtitle'>Each step shows the question to ask Concierge followed by the expected response. Ask these in the Tableau Next workspace where the SDM and dashboard were created.</p>")
+            prompts = [
+                ("Opening", f"How is {lead_metric.lower()} trending?",
+                 f"Concierge shows the overall trend with a decline emerging in recent months, comparing current period vs. prior."),
+            ]
+            if dims:
+                prompts.append((f"Drill — {dims[0]}", f"Which {dims[0].lower()} has the worst {lead_metric.lower()}?",
+                                f"Concierge identifies the worst-performing {dims[0].lower()} segment with specific numbers and percentage decline."))
+            if len(dims) >= 2:
+                prompts.append((f"Drill — {dims[1]}", f"Within that {dims[0].lower()}, break it down by {dims[1].lower()}",
+                                f"Concierge drills deeper, revealing the compounding effect in a specific {dims[1].lower()} segment."))
+            if supporting:
+                prompts.append((f"Root Cause — {supporting[0]['label']}", f"What about {supporting[0]['label'].lower()}?",
+                                f"Concierge shows {supporting[0]['label']} lagging the primary metric, confirming the root cause."))
+            if counter:
+                prompts.append(("Counter-Trend", f"Is {counter[0]['label'].lower()} also declining?",
+                                f"No — {counter[0]['label']} is actually improving, which masks the severity of the problem in the overall average."))
+            prompts.append(("At Risk", f"Which segments are most at risk?",
+                            f"Concierge lists segments with the steepest declines across {', '.join(dims[:2]) if len(dims) >= 2 else dims[0] if dims else 'segments'}."))
+            for title, ask, expected in prompts:
+                h.append(f'<div class="step"><h2>{e(title)}</h2><p><b>Ask:</b> &ldquo;{e(ask)}&rdquo;</p><p><b>Expected response:</b> {e(expected)}</p></div>')
 
     # ── Business Preferences (Next only) ─────────────────────────────────────
     if built_next:
@@ -2612,6 +2616,60 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                      headers=h, json={"assetApiName": cp["dash_api"], "assetType": "dashboard"})
     except Exception as e:
         progress(q, "warn", f"Asset linking failed: {e}", -1)
+
+    # --- Phase 7b: Concierge prompt testing (capture live responses for walkthrough) ---
+    if not cp.get("concierge_results") and cp.get("sdm_api"):
+        progress(q, "concierge", "Testing Concierge prompts...", 90)
+        try:
+            from mcp_client import MCPClient
+            mcp = MCPClient(config)
+            if mcp.available:
+                mcp.authenticate()
+                mcp.initialize()
+                sdm_api = cp["sdm_api"]
+                lead_label = metric_config[0]["label"] if metric_config else "the primary metric"
+                dims = story_config.get("dimensions", [])
+                supporting = metric_config[1:4]
+                counter = [mc for mc in metric_config if mc.get("sentiment") == "up_is_good"]
+
+                prompts = [("Opening", f"How is {lead_label.lower()} trending?")]
+                if dims:
+                    prompts.append((f"Drill — {dims[0]}", f"Which {dims[0].lower()} has the worst {lead_label.lower()}?"))
+                if len(dims) >= 2:
+                    prompts.append((f"Drill — {dims[1]}", f"Within that {dims[0].lower()}, break it down by {dims[1].lower()}"))
+                if supporting:
+                    prompts.append((f"Root Cause — {supporting[0]['label']}", f"What about {supporting[0]['label'].lower()}?"))
+                if counter:
+                    prompts.append(("Counter-Trend", f"Is {counter[0]['label'].lower()} also declining?"))
+                prompts.append(("At Risk", "Which segments are most at risk?"))
+
+                results = []
+                context = ""
+                for title, ask in prompts:
+                    try:
+                        args = {"utterance": ask, "targetEntityType": "sdm",
+                                "targetEntityIdOrApiName": sdm_api}
+                        if context:
+                            args["conversationContext"] = context
+                        result = mcp.call_tool("analyze_data", args)
+                        text = result.get("content", [{}])[0].get("text", "")
+                        data = json.loads(text) if text else {}
+                        answer = data.get("answer", "(no response)")
+                        # Strip HTML entities for clean text
+                        import html as _html_mod
+                        answer = _html_mod.unescape(answer)
+                        context = f"Previous Q: {ask}\nPrevious A: {answer[:500]}"
+                        results.append({"title": title, "question": ask, "answer": answer})
+                        progress(q, "info", f"  {title}: captured", -1)
+                    except Exception as e:
+                        results.append({"title": title, "question": ask, "answer": f"(Concierge unavailable: {str(e)[:100]})"})
+                        progress(q, "warn", f"  {title}: failed — {str(e)[:100]}", -1)
+
+                cp["concierge_results"] = results
+                _save_cp(cp, slug, demo_dir)
+                progress(q, "info", f"  Captured {len(results)} Concierge responses", -1)
+        except Exception as e:
+            progress(q, "warn", f"Concierge testing skipped: {str(e)[:150]}", -1)
 
     progress(q, "walkthrough", "Generating walkthrough document...", 92)
     generate_walkthrough(slug, company, story_config, metric_config, "next", cp, demo_dir)
