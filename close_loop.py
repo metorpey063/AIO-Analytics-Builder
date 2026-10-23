@@ -316,7 +316,7 @@ def _seg_label(s):
     return f"{s['value']} ({s['dimension']})"
 
 
-def build_payload(ctx, analysis, action, reason, top_n=5, cfg=None):
+def build_payload(ctx, analysis, action, reason, top_n=5, cfg=None, golden_record=None):
     a = analysis
     company, metric = ctx["company"], a["primary_metric"]
     culprit, compound = a["culprit"], a["compound"]
@@ -351,17 +351,27 @@ def build_payload(ctx, analysis, action, reason, top_n=5, cfg=None):
         "Created by AiO Analytics Builder from the demo insight.",
     ]))
 
+    # Golden record linking: if provided, link Tasks via WhatId, Cases via AccountId
+    gr_id = golden_record.get("id") if golden_record else None
+    gr_type = golden_record.get("type", "Account") if golden_record else None
+
     records = []
     if action == "task":
         for e, line in zip(a["at_risk"], at_risk_lines):
-            records.append({"attributes": {"type": "Task"},
-                            "Subject": f"{SUBJECT_PREFIX}: {metric} — {e['entity']}"[:255],
-                            "Description": f"{line}\n\n{summary}"[:32000],
-                            "ActivityDate": due, "Priority": "High", "Status": "Not Started"})
+            rec = {"attributes": {"type": "Task"},
+                   "Subject": f"{SUBJECT_PREFIX}: {metric} — {e['entity']}"[:255],
+                   "Description": f"{line}\n\n{summary}"[:32000],
+                   "ActivityDate": due, "Priority": "High", "Status": "Not Started"}
+            if gr_id and gr_type in ("Account", "Opportunity", "Case"):
+                rec["WhatId"] = gr_id
+            records.append(rec)
     elif action == "case":
-        records.append({"attributes": {"type": "Case"},
-                        "Subject": f"{SUBJECT_PREFIX}: {headline}"[:255],
-                        "Description": summary[:32000], "Priority": "High", "Status": "New"})
+        rec = {"attributes": {"type": "Case"},
+               "Subject": f"{SUBJECT_PREFIX}: {headline}"[:255],
+               "Description": summary[:32000], "Priority": "High", "Status": "New"}
+        if gr_id and gr_type == "Account":
+            rec["AccountId"] = gr_id
+        records.append(rec)
     elif action == "campaign":
         records.append({"attributes": {"type": "Campaign"},
                         "Name": f"AiO: {focus} {metric} recovery"[:80],
@@ -379,6 +389,7 @@ def build_payload(ctx, analysis, action, reason, top_n=5, cfg=None):
         "at_risk": a["at_risk"], "at_risk_lines": at_risk_lines, "summary": summary,
         "ask": ask, "records": records, "top_n": top_n,
         "slack": (cfg or {}).get("slack", {}), "analysis": a,
+        "golden_record": golden_record,
         "staged_at": datetime.now().isoformat(timespec="seconds"),
     }
 
@@ -505,7 +516,8 @@ def generate_flows(slug, payload, trigger, inst, post, explore_url=None):
     desc = f"AiO Analytics Builder close-the-loop for {company} — {payload['headline']}"
     out = {
         n["followup"]: flows.followup_flow(f"AiO {company} Follow-up", f"{desc}. Creates {noun}.",
-                                           _flow_records(payload)),
+                                           _flow_records(payload),
+                                           golden_record=payload.get("golden_record")),
         n["notify"]: flows.notify_flow(
             f"AiO {company} Notify", f"{desc}. Posts the action-taken card when the follow-up runs.",
             obj, field, value,
@@ -595,6 +607,53 @@ def section7(payload):
     intro = (f"The demo ends with an action: {payload['action_reason']}. The follow-up is built into the org, so "
              f"nothing runs from a laptop at demo time. Trigger: {payload['trigger_label']}.")
     return intro, payload["demo_steps"]
+
+
+# ── Golden record ─────────────────────────────────────────────────────────────
+
+def lookup_golden_record(inst, h, record_type, search, limit=10):
+    """Search for a CRM record by name or ID. Returns list of {Id, Name} dicts."""
+    from crm_upserter import query_records
+    search = (search or "").strip()
+    if not search:
+        return []
+    if len(search) in (15, 18) and search[:3].isalnum():
+        rows = query_records(inst.replace("Bearer ", ""), inst,
+                             f"SELECT Id, Name FROM {record_type} WHERE Id = '{search}' LIMIT 1",
+                             _headers=h)
+        if rows:
+            return rows
+    safe = search.replace("'", "\\'")
+    return query_records(None, None,
+                         f"SELECT Id, Name FROM {record_type} WHERE Name LIKE '%{safe}%' "
+                         f"ORDER BY LastModifiedDate DESC LIMIT {limit}",
+                         _inst=inst, _headers=h)
+
+
+def _lookup_soql(inst, h, soql):
+    """Run a SOQL query and return records."""
+    r = requests.get(f"{inst}/services/data/{API}/query",
+                     headers=h, params={"q": soql}, timeout=30)
+    if r.ok:
+        return r.json().get("records", [])
+    return []
+
+
+def search_golden_record(inst, h, record_type, search_term, limit=10):
+    """Search for a CRM record by name or ID. Returns list of {Id, Name} dicts."""
+    search_term = (search_term or "").strip()
+    if not search_term:
+        return []
+    if len(search_term) in (15, 18) and search_term[:3].isalnum():
+        rows = _lookup_soql(inst, h,
+            f"SELECT Id, Name FROM {record_type} WHERE Id = '{search_term}' LIMIT 1")
+        if rows:
+            return [{"Id": r["Id"], "Name": r.get("Name", "")} for r in rows]
+    safe = search_term.replace("'", "\\'")
+    rows = _lookup_soql(inst, h,
+        f"SELECT Id, Name FROM {record_type} WHERE Name LIKE '%{safe}%' "
+        f"ORDER BY LastModifiedDate DESC LIMIT {limit}")
+    return [{"Id": r["Id"], "Name": r.get("Name", "")} for r in rows]
 
 
 # ── Salesforce calls ───────────────────────────────────────────────────────────

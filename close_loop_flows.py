@@ -20,8 +20,8 @@ API_VERSION = "62.0"
 NS = "http://soap.sforce.com/2006/04/metadata"
 
 TOP_ORDER = ["actionCalls", "apiVersion", "description", "environments", "formulas", "interviewLabel", "label",
-             "processMetadataValues", "processType", "recordCreates", "screens", "start", "status", "subflows",
-             "textTemplates", "variables"]
+             "processMetadataValues", "processType", "recordCreates", "recordLookups", "screens", "start", "status",
+             "subflows", "textTemplates", "variables"]
 
 
 class Ref:
@@ -107,8 +107,35 @@ def _post_action(name, post, template, chatter_target):
 
 # ── Flow builders ─────────────────────────────────────────────────────────────
 
-def followup_flow(label, description, records):
-    """records: [{"sobject": "Task", "fields": {...}, "dates": {"ActivityDate": 2}}]. Outputs firstRecordId."""
+def _record_lookup(name, label_, y, sobject, field, value, output_var, target):
+    """recordLookups element: find one record by a field value, store its Id."""
+    return (f"{_head(name, label_, y)}{_conn(target)}"
+            f"<filterLogic>and</filterLogic>"
+            f"<filters>{_t('field', field)}{_t('operator', 'EqualTo')}{_val(value)}</filters>"
+            f"<getFirstRecordOnly>true</getFirstRecordOnly>"
+            f"{_t('object', sobject)}"
+            f"<storeOutputAutomatically>true</storeOutputAutomatically>")
+
+
+def followup_flow(label, description, records, golden_record=None):
+    """records: [{"sobject": "Task", "fields": {...}, "dates": {"ActivityDate": 2}}]. Outputs firstRecordId.
+
+    golden_record: optional {"id": "001...", "name": "Acme Corp", "type": "Account"}
+    When provided, a recordLookups step finds the record by Id at runtime and the
+    created records get WhatId (Tasks) or AccountId (Cases) linked to it.
+    """
+    lookups = []
+    lookup_vars = []
+    first_step = "Create_1"
+
+    if golden_record:
+        gr_id = golden_record["id"]
+        gr_type = golden_record.get("type", "Account")
+        first_step = "Lookup_Golden_Record"
+        lookups.append(_record_lookup(
+            "Lookup_Golden_Record", f"Find {golden_record.get('name', gr_type)}",
+            50, gr_type, "Id", gr_id, "goldenRecord", "Create_1"))
+
     creates, formulas, offsets = [], [], {}
     for i, rec in enumerate(records):
         assigns = "".join(f"<inputAssignments>{_t('field', k)}{_val(v)}</inputAssignments>"
@@ -116,17 +143,23 @@ def followup_flow(label, description, records):
         for field, days in rec.get("dates", {}).items():
             fname = offsets.setdefault(days, f"today_plus_{days}")
             assigns += f"<inputAssignments>{_t('field', field)}{_val(Ref(fname))}</inputAssignments>"
+        if golden_record:
+            gr_type = golden_record.get("type", "Account")
+            if rec["sobject"] == "Task" and gr_type in ("Account", "Opportunity", "Case"):
+                assigns += f"<inputAssignments>{_t('field', 'WhatId')}{_val(Ref('Lookup_Golden_Record.Id'))}</inputAssignments>"
+            elif rec["sobject"] == "Case" and gr_type == "Account":
+                assigns += f"<inputAssignments>{_t('field', 'AccountId')}{_val(Ref('Lookup_Golden_Record.Id'))}</inputAssignments>"
         nxt = f"Create_{i + 2}" if i + 1 < len(records) else None
         rid = "<assignRecordIdToReference>firstRecordId</assignRecordIdToReference>" if i == 0 else ""
-        head = _head(f"Create_{i + 1}", f"Create {rec['sobject']} {i + 1}", 100 * (i + 1))
+        head = _head(f"Create_{i + 1}", f"Create {rec['sobject']} {i + 1}", 100 * (i + 1) + (100 if golden_record else 0))
         creates.append(f"{head}"
                        f"{rid}{_conn(nxt)}{assigns}{_t('object', rec['sobject'])}")
     for days, fname in offsets.items():
         formulas.append(f"{_t('name', fname)}<dataType>Date</dataType>{_t('expression', f'TODAY() + {days}')}")
     var = ("<name>firstRecordId</name><dataType>String</dataType><isCollection>false</isCollection>"
            "<isInput>false</isInput><isOutput>true</isOutput>")
-    return _flow(label, description, "AutoLaunchedFlow", _start("Create_1"),
-                 {"recordCreates": creates, "formulas": formulas, "variables": [var]})
+    return _flow(label, description, "AutoLaunchedFlow", _start(first_step),
+                 {"recordCreates": creates, "recordLookups": lookups, "formulas": formulas, "variables": [var]})
 
 
 def notify_flow(label, description, obj, filter_field, filter_value, message, post, chatter_target="$Record.CreatedById"):
