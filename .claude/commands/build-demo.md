@@ -516,41 +516,56 @@ Always sanity-check: print the min/max/mean of derived metrics (e.g. quota attai
 - All percentages stored as decimals (0.35 not 35)
 - Column names business-friendly with spaces and proper caps
 
-**MANDATORY DATA QUALITY GATES — run BEFORE and AFTER generating data:**
+**USE `data_generator.py` FOR ALL DATA GENERATION — never write inline generate_data() functions.**
+
+The `data_generator.py` module has validation baked in. It rejects generic dimension values and produces consistent output. Claude's job is to fill in the config from the research phase, then call the generator:
 
 ```python
-from data_validator import validate_dimension_values, validate_dataframe
+from data_generator import generate_demo_data
 
-# BEFORE generating rows — catches missing or generic DIMENSION_VALUES
-errors = validate_dimension_values(DIMENSION_VALUES, DIMENSIONS)
-if errors:
-    print("❌ DIMENSION_VALUES failed validation:")
-    for e in errors:
-        print(f"  - {e}")
-    raise SystemExit("Fix DIMENSION_VALUES before generating data. Research the company for real values.")
-
-# ... generate DataFrame ...
-
-# AFTER generating rows — catches generic values that slipped through
-errors = validate_dataframe(df, DIMENSIONS)
-if errors:
-    print("❌ Generated data failed validation:")
-    for e in errors:
-        print(f"  - {e}")
-    raise SystemExit("Data contains generic placeholders. Fix DIMENSION_VALUES and regenerate.")
+df = generate_demo_data(
+    metrics=METRIC_CONFIG,
+    dimensions=DIMENSIONS,
+    dimension_values=DIMENSION_VALUES,
+    signal_config={
+        "magnitude": SIGNAL_MAGNITUDE,       # 0.37 default
+        "onset": SIGNAL_ONSET,               # -6 default
+        "shape": SIGNAL_SHAPE,               # "accelerating" default
+        "duration": 6,
+        "supporting_magnitude": SUPPORTING_MAGNITUDE,  # 0.12 default
+    },
+    multipliers={
+        # Per-dimension multiplier maps — differentiate signal by segment
+        # Values > 1.0 = steeper decline, < 0 = counter-trend (improving)
+        "Region": {"West Coast": 1.8, "Northeast": 0.4, ...},
+        "Client Segment": {"Mid-Market": 2.2, "Small": 1.4, "Micro": 0.8, ...},
+        "Service Tier": {"PEO Essentials": 2.0, "HR Plus Dedicated": -0.12, ...},
+    },
+    noise_dim="Client Segment",              # dimension to key noise scaling on
+    noise_map={"Micro": 0.022, "Small": 0.016, "Mid-Market": 0.012, ...},
+    roster_dims=["Client Segment", "Region"],  # cross-product dimensions
+    random_dims=["Tenure Band", "Service Tier"],  # randomly assigned per entity
+    history_months=HISTORY_MONTHS,
+    grain=GRAIN,
+    clients_per_cell=2,
+    goal_columns={"Target Rate": 0.85} if goals else None,
+)
 ```
 
-These gates are NOT optional. Every build MUST call both checks. Without them, dashboards show "Service_Tier 1, 2, 3" instead of real company terms.
+The generator handles: entity roster construction, signal ramp (accelerating/linear/step), per-segment multipliers, noise scaling by size, Record ID + Day_Offset columns, base value variation per entity, and both pre/post validation.
+
+**If `generate_demo_data()` raises a `ValueError`, the build MUST stop.** The error message explains what's wrong (generic dimension values, missing config, etc.). Fix the config and retry — never bypass the validator.
+
 - **Save the story to the checkpoint** (every output mode: Pulse, Next, CRMA, CSV). Write the values the script already engineered, so `/close-loop` and `/studio` tell the intended story later without re-asking. Merge it into the checkpoint; never overwrite other keys:
   ```python
   cp["story"] = {
       "company": COMPANY, "headline": "<one-line story headline>",
       "primary_metric": METRIC_CONFIG[0]["label"],
       "supporting_metrics": [m["label"] for m in METRIC_CONFIG[1:4]],  # leading indicator first
-      "dimensions": [...],                 # the drillable dimension columns, in drill order
-      "dimension_values": DIMENSION_VALUES, # REQUIRED — dict mapping each dim name to its list of real values
+      "dimensions": DIMENSIONS,
+      "dimension_values": DIMENSION_VALUES, # REQUIRED — real company-specific values
       "root_cause_dimension": "...",       # the cost/effort dimension
-      "entity_field": "...",               # finest-grain name column (Q4 at-risk list)
+      "entity_field": "Entity ID",         # finest-grain name column (Q4 at-risk list)
       "date_field": "Date",
   }
   save_checkpoint(cp)
