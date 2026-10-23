@@ -201,10 +201,72 @@ def signal_flow(label, description, signal_prefix, followup_api):
                  {"subflows": [sub]})
 
 
-def package_xml(flow_names=()):
-    """package.xml for a deploy; package_xml() (no members) is the companion for destructiveChanges."""
-    if not flow_names:
+def record_action_screen_flow(label, description, followup_api, confirm_html, done_html, button_label):
+    """Screen Flow launched from a record-page Quick Action. Receives recordId automatically.
+    Confirm screen → run follow-up subflow → done screen with link to created record."""
+    def screen(name, label_, html, target, finish_label):
+        return (f"{_head(name, label_, 100)}<allowBack>false</allowBack><allowFinish>true</allowFinish>"
+                f"<allowPause>false</allowPause>{_conn(target)}"
+                f"<fields>{_t('name', name + '_text')}{_t('fieldText', html)}<fieldType>DisplayText</fieldType></fields>"
+                f"{_t('nextOrFinishButtonLabel', finish_label)}<showFooter>true</showFooter><showHeader>true</showHeader>")
+    sub = (f"{_head('Run_Followup', 'Run Follow-up', 200)}{_conn('Done')}{_t('flowName', followup_api)}"
+           f"<storeOutputAutomatically>true</storeOutputAutomatically>")
+    var = ("<name>recordId</name><dataType>String</dataType><isCollection>false</isCollection>"
+           "<isInput>true</isInput><isOutput>false</isOutput>")
+    return _flow(label, description, "Flow", _start("Confirm"),
+                 {"screens": [screen("Confirm", "Confirm", confirm_html, "Run_Followup", button_label),
+                              screen("Done", "Done", done_html, None, "Finish")],
+                  "subflows": [sub], "variables": [var]})
+
+
+def quick_action_xml(sobject_type, action_name, flow_api_name, label):
+    """QuickAction metadata XML: a Flow-type action on a record page."""
+    return (f'<?xml version="1.0" encoding="UTF-8"?>\n'
+            f'<QuickAction xmlns="{NS}">\n'
+            f"    <flowDefinition>{_x(flow_api_name)}</flowDefinition>\n"
+            f"    <label>{_x(label)}</label>\n"
+            f"    <optionsCreateFeedItem>false</optionsCreateFeedItem>\n"
+            f"    <type>Flow</type>\n"
+            f"</QuickAction>\n")
+
+
+def record_action_deployment_xml(sobject_type, action_member, label):
+    """RecordActionDeployment metadata XML: pins the Quick Action to the record page."""
+    return (f'<?xml version="1.0" encoding="UTF-8"?>\n'
+            f'<RecordActionDeployment xmlns="{NS}">\n'
+            f"    <masterLabel>{_x(label)}</masterLabel>\n"
+            f"    <hasGuidedActions>true</hasGuidedActions>\n"
+            f"    <shouldLaunchActionOnReject>false</shouldLaunchActionOnReject>\n"
+            f"    <deploymentContexts>\n"
+            f"        <entityName>{_x(sobject_type)}</entityName>\n"
+            f"    </deploymentContexts>\n"
+            f"    <channels>\n"
+            f"        <channelItems>\n"
+            f"            <channel>Default</channel>\n"
+            f"            <defaultItems>\n"
+            f"                <action>{_x(action_member)}</action>\n"
+            f"                <pinned>Top</pinned>\n"
+            f"                <position>1</position>\n"
+            f"                <type>QuickAction</type>\n"
+            f"            </defaultItems>\n"
+            f"        </channelItems>\n"
+            f"    </channels>\n"
+            f"</RecordActionDeployment>\n")
+
+
+def package_xml(flow_names=(), quick_action_members=(), deployment_names=()):
+    """package.xml for a deploy. Supports Flows, QuickActions, and RecordActionDeployments."""
+    if not flow_names and not quick_action_members and not deployment_names:
         return f'<?xml version="1.0" encoding="UTF-8"?>\n<Package xmlns="{NS}"><version>{API_VERSION}</version></Package>\n'
-    members = "".join(f"<members>{n}</members>" for n in flow_names)
+    types = []
+    if flow_names:
+        members = "".join(f"<members>{n}</members>" for n in flow_names)
+        types.append(f"<types>{members}<name>Flow</name></types>")
+    if quick_action_members:
+        members = "".join(f"<members>{n}</members>" for n in quick_action_members)
+        types.append(f"<types>{members}<name>QuickAction</name></types>")
+    if deployment_names:
+        members = "".join(f"<members>{n}</members>" for n in deployment_names)
+        types.append(f"<types>{members}<name>RecordActionDeployment</name></types>")
     return (f'<?xml version="1.0" encoding="UTF-8"?>\n<Package xmlns="{NS}">'
-            f"<types>{members}<name>Flow</name></types><version>{API_VERSION}</version></Package>\n")
+            f"{''.join(types)}<version>{API_VERSION}</version></Package>\n")

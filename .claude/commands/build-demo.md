@@ -1596,8 +1596,11 @@ The current `close_loop.py` already supports all three — `recommend_action()` 
 **Step 6.4 — Trigger mechanism** (user input via AskUserQuestion)
 > "How should the action fire during the demo?"
 >
-> 1. **Slack alert with button** — insight card in Slack with a "Create follow-ups" link
-> 2. **Record-triggered** — creating a signal record automatically fires the follow-up
+> 1. **Record-page action** (Recommended if golden record selected) — a Quick Action button on the record page. The presenter navigates to the Account/Opportunity, clicks the button, confirms, done.
+> 2. **Slack alert with button** — insight card in Slack with a "Create follow-ups" link
+> 3. **Record-triggered** — creating a signal record automatically fires the follow-up
+
+If a golden record was selected in Step 6.2, default to "Record-page action" — it's the most natural trigger when the demo ends on a specific CRM record. The record_action trigger deploys a QuickAction + RecordActionDeployment alongside the Flows, so the button appears in the Actions & Recommendations panel on the record page.
 
 **Step 6.5 — Notification channel** (user input)
 > "Where should the team be notified?"

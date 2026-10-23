@@ -46,7 +46,7 @@ API = "v62.0"
 SUBJECT_PREFIX = "AiO Alert"
 SIGNAL_PREFIX = "AiO Signal"
 SLACK_ACTION = "slackPostMessage"
-TRIGGERS = ["slack_button", "record_triggered"]  # P2: agentforce · P3: next_button
+TRIGGERS = ["slack_button", "record_triggered", "record_action"]
 
 # Story keywords → action. Task is the default (path of least resistance).
 CASE_KEYWORDS = ["stockout", "stock-out", "defect", "sla", "quality", "outage", "safety", "incident",
@@ -444,13 +444,16 @@ def explore_link(cp):
 # ── Follow-up design: action × trigger → Flows ────────────────────────────────
 
 def recommend_trigger(cp, action):
-    """ONE trigger per demo. Operational breaches (Case) automate on a signal; everything else is a Slack
-    alert with a button. Next builds will default to an Agentforce action once P2 lands."""
+    """ONE trigger per demo. Golden record → record-page action; operational breaches → signal;
+    everything else → Slack alert with a button."""
+    if cp.get("golden_record"):
+        return "record_action", (f"golden record selected ({cp['golden_record'].get('name', '?')}) "
+                                 f"— a button on the record page is the most natural trigger")
     if action == "case":
         return "record_triggered", "operational threshold breach — the fix should fire automatically on the signal"
     why = "Pulse already alerts people — extend that alert into Slack with a one-click follow-up"
     if cp.get("next_done") or cp.get("sdm_done") or cp.get("next_sdm_done"):
-        why = "Next build — Slack button until the Agentforce trigger (P2) is available"
+        why = "Next build — Slack button until the Agentforce trigger is available"
     return "slack_button", why
 
 
@@ -462,6 +465,9 @@ def flow_names(slug, trigger):
         names.update({"alert": f"{base}_Alert", "screen": f"{base}_Followup_Screen"})
     elif trigger == "record_triggered":
         names["signal"] = f"{base}_Signal"
+    elif trigger == "record_action":
+        names["action_screen"] = f"{base}_Action_Screen"
+        names["quick_action"] = f"{base}_Action"
     return names
 
 
@@ -540,6 +546,27 @@ def generate_flows(slug, payload, trigger, inst, post, explore_url=None):
             f"AiO {company} Signal", f"{desc}. A Task whose Subject starts with '{SIGNAL_PREFIX}: {metric}' "
             f"(a threshold breach) runs the follow-up automatically.",
             f"{SIGNAL_PREFIX}: {metric}"[:255], n["followup"])
+    elif trigger == "record_action":
+        gr = payload.get("golden_record") or {}
+        gr_type = gr.get("type", "Account")
+        gr_name = gr.get("name", "the record")
+        confirm = (f"<p><b>{payload['headline']}</b></p><p>{payload['drill_path']}</p>"
+                   f"<p>This creates {noun} linked to <b>{gr_name}</b> and tells the team in "
+                   f"{'Slack' if slack else 'Chatter'}.</p>")
+        done = (f"<p><b>Done.</b> Created {noun}.</p>"
+                f"<p><a href=\"/lightning/r/{obj}/{{!Run_Followup.firstRecordId}}/view\">Open the first record</a></p>")
+        out[n["action_screen"]] = flows.record_action_screen_flow(
+            f"AiO {company} Action", f"{desc}. Record-page action — confirm → run follow-up → done.",
+            n["followup"], confirm, done, "Create follow-ups")
+        # QuickAction + RecordActionDeployment are non-Flow metadata — stored separately
+        qa_member = f"{gr_type}.{n['quick_action']}"
+        out[f"quickActions/{qa_member}.quickAction"] = flows.quick_action_xml(
+            gr_type, n["quick_action"], n["action_screen"], f"AiO: {metric} Follow-up")
+        deploy_name = f"AiO_{gr_type}_Actions"
+        out[f"recordActionDeployments/{deploy_name}.recordActionDeployment"] = flows.record_action_deployment_xml(
+            gr_type, qa_member, f"AiO {company} Actions")
+        out["_quick_action_member"] = qa_member
+        out["_deployment_name"] = deploy_name
     return out
 
 
@@ -579,6 +606,23 @@ def demo_script(slug, payload, trigger, names, slack_cfg, post_mode):
                       "trigger": "Click \"Create follow-ups\" in the card and press the button on the confirmation "
                                  "screen.",
                       "result": f"Salesforce creates {noun} with the full story in each record, and a second card in "
+                                f"{where} tells the team what was done and who owns it."})
+    elif trigger == "record_action":
+        gr = payload.get("golden_record") or {}
+        gr_name = gr.get("name", "the record")
+        gr_type = gr.get("type", "Account")
+        steps.append({"title": "Navigate to the record",
+                      "say": f"{focus}.{because} Now watch what happens when we go straight to the "
+                             f"{gr_type} record — {gr_name}.",
+                      "trigger": f"Open the {gr_type} record for {gr_name} in Salesforce.",
+                      "result": f"The {gr_type} record page with the \"AiO: {payload['metric']} Follow-up\" "
+                                f"action button visible in the Actions & Recommendations panel."})
+        steps.append({"title": "Close the loop",
+                      "say": f"{counter} We don't need to open another tool or remember to follow up. "
+                             f"The action is right here on the record.".strip(),
+                      "trigger": f"Click \"AiO: {payload['metric']} Follow-up\" in the Actions panel and press "
+                                 f"\"Create follow-ups\" on the confirmation screen.",
+                      "result": f"Salesforce creates {noun} linked to {gr_name}, and a notification in "
                                 f"{where} tells the team what was done and who owns it."})
     else:
         steps.append({"title": "The signal fires",
@@ -1056,8 +1100,27 @@ def cmd_build(slug, action=None, trigger=None, top_n=5, profile=None, check_only
     xmls = generate_flows(slug, payload, payload["trigger"], inst, post, explore_link(cp))
 
     out_dir = os.path.join(demo_dir(slug), "close_loop_metadata")
-    files = {"package.xml": flows.package_xml(list(xmls))}
-    files.update({f"flows/{n}.flow": x for n, x in xmls.items()})
+
+    # Separate Flows from QuickActions/RecordActionDeployments
+    flow_xmls = {}
+    extra_files = {}
+    qa_members = []
+    deploy_names = []
+    for name, xml in xmls.items():
+        if name.startswith("quickActions/") or name.startswith("recordActionDeployments/"):
+            extra_files[name] = xml
+            if name.startswith("quickActions/"):
+                qa_members.append(name.split("/")[1].replace(".quickAction", ""))
+            elif name.startswith("recordActionDeployments/"):
+                deploy_names.append(name.split("/")[1].replace(".recordActionDeployment", ""))
+        elif name.startswith("_"):
+            pass  # internal metadata keys, not files
+        else:
+            flow_xmls[name] = xml
+
+    files = {"package.xml": flows.package_xml(list(flow_xmls), qa_members, deploy_names)}
+    files.update({f"flows/{n}.flow": x for n, x in flow_xmls.items()})
+    files.update(extra_files)
     for path, x in files.items():
         os.makedirs(os.path.dirname(os.path.join(out_dir, path)), exist_ok=True)
         with open(os.path.join(out_dir, path), "w") as f:

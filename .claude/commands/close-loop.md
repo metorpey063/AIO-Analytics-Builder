@@ -65,7 +65,12 @@ Run `python close_loop.py plan --slug {slug}`. Show the user:
 - the Flow names to be deployed
 - the Section 7 preview: each step's **Say:** talk track, **Trigger:** and **Result:**. Ask whether the talk track reads right; wording is generated from the story, so if it's off, adjust the plan (`--action`/`--trigger`) or note edits to make in the .docx after build
 
-Let them override: `--action task|case|campaign`, `--trigger slack_button|record_triggered`.
+Let them override: `--action task|case|campaign`, `--trigger slack_button|record_triggered|record_action`.
+
+**Trigger types:**
+- **`slack_button`** — Slack insight card with a "Create follow-ups" link. Best for Pulse demos and teams that live in Slack.
+- **`record_triggered`** — A signal Task fires the follow-up automatically. Best for operational threshold breaches.
+- **`record_action`** — A Quick Action button on the golden record's page. Best when a golden record is selected — the presenter navigates to the Account/Opportunity record and clicks the action. Deploys a QuickAction + RecordActionDeployment alongside the Flows.
 
 ### 2b. Where should the team be told? (Slack or Chatter)
 
