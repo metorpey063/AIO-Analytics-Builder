@@ -163,9 +163,10 @@ def prepare_viz_payloads(
 
     vizzes = dict(package["components"]["visualizations"])
 
-    # Generate Detail_Bar_2 for the empty 3rd detail slot (Z Layout)
-    if "Detail_Bar_2" not in vizzes and "Horizontal_Bar" in vizzes:
-        bar2 = copy.deepcopy(vizzes["Horizontal_Bar"])
+    # Generate Detail_Bar_2 for the empty 3rd detail slot (Z Layout / F Layout)
+    horiz_key = "Horizontal_Bar" if "Horizontal_Bar" in vizzes else "Horizontal_Bar1" if "Horizontal_Bar1" in vizzes else None
+    if "Detail_Bar_2" not in vizzes and horiz_key:
+        bar2 = copy.deepcopy(vizzes[horiz_key])
         for fk, fv in bar2.get("fields", {}).items():
             if fv.get("role") == "Dimension":
                 fv["fieldName"] = "team1"

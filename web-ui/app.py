@@ -83,22 +83,24 @@ def setup():
     if edit_key and edit_key in full.get("profiles", {}):
         set_active_profile(full, edit_key)
         config = _load_config()
-        active_profile = full["profiles"][edit_key]
-        active_label = active_profile.get("label", "")
-        tc = active_profile.get("tableau", {})
-        sf = active_profile.get("salesforce", {})
-    elif full.get("active_profile") and full["active_profile"] in full.get("profiles", {}):
-        edit_key = full["active_profile"]
-        active_profile = full["profiles"][edit_key]
-        config = _load_config()
-        active_label = active_profile.get("label", "")
-        tc = active_profile.get("tableau", {})
-        sf = active_profile.get("salesforce", {})
+        active_conn = full["profiles"][edit_key]
+        active_label = active_conn.get("label", "")
+        tc = active_conn.get("tableau", {})
+        sf = active_conn.get("salesforce", {})
     else:
-        config = {"tableau": {}, "salesforce": {}}
-        active_label = ""
-        tc = {}
-        sf = {}
+        # Find any active key (prefer SF, fall back to TC)
+        edit_key = full.get("active_salesforce") or full.get("active_tableau_cloud")
+        if edit_key and edit_key in full.get("profiles", {}):
+            active_conn = full["profiles"][edit_key]
+            config = _load_config()
+            active_label = active_conn.get("label", "")
+            tc = active_conn.get("tableau", {})
+            sf = active_conn.get("salesforce", {})
+        else:
+            config = {"tableau": {}, "salesforce": {}}
+            active_label = ""
+            tc = {}
+            sf = {}
 
     return render_template("setup.html", config=config,
                            edit_profile_key=edit_key or "",
@@ -119,28 +121,28 @@ def build():
 def connections():
     from connections import load_full_config
     full = load_full_config()
-    active_key = full.get("active_profile")
+    active_sf = full.get("active_salesforce")
+    active_tc = full.get("active_tableau_cloud")
 
     tableau_conns = []
     salesforce_conns = []
     for key, p in full.get("profiles", {}).items():
         tc = p.get("tableau", {})
         sf = p.get("salesforce", {})
-        base = {
-            "key": key,
-            "label": p.get("label", key),
-            "active": key == active_key,
-        }
         if tc.get("pat_secret") and tc.get("site_name"):
             tableau_conns.append({
-                **base,
+                "key": key,
+                "label": p.get("label", key),
+                "active": key == active_tc,
                 "server": tc.get("server_url", ""),
                 "site": tc.get("site_name", ""),
                 "has_pat": bool(tc.get("pat_secret")),
             })
         if sf.get("refresh_token") and (sf.get("client_id") or sf.get("data_cloud_domain")):
             salesforce_conns.append({
-                **base,
+                "key": key,
+                "label": p.get("label", key),
+                "active": key == active_sf,
                 "login_url": sf.get("sf_login_url", ""),
                 "dc_domain": sf.get("data_cloud_domain", ""),
                 "connector": sf.get("ingestion_connector_name", ""),
@@ -154,7 +156,8 @@ def connections():
     return render_template("connections.html",
                            tableau_conns=tableau_conns,
                            salesforce_conns=salesforce_conns,
-                           active_key=active_key)
+                           active_sf=active_sf,
+                           active_tc=active_tc)
 
 
 @app.route("/demos")
@@ -571,17 +574,21 @@ def test_mcp():
 
 @app.route("/api/switch-profile", methods=["POST"])
 def switch_profile():
-    """Switch the active connection profile."""
+    """Switch the active connection. Supports per-type switching via conn_type."""
     try:
-        from connections import load_full_config, set_active_profile
+        from connections import load_full_config, set_active_profile, set_active_connection
         data = request.get_json(silent=True)
         key = data.get("key")
+        conn_type = data.get("conn_type")
         if not key:
-            return jsonify({"ok": False, "error": "No profile key provided"})
+            return jsonify({"ok": False, "error": "No connection key provided"})
         full = load_full_config()
         if key not in full.get("profiles", {}):
-            return jsonify({"ok": False, "error": f"Profile '{key}' not found"})
-        set_active_profile(full, key)
+            return jsonify({"ok": False, "error": f"Connection '{key}' not found"})
+        if conn_type in ("salesforce", "tableau_cloud"):
+            set_active_connection(full, conn_type, key)
+        else:
+            set_active_profile(full, key)
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
@@ -682,7 +689,7 @@ def oauth_mcp():
         from connections import load_full_config, save_full_config
         data = request.get_json(silent=True) or {}
         full = load_full_config()
-        key = data.get("profile_key") or full.get("active_profile")
+        key = data.get("profile_key") or full.get("active_salesforce")
         if not key or key not in full.get("profiles", {}):
             return jsonify({"ok": False, "error": "No active profile."})
 
@@ -716,7 +723,7 @@ def oauth_start():
 
         data = request.get_json(silent=True) or {}
         full = load_full_config()
-        key = data.get("profile_key") or full.get("active_profile")
+        key = data.get("profile_key") or full.get("active_salesforce")
         if not key or key not in full.get("profiles", {}):
             return jsonify({"ok": False, "error": "No active profile. Run Setup first."})
 
@@ -758,7 +765,7 @@ def save_config():
         if "anthropic" in data:
             full.setdefault("anthropic", {}).update(data["anthropic"])
 
-        key = full.get("active_profile")
+        key = full.get("active_salesforce")
         if key and key in full.get("profiles", {}):
             profile = full["profiles"][key]
             if "tableau" in data:
@@ -777,10 +784,11 @@ def save_config():
 
 @app.route("/api/profiles/list", methods=["GET"])
 def profiles_list():
-    """Return connection profiles with org details for the build destination picker."""
+    """Return connections with org details for the build destination picker."""
     from connections import load_full_config
     full = load_full_config()
-    active_key = full.get("active_profile")
+    active_sf = full.get("active_salesforce")
+    active_tc = full.get("active_tableau_cloud")
     result = []
     for key, p in full.get("profiles", {}).items():
         tc = p.get("tableau", {})
@@ -788,7 +796,9 @@ def profiles_list():
         entry = {
             "key": key,
             "label": p.get("label", key),
-            "active": key == active_key,
+            "active": key == active_sf or key == active_tc,
+            "active_salesforce": key == active_sf,
+            "active_tableau_cloud": key == active_tc,
             "has_tableau": bool(tc.get("pat_secret") and tc.get("site_name")),
             "has_salesforce": bool(sf.get("refresh_token") and sf.get("client_id")),
             "tableau_site": tc.get("site_name", ""),

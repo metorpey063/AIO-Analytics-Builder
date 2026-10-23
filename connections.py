@@ -1,7 +1,16 @@
 """
 Core connection module for AIO Analytics Builder.
-Handles both Tableau Cloud (PAT) and Salesforce/Data Cloud (OAuth) auth.
-Supports multiple named profiles so SEs can switch between orgs.
+Handles Tableau Cloud (PAT) and Salesforce/Data Cloud (OAuth) auth.
+
+Connections are stored in config.json under "profiles" (kept for storage compat).
+Each entry is one org or site with its own credentials.
+
+Two independent "active" pointers control defaults:
+  active_salesforce    — the SF / Data 360 connection (used by Next, CRMA builds)
+  active_tableau_cloud — the Tableau Cloud connection (used by Pulse builds)
+
+The build flow picks the connection at output-selection time. If the user
+selects a non-active connection, the UI prompts re-authentication.
 """
 
 import json
@@ -45,26 +54,48 @@ _EMPTY_PROFILE = {
 # ── File-level helpers ─────────────────────────────────────────────────────────
 
 def load_full_config() -> dict:
-    """Load the raw config file. Migrates old flat format to profiles automatically."""
+    """Load the raw config file. Migrates old formats automatically."""
     if not os.path.exists(CONFIG_FILE):
-        return {"active_profile": None, "profiles": {}}
+        return {"active_salesforce": None, "active_tableau_cloud": None, "profiles": {}}
 
     with open(CONFIG_FILE) as f:
         raw = json.load(f)
 
-    # Migrate old flat format (no "profiles" key) to profile structure
+    changed = False
+
+    # Migrate v1: flat format (no "profiles" key)
     if "profiles" not in raw:
         profile = {
             "label": raw.get("_label", "Default"),
             "tableau": raw.get("tableau", {}),
             "salesforce": raw.get("salesforce", {}),
         }
-        migrated = {
-            "active_profile": "default",
+        raw = {
+            "active_salesforce": "default",
+            "active_tableau_cloud": "default",
             "profiles": {"default": profile},
         }
-        save_full_config(migrated)
-        return migrated
+        changed = True
+
+    # Migrate v2: single active_profile → split active per type
+    if "active_profile" in raw:
+        old_active = raw.pop("active_profile")
+        if "active_salesforce" not in raw:
+            raw["active_salesforce"] = old_active
+        if "active_tableau_cloud" not in raw:
+            raw["active_tableau_cloud"] = old_active
+        changed = True
+
+    # Ensure both active keys exist
+    if "active_salesforce" not in raw:
+        raw["active_salesforce"] = None
+        changed = True
+    if "active_tableau_cloud" not in raw:
+        raw["active_tableau_cloud"] = None
+        changed = True
+
+    if changed:
+        save_full_config(raw)
 
     return raw
 
@@ -74,72 +105,135 @@ def save_full_config(full_config: dict):
         json.dump(full_config, f, indent=2)
 
 
-def load_config(profile_key: str = None) -> dict:
+def _resolve_key(full: dict, profile_key: str = None, connection_type: str = None) -> str | None:
+    """Resolve which profile key to use."""
+    if profile_key:
+        return profile_key
+    if connection_type == "tableau_cloud":
+        return full.get("active_tableau_cloud") or full.get("active_salesforce")
+    return full.get("active_salesforce") or full.get("active_tableau_cloud")
+
+
+def load_config(profile_key: str = None, connection_type: str = None) -> dict:
     """
-    Returns the active profile's {tableau, salesforce} dict.
-    This is the main entry point for all auth code — same return shape as before.
-    Pass profile_key to load a specific profile instead of the active one.
+    Returns a connection's {tableau, salesforce, ...} dict.
+
+    Resolution order:
+      1. Explicit profile_key (backward compat)
+      2. Active connection for the requested type
+      3. active_salesforce as fallback
     """
     full = load_full_config()
-    key = profile_key or full.get("active_profile")
+    key = _resolve_key(full, profile_key, connection_type)
     if not key or key not in full.get("profiles", {}):
         raise RuntimeError(
-            "No active connection profile found. Run /setup to configure one."
+            "No active connection found. Run /setup to configure one."
         )
     return full["profiles"][key]
 
 
-# ── Profile management ─────────────────────────────────────────────────────────
+# ── Connection management ────────────────────────────────────────────────────
 
-def list_profiles(full_config: dict) -> list[dict]:
-    """Returns list of profile summaries for display."""
-    active = full_config.get("active_profile")
+def list_connections(full_config: dict, conn_type: str = None) -> list[dict]:
+    """List connections, optionally filtered by type.
+
+    conn_type: "salesforce" | "tableau_cloud" | None (all)
+    """
+    active_sf = full_config.get("active_salesforce")
+    active_tc = full_config.get("active_tableau_cloud")
     result = []
     for key, profile in full_config.get("profiles", {}).items():
         tc = profile.get("tableau", {})
         sf = profile.get("salesforce", {})
         has_tableau = bool(tc.get("pat_secret") and tc.get("site_name"))
-        has_sf = bool(sf.get("refresh_token") and sf.get("data_cloud_domain"))
+        has_sf = bool(sf.get("refresh_token"))
+
+        if conn_type == "salesforce" and not has_sf:
+            continue
+        if conn_type == "tableau_cloud" and not has_tableau:
+            continue
+
         caps = []
         if has_tableau:
             caps.append("Tableau Cloud")
         if has_sf:
-            caps.append("Salesforce/DC")
+            caps.append("Salesforce / Data 360")
+
         result.append({
             "key": key,
             "label": profile.get("label", key),
             "capabilities": ", ".join(caps) if caps else "not configured",
-            "active": key == active,
+            "active_salesforce": key == active_sf,
+            "active_tableau_cloud": key == active_tc,
+            "active": key == active_sf or key == active_tc,
+            "has_tableau": has_tableau,
+            "has_sf": has_sf,
         })
     return result
 
 
+def get_active_key(full_config: dict, conn_type: str) -> str | None:
+    """Return the key of the active connection for a given type."""
+    if conn_type == "tableau_cloud":
+        return full_config.get("active_tableau_cloud")
+    return full_config.get("active_salesforce")
+
+
+def set_active_connection(full_config: dict, conn_type: str, key: str):
+    """Set the active connection for a specific type only."""
+    if conn_type == "tableau_cloud":
+        full_config["active_tableau_cloud"] = key
+    else:
+        full_config["active_salesforce"] = key
+    save_full_config(full_config)
+
+
+# ── Backward-compat aliases ──────────────────────────────────────────────────
+
+def list_profiles(full_config: dict) -> list[dict]:
+    return list_connections(full_config)
+
+
 def get_profile(full_config: dict, key: str) -> dict:
-    """Return a profile dict by key, or an empty profile template."""
     import copy
     return copy.deepcopy(full_config.get("profiles", {}).get(key, _EMPTY_PROFILE))
 
 
 def save_profile(full_config: dict, key: str, profile: dict):
-    """Write a profile back to the full config and persist to disk."""
     if "profiles" not in full_config:
         full_config["profiles"] = {}
     full_config["profiles"][key] = profile
-    if full_config.get("active_profile") is None:
-        full_config["active_profile"] = key
+    # Auto-set active for whichever types this profile has credentials for
+    tc = profile.get("tableau", {})
+    sf = profile.get("salesforce", {})
+    if full_config.get("active_salesforce") is None and sf.get("refresh_token"):
+        full_config["active_salesforce"] = key
+    if full_config.get("active_tableau_cloud") is None and tc.get("pat_secret"):
+        full_config["active_tableau_cloud"] = key
     save_full_config(full_config)
 
 
 def set_active_profile(full_config: dict, key: str):
-    full_config["active_profile"] = key
+    """Backward compat — sets active for whichever types the profile supports."""
+    profile = full_config.get("profiles", {}).get(key, {})
+    tc = profile.get("tableau", {})
+    sf = profile.get("salesforce", {})
+    if sf.get("refresh_token"):
+        full_config["active_salesforce"] = key
+    if tc.get("pat_secret") and tc.get("site_name"):
+        full_config["active_tableau_cloud"] = key
+    if not sf.get("refresh_token") and not tc.get("pat_secret"):
+        full_config["active_salesforce"] = key
+        full_config["active_tableau_cloud"] = key
     save_full_config(full_config)
 
 
 def delete_profile(full_config: dict, key: str):
     full_config.get("profiles", {}).pop(key, None)
-    if full_config.get("active_profile") == key:
-        remaining = list(full_config.get("profiles", {}).keys())
-        full_config["active_profile"] = remaining[0] if remaining else None
+    for active_key in ("active_salesforce", "active_tableau_cloud"):
+        if full_config.get(active_key) == key:
+            remaining = list(full_config.get("profiles", {}).keys())
+            full_config[active_key] = remaining[0] if remaining else None
     save_full_config(full_config)
 
 
@@ -149,15 +243,15 @@ def make_profile_key(label: str) -> str:
     key = label.lower().strip()
     key = re.sub(r"[^a-z0-9]+", "_", key)
     key = key.strip("_")
-    return key or "profile"
+    return key or "connection"
 
 
-# ── Tableau Cloud (Pulse) ──────────────────────────────────────────────────────
+# ── Tableau Cloud (Pulse) ────────────────────────────────────────────────────
 
 def get_tableau_token(config=None):
     """Returns (server, auth_token, site_id) for Tableau Cloud REST API calls."""
     if config is None:
-        config = load_config()
+        config = load_config(connection_type="tableau_cloud")
     tc = config["tableau"]
     auth = TSC.PersonalAccessTokenAuth(tc["pat_name"], tc["pat_secret"], site_id=tc["site_name"])
     server = TSC.Server(tc["server_url"], use_server_version=True)
@@ -181,11 +275,10 @@ def tableau_pulse_headers(auth_token):
     }
 
 
-# ── Salesforce + Data Cloud (Tableau Next) ────────────────────────────────────
+# ── Salesforce + Data Cloud (Tableau Next) ──────────────────────────────────
 
 def _is_expired_refresh_token(response):
-    """Check if a token request failed due to an expired/revoked refresh token.
-    Must NOT match config errors like 'app not installed' or 'invalid client credentials'."""
+    """Check if a token request failed due to an expired/revoked refresh token."""
     if response.status_code != 400:
         return False
     try:
@@ -194,7 +287,6 @@ def _is_expired_refresh_token(response):
         body = {}
     err = body.get("error", "")
     desc = body.get("error_description", "").lower()
-    # These are config errors, not expired tokens — do NOT re-auth
     if "code verifier" in desc or "code_verifier" in desc:
         return False
     if "app_not_found" in err or "app not installed" in desc:
@@ -210,7 +302,7 @@ def _is_expired_refresh_token(response):
 
 
 def _reauth_via_browser(sf, profile_key=None):
-    """Run the OAuth browser flow to get a fresh refresh token, save it, and return new tokens."""
+    """Run the OAuth browser flow to get a fresh refresh token."""
     from oauth_flow import get_refresh_token
 
     print("\n⚠  Refresh token expired (Salesforce enforces a 30-day idle TTL).")
@@ -223,13 +315,12 @@ def _reauth_via_browser(sf, profile_key=None):
     )
 
     full = load_full_config()
-    key = profile_key or full.get("active_profile")
+    key = profile_key or _resolve_key(full, connection_type="salesforce")
     if key and key in full.get("profiles", {}):
         full["profiles"][key]["salesforce"]["refresh_token"] = tokens["refresh_token"]
         if tokens.get("code_verifier"):
             full["profiles"][key]["salesforce"]["code_verifier"] = tokens["code_verifier"]
         full["profiles"][key]["salesforce"].pop("pkce_refresh_mode", None)
-        # Cache the fresh access token for other sessions
         import time as _time
         full["profiles"][key]["_token_cache"] = {
             "access_token": tokens["access_token"],
@@ -242,23 +333,14 @@ def _reauth_via_browser(sf, profile_key=None):
 
 
 def get_sf_token(config=None, profile_key=None):
-    """Returns (sf_token, sf_instance) via refresh_token grant.
-    Supports PKCE orgs (includes code_verifier if saved in config).
-    Handles orgs that reject code_verifier by retrying without it.
-    Saves rotated refresh token back to config.json if one is returned.
-    Auto-triggers browser re-auth if the refresh token has expired.
-
-    Caches the access_token to avoid refresh token rotation races when
-    multiple sessions share the same config.json. Access tokens have a
-    ~2 hour TTL and can be safely reused across sessions."""
+    """Returns (sf_token, sf_instance) via refresh_token grant."""
     if config is None:
-        config = load_config(profile_key)
+        config = load_config(profile_key, connection_type="salesforce")
     sf = config["salesforce"]
 
-    # Check for a cached access token that's still valid
     import time as _time
     full = load_full_config()
-    key = profile_key or full.get("active_profile")
+    key = profile_key or _resolve_key(full, connection_type="salesforce")
     if key and key in full.get("profiles", {}):
         cached = full["profiles"][key].get("_token_cache", {})
         cached_token = cached.get("access_token", "")
@@ -275,38 +357,28 @@ def get_sf_token(config=None, profile_key=None):
     if sf.get("client_secret"):
         data["client_secret"] = sf["client_secret"]
 
-    # Determine whether to include code_verifier based on org's known behavior.
-    # Some PKCE orgs require it ("invalid code verifier" if missing), others
-    # reject it ("unexpected code verifier" if present). We store a flag after
-    # learning which behavior the org has to avoid burning tokens on the wrong path.
-    pkce_mode = sf.get("pkce_refresh_mode")  # "required" | "rejected" | None (unknown)
-
+    pkce_mode = sf.get("pkce_refresh_mode")
     if pkce_mode == "required" and sf.get("code_verifier"):
         data["code_verifier"] = sf["code_verifier"]
     elif pkce_mode == "rejected":
-        pass  # don't include code_verifier
+        pass
     else:
-        # Unknown — try WITHOUT first (most orgs don't need it on refresh)
         pass
 
     r = requests.post(f"{sf['sf_login_url']}/services/oauth2/token", data=data)
 
-    # Expired/revoked refresh token — re-authenticate via browser
     if _is_expired_refresh_token(r):
         return _reauth_via_browser(sf, profile_key)
 
-    # Learn from failure and retry the other way
     if r.status_code == 400 and sf.get("code_verifier"):
         err_text = r.text.lower()
         if "invalid code verifier" in err_text or "code verifier required" in err_text:
-            # Org REQUIRES code_verifier on refresh — add it and retry
             data["code_verifier"] = sf["code_verifier"]
             r = requests.post(f"{sf['sf_login_url']}/services/oauth2/token", data=data)
             if _is_expired_refresh_token(r):
                 return _reauth_via_browser(sf, profile_key)
             pkce_mode = "required"
         elif "unexpected code verifier" in err_text:
-            # Org REJECTS code_verifier on refresh — remove it and retry
             data.pop("code_verifier", None)
             r = requests.post(f"{sf['sf_login_url']}/services/oauth2/token", data=data)
             if _is_expired_refresh_token(r):
@@ -316,10 +388,9 @@ def get_sf_token(config=None, profile_key=None):
     r.raise_for_status()
     body = r.json()
 
-    # Handle refresh token rotation: save new token + learned PKCE mode + cache access token
     new_refresh = body.get("refresh_token")
     full = load_full_config()
-    key = profile_key or full.get("active_profile")
+    key = profile_key or _resolve_key(full, connection_type="salesforce")
     if key and key in full.get("profiles", {}):
         changed = False
         if new_refresh and new_refresh != sf["refresh_token"]:
@@ -329,12 +400,11 @@ def get_sf_token(config=None, profile_key=None):
         if pkce_mode and sf.get("pkce_refresh_mode") != pkce_mode:
             full["profiles"][key]["salesforce"]["pkce_refresh_mode"] = pkce_mode
             changed = True
-        # Cache access token so other sessions don't need to refresh (and revoke this token)
         import time as _time
         full["profiles"][key]["_token_cache"] = {
             "access_token": body["access_token"],
             "instance_url": body["instance_url"],
-            "expires_at": _time.time() + 7200,  # SF access tokens last ~2 hours
+            "expires_at": _time.time() + 7200,
         }
         changed = True
         if changed:
@@ -362,7 +432,7 @@ def get_dc_token(sf_token, sf_instance):
 def get_all_tokens(config=None):
     """Returns (sf_token, sf_instance, dc_token, dc_domain)."""
     if config is None:
-        config = load_config()
+        config = load_config(connection_type="salesforce")
     sf_token, sf_instance = get_sf_token(config)
     dc_token, dc_domain = get_dc_token(sf_token, sf_instance)
     return sf_token, sf_instance, dc_token, dc_domain
@@ -376,14 +446,9 @@ def dc_headers(dc_token):
     return {"Authorization": f"Bearer {dc_token}", "Content-Type": "application/json"}
 
 
-# ── Google Docs / Drive ───────────────────────────────────────────────────────
+# ── Google Docs / Drive ─────────────────────────────────────────────────────
 
 def get_google_token(config=None) -> str:
-    """
-    Exchange the stored Google refresh token for a fresh access token.
-    Returns the access_token string.
-    Raises RuntimeError if the google section is missing or unconfigured.
-    """
     if config is None:
         config = load_config()
     g = config.get("google", {})
@@ -405,7 +470,6 @@ def get_google_token(config=None) -> str:
 
 
 def has_google_config(config=None) -> bool:
-    """Returns True if Google credentials are present and non-empty."""
     if config is None:
         try:
             config = load_config()
@@ -415,7 +479,7 @@ def has_google_config(config=None) -> bool:
     return bool(g.get("client_id") and g.get("client_secret") and g.get("refresh_token"))
 
 
-# ── Validation ────────────────────────────────────────────────────────────────
+# ── Validation ──────────────────────────────────────────────────────────────
 
 def validate_all():
     """Test all connections in the active profile and print a status report."""

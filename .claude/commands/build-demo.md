@@ -344,13 +344,47 @@ Update the `signal_ramp` function to accept `onset`, `shape`, and `duration` par
 
 ---
 
-### 5. Output mode
-Choose one or more:
+### 5. Output mode + connection selection
+Choose one or more output modes:
 - `pulse` — Tableau Pulse metrics
 - `next` — Tableau Next + Data Cloud
 - `crma` — CRM Analytics (Wave) dataset + dashboard
 - `csv` — CSV export only
 - `all` — all of the above
+
+**After the user picks their output, select the connection(s):**
+
+The system uses independent active connections per type — one for Salesforce / Data 360 (used by Next + CRMA) and one for Tableau Cloud (used by Pulse). Use `connections.list_connections()` and `connections.get_active_key()` to find and display them.
+
+```python
+from connections import load_full_config, list_connections, get_active_key, set_active_connection
+
+full = load_full_config()
+
+# If output needs Salesforce (next, crma):
+sf_conns = list_connections(full, "salesforce")
+active_sf = get_active_key(full, "salesforce")
+
+# If output needs Tableau Cloud (pulse):
+tc_conns = list_connections(full, "tableau_cloud")
+active_tc = get_active_key(full, "tableau_cloud")
+```
+
+**Connection picker rules:**
+- If **1 connection** of the required type → auto-select, confirm: "Using **{label}** — correct?"
+- If **2+ connections** → show an `AskUserQuestion` picker with the active one pre-selected and marked "(Active)"
+- If **0 connections** → tell the user: "No Salesforce connections configured. Run /setup to add one."
+- **CSV-only** → no connection needed, skip this step
+
+**If the user selects a non-active connection**, show a confirmation:
+> "You're switching from **{active_label}** to **{selected_label}**. I'll use this connection for the build and set it as your new active Salesforce / Data 360 connection."
+
+Then call `set_active_connection(full, "salesforce", selected_key)` (or `"tableau_cloud"`) to update the active pointer before proceeding.
+
+Save the selected connection key to the checkpoint as `profile_key` so all subsequent phases use it:
+```python
+cp["profile_key"] = selected_key
+```
 
 ### 5a. Dashboard follow-up (only if output is `pulse`)
 
@@ -524,6 +558,32 @@ Always sanity-check: print the min/max/mean of derived metrics (e.g. quota attai
 - Engineer the signal: metric declines over the last 6 months using a ramp function
 - All percentages stored as decimals (0.35 not 35)
 - Column names business-friendly with spaces and proper caps
+
+**MANDATORY DATA QUALITY GATES — run BEFORE and AFTER generating data:**
+
+```python
+from data_validator import validate_dimension_values, validate_dataframe
+
+# BEFORE generating rows — catches missing or generic DIMENSION_VALUES
+errors = validate_dimension_values(DIMENSION_VALUES, DIMENSIONS)
+if errors:
+    print("❌ DIMENSION_VALUES failed validation:")
+    for e in errors:
+        print(f"  - {e}")
+    raise SystemExit("Fix DIMENSION_VALUES before generating data. Research the company for real values.")
+
+# ... generate DataFrame ...
+
+# AFTER generating rows — catches generic values that slipped through
+errors = validate_dataframe(df, DIMENSIONS)
+if errors:
+    print("❌ Generated data failed validation:")
+    for e in errors:
+        print(f"  - {e}")
+    raise SystemExit("Data contains generic placeholders. Fix DIMENSION_VALUES and regenerate.")
+```
+
+These gates are NOT optional. Every build MUST call both checks. Without them, dashboards show "Service_Tier 1, 2, 3" instead of real company terms.
 - **Save the story to the checkpoint** (every output mode: Pulse, Next, CRMA, CSV). Write the values the script already engineered, so `/close-loop` and `/studio` tell the intended story later without re-asking. Merge it into the checkpoint; never overwrite other keys:
   ```python
   cp["story"] = {
@@ -531,6 +591,7 @@ Always sanity-check: print the min/max/mean of derived metrics (e.g. quota attai
       "primary_metric": METRIC_CONFIG[0]["label"],
       "supporting_metrics": [m["label"] for m in METRIC_CONFIG[1:4]],  # leading indicator first
       "dimensions": [...],                 # the drillable dimension columns, in drill order
+      "dimension_values": DIMENSION_VALUES, # REQUIRED — dict mapping each dim name to its list of real values
       "root_cause_dimension": "...",       # the cost/effort dimension
       "entity_field": "...",               # finest-grain name column (Q4 at-risk list)
       "date_field": "Date",
@@ -1215,7 +1276,7 @@ METRIC_CONFIG = [
 
 **`sentiment` values:** `"up_is_good"` (retention, satisfaction, utilization) or `"up_is_bad"` (readmission rate, churn, error rate). Legacy `"down_is_good"` is auto-normalized but should not be used in new builds.
 
-**`dimension_values` in the story config is required** — ensures the data generator uses real business terms ("Cardiac Surgery") instead of generic placeholders ("Service Line 1").
+**`dimension_values` in the story config is required** — ensures the data generator uses real business terms ("Cardiac Surgery") instead of generic placeholders ("Service Line 1"). Define a `DIMENSION_VALUES` dict at the top of the script alongside `METRIC_CONFIG`, mapping each dimension name to its list of realistic values researched for this company. Save it to `cp["story"]["dimension_values"]`. Without it, every dimension falls back to "Dim_Name 1, 2, 3, 4" which looks fake in the dashboard.
 
 **Column name cleaning:** the builder uses `clean_field_name()` (lowercase, alphanumeric + underscores, X-prefix for digits, strip reserved prefixes, max 40 chars) for BOTH schema registration AND CSV ingest. CLI builds must use the same algorithm to prevent NULL column mismatches. Import it: `from builder import clean_field_name`.
 
