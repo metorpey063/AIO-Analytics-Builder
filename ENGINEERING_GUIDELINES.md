@@ -97,3 +97,39 @@ Write to the checkpoint after every phase. Include tracking lists (`all_viz_apis
 - `data_validator` returns error lists — check them and stop if non-empty
 - API calls: check `r.status_code` and print the error body, don't swallow 400s
 - If a phase fails, save the checkpoint (so completed phases aren't re-run) and stop with a clear message
+
+## 10. Viz creation: MCP for vizzes, REST for dashboards
+
+Use the MCP `create_visualization` tool for creating vizzes (slim IR-v2 spec, better quality). Use REST for dashboard assembly — MCP `edit_dashboard` widgets don't render on the canvas. When styling beyond what MCP can set (dual-axis, per-field colors, continuous palettes), use REST PATCH with GET → modify → PATCH.
+
+## 11. Never create IngestAPI DLO relationships
+
+SDM relationships between IngestAPI DLOs and CRM DLOs fail silently — `criteria` always comes back `[]` and queries throw "No join criteria found." Denormalize dimension fields into the fact table instead. Only create relationships within logical views or between CRM-native DLOs.
+
+## 12. Pulse builds must include AI insights
+
+Every Pulse build must call the Pulse Insights API (BAN + Brief) post-build and include the live AI responses in the walkthrough .docx as "Pulse Discover Questions." Never skip this — it's the most impressive part of the demo.
+
+## 13. Walkthrough label rules
+
+Never mix label types in the .docx:
+- **"Action:" / "Audience sees:"** → UI navigation sections (Demo Click Path)
+- **"Ask:" / "Expected response:"** → AI Q&A sections (Concierge Prompts, Pulse Discover, Studio Skills)
+- **"Say:" / "Trigger:" / "Result:"** → Close the Loop section only
+
+## 14. Build it, don't stub it
+
+When asked to "tweak" or "adjust" something, build the full asset first. The user will refine afterward — they don't want a placeholder or instructions for manual steps.
+
+## 15. Asset safety
+
+Only delete assets whose names appear in the checkpoint tracking lists (`all_viz_apis`, `all_sdm_apis`, `all_dash_apis`, `all_ws_apis`). Never delete assets created outside the current build without explicit user confirmation. Protected assets exist on shared orgs.
+
+## 16. Session discipline
+
+- Always write a session summary to memory at the end of a long session
+- Use `AskUserQuestion` buttons instead of asking users to type "next" or "continue"
+- Be transparent about context limits — say it's due to context, don't be vague
+- Ask before pushing to git — never auto-push
+- Commit verified fixes immediately — don't let working code sit uncommitted
+- Always update CHANGELOG.md with every push
