@@ -128,6 +128,22 @@ def generate_demo_data(
         msg += "\n".join(f"  - {e}" for e in errors)
         raise ValueError(msg)
 
+    # ── Normalize metric field names ────────────────────────────────────
+    # Column names come from mc["label"]. The DLO field name is
+    # clean_field_name(label). mc["field"] MUST match that, otherwise
+    # the SDM measurement_map lookup fails. Auto-fix any mismatches.
+    import re as _re
+    def _clean(name):
+        c = _re.sub(r'[^a-z0-9_]', '_', name.lower().strip())
+        c = _re.sub(r'_+', '_', c).strip('_')
+        if c and c[0].isdigit(): c = "X" + c
+        return c[:40]
+
+    for mc in metrics:
+        expected = _clean(mc["label"])
+        if mc.get("field") != expected:
+            mc["field"] = expected
+
     # ── Signal config defaults ───────────────────────────────────────────
     sc = signal_config or {}
     sig_magnitude = sc.get("magnitude", 0.37)
