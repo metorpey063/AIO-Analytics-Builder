@@ -1044,7 +1044,8 @@ def _write_walkthrough_html(path, intro, steps):
 # ── Commands ───────────────────────────────────────────────────────────────────
 
 TRIGGER_LABELS = {"slack_button": "Slack message with a \"Create follow-ups\" button",
-                  "record_triggered": "Record-triggered automation on a threshold-breach signal"}
+                  "record_triggered": "Record-triggered automation on a threshold-breach signal",
+                  "record_action": "Quick Action button on the CRM record page"}
 
 
 def _cfg(profile=None):
@@ -1109,7 +1110,8 @@ def cmd_plan(slug, action=None, trigger=None, top_n=5, org=None, profile=None, n
         trig_reason = f"overridden (recommended: {rec_trig} — {trig_reason})"
     trigger = trigger or rec_trig
 
-    payload = build_payload(ctx, analysis, action, reason, top_n, cfg)
+    golden_record = cp.get("golden_record")
+    payload = build_payload(ctx, analysis, action, reason, top_n, cfg, golden_record=golden_record)
     notify = notify or _saved_notify(slug)
     post_mode = "chatter" if notify == "chatter" else ("slack" if (org or {}).get("slack_ready") or notify == "slack"
                                                        else "chatter")

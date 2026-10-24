@@ -860,18 +860,18 @@ def close_loop_deploy():
         if not slug:
             return jsonify({"ok": False, "error": "No slug provided"})
 
+        # Save golden record to checkpoint BEFORE running build so cmd_plan reads it
+        import json as _json
+        cp_path = PROJECT_ROOT / "demos" / slug / f"{slug}_checkpoint.json"
+        if golden_record and cp_path.exists():
+            cp = _json.loads(cp_path.read_text())
+            cp["golden_record"] = golden_record
+            cp_path.write_text(_json.dumps(cp, indent=2, default=str))
+
         import subprocess
         cmd = ["python3", str(PROJECT_ROOT / "close_loop.py"), "build",
                "--slug", slug, "--action", action, "--trigger", trigger, "--notify", notify]
         result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=120)
-
-        if golden_record:
-            import json as _json
-            cp_path = PROJECT_ROOT / "demos" / slug / f"{slug}_checkpoint.json"
-            if cp_path.exists():
-                cp = _json.loads(cp_path.read_text())
-                cp["golden_record"] = golden_record
-                cp_path.write_text(_json.dumps(cp, indent=2, default=str))
 
         if result.returncode == 0:
             flow_names = [line.strip() for line in result.stdout.split("\n")
