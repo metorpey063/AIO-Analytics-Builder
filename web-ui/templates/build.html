@@ -410,6 +410,16 @@
                             </label>
                         </div>
                     </div>
+                    <!-- Include Actionability (visible when Tableau Next is checked) -->
+                    <div id="actionability-option" class="output-connection" style="display:none">
+                        <label style="display:flex; gap:10px; align-items:center; cursor:pointer; padding:8px 0">
+                            <input type="checkbox" id="w-out-crm-action" class="sync-field" data-sync="out-crm-action" style="accent-color:var(--blue)">
+                            <div>
+                                <strong style="font-size:13px">Include Actionability</strong>
+                                <p style="font-size:11.5px; color:var(--text-muted); margin:2px 0 0">After the build, walk through setting up a follow-up action — link the story to a CRM record and deploy a Flow the presenter triggers during the demo</p>
+                            </div>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="output-card">
@@ -445,14 +455,8 @@
                 </button>
                 <div class="advanced-body">
                     <div class="form-stack" style="gap:12px">
-                        <!-- CRM Actionability -->
-                        <label class="output-card" style="padding:10px 14px; display:none" id="crm-action-option">
-                            <input type="checkbox" id="w-out-crm-action" class="sync-field" data-sync="out-crm-action">
-                            <div class="output-card-inner" style="gap:4px">
-                                <strong style="font-size:13px">CRM Actionability</strong>
-                                <p style="font-size:11.5px">Create Account records in Salesforce linked to the analytics data for drill-to-action</p>
-                            </div>
-                        </label>
+                        <!-- CRM Actionability (moved to Tableau Next card) -->
+                        <!-- Placeholder removed — actionability checkbox is now in the Next output card -->
 
                         <!-- Brand Colors -->
                         <div class="form-row">
@@ -511,7 +515,123 @@
                 <button class="btn btn-ghost" onclick="goStep(4)">&larr; Back to Options</button>
                 <div style="display:flex; gap:8px">
                     <button class="btn btn-secondary hidden" id="build-retry-btn" onclick="startBuild()">Retry Build</button>
+                    <button class="btn btn-primary hidden" id="build-closeloop-btn" onclick="startCloseLoop()" style="background:var(--accent-gradient)">Close the Loop &rarr;</button>
                     <button class="btn btn-primary hidden" id="build-done-btn" onclick="location.href='/demos'">View Demo &rarr;</button>
+                </div>
+            </div>
+
+            <!-- Phase 6: Close the Loop (hidden until triggered) -->
+            <div class="hidden" id="phase6-section">
+                <div style="border-top:1px solid var(--border); margin-top:20px; padding-top:20px">
+                    <h2 style="margin:0 0 4px 0">Close the Loop</h2>
+                    <p class="subtitle" style="margin-bottom:16px">Link the analytics story to a CRM record and deploy a follow-up action.</p>
+
+                    <!-- Step 6.1: Story Recap -->
+                    <div class="card" style="margin-bottom:16px; padding:16px">
+                        <h3 style="margin:0 0 8px 0; font-size:14px; color:var(--text-muted)">Story Recap</h3>
+                        <p style="margin:0; font-size:13px; line-height:1.6">
+                            <strong id="p6-company">Company</strong>: <span id="p6-story">Loading story...</span>
+                        </p>
+                    </div>
+
+                    <!-- Step 6.2: Golden Record -->
+                    <div class="card" style="margin-bottom:16px; padding:16px">
+                        <h3 style="margin:0 0 12px 0; font-size:14px">Golden Record</h3>
+                        <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px">Do you have a specific CRM record this demo should point to?</p>
+                        <div style="display:flex; gap:8px; margin-bottom:12px">
+                            <button class="btn btn-secondary btn-sm" id="p6-gr-yes" onclick="showGoldenRecordSearch(true)" style="flex:1">Yes — I have a record</button>
+                            <button class="btn btn-ghost btn-sm" id="p6-gr-no" onclick="showGoldenRecordSearch(false)" style="flex:1">No — use the at-risk list</button>
+                        </div>
+                        <div id="p6-gr-search" class="hidden" style="margin-top:12px">
+                            <div class="form-stack" style="gap:8px">
+                                <div class="form-group">
+                                    <label style="font-size:12px">Record Type</label>
+                                    <select id="p6-gr-type" style="width:100%; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--glass-bg); color:var(--text-primary); font-size:12px">
+                                        <option value="Account">Account</option>
+                                        <option value="Opportunity">Opportunity</option>
+                                        <option value="Contact">Contact</option>
+                                        <option value="Lead">Lead</option>
+                                        <option value="Case">Case</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-size:12px">Record Name or ID</label>
+                                    <div style="display:flex; gap:4px">
+                                        <input type="text" id="p6-gr-query" placeholder="Search by name..." style="flex:1; font-size:12px; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--glass-bg); color:var(--text-primary)">
+                                        <button class="btn btn-secondary btn-sm" onclick="searchGoldenRecord()">Search</button>
+                                    </div>
+                                </div>
+                                <div id="p6-gr-results" style="font-size:12px"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 6.3: Action Type -->
+                    <div class="card" style="margin-bottom:16px; padding:16px">
+                        <h3 style="margin:0 0 12px 0; font-size:14px">Action Type</h3>
+                        <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px">What should happen when the presenter takes action?</p>
+                        <div class="form-stack" style="gap:6px">
+                            <label style="display:flex; gap:8px; align-items:center; cursor:pointer; font-size:13px">
+                                <input type="radio" name="p6-action" value="task" checked style="accent-color:var(--blue)">
+                                <span><strong>Create follow-up Tasks</strong> — one per at-risk entity</span>
+                            </label>
+                            <label style="display:flex; gap:8px; align-items:center; cursor:pointer; font-size:13px">
+                                <input type="radio" name="p6-action" value="case" style="accent-color:var(--blue)">
+                                <span><strong>Escalate to a Case</strong> — single escalation with the full story</span>
+                            </label>
+                            <label style="display:flex; gap:8px; align-items:center; cursor:pointer; font-size:13px">
+                                <input type="radio" name="p6-action" value="campaign" style="accent-color:var(--blue)">
+                                <span><strong>Add to a Campaign</strong> — recovery campaign for the segment</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Step 6.4: Trigger Mechanism -->
+                    <div class="card" style="margin-bottom:16px; padding:16px">
+                        <h3 style="margin:0 0 12px 0; font-size:14px">Trigger Mechanism</h3>
+                        <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px">How should the action fire during the demo?</p>
+                        <div class="form-stack" style="gap:6px">
+                            <label style="display:flex; gap:8px; align-items:center; cursor:pointer; font-size:13px">
+                                <input type="radio" name="p6-trigger" value="record_action" checked style="accent-color:var(--blue)">
+                                <span><strong>Record-page action</strong> — button on the CRM record page</span>
+                            </label>
+                            <label style="display:flex; gap:8px; align-items:center; cursor:pointer; font-size:13px">
+                                <input type="radio" name="p6-trigger" value="slack_button" style="accent-color:var(--blue)">
+                                <span><strong>Slack alert with button</strong> — insight card with "Create follow-ups" link</span>
+                            </label>
+                            <label style="display:flex; gap:8px; align-items:center; cursor:pointer; font-size:13px">
+                                <input type="radio" name="p6-trigger" value="record_triggered" style="accent-color:var(--blue)">
+                                <span><strong>Record-triggered</strong> — signal record auto-fires the follow-up</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Step 6.5: Notification -->
+                    <div class="card" style="margin-bottom:16px; padding:16px">
+                        <h3 style="margin:0 0 12px 0; font-size:14px">Notification</h3>
+                        <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px">Where should the team be notified?</p>
+                        <div style="display:flex; gap:12px">
+                            <label style="display:flex; gap:8px; align-items:center; cursor:pointer; font-size:13px">
+                                <input type="radio" name="p6-notify" value="chatter" checked style="accent-color:var(--blue)">
+                                <span><strong>Chatter</strong> — no setup needed</span>
+                            </label>
+                            <label style="display:flex; gap:8px; align-items:center; cursor:pointer; font-size:13px">
+                                <input type="radio" name="p6-notify" value="slack" style="accent-color:var(--blue)">
+                                <span><strong>Slack</strong> — posts to a channel</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Deploy button -->
+                    <div class="wizard-actions">
+                        <button class="btn btn-ghost" onclick="document.getElementById('phase6-section').classList.add('hidden'); document.getElementById('build-summary').classList.remove('hidden'); document.getElementById('build-done-btn').classList.remove('hidden'); document.getElementById('build-closeloop-btn').classList.remove('hidden');">&larr; Back to Build Summary</button>
+                        <button class="btn btn-primary" id="p6-deploy-btn" onclick="deployCloseLoop()" style="background:var(--accent-gradient)">Deploy Flows &rarr;</button>
+                    </div>
+
+                    <!-- Deploy progress -->
+                    <div id="p6-progress" class="hidden" style="margin-top:16px">
+                        <div class="progress-log" id="p6-log" style="max-height:200px"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -736,6 +856,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cb && conn) conn.style.display = cb.checked ? 'block' : 'none';
     });
 
+    // Show actionability option when Tableau Next is checked
+    const actionOpt = document.getElementById('actionability-option');
+    if (actionOpt && nextCb) actionOpt.style.display = nextCb.checked ? 'block' : 'none';
+
     // Template card selection (multi-select via checkboxes)
     document.querySelectorAll('.template-card').forEach(card => {
         card.addEventListener('click', () => {
@@ -869,7 +993,8 @@ document.addEventListener('change', (e) => {
     }
     if (e.target.id === 'w-out-next') {
         document.getElementById('next-connection').style.display = e.target.checked ? 'block' : 'none';
-        document.getElementById('crm-action-option').style.display = e.target.checked ? 'flex' : 'none';
+        document.getElementById('template-picker-section').style.display = e.target.checked ? 'block' : 'none';
+        document.getElementById('actionability-option').style.display = e.target.checked ? 'block' : 'none';
         if (!e.target.checked) document.getElementById('w-out-crm-action').checked = false;
     }
     if (e.target.id === 'w-out-crma') {
@@ -1136,6 +1261,7 @@ async function startBuild() {
     document.getElementById('progress-log').innerHTML = '';
     document.getElementById('build-done-btn').classList.add('hidden');
     document.getElementById('build-retry-btn').classList.add('hidden');
+    document.getElementById('build-closeloop-btn').classList.add('hidden');
     const summaryEl = document.getElementById('build-summary');
     if (summaryEl) summaryEl.classList.add('hidden');
 
@@ -1238,6 +1364,11 @@ async function startBuild() {
         if (msg.stage === 'done') {
             es.close();
             document.getElementById(doneId).classList.remove('hidden');
+            // Show Close the Loop button if actionability was checked
+            if (getChecked('out-crm-action') && getChecked('out-next')) {
+                const clBtn = document.getElementById('build-closeloop-btn');
+                if (clBtn) clBtn.classList.remove('hidden');
+            }
             // Show build summary
             const summaryEl = document.getElementById('build-summary');
             const itemsEl = document.getElementById('summary-items');
@@ -1248,6 +1379,9 @@ async function startBuild() {
                 if (getChecked('out-next')) outputs.push('Tableau Next workspace, SDM, vizzes, and dashboard created');
                 if (getChecked('out-crma')) outputs.push('CRM Analytics dataset uploaded');
                 outputs.push('Walkthrough document generated');
+                if (getChecked('out-crm-action') && getChecked('out-next')) {
+                    outputs.push('<strong>Close the Loop ready</strong> — click the button below to set up the follow-up action');
+                }
                 itemsEl.innerHTML = outputs.map(o => `<div style="padding:2px 0">&#10003; ${o}</div>`).join('');
                 summaryEl.classList.remove('hidden');
             }
@@ -1258,6 +1392,113 @@ async function startBuild() {
             document.getElementById(doneId).classList.remove('hidden');
         }
     };
+}
+
+function startCloseLoop() {
+    const company = getVal('company') || 'demo';
+    const slug = company.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    window.location.href = `/close-loop/${slug}`;
+}
+
+// ---- Phase 6: Close the Loop ----
+let p6GoldenRecord = null;
+
+function showGoldenRecordSearch(show) {
+    document.getElementById('p6-gr-search').classList.toggle('hidden', !show);
+    document.getElementById('p6-gr-yes').classList.toggle('btn-secondary', show);
+    document.getElementById('p6-gr-yes').classList.toggle('btn-ghost', !show);
+    document.getElementById('p6-gr-no').classList.toggle('btn-secondary', !show);
+    document.getElementById('p6-gr-no').classList.toggle('btn-ghost', show);
+    if (!show) {
+        p6GoldenRecord = null;
+        document.getElementById('p6-gr-results').innerHTML = '';
+        // Default to record_action when no golden record
+        const recAction = document.querySelector('input[name="p6-trigger"][value="record_action"]');
+        const slackBtn = document.querySelector('input[name="p6-trigger"][value="slack_button"]');
+        if (slackBtn) slackBtn.checked = true;
+    }
+}
+
+async function searchGoldenRecord() {
+    const type = document.getElementById('p6-gr-type').value;
+    const query = document.getElementById('p6-gr-query').value.trim();
+    if (!query) return;
+    const el = document.getElementById('p6-gr-results');
+    el.innerHTML = '<span style="color:var(--text-muted)">Searching...</span>';
+    try {
+        const r = await fetch('/api/close-loop/search-record', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({record_type: type, search: query}),
+        });
+        const j = await r.json();
+        if (!j.ok || !j.records.length) {
+            el.innerHTML = '<span style="color:var(--text-muted)">No records found. Try a different name.</span>';
+            return;
+        }
+        el.innerHTML = j.records.map(rec =>
+            `<label style="display:flex; gap:8px; align-items:center; padding:6px 0; cursor:pointer; border-bottom:1px solid var(--border)">
+                <input type="radio" name="p6-gr-record" value="${rec.Id}" data-name="${rec.Name}" data-type="${type}" style="accent-color:var(--blue)" onchange="selectGoldenRecord(this)">
+                <span><strong>${rec.Name}</strong> <span style="color:var(--text-muted)">(${rec.Id})</span></span>
+            </label>`
+        ).join('');
+    } catch (e) {
+        el.innerHTML = `<span style="color:var(--error)">Error: ${e.message}</span>`;
+    }
+}
+
+function selectGoldenRecord(radio) {
+    p6GoldenRecord = {id: radio.value, name: radio.dataset.name, type: radio.dataset.type};
+    // Default trigger to record_action when golden record is selected
+    const recAction = document.querySelector('input[name="p6-trigger"][value="record_action"]');
+    if (recAction) recAction.checked = true;
+}
+
+async function deployCloseLoop() {
+    const company = getVal('company') || 'demo';
+    const slug = company.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    const action = document.querySelector('input[name="p6-action"]:checked')?.value || 'task';
+    const trigger = document.querySelector('input[name="p6-trigger"]:checked')?.value || 'slack_button';
+    const notify = document.querySelector('input[name="p6-notify"]:checked')?.value || 'chatter';
+
+    const btn = document.getElementById('p6-deploy-btn');
+    btn.disabled = true; btn.textContent = 'Deploying...';
+    const progress = document.getElementById('p6-progress');
+    const log = document.getElementById('p6-log');
+    progress.classList.remove('hidden');
+    log.innerHTML = '';
+
+    function addLog(msg) {
+        const div = document.createElement('div');
+        div.className = 'log-line';
+        div.textContent = msg;
+        log.appendChild(div);
+        log.scrollTop = log.scrollHeight;
+    }
+
+    addLog(`Deploying close-the-loop for ${slug}...`);
+    addLog(`Action: ${action} | Trigger: ${trigger} | Notify: ${notify}`);
+    if (p6GoldenRecord) addLog(`Golden record: ${p6GoldenRecord.name} (${p6GoldenRecord.type} ${p6GoldenRecord.id})`);
+
+    try {
+        const r = await fetch('/api/close-loop/deploy', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({slug, action, trigger, notify, golden_record: p6GoldenRecord}),
+        });
+        const j = await r.json();
+        if (j.ok) {
+            addLog('✓ Flows deployed successfully!');
+            if (j.flows) j.flows.forEach(f => addLog(`  Flow: ${f}`));
+            addLog('');
+            addLog('Section 7 (Close the Loop) added to walkthrough document.');
+            btn.textContent = 'Deployed ✓'; btn.style.opacity = '0.7';
+        } else {
+            addLog('✗ Deploy failed: ' + (j.error || 'Unknown error'));
+            btn.disabled = false; btn.textContent = 'Retry Deploy';
+        }
+    } catch (e) {
+        addLog('✗ Error: ' + e.message);
+        btn.disabled = false; btn.textContent = 'Retry Deploy';
+    }
 }
 
 // ---- Helpers ----

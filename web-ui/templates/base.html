@@ -47,6 +47,11 @@
             </a></li>
         </ul>
         <div class="sidebar-footer">
+            <!-- Ask Claude button (in sidebar) -->
+            <div class="sidebar-chat-btn hidden" id="sidebar-chat-btn" onclick="toggleChat()" title="Ask Claude">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                <span>Ask Claude</span>
+            </div>
             <div class="connection-status">
                 <span class="status-dot {% if has_tableau %}connected{% else %}disconnected{% endif %}"></span> Tableau
             </div>

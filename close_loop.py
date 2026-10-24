@@ -967,11 +967,29 @@ def find_followup_records(inst, h, payload, since=None):
 # ── Walkthrough Section 7 ──────────────────────────────────────────────────────
 
 def write_walkthrough(slug, cp, payload):
-    """Replace (or append) the 'Close the Loop' section in the demo's walkthrough .docx."""
-    path = cp.get("walkthrough") or next(iter(sorted(glob.glob(os.path.join(demo_dir(slug), "*walkthrough*.docx")))), None)
-    if not path or not os.path.exists(path) or os.path.basename(path).startswith("~$"):
-        print("No walkthrough .docx found — skipping Section 7 (talk track is in the payload JSON).")
+    """Replace (or append) the 'Close the Loop' section in the demo's walkthrough (.docx or .html)."""
+    # Find the walkthrough file — try .docx first, then .html
+    path = cp.get("walkthrough")
+    if not path or not os.path.exists(path):
+        for ext in ("*.docx", "*.html"):
+            candidates = sorted(glob.glob(os.path.join(demo_dir(slug), f"*walkthrough*{ext.lstrip('*')}")))
+            candidates = [c for c in candidates if not os.path.basename(c).startswith("~$")]
+            if candidates:
+                path = candidates[0]
+                break
+    if not path or not os.path.exists(path):
+        print("No walkthrough found — skipping Section 7 (talk track is in the payload JSON).")
         return None
+
+    intro, steps = section7(payload)
+
+    if path.endswith(".html"):
+        return _write_walkthrough_html(path, intro, steps)
+    else:
+        return _write_walkthrough_docx(path, intro, steps)
+
+
+def _write_walkthrough_docx(path, intro, steps):
     from docx import Document
     doc = Document(path)
     drop = False
@@ -981,7 +999,6 @@ def write_walkthrough(slug, cp, payload):
         if drop:
             p._element.getparent().remove(p._element)
 
-    intro, steps = section7(payload)
     doc.add_heading("Close the Loop", level=1)
     doc.add_paragraph(intro)
     for s in steps:
@@ -991,6 +1008,36 @@ def write_walkthrough(slug, cp, payload):
             p.add_run(label).bold = True
             p.add_run(s[key])
     doc.save(path)
+    return path
+
+
+def _write_walkthrough_html(path, intro, steps):
+    with open(path, "r") as f:
+        html_content = f.read()
+
+    # Remove existing Close the Loop section if present
+    import re as _re
+    html_content = _re.sub(
+        r'<h1[^>]*>\s*Close the Loop\s*</h1>.*?(?=<h1[^>]*>|</body>|$)',
+        '', html_content, flags=_re.DOTALL)
+
+    # Build new section HTML
+    section = ['<h1>Close the Loop</h1>', f'<p>{intro}</p>']
+    for s in steps:
+        section.append(f'<h2>{s["title"]}</h2>')
+        section.append(f'<p><strong>Say:</strong> {s["say"]}</p>')
+        section.append(f'<p><strong>Trigger:</strong> {s["trigger"]}</p>')
+        section.append(f'<p><strong>Result:</strong> {s["result"]}</p>')
+    section_html = '\n'.join(section)
+
+    # Insert before </body> or append
+    if '</body>' in html_content:
+        html_content = html_content.replace('</body>', f'\n{section_html}\n</body>')
+    else:
+        html_content += f'\n{section_html}\n'
+
+    with open(path, "w") as f:
+        f.write(html_content)
     return path
 
 

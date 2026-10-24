@@ -117,6 +117,24 @@ def build():
     return render_template("build.html", has_tableau=has_tableau, has_salesforce=has_salesforce)
 
 
+@app.route("/close-loop/<slug>")
+def close_loop_page(slug):
+    """Standalone Phase 6 page for a completed demo build."""
+    import json as _json
+    cp_path = PROJECT_ROOT / "demos" / slug / f"{slug}_checkpoint.json"
+    if not cp_path.exists():
+        return f"Demo '{slug}' not found", 404
+    cp = _json.loads(cp_path.read_text())
+    story = cp.get("story", {})
+    return render_template("close_loop.html",
+                           slug=slug,
+                           company=story.get("company", slug),
+                           headline=story.get("headline", ""),
+                           primary_metric=story.get("primary_metric", ""),
+                           dimensions=story.get("dimensions", []),
+                           entity_field=story.get("entity_field", ""))
+
+
 @app.route("/connections")
 def connections():
     from connections import load_full_config
@@ -810,6 +828,61 @@ def profiles_list():
     return jsonify(result)
 
 
+@app.route("/api/close-loop/search-record", methods=["POST"])
+def close_loop_search_record():
+    """Search for a CRM record by name or ID for golden record selection."""
+    try:
+        from connections import load_config, get_sf_token
+        from close_loop import search_golden_record
+        data = request.get_json(silent=True) or {}
+        record_type = data.get("record_type", "Account")
+        search = data.get("search", "")
+        config = load_config(connection_type="salesforce")
+        sf_token, sf_instance = get_sf_token(config)
+        h = {"Authorization": f"Bearer {sf_token}", "Content-Type": "application/json"}
+        records = search_golden_record(sf_instance, h, record_type, search)
+        return jsonify({"ok": True, "records": records})
+    except Exception as e:
+        return jsonify({"ok": False, "records": [], "error": str(e)})
+
+
+@app.route("/api/close-loop/deploy", methods=["POST"])
+def close_loop_deploy():
+    """Deploy close-the-loop Flows for a demo."""
+    try:
+        data = request.get_json(silent=True) or {}
+        slug = data.get("slug", "")
+        action = data.get("action", "task")
+        trigger = data.get("trigger", "slack_button")
+        notify = data.get("notify", "chatter")
+        golden_record = data.get("golden_record")
+
+        if not slug:
+            return jsonify({"ok": False, "error": "No slug provided"})
+
+        import subprocess
+        cmd = ["python3", str(PROJECT_ROOT / "close_loop.py"), "build",
+               "--slug", slug, "--action", action, "--trigger", trigger, "--notify", notify]
+        result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=120)
+
+        if golden_record:
+            import json as _json
+            cp_path = PROJECT_ROOT / "demos" / slug / f"{slug}_checkpoint.json"
+            if cp_path.exists():
+                cp = _json.loads(cp_path.read_text())
+                cp["golden_record"] = golden_record
+                cp_path.write_text(_json.dumps(cp, indent=2, default=str))
+
+        if result.returncode == 0:
+            flow_names = [line.strip() for line in result.stdout.split("\n")
+                          if "AiO_" in line and ("Flow" in line or "deployed" in line.lower())]
+            return jsonify({"ok": True, "flows": flow_names, "output": result.stdout[-500:]})
+        else:
+            return jsonify({"ok": False, "error": result.stderr[-500:] or result.stdout[-500:]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
 @app.route("/api/demos/list", methods=["GET"])
 def demos_list_api():
     """Return list of existing demos with metadata for the build page picker."""
@@ -978,12 +1051,30 @@ def build_progress(build_id):
 # Chat bot (Claude API)
 # ---------------------------------------------------------------------------
 
-def _build_chat_system_prompt() -> str:
+def _build_chat_system_prompt(page_context=None) -> str:
     """Build a system prompt with live context about the user's AIO environment."""
     parts = ["You are the AIO Analytics Builder assistant. You help Tableau and Salesforce "
              "Solutions Engineers build compelling demo assets. Be concise and helpful. "
              "Answer questions about AIO features, Tableau Pulse, Tableau Next, Data Cloud, "
              "Salesforce, demo building, and anything related to the user's connected environment.\n"]
+
+    if page_context:
+        page_url = page_context.get("url", "")
+        page_title = page_context.get("page", "")
+        page_hints = {
+            "/": "The user is on the Home page — overview of AIO, quick stats, getting started.",
+            "/build": "The user is on the Build Demo page — walking through the demo creation wizard (company, story, metrics, output, build).",
+            "/setup": "The user is on the Setup page — configuring connections to Tableau Cloud and Salesforce.",
+            "/demos": "The user is on the My Demos page — viewing existing demo builds, walkthroughs, and assets.",
+            "/connections": "The user is on the Connections page — managing Salesforce and Tableau Cloud connections, testing auth, setting active connections.",
+        }
+        if page_url.startswith("/close-loop/"):
+            slug = page_url.replace("/close-loop/", "")
+            hint = f"The user is on the Close the Loop page for demo '{slug}' — setting up golden record, action type, trigger, and deploying follow-up Flows."
+        else:
+            hint = page_hints.get(page_url, f"The user is on: {page_title} ({page_url})")
+        parts.append(f"Current page context: {hint}\n"
+                     f"Tailor your answers to what the user is currently doing on this page.")
 
     config = _load_config()
     tc = config.get("tableau", {})
@@ -1071,7 +1162,8 @@ def chat():
     if not messages:
         return jsonify({"ok": False, "error": "No messages provided"}), 400
 
-    system_prompt = _build_chat_system_prompt()
+    page_context = data.get("page_context", {})
+    system_prompt = _build_chat_system_prompt(page_context)
 
     if cfg["mode"] == "bedrock_gateway":
         return _chat_via_bedrock_gateway(cfg, messages, system_prompt)

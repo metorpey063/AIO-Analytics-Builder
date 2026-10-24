@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% set active = "build" %}
+
+{% block title %}Close the Loop — {{ company }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Close the Loop</h1>
+    <p class="subtitle">Link the analytics story to a CRM record and deploy a follow-up action.</p>
+</div>
+
+<!-- Step 6.1: Story Recap -->
+<div class="card" style="margin-bottom:16px; padding:16px">
+    <h3 style="margin:0 0 8px 0; font-size:14px; color:var(--text-muted)">Story Recap</h3>
+    <p style="margin:0; font-size:13px; line-height:1.6">
+        <strong>{{ company }}</strong>: {{ headline }}
+    </p>
+    <div style="margin-top:8px; font-size:12px; color:var(--text-muted)">
+        Primary metric: <strong>{{ primary_metric }}</strong> ·
+        Dimensions: {{ dimensions | join(', ') }} ·
+        Entity: {{ entity_field }}
+    </div>
+</div>
+
+<!-- Step 6.2: Golden Record -->
+<div class="card" style="margin-bottom:16px; padding:16px">
+    <h3 style="margin:0 0 12px 0; font-size:14px">Golden Record</h3>
+    <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px">Do you have a specific CRM record this demo should point to?</p>
+    <div style="display:flex; gap:8px; margin-bottom:12px">
+        <button class="btn btn-secondary btn-sm" id="p6-gr-yes" onclick="showGrSearch(true)" style="flex:1">Yes — I have a record</button>
+        <button class="btn btn-ghost btn-sm" id="p6-gr-no" onclick="showGrSearch(false)" style="flex:1">No — use the at-risk list</button>
+    </div>
+    <div id="gr-search" class="hidden" style="margin-top:12px">
+        <div style="display:flex; flex-direction:column; gap:8px">
+            <div>
+                <label style="font-size:12px; font-weight:600">Record Type</label>
+                <select id="gr-type" style="width:100%; margin-top:4px; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--glass-bg); color:var(--text-primary); font-size:12px">
+                    <option value="Account">Account</option>
+                    <option value="Opportunity">Opportunity</option>
+                    <option value="Contact">Contact</option>
+                    <option value="Lead">Lead</option>
+                    <option value="Case">Case</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:12px; font-weight:600">Record Name or ID</label>
+                <div style="display:flex; gap:4px; margin-top:4px">
+                    <input type="text" id="gr-query" placeholder="Search by name..." style="flex:1; font-size:12px; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--glass-bg); color:var(--text-primary)"
+                           onkeydown="if(event.key==='Enter')searchGr()">
+                    <button class="btn btn-secondary btn-sm" onclick="searchGr()">Search</button>
+                </div>
+            </div>
+            <div id="gr-results" style="font-size:12px"></div>
+        </div>
+    </div>
+    <div id="gr-selected" class="hidden" style="margin-top:8px; padding:8px 12px; border-radius:6px; background:rgba(74,222,128,0.1); border:1px solid rgba(74,222,128,0.3); font-size:12px">
+        Selected: <strong id="gr-selected-name"></strong> <span style="color:var(--text-muted)" id="gr-selected-id"></span>
+    </div>
+</div>
+
+<!-- Step 6.3: Action Type -->
+<div class="card" style="margin-bottom:16px; padding:16px">
+    <h3 style="margin:0 0 12px 0; font-size:14px">Action Type</h3>
+    <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px">What should happen when the presenter takes action?</p>
+    <div style="display:flex; flex-direction:column; gap:6px">
+        <label style="display:flex; gap:8px; align-items:center; cursor:pointer; font-size:13px">
+            <input type="radio" name="cl-action" value="task" checked style="accent-color:var(--blue)">
+            <span><strong>Create follow-up Tasks</strong> — one per at-risk entity</span>
+        </label>
+        <label style="display:flex; gap:8px; align-items:center; cursor:pointer; font-size:13px">
+            <input type="radio" name="cl-action" value="case" style="accent-color:var(--blue)">
+            <span><strong>Escalate to a Case</strong> — single escalation with the full story</span>
+        </label>
+        <label style="display:flex; gap:8px; align-items:center; cursor:pointer; font-size:13px">
+            <input type="radio" name="cl-action" value="campaign" style="accent-color:var(--blue)">
+            <span><strong>Add to a Campaign</strong> — recovery campaign for the segment</span>
+        </label>
+    </div>
+</div>
+
+<!-- Step 6.4: Trigger Mechanism -->
+<div class="card" style="margin-bottom:16px; padding:16px">
+    <h3 style="margin:0 0 12px 0; font-size:14px">Trigger Mechanism</h3>
+    <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px">How should the action fire during the demo?</p>
+    <div style="display:flex; flex-direction:column; gap:6px">
+        <label style="display:flex; gap:8px; align-items:center; cursor:pointer; font-size:13px">
+            <input type="radio" name="cl-trigger" value="record_action" id="trigger-record-action" style="accent-color:var(--blue)">
+            <span><strong>Record-page action</strong> — button on the CRM record page <span style="font-size:11px; color:var(--text-muted)">(best with golden record)</span></span>
+        </label>
+        <label style="display:flex; gap:8px; align-items:center; cursor:pointer; font-size:13px">
+            <input type="radio" name="cl-trigger" value="slack_button" checked style="accent-color:var(--blue)">
+            <span><strong>Slack alert with button</strong> — insight card with "Create follow-ups" link</span>
+        </label>
+        <label style="display:flex; gap:8px; align-items:center; cursor:pointer; font-size:13px">
+            <input type="radio" name="cl-trigger" value="record_triggered" style="accent-color:var(--blue)">
+            <span><strong>Record-triggered</strong> — signal record auto-fires the follow-up</span>
+        </label>
+    </div>
+</div>
+
+<!-- Step 6.5: Notification -->
+<div class="card" style="margin-bottom:16px; padding:16px">
+    <h3 style="margin:0 0 12px 0; font-size:14px">Notification</h3>
+    <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px">Where should the team be notified?</p>
+    <div style="display:flex; gap:16px">
+        <label style="display:flex; gap:8px; align-items:center; cursor:pointer; font-size:13px">
+            <input type="radio" name="cl-notify" value="chatter" checked style="accent-color:var(--blue)">
+            <span><strong>Chatter</strong> — no setup needed</span>
+        </label>
+        <label style="display:flex; gap:8px; align-items:center; cursor:pointer; font-size:13px">
+            <input type="radio" name="cl-notify" value="slack" style="accent-color:var(--blue)">
+            <span><strong>Slack</strong> — posts to a channel</span>
+        </label>
+    </div>
+</div>
+
+<!-- Deploy -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px">
+    <a href="/demos" class="btn btn-ghost">&larr; Back to Demos</a>
+    <button class="btn btn-primary" id="deploy-btn" onclick="deploy()" style="background:var(--accent-gradient); padding:10px 24px; font-size:14px">Deploy Flows &rarr;</button>
+</div>
+
+<!-- Progress -->
+<div id="deploy-progress" class="hidden" style="margin-top:16px">
+    <div class="card" style="padding:16px">
+        <div class="progress-log" id="deploy-log" style="max-height:250px; font-size:12px"></div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SLUG = '{{ slug }}';
+let goldenRecord = null;
+
+function showGrSearch(show) {
+    document.getElementById('gr-search').classList.toggle('hidden', !show);
+    document.getElementById('p6-gr-yes').className = show ? 'btn btn-secondary btn-sm' : 'btn btn-ghost btn-sm';
+    document.getElementById('p6-gr-no').className = show ? 'btn btn-ghost btn-sm' : 'btn btn-secondary btn-sm';
+    if (!show) {
+        goldenRecord = null;
+        document.getElementById('gr-results').innerHTML = '';
+        document.getElementById('gr-selected').classList.add('hidden');
+        document.querySelector('input[name="cl-trigger"][value="slack_button"]').checked = true;
+    }
+}
+
+async function searchGr() {
+    const type = document.getElementById('gr-type').value;
+    const query = document.getElementById('gr-query').value.trim();
+    if (!query) return;
+    const el = document.getElementById('gr-results');
+    el.innerHTML = '<span style="color:var(--text-muted)">Searching...</span>';
+    try {
+        const r = await fetch('/api/close-loop/search-record', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({record_type: type, search: query}),
+        });
+        const j = await r.json();
+        if (!j.ok || !j.records.length) {
+            el.innerHTML = '<span style="color:var(--text-muted)">No records found.</span>';
+            return;
+        }
+        el.innerHTML = j.records.map(rec =>
+            `<label style="display:flex; gap:8px; align-items:center; padding:6px 0; cursor:pointer; border-bottom:1px solid var(--border)">
+                <input type="radio" name="gr-pick" value="${rec.Id}" data-name="${rec.Name}" data-type="${type}" style="accent-color:var(--blue)" onchange="pickGr(this)">
+                <span><strong>${rec.Name}</strong> <span style="color:var(--text-muted)">${rec.Id}</span></span>
+            </label>`
+        ).join('');
+    } catch (e) {
+        el.innerHTML = `<span style="color:var(--error)">${e.message}</span>`;
+    }
+}
+
+function pickGr(radio) {
+    goldenRecord = {id: radio.value, name: radio.dataset.name, type: radio.dataset.type};
+    document.getElementById('gr-selected').classList.remove('hidden');
+    document.getElementById('gr-selected-name').textContent = goldenRecord.name;
+    document.getElementById('gr-selected-id').textContent = `(${goldenRecord.type} ${goldenRecord.id})`;
+    document.getElementById('trigger-record-action').checked = true;
+}
+
+async function deploy() {
+    const action = document.querySelector('input[name="cl-action"]:checked')?.value || 'task';
+    const trigger = document.querySelector('input[name="cl-trigger"]:checked')?.value || 'slack_button';
+    const notify = document.querySelector('input[name="cl-notify"]:checked')?.value || 'chatter';
+
+    const btn = document.getElementById('deploy-btn');
+    btn.disabled = true; btn.textContent = 'Deploying...';
+    const progress = document.getElementById('deploy-progress');
+    const log = document.getElementById('deploy-log');
+    progress.classList.remove('hidden');
+    log.innerHTML = '';
+
+    function addLog(msg, cls) {
+        const div = document.createElement('div');
+        div.className = 'log-line' + (cls ? ' ' + cls : '');
+        div.textContent = msg;
+        log.appendChild(div);
+        log.scrollTop = log.scrollHeight;
+    }
+
+    addLog(`Deploying close-the-loop for ${SLUG}...`);
+    addLog(`Action: ${action} | Trigger: ${trigger} | Notify: ${notify}`);
+    if (goldenRecord) addLog(`Golden record: ${goldenRecord.name} (${goldenRecord.type} ${goldenRecord.id})`);
+
+    try {
+        const r = await fetch('/api/close-loop/deploy', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({slug: SLUG, action, trigger, notify, golden_record: goldenRecord}),
+        });
+        const j = await r.json();
+        if (j.ok) {
+            addLog('');
+            addLog('✓ Flows deployed successfully!');
+            if (j.output) j.output.split('\n').filter(l => l.trim()).forEach(l => addLog('  ' + l.trim()));
+            btn.textContent = 'Deployed ✓';
+            btn.style.opacity = '0.7';
+            // Redirect to demos page after a short delay
+            addLog('');
+            addLog('Redirecting to your demo...');
+            setTimeout(() => { window.location.href = '/demos'; }, 2000);
+        } else {
+            addLog('');
+            addLog('✗ Deploy failed: ' + (j.error || 'Unknown error'));
+            btn.disabled = false; btn.textContent = 'Retry Deploy';
+        }
+    } catch (e) {
+        addLog('✗ Error: ' + e.message);
+        btn.disabled = false; btn.textContent = 'Retry Deploy';
+    }
+}
+</script>
+{% endblock %}
