@@ -42,7 +42,11 @@ def clean_field_name(name):
     for prefix in ("salesforce_", "tableau_", "data_cloud_", "sfdc_"):
         if clean.startswith(prefix):
             clean = clean[len(prefix):]
-    return (clean[:40] if clean else "field")
+    if len(clean) > 40:
+        truncated = clean[:40]
+        last_us = truncated.rfind("_", 0, 38)
+        clean = truncated[:last_us] if last_us > 20 else truncated.rstrip("_")
+    return (clean if clean else "field")
 
 
 def _find_measurement(mc, mmap):
