@@ -60,7 +60,7 @@ if [ "$LOCAL" != "$REMOTE" ]; then
     # Check if requirements changed
     if git diff "$LOCAL" "$REMOTE" -- requirements.txt | grep -q '^[+-]'; then
         log "Dependencies changed — reinstalling..."
-        .venv/bin/pip install -r requirements.txt -q 2>/dev/null
+        .venv/bin/pip install -r requirements.txt -q || warn "pip install failed — try: .venv/bin/pip install -r requirements.txt"
     fi
 
     log "Updated to latest!"
@@ -68,8 +68,8 @@ else
     log "Up to date"
 fi
 
-# Verify venv works
-if ! .venv/bin/python -c "import flask" 2>/dev/null; then
+# Verify venv works (check all critical packages)
+if ! .venv/bin/python -c "import flask, anthropic, pandas, requests, PyPDF2, docx" 2>/dev/null; then
     warn "Virtual environment broken — rebuilding..."
     rm -rf .venv
     python3 -m venv .venv
