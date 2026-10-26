@@ -2941,6 +2941,24 @@ def run_build(build_id, build_config, progress_queue):
 
         advanced = build_config.get("advanced", {})
 
+        # Invalidate checkpoint if the connection or build outputs changed
+        cp_profile = cp.get("_profile_key")
+        cp_outputs = cp.get("_outputs")
+        current_outputs = {k: v for k, v in outputs.items() if v}
+        if cp_profile and cp_profile != default_profile:
+            _log(f"[warn] Connection changed ({cp_profile} → {default_profile}) — resetting checkpoint")
+            progress(q, "init", "Connection changed — rebuilding from scratch...", 0)
+            cp = {"all_ws_apis": cp.get("all_ws_apis", []), "all_sdm_apis": cp.get("all_sdm_apis", []),
+                  "all_viz_apis": cp.get("all_viz_apis", []), "all_dash_apis": cp.get("all_dash_apis", [])}
+        elif cp_outputs and cp_outputs != current_outputs:
+            _log(f"[warn] Build outputs changed — resetting checkpoint (keeping asset tracking)")
+            progress(q, "init", "Build outputs changed — rebuilding...", 0)
+            keep = {"all_ws_apis", "all_sdm_apis", "all_viz_apis", "all_dash_apis", "story", "company"}
+            cp = {k: v for k, v in cp.items() if k in keep}
+        cp["_profile_key"] = default_profile
+        cp["_outputs"] = current_outputs
+        _save_cp(cp, slug, demo_dir)
+
         # Save story context to checkpoint for /close-loop and /studio interop
         if not cp.get("story"):
             primary = [mc for mc in metric_config if mc.get("is_primary")]
