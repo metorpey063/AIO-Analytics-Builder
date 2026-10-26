@@ -2713,7 +2713,10 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
         drop_cols = [c for c in df.columns if c.lower().replace(" ", "_") in
                      ("entity_id", "day_offset", "kq_record_id")]
         crma_df = df.drop(columns=drop_cols, errors="ignore")
-        crma_df = crma_df.rename(columns={c: _re.sub(r'[^a-zA-Z0-9_]', '_', c).strip('_').lower() for c in crma_df.columns})
+        def _crma_safe(s):
+            s = _re.sub(r'[^a-zA-Z0-9_]', '_', s).lower()
+            return _re.sub(r'_+', '_', s).strip('_')
+        crma_df = crma_df.rename(columns={c: _crma_safe(c) for c in crma_df.columns})
         csv_buf = io.BytesIO()
         crma_df.to_csv(csv_buf, index=False)
         csv_bytes = csv_buf.getvalue()
@@ -2739,7 +2742,7 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
                 state = json.load(_gf)
 
             dims = story_config.get("dimensions", [])
-            _sanitize = lambda s: _re.sub(r'[^a-zA-Z0-9_]', '_', s).strip('_').lower()
+            _sanitize = lambda s: _re.sub(r'_+', '_', _re.sub(r'[^a-zA-Z0-9_]', '_', s)).strip('_').lower()
             safe_dims = [_sanitize(d) for d in dims]
             safe_metrics = [_sanitize(mc["field"]) for mc in metric_config]
 

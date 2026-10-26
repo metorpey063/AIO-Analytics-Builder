@@ -85,11 +85,15 @@ def fields_from_metric_config(
         build_field("date", "Date", "Date", format="yyyy-MM-dd"),
     ]
     import re as _re
+    def _safe(s):
+        s = _re.sub(r'[^a-zA-Z0-9_]', '_', s).lower()
+        s = _re.sub(r'_+', '_', s).strip('_')
+        return s
     for dim in dimension_names:
-        safe_name = _re.sub(r'[^a-zA-Z0-9_]', '_', dim).strip('_').lower()
+        safe_name = _safe(dim)
         fields.append(build_field(safe_name, dim.replace("_", " ").title(), "Text"))
     for mc in metric_configs:
-        fname = _re.sub(r'[^a-zA-Z0-9_]', '_', mc["field"]).strip('_').lower()
+        fname = _safe(mc["field"])
         flabel = mc.get("label", mc["field"])
         scale = 4 if mc.get("agg") == "Average" else 2
         fields.append(build_field(fname, flabel, "Numeric", precision=18, scale=scale))
