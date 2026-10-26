@@ -231,7 +231,7 @@
             <div id="metrics-content" class="hidden">
                 <table class="metrics-table">
                     <thead>
-                        <tr><th>Metric</th><th>Type</th><th>Aggregation</th><th>Sentiment</th><th></th></tr>
+                        <tr><th>Metric</th><th>Type</th><th>Aggregation</th><th>Format</th><th>Sentiment</th><th></th></tr>
                     </thead>
                     <tbody id="metrics-body"></tbody>
                 </table>
@@ -1079,11 +1079,12 @@ async function generateMetrics() {
     if (metrics.length > 0) {
         metrics.forEach(mc => {
             const sent = mc.sentiment === 'down_is_good' ? 'Down is good' : 'Up is good';
-            addMetricRow({name: mc.label, type: mc.agg === 'Sum' ? 'Flow' : 'Rate', agg: mc.agg || 'Average', sentiment: sent});
+            const fmt = mc.number_format || (mc.agg === 'Sum' ? 'Number' : 'Percentage');
+            addMetricRow({name: mc.label, type: mc.agg === 'Sum' ? 'Flow' : 'Rate', agg: mc.agg || 'Average', format: fmt, sentiment: sent});
         });
     } else {
         // Fallback — empty table for manual entry
-        addMetricRow({name: '', type: 'Rate', agg: 'Average', sentiment: 'Up is good'});
+        addMetricRow({name: '', type: 'Rate', agg: 'Average', format: 'Percentage', sentiment: 'Up is good'});
     }
 
     document.getElementById('metrics-loading').classList.add('hidden');
@@ -1091,13 +1092,15 @@ async function generateMetrics() {
 }
 
 function addMetricRow(m) {
-    m = m || {name: '', type: 'Rate', agg: 'Average', sentiment: 'Up is good'};
+    m = m || {name: '', type: 'Rate', agg: 'Average', format: 'Percentage', sentiment: 'Up is good'};
+    if (!m.format) m.format = (m.type === 'Rate') ? 'Percentage' : 'Number';
     const tbody = document.getElementById('metrics-body');
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td><input type="text" value="${m.name}" placeholder="Metric name" class="table-input"></td>
         <td><select class="table-input"><option ${m.type==='Rate'?'selected':''}>Rate</option><option ${m.type==='Flow'?'selected':''}>Flow</option><option ${m.type==='Snapshot'?'selected':''}>Snapshot</option></select></td>
         <td><select class="table-input"><option ${m.agg==='Average'?'selected':''}>Average</option><option ${m.agg==='Sum'?'selected':''}>Sum</option></select></td>
+        <td><select class="table-input"><option ${m.format==='Percentage'?'selected':''}>Percentage</option><option ${m.format==='Number'?'selected':''}>Number</option><option ${m.format==='Currency'?'selected':''}>Currency</option><option ${m.format==='Score'?'selected':''}>Score</option></select></td>
         <td><select class="table-input"><option ${m.sentiment==='Up is good'?'selected':''}>Up is good</option><option ${m.sentiment==='Down is good'?'selected':''}>Down is good</option></select></td>
         <td><button class="btn-icon" onclick="this.closest('tr').remove()" title="Remove">&times;</button></td>
     `;
@@ -1110,19 +1113,26 @@ function collectMetricsFromTable() {
     const metrics = [];
     rows.forEach(tr => {
         const cells = tr.querySelectorAll('.table-input');
-        if (cells.length >= 4 && cells[0].value.trim()) {
+        if (cells.length >= 5 && cells[0].value.trim()) {
             const name = cells[0].value.trim();
             const agg = cells[2].value;
-            const sent = cells[3].value.includes('Down') ? 'down_is_good' : 'up_is_good';
+            const format = cells[3].value;
+            const sent = cells[4].value.includes('Down') ? 'down_is_good' : 'up_is_good';
             const field = name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+            const baseRange = format === 'Percentage' ? [0.50, 0.90] :
+                              format === 'Currency'   ? [1000, 5000] :
+                              format === 'Score'      ? [1.0, 10.0] :
+                                                        [100, 500];
             metrics.push({
                 label: name, field: field, agg: agg,
+                number_format: format,
                 description: `Measures ${name.toLowerCase()}`,
                 why_it_matters: `Indicates performance trend for ${name.toLowerCase()}`,
                 singular: name.toLowerCase(), plural: name.toLowerCase() + 's',
                 sentiment: sent,
                 pulse_agg: agg === 'Sum' ? 'AGGREGATION_SUM' : 'AGGREGATION_AVERAGE',
                 is_primary: metrics.length < 2,
+                base_range: baseRange,
             });
         }
     });

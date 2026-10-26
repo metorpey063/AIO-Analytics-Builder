@@ -270,6 +270,7 @@ Rules:
 - Primary metrics show the "uh oh" moment. Supporting metrics explain why or show consequences.
 - Include at least one counter-trend metric (one that improves while others decline).
 - Generate at least 4 dimensions to support dashboard filters. Include one "where" (Region, Location), one "what" (Category, Type), one "who" (Team, Rep), and one "segment" (Size Band, Tier).
+- CRITICAL: "dimension_values" MUST contain 3-6 specific, realistic values per dimension that match the company's actual business. For a university: real college names ("College of Engineering", "College of Arts & Sciences"), real cohort types ("First-Generation", "Pell-Eligible"), real programs. For a company: real product lines, real regions they operate in, real customer segments. NEVER use numbered placeholders ("Region 1", "College 1") or single-letter labels ("A", "B"). The demo audience will see these values — they must be recognizable.
 - Field names use snake_case with no spaces. Keep field names SHORT — max 35 characters.
 - Metric LABELS should be short and business-focused (max 5 words). Example: "Client Retention Rate" not "Salesforce CRM Client Retention Tracking Rate".
 - Sentiment: "up_is_good" or "up_is_bad". Use "up_is_good" when high values are desirable (retention, satisfaction, utilization). Use "up_is_bad" when high values are undesirable (readmission rate, churn rate, error rate).
@@ -368,7 +369,7 @@ Go deep on this company's actual business model, industry dynamics, and real KPI
     else:
         depth_context = """
 RESEARCH DEPTH: QUICK
-Generate a solid demo configuration using reasonable industry defaults. Use generic but realistic dimension values."""
+Generate a solid demo configuration using reasonable industry defaults. Dimension values MUST be specific and realistic for the company — use real department names, real product lines, real regions, real segments. NEVER use generic placeholders like "Category A", "Region 1", "Segment 1", "Department 1"."""
 
     # Generate enough metrics/dimensions to support any template
     template_context = ""
@@ -456,6 +457,25 @@ Additional context: {notes or 'None'}
         except json.JSONDecodeError as e:
             raise RuntimeError(f"AI returned malformed JSON: {e}. Response: {text[:300]}")
 
+    # Validate dimension_values — reject generic placeholders like "College 1", "Region 3"
+    dims = result.get("dimensions", [])
+    dv = result.get("dimension_values", {})
+    for dim in dims:
+        vals = dv.get(dim, [])
+        if not vals:
+            continue
+        dim_base = re.sub(r'[^a-z]', '', dim.lower())
+        def _is_generic(v):
+            if len(v) <= 2:
+                return True
+            v_base = re.sub(r'[\s_]*\d+$', '', v).strip()
+            v_clean = re.sub(r'[^a-z]', '', v_base.lower())
+            return v_clean == dim_base or v_clean.startswith(dim_base[:6]) and len(v_clean) <= len(dim_base) + 2
+        generic_count = sum(1 for v in vals if _is_generic(v))
+        if generic_count > len(vals) / 2:
+            dv.pop(dim, None)
+    result["dimension_values"] = dv
+
     # Attach brand colors from research (if found and not already in result)
     if brand_colors and not result.get("brand_colors"):
         result["brand_colors"] = brand_colors
@@ -516,9 +536,23 @@ def generate_data(story_config, q=None, advanced=None):
         elif dim_key in ("segment", "tier", "level"):
             dim_values[dim] = ["Enterprise", "Mid-Market", "SMB", "Startup"]
         else:
-            dim_values[dim] = [f"{dim} 1", f"{dim} 2", f"{dim} 3", f"{dim} 4"]
+            dk = dim_key
+            if any(w in dk for w in ("class", "cohort", "year", "incoming")):
+                dim_values[dim] = ["Fall 2022", "Fall 2023", "Fall 2024", "Spring 2025"]
+            elif any(w in dk for w in ("college", "school", "faculty", "division")):
+                dim_values[dim] = ["Engineering & Sciences", "Business", "Arts & Humanities", "Health Sciences"]
+            elif any(w in dk for w in ("status", "population", "demographic", "student")):
+                dim_values[dim] = ["First-Generation", "Continuing-Generation", "Transfer", "International"]
+            elif any(w in dk for w in ("program", "plan", "service", "product")):
+                dim_values[dim] = ["Core Program", "Premium Program", "Specialized Program", "Pilot Program"]
+            elif any(w in dk for w in ("size", "band", "tier")):
+                dim_values[dim] = ["Large", "Mid-Size", "Small", "Micro"]
+            elif any(w in dk for w in ("channel", "source", "method")):
+                dim_values[dim] = ["Direct", "Partner", "Digital", "Referral"]
+            else:
+                dim_values[dim] = [f"{dim} A", f"{dim} B", f"{dim} C", f"{dim} D"]
             if q:
-                progress(q, "warn", f"No dimension values for '{dim}' — using generic placeholders", -1)
+                progress(q, "warn", f"No dimension values for '{dim}' — using inferred defaults", -1)
 
     # Per-dimension signal multipliers: culprit (1.5-2.5x), moderate (0.8-1.2x),
     # flat (0.0-0.3x), and one counter-trend (-0.10 to -0.15)
