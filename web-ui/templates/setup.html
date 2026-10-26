@@ -23,65 +23,53 @@
      WIZARD MODE — step by step
      =================================================================== -->
 <div id="setup-wizard" class="setup-sections">
-    <div class="stepper" id="setup-stepper" style="margin-bottom:20px">
-        <div class="step active" data-step="0"><span class="step-num">&#9679;</span> Choose Platforms</div>
-        <div class="step" data-step="1"><span class="step-num">1</span> Tableau Cloud</div>
-        <div class="step" data-step="2"><span class="step-num">2</span> Salesforce ECA</div>
-        <div class="step" data-step="3"><span class="step-num">3</span> OAuth Flow</div>
-        <div class="step" data-step="4"><span class="step-num">4</span> Verify</div>
-    </div>
-
-    <!-- Step 0: Platform Selection -->
+    <!-- Hub — pick which connection to configure -->
     <div class="wizard-step" id="setup-step-0">
         <section class="card">
             <h2>Name this connection</h2>
             <p class="subtitle" style="margin-bottom:16px">Give this connection a friendly name so you can identify it later (e.g. "Kate's Demo Org", "Production", "Tableau Next Sandbox").</p>
-            <div class="form-group" style="max-width:400px; margin-bottom:24px">
+            <div class="form-group" style="max-width:400px; margin-bottom:28px">
                 <label for="conn-name">Connection Name</label>
                 <input type="text" id="conn-name" placeholder="e.g. My Demo Org" value="" maxlength="40">
             </div>
-            <h2 style="margin-top:8px">What would you like to connect?</h2>
-            <p class="subtitle" style="margin-bottom:20px">Select the platforms you'll be building demos for. You can always come back and add more later.</p>
-            <div class="platform-grid">
-                <label class="platform-card" id="plat-tableau">
-                    <input type="checkbox" id="chk-tableau" checked onchange="updatePlatformSteps()">
-                    <div class="platform-card-inner">
+
+            <h2 style="margin-top:8px">Configure your connections</h2>
+            <p class="subtitle" style="margin-bottom:20px">Click a card to set up that connection. You only need to configure the platforms you'll use — come back anytime to add more.</p>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px">
+                <!-- Tableau Cloud hub card -->
+                <div class="hub-card" onclick="configureTableau()" style="cursor:pointer; padding:20px; border:2px solid var(--border); border-radius:12px; background:var(--card-bg); transition:border-color 0.2s, box-shadow 0.2s"
+                     onmouseenter="this.style.borderColor='var(--blue)'; this.style.boxShadow='0 2px 12px rgba(0,0,0,0.08)'"
+                     onmouseleave="this.style.borderColor='var(--border)'; this.style.boxShadow='none'">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px">
                         <div class="platform-icon accent-blue">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                         </div>
-                        <div>
-                            <strong>Tableau Cloud</strong>
-                            <p>Pulse metrics, datasources, workbooks</p>
-                            <span class="platform-auth">Auth: Personal Access Token (PAT)</span>
-                        </div>
+                        <span class="badge {% if config.get('tableau', {}).get('pat_secret') %}badge-ok{% else %}badge-pending{% endif %}" id="hub-tab-badge">
+                            {% if config.get('tableau', {}).get('pat_secret') %}Connected{% else %}Not configured{% endif %}
+                        </span>
                     </div>
-                </label>
-                <label class="platform-card" id="plat-next">
-                    <input type="checkbox" id="chk-next" checked onchange="updatePlatformSteps()">
-                    <div class="platform-card-inner">
+                    <strong style="font-size:15px; display:block">Tableau Cloud</strong>
+                    <p style="font-size:13px; color:var(--text-muted); margin:4px 0 8px">Pulse metrics, datasources, workbooks</p>
+                    <span class="platform-auth">Auth: Personal Access Token (PAT)</span>
+                </div>
+
+                <!-- Salesforce + Data Cloud hub card -->
+                <div class="hub-card" onclick="configureSalesforce()" style="cursor:pointer; padding:20px; border:2px solid var(--border); border-radius:12px; background:var(--card-bg); transition:border-color 0.2s, box-shadow 0.2s"
+                     onmouseenter="this.style.borderColor='var(--green)'; this.style.boxShadow='0 2px 12px rgba(0,0,0,0.08)'"
+                     onmouseleave="this.style.borderColor='var(--border)'; this.style.boxShadow='none'">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px">
                         <div class="platform-icon accent-green">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
                         </div>
-                        <div>
-                            <strong>Tableau Next & Data Cloud</strong>
-                            <p>SDM, visualizations, dashboards, bulk ingest</p>
-                            <span class="platform-auth">Auth: Salesforce OAuth (External Client App)</span>
-                        </div>
+                        <span class="badge {% if config.get('salesforce', {}).get('refresh_token') %}badge-ok{% else %}badge-pending{% endif %}" id="hub-sf-badge">
+                            {% if config.get('salesforce', {}).get('refresh_token') %}Connected{% else %}Not configured{% endif %}
+                        </span>
                     </div>
-                </label>
-                <label class="platform-card" id="plat-crma">
-                    <input type="checkbox" id="chk-crma" onchange="updatePlatformSteps()">
-                    <div class="platform-card-inner">
-                        <div class="platform-icon accent-orange">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 118 2.83"/><path d="M22 12A10 10 0 0012 2v10z"/></svg>
-                        </div>
-                        <div>
-                            <strong>CRM Analytics</strong>
-                            <p>Datasets, dashboards, SAQL queries</p>
-                            <span class="platform-auth">Auth: same Salesforce OAuth as Tableau Next</span>
-                        </div>
-                    </div>
-                </label>
+                    <strong style="font-size:15px; display:block">Salesforce + Data Cloud</strong>
+                    <p style="font-size:13px; color:var(--text-muted); margin:4px 0 8px">Tableau Next, SDM, visualizations, dashboards, CRM Analytics</p>
+                    <span class="platform-auth">Auth: Salesforce OAuth (External Client App)</span>
+                </div>
             </div>
 
             <!-- AI Configuration (hidden if already set) -->
@@ -92,10 +80,10 @@
                 <div class="form-stack" style="gap:8px">
                     <div style="padding:10px 14px; background:var(--blue-light); border-radius:8px; font-size:12.5px; line-height:1.6; color:var(--text)">
                         <strong>How to get your key:</strong><br>
-                        1. Open <strong>Terminal</strong> (Spotlight → type "Terminal")<br>
+                        1. Open <strong>Terminal</strong> (Spotlight &rarr; type "Terminal")<br>
                         2. Run: <code style="font-size:11.5px; background:#e5e7eb; padding:1px 5px; border-radius:3px">claude setup-token</code><br>
-                        3. A browser window will open — <strong>sign in to your Anthropic account</strong> and click <strong>Allow</strong><br>
-                        4. Return to Terminal — your key will be displayed (starts with <code style="font-size:11.5px; background:#e5e7eb; padding:1px 5px; border-radius:3px">sk-ant-...</code>)<br>
+                        3. A browser window will open &mdash; <strong>sign in to your Anthropic account</strong> and click <strong>Allow</strong><br>
+                        4. Return to Terminal &mdash; your key will be displayed (starts with <code style="font-size:11.5px; background:#e5e7eb; padding:1px 5px; border-radius:3px">sk-ant-...</code>)<br>
                         5. Copy the key and paste it below (it's valid for 1 year)
                     </div>
                     <div class="form-group" style="margin-bottom:0">
@@ -113,7 +101,7 @@
 
             <div class="wizard-actions">
                 <div></div>
-                <button class="btn btn-primary" onclick="startSetupFromSelection()">Continue &rarr;</button>
+                <a href="/connections" class="btn btn-primary">Done &rarr; View Connections</a>
             </div>
         </section>
     </div>
@@ -147,10 +135,10 @@
                     </div>
                 </div>
                 <div class="wizard-actions">
-                    <button class="btn btn-ghost" onclick="goSetupStep(0)">&larr; Back</button>
+                    <button class="btn btn-ghost" onclick="saveAndReturnToHub()">&larr; Back to Setup</button>
                     <div style="display:flex; gap:8px">
                         <button class="btn btn-secondary" onclick="saveAndTestTableau()">Test Connection</button>
-                        <button class="btn btn-primary" onclick="nextAfterTableau()">Next &rarr;</button>
+                        <button class="btn btn-primary" onclick="saveAndReturnToHub()">Save &amp; Return</button>
                     </div>
                 </div>
                 <div id="w-tab-result" class="test-result"></div>
@@ -249,10 +237,6 @@
                             <label class="checklist-item"><input type="checkbox"> Consumer Key pasted above</label>
                         </div>
                     </div>
-                </div>
-                <div class="wizard-actions">
-                    <button class="btn btn-ghost" onclick="goSetupStep(1)">&larr; Back</button>
-                    <button class="btn btn-primary" onclick="saveAndGoOAuth()">Next: Run OAuth Flow &rarr;</button>
                 </div>
                 <div id="w-sf-result" class="test-result"></div>
             </section>
@@ -374,15 +358,13 @@
                 </div>
             </aside>
         </div>
-    </div>
 
-    <!-- Wizard Step 3: OAuth Flow -->
-    <div class="wizard-step hidden" id="setup-step-3">
-        <section class="card">
-            <h2>Step 3: Salesforce OAuth Authorization</h2>
-            <p class="subtitle" style="margin-bottom:16px">Click below to open a browser window where you'll log in to Salesforce and authorize AIO. The refresh token will be saved automatically.</p>
+        <!-- OAuth Authorization (inline — no separate step) -->
+        <section class="card" style="margin-top:16px">
+            <h2>Salesforce OAuth Authorization</h2>
+            <p class="subtitle" style="margin-bottom:16px">Once you've created the ECA above, authorize AIO to access your org.</p>
             <div style="margin-bottom:14px; padding:10px 14px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-radius:10px; font-size:13px; color:var(--text)">
-                <strong style="color:#D97706">⚠ Important:</strong> You must be logged into the <strong>correct Salesforce org</strong> in your browser before clicking below. If you're logged into a different org, the authorization will save the wrong token and connections will fail.
+                <strong style="color:#D97706">Important:</strong> You must be logged into the <strong>correct Salesforce org</strong> in your browser before clicking below.
             </div>
             <div class="oauth-instructions">
                 <div class="instruction-step">
@@ -391,7 +373,7 @@
                 </div>
                 <div class="instruction-step">
                     <span class="instruction-num">2</span>
-                    <span>Click "Run OAuth Flow" — a browser tab will open</span>
+                    <span>Click "Run OAuth Flow" &mdash; a browser tab will open</span>
                 </div>
                 <div class="instruction-step">
                     <span class="instruction-num">3</span>
@@ -399,7 +381,7 @@
                 </div>
                 <div class="instruction-step">
                     <span class="instruction-num">4</span>
-                    <span>The browser will redirect to localhost — the token is captured automatically</span>
+                    <span>The browser will redirect to localhost &mdash; the token is captured automatically</span>
                 </div>
             </div>
             <div style="margin-top:16px">
@@ -410,16 +392,16 @@
             </p>
             <div id="w-oauth-result" class="test-result"></div>
 
-            <!-- MCP Authorization (only if MCP Consumer Key was entered in Step 2) -->
+            <!-- MCP Authorization (only if MCP Consumer Key was entered) -->
             <div id="w-mcp-auth-section" style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border); display:none">
                 <h3 style="font-size:15px; margin-bottom:8px">MCP Authorization</h3>
-                <p class="subtitle" style="margin-bottom:12px">If you entered an MCP Consumer Key in Step 2, authorize it separately here. This uses the MCP ECA (different from the main OAuth above).</p>
+                <p class="subtitle" style="margin-bottom:12px">Authorize the MCP connection separately. This uses the MCP ECA (different from the main OAuth above).</p>
                 <div class="mcp-auth-box" style="margin-bottom:12px">
                     <div style="display:flex; align-items:center; gap:10px">
                         <span style="font-size:20px">🔐</span>
                         <div>
                             <strong>MCP Authorization Required</strong>
-                            <p class="form-hint" style="margin:2px 0 0">Opens a browser to authenticate with the MCP External Client App (separate from the main OAuth).</p>
+                            <p class="form-hint" style="margin:2px 0 0">Opens a browser to authenticate with the MCP External Client App.</p>
                         </div>
                     </div>
                     <button class="btn btn-primary" style="margin-top:10px" onclick="runMcpOAuth()">Authorize MCP Connection</button>
@@ -429,51 +411,19 @@
 
             <div style="margin-top:16px; padding:12px 16px; background:rgba(245, 158, 11, 0.08); border:1px solid rgba(245, 158, 11, 0.2); border-radius:10px">
                 <p style="font-size:13px; color:var(--text-muted); margin:0">
-                    <strong style="color:#D97706">ECA not ready yet?</strong> Your credentials are already saved. You can close this wizard and come back later — click <strong>Edit</strong> on your connection in <a href="/connections" style="color:var(--blue); font-weight:600">Connections</a> to pick up where you left off.
+                    <strong style="color:#D97706">ECA not ready yet?</strong> Your credentials are already saved. You can come back later &mdash; click <strong>Edit</strong> on your connection in <a href="/connections" style="color:var(--blue); font-weight:600">Connections</a> to pick up where you left off.
                 </p>
             </div>
-
-            <div class="wizard-actions" style="margin-top:20px">
-                <button class="btn btn-ghost" onclick="goSetupStep(2)">&larr; Back</button>
-                <div style="display:flex; gap:8px">
-                    <button class="btn btn-ghost" onclick="location.href='/connections'">Save & Finish Later</button>
-                    <button class="btn btn-primary" onclick="goSetupStep(4)">Next: Verify &rarr;</button>
-                </div>
-            </div>
         </section>
-    </div>
 
-    <!-- Wizard Step 4: Verify -->
-    <div class="wizard-step hidden" id="setup-step-4">
-        <section class="card">
-            <h2>Step 4: Verify Connections</h2>
-            <p class="subtitle" style="margin-bottom:16px">Test all connections to make sure everything is working.</p>
-            <div class="verify-grid">
-                <div class="verify-row" id="v-row-tableau">
-                    <span class="verify-label">Tableau Cloud</span>
-                    <span class="verify-status" id="v-tableau">—</span>
-                </div>
-                <div class="verify-row" id="v-row-salesforce">
-                    <span class="verify-label">Salesforce OAuth</span>
-                    <span class="verify-status" id="v-salesforce">—</span>
-                </div>
-                <div class="verify-row" id="v-row-datacloud">
-                    <span class="verify-label">Data Cloud</span>
-                    <span class="verify-status" id="v-datacloud">—</span>
-                </div>
-                <div class="verify-row" id="v-row-mcp" style="display:none">
-                    <span class="verify-label">MCP (premium dashboards)</span>
-                    <span class="verify-status" id="v-mcp">—</span>
-                </div>
+        <!-- Salesforce spoke actions -->
+        <div class="wizard-actions" style="margin-top:20px">
+            <button class="btn btn-ghost" onclick="saveAndReturnToHub()">&larr; Back to Setup</button>
+            <div style="display:flex; gap:8px">
+                <button class="btn btn-secondary" onclick="testSalesforceFromWizard()">Test Connection</button>
+                <button class="btn btn-primary" onclick="saveAndReturnToHub()">Save &amp; Return</button>
             </div>
-            <div style="margin-top:16px">
-                <button class="btn btn-primary" onclick="verifyAll()">Run All Tests</button>
-            </div>
-            <div class="wizard-actions" style="margin-top:20px">
-                <button class="btn btn-ghost" onclick="goSetupStep(3)">&larr; Back</button>
-                <a href="/connections" class="btn btn-primary">Done — View Connections &rarr;</a>
-            </div>
-        </section>
+        </div>
     </div>
 </div>
 
@@ -859,30 +809,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const saved = localStorage.getItem('aio-setup-mode');
     if (saved === 'form') setSetupMode('form');
 
-    // If editing an existing profile, pre-fill name and configure stepper
+    // If editing an existing profile, pre-fill name and show hub
     const editKey = '{{ edit_profile_key|default("") }}';
     const editLabel = '{{ edit_profile_label|default("")|e }}';
-    const editHasTableau = {{ 'true' if edit_has_tableau else 'false' }};
-    const editHasSF = {{ 'true' if edit_has_salesforce else 'false' }};
     if (editKey) {
         const nameField = document.getElementById('conn-name');
         if (nameField) nameField.value = editLabel;
-
-        // Set platform checkboxes to match what this profile has
-        if (editHasTableau) document.getElementById('chk-tableau').checked = true;
-        if (editHasSF) {
-            document.getElementById('chk-next').checked = true;
-        }
-        updatePlatformSteps();
-
-        // Show/hide stepper steps
-        const stepper = document.getElementById('setup-stepper');
-        stepper.querySelector('[data-step="1"]').style.display = editHasTableau ? '' : 'none';
-        stepper.querySelector('[data-step="2"]').style.display = editHasSF ? '' : 'none';
-        stepper.querySelector('[data-step="3"]').style.display = editHasSF ? '' : 'none';
-
-        // Jump to the first relevant step
-        goSetupStep(editHasTableau ? 1 : (editHasSF ? 2 : 1));
+        profileCreated = true;
     }
 });
 
@@ -907,79 +840,112 @@ document.addEventListener('input', (e) => {
     });
 });
 
-// ---- Platform selection ----
-let selectedPlatforms = { tableau: true, next: true, crma: false };
+// ---- Hub-and-spoke navigation ----
+let profileCreated = false;
 
-function updatePlatformSteps() {
-    selectedPlatforms.tableau = document.getElementById('chk-tableau').checked;
-    selectedPlatforms.next = document.getElementById('chk-next').checked;
-    selectedPlatforms.crma = document.getElementById('chk-crma').checked;
-}
-
-async function startSetupFromSelection() {
-    updatePlatformSteps();
-
+async function ensureProfile() {
+    if (profileCreated) return true;
     const connName = document.getElementById('conn-name').value.trim();
     if (!connName) {
         document.getElementById('conn-name').focus();
         document.getElementById('conn-name').style.borderColor = 'var(--red)';
-        return;
+        return false;
     }
     document.getElementById('conn-name').style.borderColor = '';
-
-    // Create or switch to this profile
     await fetch('/api/setup/create-profile', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({label: connName}),
     });
-
-    const needsTableau = selectedPlatforms.tableau;
-    const needsSF = selectedPlatforms.next || selectedPlatforms.crma;
-
-    const stepper = document.getElementById('setup-stepper');
-    stepper.querySelector('[data-step="1"]').style.display = needsTableau ? '' : 'none';
-    stepper.querySelector('[data-step="2"]').style.display = needsSF ? '' : 'none';
-    stepper.querySelector('[data-step="3"]').style.display = needsSF ? '' : 'none';
-
-    if (needsTableau) {
-        goSetupStep(1);
-    } else if (needsSF) {
-        goSetupStep(2);
-    } else {
-        goSetupStep(4);
-    }
+    profileCreated = true;
+    return true;
 }
 
-// ---- Wizard navigation ----
+async function configureTableau() {
+    if (!(await ensureProfile())) return;
+    goSetupStep(1);
+}
+
+async function configureSalesforce() {
+    if (!(await ensureProfile())) return;
+    goSetupStep(2);
+    checkMcpAuthNeeded();
+}
+
 function goSetupStep(n) {
     document.querySelectorAll('#setup-wizard .wizard-step').forEach(el => el.classList.add('hidden'));
     document.getElementById('setup-step-' + n).classList.remove('hidden');
-    document.querySelectorAll('#setup-wizard .stepper .step').forEach(el => {
-        const s = parseInt(el.dataset.step);
-        el.classList.toggle('active', s === n);
-        el.classList.toggle('done', s < n && s > 0);
-    });
-    // Mark step 0 as done once past it
-    stepper0 = document.querySelector('#setup-wizard .stepper [data-step="0"]');
-    if (stepper0 && n > 0) { stepper0.classList.add('done'); stepper0.classList.remove('active'); }
-    // Show MCP auth section in Step 3 if MCP key was entered
-    if (n === 3) checkMcpAuthNeeded();
+    window.scrollTo({top: 0, behavior: 'smooth'});
 }
 
-async function nextAfterTableau() {
-    // Save Tableau config before moving on
-    const data = {
-        tableau: {
-            server_url: getSetupVal('tab-server'),
-            site_name: getSetupVal('tab-site'),
-            pat_name: getSetupVal('tab-pat-name'),
-            pat_secret: getSetupVal('tab-pat-secret'),
-        }
+async function saveAndReturnToHub() {
+    // Save whatever's filled in (Tableau and/or Salesforce)
+    const tabData = {
+        server_url: getSetupVal('tab-server'),
+        site_name: getSetupVal('tab-site'),
+        pat_name: getSetupVal('tab-pat-name'),
+        pat_secret: getSetupVal('tab-pat-secret'),
     };
-    await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
-    const needsSF = selectedPlatforms.next || selectedPlatforms.crma;
-    goSetupStep(needsSF ? 2 : 4);
+    const sfData = {
+        sf_login_url: getSetupVal('sf-login-url'),
+        client_id: getSetupVal('sf-client-id'),
+        client_secret: getSetupVal('sf-client-secret'),
+    };
+    const mcpId = document.getElementById('w-mcp-client-id');
+    const mcpSecret = document.getElementById('w-mcp-client-secret');
+    if (mcpId && mcpId.value) sfData.mcp_client_id = mcpId.value;
+    if (mcpSecret && mcpSecret.value) sfData.mcp_client_secret = mcpSecret.value;
+
+    const payload = {};
+    if (tabData.pat_secret) payload.tableau = tabData;
+    if (sfData.client_id) payload.salesforce = sfData;
+    if (Object.keys(payload).length) {
+        await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    }
+    updateHubBadges();
+    goSetupStep(0);
+}
+
+function updateHubBadges() {
+    const tabBadge = document.getElementById('hub-tab-badge');
+    const sfBadge = document.getElementById('hub-sf-badge');
+    if (tabBadge) {
+        const hasPat = !!getSetupVal('tab-pat-secret');
+        tabBadge.textContent = hasPat ? 'Connected' : 'Not configured';
+        tabBadge.className = 'badge ' + (hasPat ? 'badge-ok' : 'badge-pending');
+    }
+    if (sfBadge) {
+        // Check if OAuth result showed success (refresh token was captured)
+        const oauthResult = document.getElementById('w-oauth-result');
+        const hasOAuth = oauthResult && oauthResult.textContent.includes('successful');
+        const hadToken = {{ 'true' if config.get('salesforce', {}).get('refresh_token') else 'false' }};
+        const connected = hasOAuth || hadToken;
+        sfBadge.textContent = connected ? 'Connected' : 'Not configured';
+        sfBadge.className = 'badge ' + (connected ? 'badge-ok' : 'badge-pending');
+    }
+}
+
+async function testSalesforceFromWizard() {
+    // Save credentials first
+    const sfData = {
+        sf_login_url: getSetupVal('sf-login-url'),
+        client_id: getSetupVal('sf-client-id'),
+        client_secret: getSetupVal('sf-client-secret'),
+    };
+    const mcpId = document.getElementById('w-mcp-client-id');
+    if (mcpId && mcpId.value) sfData.mcp_client_id = mcpId.value;
+    const payload = { salesforce: sfData };
+    await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    showResult('w-sf-result', null, 'Testing...');
+    try {
+        const r = await fetch('/api/test-salesforce', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
+        const j = await r.json();
+        let msg = j.ok ? `Connected (${j.instance || j.username})` : (j.error || 'Failed');
+        if (j.ok && j.data_cloud) msg += ` | Data Cloud: ${j.dc_domain || 'OK'}`;
+        showResult('w-sf-result', j.ok, msg);
+    } catch (e) {
+        showResult('w-sf-result', false, 'Request failed: ' + e.message);
+    }
 }
 
 // ---- Wizard actions ----
@@ -1028,33 +994,16 @@ async function saveAndTestTableau() {
     showResult('w-tab-result', j.ok, j.ok ? `Connected to ${j.site_name} (${j.server_url})` : j.error);
 }
 
-async function saveAndGoOAuth() {
-    const sfData = {
-        sf_login_url: getSetupVal('sf-login-url'),
-        client_id: getSetupVal('sf-client-id'),
-        client_secret: getSetupVal('sf-client-secret'),
-    };
-    // Include MCP fields if filled in
-    const mcpId = document.getElementById('w-mcp-client-id');
-    const mcpSecret = document.getElementById('w-mcp-client-secret');
-    if (mcpId && mcpId.value) sfData.mcp_client_id = mcpId.value;
-    if (mcpSecret && mcpSecret.value) sfData.mcp_client_secret = mcpSecret.value;
-
-    const data = { salesforce: sfData };
-    await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
-    goSetupStep(3);
-}
-
 async function runOAuth() {
     // Validate fields before starting
     const loginUrl = getSetupVal('sf-login-url');
     const clientId = getSetupVal('sf-client-id');
     if (!clientId) {
-        showResult('w-oauth-result', false, 'Enter your Consumer Key (Client ID) in Step 2 first.');
+        showResult('w-oauth-result', false, 'Enter your Consumer Key (Client ID) above first.');
         return;
     }
     if (!loginUrl) {
-        showResult('w-oauth-result', false, 'Enter your Salesforce login URL in Step 2 first.');
+        showResult('w-oauth-result', false, 'Select your Salesforce environment above first.');
         return;
     }
 
@@ -1116,63 +1065,12 @@ async function runMcpOAuth() {
     }
 }
 
-// Show MCP auth section in Step 3 if MCP Consumer Key was entered
+// Show MCP auth section if MCP Consumer Key was entered
 function checkMcpAuthNeeded() {
     const mcpKey = document.getElementById('w-mcp-client-id')?.value.trim() || '';
     const mcpSection = document.getElementById('w-mcp-auth-section');
     if (mcpSection) {
         mcpSection.style.display = mcpKey ? '' : 'none';
-    }
-}
-
-async function verifyAll() {
-    document.getElementById('v-tableau').innerHTML = '<span class="inline-warn">Testing...</span>';
-    document.getElementById('v-salesforce').innerHTML = '<span class="inline-warn">Testing...</span>';
-    document.getElementById('v-datacloud').innerHTML = '<span class="inline-warn">Testing...</span>';
-
-    const jsonHeaders = {'Content-Type': 'application/json'};
-    const needsTableau = selectedPlatforms.tableau;
-    const needsSF = selectedPlatforms.next || selectedPlatforms.crma;
-    const hasMcp = !!(document.getElementById('w-mcp-client-id')?.value.trim());
-
-    // Show/hide rows based on what this profile needs
-    document.getElementById('v-row-tableau').style.display = needsTableau ? '' : 'none';
-    document.getElementById('v-row-salesforce').style.display = needsSF ? '' : 'none';
-    document.getElementById('v-row-datacloud').style.display = needsSF ? '' : 'none';
-    document.getElementById('v-row-mcp').style.display = hasMcp ? '' : 'none';
-
-    if (needsTableau) {
-        document.getElementById('v-tableau').innerHTML = '<span class="inline-warn">Testing...</span>';
-        try {
-            const r = await fetch('/api/test-tableau', {method: 'POST', headers: jsonHeaders, body: '{}'});
-            const j = await r.json();
-            document.getElementById('v-tableau').innerHTML = j.ok
-                ? `<span class="inline-ok">Connected</span> — ${j.site_name}`
-                : `<span class="inline-warn">Failed</span> — ${j.error || 'unknown'}`;
-        } catch (e) {
-            document.getElementById('v-tableau').innerHTML = '<span class="inline-warn">Error</span>';
-        }
-    }
-
-    if (needsSF) {
-        try {
-            const r = await fetch('/api/test-salesforce', {method: 'POST', headers: jsonHeaders, body: '{}'});
-            const j = await r.json();
-            document.getElementById('v-salesforce').innerHTML = j.ok
-                ? `<span class="inline-ok">Connected</span> — ${j.username || j.instance}`
-                : `<span class="inline-warn">Failed</span> — ${j.error || 'unknown'}`;
-            document.getElementById('v-datacloud').innerHTML = j.data_cloud
-                ? `<span class="inline-ok">Connected</span> — ${j.dc_domain || ''}`
-                : '<span class="inline-warn">Failed</span> — token exchange error';
-            if (hasMcp) {
-                document.getElementById('v-mcp').innerHTML = j.mcp_ok
-                    ? '<span class="inline-ok">Connected</span>'
-                    : `<span class="inline-warn">Failed</span> — ${j.mcp_error || 'unknown'}`;
-            }
-        } catch (e) {
-            document.getElementById('v-salesforce').innerHTML = '<span class="inline-warn">Error</span>';
-            document.getElementById('v-datacloud').innerHTML = '<span class="inline-warn">Error</span>';
-        }
     }
 }
 
