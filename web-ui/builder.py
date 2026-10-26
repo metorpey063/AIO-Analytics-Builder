@@ -45,6 +45,87 @@ def clean_field_name(name):
     return (clean[:40] if clean else "field")
 
 
+def _find_measurement(mc, mmap):
+    """Robustly match a metric config entry to a measurement_map key.
+
+    Tries, in order:
+    1. Exact match on mc["field"]
+    2. Sanitized label (hyphens removed, lowered)
+    3. X-prefixed sanitized label (for digit-leading names)
+    4. clean_field_name(label) — the same sanitizer used by data gen
+    5. clean_field_name(field) — in case field has chars data gen stripped
+    6. Substring match — sanitized field is a substring of a key or vice versa
+    7. Suffix-stripped match — remove _rate, _score, _index, _pct, _count, _total, _ratio, _average, _percent and compare
+    8. Fuzzy word overlap (original logic) — label words vs key words
+    9. Last resort — clean_field_name(label) against keys
+    Returns the measurement apiName or None.
+    """
+    field_key = mc["field"]
+    label = mc.get("label", "")
+    label_key = re.sub(r"[^a-z0-9_]", "", label.lower().replace(" ", "_").replace("-", ""))
+
+    # 1-3: exact lookups
+    result = mmap.get(field_key) or mmap.get(label_key) or mmap.get(f"X{label_key}")
+    if result:
+        return result
+
+    # 4-5: clean_field_name produces the same output as data gen's column sanitizer
+    cfn_label = clean_field_name(label)
+    cfn_field = clean_field_name(field_key)
+    result = mmap.get(cfn_label) or mmap.get(cfn_field)
+    if result:
+        return result
+
+    # Build all candidate keys to try against measurement_map keys
+    candidates = {field_key, label_key, cfn_label, cfn_field}
+    # Also try with underscores fully removed (handles "six_year" vs "sixyear")
+    candidates.add(field_key.replace("_", ""))
+    candidates.add(label_key.replace("_", ""))
+    candidates.add(cfn_label.replace("_", ""))
+    candidates.add(cfn_field.replace("_", ""))
+
+    # 6: substring match — candidate is a substring of a key or vice versa
+    for mk, mv in mmap.items():
+        mk_no_us = mk.replace("_", "")
+        for cand in candidates:
+            if not cand:
+                continue
+            if cand in mk or mk in cand or cand in mk_no_us or mk_no_us in cand:
+                return mv
+
+    # 7: suffix-stripped match — strip common metric suffixes and compare
+    SUFFIXES = ("_rate", "_score", "_index", "_pct", "_count", "_total",
+                "_ratio", "_average", "_percent", "_number")
+    def strip_suffixes(s):
+        for sfx in SUFFIXES:
+            if s.endswith(sfx):
+                s = s[:-len(sfx)]
+        return s
+
+    stripped_candidates = {strip_suffixes(c) for c in candidates if c}
+    stripped_candidates.discard("")
+    for mk, mv in mmap.items():
+        mk_stripped = strip_suffixes(mk)
+        mk_stripped_no_us = mk_stripped.replace("_", "")
+        for sc in stripped_candidates:
+            sc_no_us = sc.replace("_", "")
+            if sc == mk_stripped or sc_no_us == mk_stripped_no_us:
+                return mv
+            # Also try substring on stripped versions
+            if sc in mk_stripped or mk_stripped in sc or sc_no_us in mk_stripped_no_us or mk_stripped_no_us in sc_no_us:
+                return mv
+
+    # 8: fuzzy word overlap (original logic)
+    label_words = set(label.lower().replace("-", " ").split())
+    if label_words:
+        for mk, mv in mmap.items():
+            mk_words = set(mk.lower().replace("_", " ").split())
+            if len(label_words & mk_words) >= max(2, len(label_words) - 1):
+                return mv
+
+    return None
+
+
 def generate_business_preferences(company, story_config, metric_config, dim_values):
     """Generate atomic '# ' prefixed business preference lines for Concierge.
 
@@ -1715,8 +1796,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         cp["measurement_map"] = measurement_map
 
         for mc in metric_config:
-            field_key = mc["field"]
-            meas_api = measurement_map.get(field_key) or measurement_map.get(mc["label"].lower().replace(" ", "_"))
+            meas_api = _find_measurement(mc, measurement_map)
             if meas_api:
                 agg = mc.get("agg", "Average")
                 req.put(
@@ -1793,23 +1873,13 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
             pct = 55 + int(10 * (i / len(metric_config)))
             progress(q, "metrics", f"Creating metric {i+1}/{len(metric_config)}: {mc['label']}...", pct)
 
-            # Match measurement by trying: mc["field"], sanitized label, and fuzzy match
-            field_key = mc["field"]
-            label_key = re.sub(r"[^a-z0-9_]", "", mc["label"].lower().replace(" ", "_").replace("-", ""))
-            meas_api = mmap.get(field_key) or mmap.get(label_key) or mmap.get(f"X{label_key}")
+            # Match measurement using robust fuzzy matcher
+            meas_api = _find_measurement(mc, mmap)
             if not meas_api:
-                # Fuzzy: find closest key containing most of the label words
-                label_words = set(mc["label"].lower().replace("-", " ").split())
-                for mk, mv in mmap.items():
-                    mk_words = set(mk.lower().replace("_", " ").split())
-                    if len(label_words & mk_words) >= max(2, len(label_words) - 1):
-                        meas_api = mv
-                        break
-            if not meas_api:
-                progress(q, "warn", f"No measurement found for {mc['label']} (tried {field_key}, {label_key})", -1)
+                progress(q, "warn", f"No measurement found for {mc['label']} (field={mc['field']}, keys={list(mmap.keys())[:8]})", -1)
                 continue
 
-            clc_api = f"{field_key}_clc"
+            clc_api = f"{mc['field']}_clc"
             clc_expression = f'AVG([{cp["do_api"]}].[{meas_api}])'
             if mc.get("agg") == "Sum":
                 clc_expression = f'SUM([{cp["do_api"]}].[{meas_api}])'
@@ -1886,15 +1956,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
             # --- Measurement updates: label, description, aggregation, sentiment ---
             mmap = cp.get("measurement_map", {})
             for mc in metric_config:
-                field_key = mc["field"]
-                label_key = re.sub(r"[^a-z0-9_]", "", mc["label"].lower().replace(" ", "_").replace("-", ""))
-                meas_api = mmap.get(field_key) or mmap.get(label_key) or mmap.get(f"X{label_key}")
-                if not meas_api:
-                    label_words = set(mc["label"].lower().replace("-", " ").split())
-                    for mk, mv in mmap.items():
-                        if len(label_words & set(mk.lower().replace("_", " ").split())) >= max(2, len(label_words) - 1):
-                            meas_api = mv
-                            break
+                meas_api = _find_measurement(mc, mmap)
                 if not meas_api:
                     continue
 
@@ -2287,7 +2349,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 # Build viz plan: alternate between trend line and bar chart
                 viz_plan = []
                 for i, mc in enumerate(metric_config[:4]):
-                    meas_api = meas_map.get(mc["field"], "")
+                    meas_api = _find_measurement(mc, meas_map)
                     if not meas_api:
                         continue
                     dim = user_dim_names[i % len(user_dim_names)] if user_dim_names else None
