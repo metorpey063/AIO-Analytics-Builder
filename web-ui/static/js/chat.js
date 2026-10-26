@@ -19,15 +19,16 @@ function toggleChat() {
 }
 
 async function initChatFab() {
-    // Show the chat FAB only if an API key (or Bedrock gateway) is configured
+    // Show the sidebar chat button if an API key (or Bedrock gateway) is configured
     try {
         const r = await fetch('/api/chat/status');
         const j = await r.json();
         if (j.available) {
-            document.getElementById('chat-fab-wrapper').classList.remove('hidden');
+            const sidebarBtn = document.getElementById('sidebar-chat-btn');
+            if (sidebarBtn) sidebarBtn.classList.remove('hidden');
         }
     } catch (e) {
-        // FAB stays hidden if status check fails
+        // Button stays hidden if status check fails
     }
 }
 
@@ -59,10 +60,17 @@ async function sendChat() {
     textEl.innerHTML = '<span class="chat-typing">Thinking...</span>';
 
     try {
+        // Build page context so the assistant knows where the user is
+        const pageContext = {
+            page: document.title,
+            url: window.location.pathname,
+            activeNav: document.querySelector('.nav-links .active')?.textContent?.trim() || '',
+        };
+
         const r = await fetch('/api/chat', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({messages: chatHistory}),
+            body: JSON.stringify({messages: chatHistory, page_context: pageContext}),
         });
 
         if (!r.ok) {

@@ -1858,12 +1858,31 @@ textarea.mono { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-s
 /* =========================================================================
    Chat bot widget
    ========================================================================= */
+/* Sidebar chat button */
+.sidebar-chat-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    background: var(--blue);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 150ms ease, transform 100ms ease;
+}
+.sidebar-chat-btn:hover { background: #1d4ed8; transform: translateY(-1px); }
+.sidebar-chat-btn svg { flex-shrink: 0; }
+
+/* Old floating FAB — hidden, replaced by sidebar button */
 .chat-fab-wrapper {
     position: fixed;
     bottom: 24px;
     right: 24px;
     z-index: 1000;
-    display: flex;
+    display: none !important;
     align-items: center;
     gap: 10px;
 }
