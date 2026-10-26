@@ -1467,6 +1467,55 @@ def _validate_next_build(config, cp, metric_config, q):
         progress(q, "validate", f"✗ SDM data object check error: {str(e)[:200]}", -1)
         checks_failed += 1
 
+    # 7. Check for generic dimension values in the actual data
+    user_dims = cp.get("story", {}).get("dimensions", [])
+    dim_map = cp.get("dim_field_map", {})
+    if sdm_api and do_api and user_dims:
+        checks_total += 1
+        generic_dims = []
+        generic_re = re.compile(r'^(.*?)[\s_]*\d+$')
+        try:
+            for dim_name in user_dims:
+                dim_key = dim_name.lower().replace(" ", "_")
+                dim_api = None
+                for mk, mv in dim_map.items():
+                    if mk.lower().replace(" ", "_") == dim_key:
+                        dim_api = mv
+                        break
+                if not dim_api:
+                    continue
+                query = f'SELECT {dim_api} FROM {do_api} GROUP BY {dim_api} LIMIT 20'
+                r = req.post(
+                    f"{sf_instance}/services/data/v65.0/ssot/semantic/query",
+                    headers=h, json={"query": query, "modelApiName": sdm_api}, timeout=20)
+                if not r.ok:
+                    continue
+                rows = r.json().get("data", [])
+                values = [row.get(dim_api, "") for row in rows if row.get(dim_api)]
+                if not values:
+                    continue
+                dim_base = re.sub(r'[^a-z]', '', dim_name.lower())
+                generic_count = 0
+                for v in values:
+                    if len(str(v)) <= 2:
+                        generic_count += 1
+                    else:
+                        v_stripped = re.sub(r'[\s_]*\d+$', '', str(v)).strip()
+                        v_clean = re.sub(r'[^a-z]', '', v_stripped.lower())
+                        if v_clean == dim_base or (v_clean.startswith(dim_base[:6]) and len(v_clean) <= len(dim_base) + 2):
+                            generic_count += 1
+                if generic_count > len(values) / 2:
+                    generic_dims.append(dim_name)
+
+            if generic_dims:
+                progress(q, "validate", f"✗ Generic dimension values detected: {', '.join(generic_dims)} — re-run with Detailed research or edit dimension values in story config", -1)
+                checks_failed += 1
+            else:
+                progress(q, "validate", f"✓ Dimension values are company-specific ({len(user_dims)} dimensions checked)", -1)
+                checks_passed += 1
+        except Exception as e:
+            progress(q, "validate", f"⚠ Dimension value check skipped: {str(e)[:150]}", -1)
+
     # Summary
     summary = f"Validation complete: {checks_passed}/{checks_total} passed"
     if checks_failed:
