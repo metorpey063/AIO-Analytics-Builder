@@ -836,27 +836,21 @@ ul{{padding-left:1.5em}}li{{margin:4px 0}}
                 h.append(f'<p><b>Expected response:</b> {e(cr.get("answer", "(no response captured)"))}</p></div>')
         else:
             h.append(f"<h1>Tableau Next — Concierge Prompts</h1>")
-            h.append("<p class='subtitle'>Each step shows the question to ask Concierge followed by the expected response. Ask these in the Tableau Next workspace where the SDM and dashboard were created.</p>")
+            h.append("<p class='subtitle'><b>Note:</b> Concierge was not available during this build (MCP authentication required). The prompts below are suggested questions to ask — run them live in the Tableau Next workspace to see actual responses.</p>")
             prompts = [
-                ("Opening", f"How is {lead_metric.lower()} trending?",
-                 f"Concierge shows the overall trend with a decline emerging in recent months, comparing current period vs. prior."),
+                ("Opening", f"How is {lead_metric.lower()} trending?"),
             ]
             if dims:
-                prompts.append((f"Drill — {dims[0]}", f"Which {dims[0].lower()} has the worst {lead_metric.lower()}?",
-                                f"Concierge identifies the worst-performing {dims[0].lower()} segment with specific numbers and percentage decline."))
+                prompts.append((f"Drill — {dims[0]}", f"Which {dims[0].lower()} has the worst {lead_metric.lower()}?"))
             if len(dims) >= 2:
-                prompts.append((f"Drill — {dims[1]}", f"Within that {dims[0].lower()}, break it down by {dims[1].lower()}",
-                                f"Concierge drills deeper, revealing the compounding effect in a specific {dims[1].lower()} segment."))
+                prompts.append((f"Drill — {dims[1]}", f"Within that {dims[0].lower()}, break it down by {dims[1].lower()}"))
             if supporting:
-                prompts.append((f"Root Cause — {supporting[0]['label']}", f"What about {supporting[0]['label'].lower()}?",
-                                f"Concierge shows {supporting[0]['label']} lagging the primary metric, confirming the root cause."))
+                prompts.append((f"Root Cause — {supporting[0]['label']}", f"What about {supporting[0]['label'].lower()}?"))
             if counter:
-                prompts.append(("Counter-Trend", f"Is {counter[0]['label'].lower()} also declining?",
-                                f"No — {counter[0]['label']} is actually improving, which masks the severity of the problem in the overall average."))
-            prompts.append(("At Risk", f"Which segments are most at risk?",
-                            f"Concierge lists segments with the steepest declines across {', '.join(dims[:2]) if len(dims) >= 2 else dims[0] if dims else 'segments'}."))
-            for title, ask, expected in prompts:
-                h.append(f'<div class="step"><h2>{e(title)}</h2><p><b>Ask:</b> &ldquo;{e(ask)}&rdquo;</p><p><b>Expected response:</b> {e(expected)}</p></div>')
+                prompts.append(("Counter-Trend", f"Is {counter[0]['label'].lower()} also declining?"))
+            prompts.append(("At Risk", f"Which segments are most at risk?"))
+            for title, ask in prompts:
+                h.append(f'<div class="step"><h2>{e(title)}</h2><p><b>Ask:</b> &ldquo;{e(ask)}&rdquo;</p><p><b>Expected response:</b> <i>(not captured — run live in Concierge)</i></p></div>')
 
     # ── Business Preferences (Next only) ─────────────────────────────────────
     if built_next:
@@ -1211,24 +1205,52 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
             }
 
             discover_results = []
-            questions = [
-                f"Summarize the overall trend for {mc['label']}" for mc in metric_config[:4]
-            ]
+
+            # Build question variants per metric — retry with rephrased questions if first attempt fails
+            def _question_variants(mc_label):
+                return [
+                    f"Summarize the overall trend for {mc_label}",
+                    f"How has {mc_label} changed over the past 6 months?",
+                    f"What does the data show for {mc_label}?",
+                ]
+
             primary = [mc for mc in metric_config if mc.get("is_primary")]
+            story_questions = []
             if primary:
-                questions.append(f"What is driving the change in {primary[0]['label']}?")
-                questions.append(f"Which segments are most affected by the {primary[0]['label']} decline?")
+                story_questions.append((primary[0], f"What is driving the change in {primary[0]['label']}?"))
+                story_questions.append((primary[0], f"Which segments are most affected by the {primary[0]['label']} decline?"))
+
+            USELESS_PHRASES = ("don't have enough data", "not enough data", "rephrase your question",
+                               "try the suggested questions", "unable to answer", "cannot determine")
+
+            def _is_useless(answer):
+                low = answer.lower()
+                return any(p in low for p in USELESS_PHRASES)
+
+            def _clean_markup(markup):
+                clean = re.sub(r'<span[^>]*>(.*?)</span>', r'\1', markup)
+                clean = re.sub(r'\[\[\d+\]\]\([^)]+\)', '', clean)
+                return re.sub(r'\*\*', '', clean).strip()
+
+            def _ask_brief(question, metric_context):
+                brief_payload = {
+                    "language": "LANGUAGE_EN_US", "locale": "LOCALE_EN_US",
+                    "now": TODAY.isoformat(),
+                    "messages": [{"content": question, "action_type": "ACTION_TYPE_SUMMARIZE",
+                                  "role": "ROLE_USER", "metric_group_context": [metric_context],
+                                  "metric_group_context_resolved": False}],
+                }
+                r = req.post(f"{server_url}/api/-/pulse/insights/brief",
+                             headers=h_brief, json=brief_payload, timeout=30)
+                if r.status_code == 201:
+                    return _clean_markup(r.json().get("markup", ""))
+                return None
 
             for i, (def_id, metric_id) in enumerate(zip(
                 cp.get("pulse_def_ids", []), cp.get("pulse_metric_ids", [])
             )):
-                if i >= len(questions):
-                    break
-                question = questions[i]
                 mc = metric_config[i] if i < len(metric_config) else metric_config[0]
-
                 try:
-                    # GET definition + metric data for context
                     r_def = req.get(f"{server_url}/api/-/pulse/definitions/{def_id}", headers=h_std)
                     r_met = req.get(f"{server_url}/api/-/pulse/definitions/{def_id}/metrics", headers=h_std)
                     if not (r_def.ok and r_met.ok):
@@ -1237,48 +1259,61 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
                     d = r_def.json()
                     m_list = r_met.json().get("metrics", [])
                     m = m_list[0] if m_list else {}
-
                     metric_context = {
-                        "metadata": {
-                            "definition_id": def_id,
-                            "metric_id": metric_id,
-                            "name": f"{company} — {mc['label']}",
-                            "tags": [],
-                        },
-                        "metric": {
-                            "definition": d.get("specification", {}),
-                            "extension_options": d.get("extension_options", {}),
-                            "metric_specification": m.get("specification", {}),
-                            "representation_options": d.get("representation_options", {}),
-                        },
+                        "metadata": {"definition_id": def_id, "metric_id": metric_id,
+                                     "name": f"{company} — {mc['label']}", "tags": []},
+                        "metric": {"definition": d.get("specification", {}),
+                                   "extension_options": d.get("extension_options", {}),
+                                   "metric_specification": m.get("specification", {}),
+                                   "representation_options": d.get("representation_options", {})},
                     }
 
-                    brief_payload = {
-                        "language": "LANGUAGE_EN_US",
-                        "locale": "LOCALE_EN_US",
-                        "now": TODAY.isoformat(),
-                        "messages": [{
-                            "content": question,
-                            "action_type": "ACTION_TYPE_SUMMARIZE",
-                            "role": "ROLE_USER",
-                            "metric_group_context": [metric_context],
-                            "metric_group_context_resolved": False,
-                        }],
-                    }
+                    # Try question variants until we get a real answer
+                    variants = _question_variants(mc["label"])
+                    answer = None
+                    used_question = variants[0]
+                    for variant in variants:
+                        result = _ask_brief(variant, metric_context)
+                        if result and not _is_useless(result):
+                            answer = result
+                            used_question = variant
+                            break
 
-                    r_brief = req.post(f"{server_url}/api/-/pulse/insights/brief",
-                                       headers=h_brief, json=brief_payload, timeout=30)
-                    if r_brief.status_code == 201:
-                        markup = r_brief.json().get("markup", "")
-                        clean = re.sub(r'<span[^>]*>(.*?)</span>', r'\1', markup)
-                        clean = re.sub(r'\[\[\d+\]\]\([^)]+\)', '', clean)
-                        clean = re.sub(r'\*\*', '', clean).strip()
-                        discover_results.append({"question": question, "answer": clean, "metric": mc["label"]})
+                    if answer:
+                        discover_results.append({"question": used_question, "answer": answer, "metric": mc["label"]})
                         progress(q, "insights", f"Q{i+1}: {mc['label']} — got response", -1)
                     else:
-                        progress(q, "info", f"Brief API {r_brief.status_code} for {mc['label']}", -1)
+                        progress(q, "info", f"Q{i+1}: {mc['label']} — no useful response after {len(variants)} attempts, skipping", -1)
                 except Exception as e:
                     progress(q, "info", f"Insight {i+1} failed: {str(e)[:100]}", -1)
+
+            # Also try story-level questions using the primary metric's context
+            for mc, question in story_questions:
+                idx = next((j for j, m in enumerate(metric_config) if m["label"] == mc["label"]), 0)
+                if idx < len(cp.get("pulse_def_ids", [])):
+                    def_id = cp["pulse_def_ids"][idx]
+                    metric_id = cp["pulse_metric_ids"][idx]
+                    try:
+                        r_def = req.get(f"{server_url}/api/-/pulse/definitions/{def_id}", headers=h_std)
+                        r_met = req.get(f"{server_url}/api/-/pulse/definitions/{def_id}/metrics", headers=h_std)
+                        if r_def.ok and r_met.ok:
+                            d = r_def.json()
+                            m_list = r_met.json().get("metrics", [])
+                            m = m_list[0] if m_list else {}
+                            ctx = {
+                                "metadata": {"definition_id": def_id, "metric_id": metric_id,
+                                             "name": f"{company} — {mc['label']}", "tags": []},
+                                "metric": {"definition": d.get("specification", {}),
+                                           "extension_options": d.get("extension_options", {}),
+                                           "metric_specification": m.get("specification", {}),
+                                           "representation_options": d.get("representation_options", {})},
+                            }
+                            result = _ask_brief(question, ctx)
+                            if result and not _is_useless(result):
+                                discover_results.append({"question": question, "answer": result, "metric": mc["label"]})
+                                progress(q, "insights", f"Story Q: {mc['label']} — got response", -1)
+                    except Exception:
+                        pass
 
             if discover_results:
                 cp["pulse_discover_results"] = discover_results
@@ -1969,7 +2004,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{cp['sdm_api']}/calculated-measurements",
                 headers=h, json={
                     "apiName": clc_api, "label": mc["label"],
-                    "aggregationType": "UserAgg", "dataType": "Number",
+                    "aggregationType": "UserAgg", "dataType": "Percentage" if is_rate else "Number",
                     "decimalPlace": 1 if is_rate else 2, "directionality": "Up" if mc.get("sentiment") == "up_is_good" else "Down",
                     "displayCategory": "Continuous", "expression": clc_expression,
                     "filters": [], "isOverrideBase": False, "isVisible": True,
@@ -2876,6 +2911,17 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
         cp["crma_dataset_name"] = slug
         progress(q, "crma", "Dataset uploaded", 60)
 
+        # Set percentage formatting on rate fields via XMD
+        try:
+            from crma_uploader import set_percentage_fields
+            rate_fields = [_crma_safe(mc["field"]) for mc in metric_config if mc.get("agg", "Average") == "Average"]
+            if rate_fields and dataset_id:
+                ok = set_percentage_fields(sf_instance, sf_token, dataset_id, rate_fields)
+                if ok:
+                    progress(q, "crma", f"Percentage formatting applied to {len(rate_fields)} fields", -1)
+        except Exception as e:
+            progress(q, "warn", f"CRMA percentage formatting failed (non-blocking): {e}", -1)
+
         # Create CRMA dashboard from golden template
         progress(q, "crma", "Building CRM Analytics dashboard from template...", 65)
         try:
@@ -3090,12 +3136,12 @@ def run_build(build_id, build_config, progress_queue):
         cp_outputs = cp.get("_outputs")
         current_outputs = {k: v for k, v in outputs.items() if v}
         if cp_profile and cp_profile != default_profile:
-            _log(f"[warn] Connection changed ({cp_profile} → {default_profile}) — resetting checkpoint")
+            progress(q, "init", f"Connection changed ({cp_profile} → {default_profile}) — resetting checkpoint", -1)
             progress(q, "init", "Connection changed — rebuilding from scratch...", 0)
             cp = {"all_ws_apis": cp.get("all_ws_apis", []), "all_sdm_apis": cp.get("all_sdm_apis", []),
                   "all_viz_apis": cp.get("all_viz_apis", []), "all_dash_apis": cp.get("all_dash_apis", [])}
         elif cp_outputs and cp_outputs != current_outputs:
-            _log(f"[warn] Build outputs changed — resetting checkpoint (keeping asset tracking)")
+            progress(q, "init", "Build outputs changed — resetting checkpoint", -1)
             progress(q, "init", "Build outputs changed — rebuilding...", 0)
             keep = {"all_ws_apis", "all_sdm_apis", "all_viz_apis", "all_dash_apis", "story", "company"}
             cp = {k: v for k, v in cp.items() if k in keep}

@@ -72,7 +72,7 @@ class MCPClient:
             try:
                 from connections import load_full_config, save_full_config
                 full = load_full_config()
-                key = full.get("active_profile")
+                key = full.get("active_salesforce") or full.get("active_profile")
                 if key and key in full.get("profiles", {}):
                     full["profiles"][key]["salesforce"]["mcp_refresh_token"] = new_refresh
                     save_full_config(full)

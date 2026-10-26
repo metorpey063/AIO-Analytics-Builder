@@ -2,6 +2,10 @@
 
 A Claude Code skill for Tableau and Salesforce Solutions Engineers to rapidly build compelling demo assets across three platforms: Tableau Pulse, Tableau Next, and Salesforce Data Cloud.
 
+## CRITICAL: Read ENGINEERING_GUIDELINES.md first
+
+Before writing ANY code, read `ENGINEERING_GUIDELINES.md` in the project root. It defines the core principle: **use deterministic modules over variable code generation.** Every reusable module (`data_generator.py`, `template_deployer.py`, `data_validator.py`, `viz_builder.py`, etc.) must be used instead of writing fresh inline code. This ensures consistent, first-time-correct builds across all sessions.
+
 ## CRITICAL: Troubleshooting rules
 
 **When you encounter an error during a `/build-demo` run, follow this order EVERY time:**

@@ -401,55 +401,12 @@ This question is asked during the input-gathering phase (before the build starts
 
 > "Would you like me to look up {Company}'s brand guidelines and apply their official colors to the Tableau Next dashboard? (yes / no)"
 
-### 5c. CRM actionability (only ask if output includes `next`)
+### 5c. Include actionability (only ask if output includes `next`)
 
-Ask these questions in sequence:
+> "Would you like to include close-the-loop actionability? After the demo build completes, I'll walk you through setting up a follow-up action — linking the analytics story to a CRM record and deploying a Flow that the presenter triggers during the demo. (yes / no)"
 
-**5c.1 — Action target:**
-> "Would you like the demo to end with an action? For example, drilling from an insight to a specific CRM record and triggering a Flow or Global Action. (yes / no)"
-
-If no, skip to Step 6.
-
-**5c.2 — Golden record:**
-> "Do you have a golden record in your demo org that you already demo with? This is the record the analytics should point to — the one that surfaces when the audience drills down."
->
-> Options:
-> 1. **Yes — use an existing record** (I'll query your org and we'll pick it)
-> 2. **No — create demo records** (I'll generate Account records alongside the analytics data)
-
-**5c.3 — Record type:**
-> "What type of CRM record?" (Account, Case, Opportunity, Contact)
-
-**5c.4 — If "use existing record":**
-Query the org for records of that type and show a pick list:
-```python
-from crm_upserter import query_records
-records = query_records(sf_token, sf_instance, f"SELECT Id, Name FROM {sobject_type} ORDER BY LastModifiedDate DESC LIMIT 20")
-```
-Let the user pick the golden record. Save its `Id` and `Name`.
-
-Then ask:
-> "What insight should lead to this record? For example: 'worst performing account in the Southeast' or 'highest churn risk in Mid-Market'."
-
-This becomes the engineered signal target — AIO tunes multipliers so the golden record's entity surfaces at the top of the at-risk list when the audience filters.
-
-**5c.5 — If "create demo records":**
-AIO will generate CRM records alongside the analytics data. Entity names in the fact data will match the CRM record Names exactly (same string, no prefix/transformation). Salesforce record IDs (`account_id`) will be mapped into the fact data after upsert.
-
-Save to checkpoint:
-- `crm_actionable: true`
-- `crm_mode: "existing" | "create"`
-- `crm_sobject_type: "Account" | "Case" | etc.`
-- `crm_golden_record_id: "001..."` (if existing)
-- `crm_golden_record_name: "Acme Corp"` (if existing)
-- `crm_insight_target: "worst performing franchise in Southeast"` (if existing)
-
-**Data gen rules for CRM actionability:**
-- Entity name in fact data = CRM record Name (identical string, no transformation)
-- `account_id` (or `case_id`, `opportunity_id`) in fact data = native Salesforce 18-char record ID
-- Synthetic IDs (DDI-0001 etc.) are internal keys only — never shown in the detail table
-- If a golden record is targeted, engineer the signal multipliers so that entity surfaces at the top of the worst/best list in the culprit dimension
-- IngestAPI DLO relationship join criteria are silently dropped — denormalize CRM fields into the fact table instead of relying on SDM joins
+If **yes**: save `cp["include_actionability"] = True`. Phase 6 will run after the build completes.
+If **no**: skip. The demo ends with the dashboard and walkthrough.
 
 ---
 
@@ -559,41 +516,56 @@ Always sanity-check: print the min/max/mean of derived metrics (e.g. quota attai
 - All percentages stored as decimals (0.35 not 35)
 - Column names business-friendly with spaces and proper caps
 
-**MANDATORY DATA QUALITY GATES — run BEFORE and AFTER generating data:**
+**USE `data_generator.py` FOR ALL DATA GENERATION — never write inline generate_data() functions.**
+
+The `data_generator.py` module has validation baked in. It rejects generic dimension values and produces consistent output. Claude's job is to fill in the config from the research phase, then call the generator:
 
 ```python
-from data_validator import validate_dimension_values, validate_dataframe
+from data_generator import generate_demo_data
 
-# BEFORE generating rows — catches missing or generic DIMENSION_VALUES
-errors = validate_dimension_values(DIMENSION_VALUES, DIMENSIONS)
-if errors:
-    print("❌ DIMENSION_VALUES failed validation:")
-    for e in errors:
-        print(f"  - {e}")
-    raise SystemExit("Fix DIMENSION_VALUES before generating data. Research the company for real values.")
-
-# ... generate DataFrame ...
-
-# AFTER generating rows — catches generic values that slipped through
-errors = validate_dataframe(df, DIMENSIONS)
-if errors:
-    print("❌ Generated data failed validation:")
-    for e in errors:
-        print(f"  - {e}")
-    raise SystemExit("Data contains generic placeholders. Fix DIMENSION_VALUES and regenerate.")
+df = generate_demo_data(
+    metrics=METRIC_CONFIG,
+    dimensions=DIMENSIONS,
+    dimension_values=DIMENSION_VALUES,
+    signal_config={
+        "magnitude": SIGNAL_MAGNITUDE,       # 0.37 default
+        "onset": SIGNAL_ONSET,               # -6 default
+        "shape": SIGNAL_SHAPE,               # "accelerating" default
+        "duration": 6,
+        "supporting_magnitude": SUPPORTING_MAGNITUDE,  # 0.12 default
+    },
+    multipliers={
+        # Per-dimension multiplier maps — differentiate signal by segment
+        # Values > 1.0 = steeper decline, < 0 = counter-trend (improving)
+        "Region": {"West Coast": 1.8, "Northeast": 0.4, ...},
+        "Client Segment": {"Mid-Market": 2.2, "Small": 1.4, "Micro": 0.8, ...},
+        "Service Tier": {"PEO Essentials": 2.0, "HR Plus Dedicated": -0.12, ...},
+    },
+    noise_dim="Client Segment",              # dimension to key noise scaling on
+    noise_map={"Micro": 0.022, "Small": 0.016, "Mid-Market": 0.012, ...},
+    roster_dims=["Client Segment", "Region"],  # cross-product dimensions
+    random_dims=["Tenure Band", "Service Tier"],  # randomly assigned per entity
+    history_months=HISTORY_MONTHS,
+    grain=GRAIN,
+    clients_per_cell=2,
+    goal_columns={"Target Rate": 0.85} if goals else None,
+)
 ```
 
-These gates are NOT optional. Every build MUST call both checks. Without them, dashboards show "Service_Tier 1, 2, 3" instead of real company terms.
+The generator handles: entity roster construction, signal ramp (accelerating/linear/step), per-segment multipliers, noise scaling by size, Record ID + Day_Offset columns, base value variation per entity, and both pre/post validation.
+
+**If `generate_demo_data()` raises a `ValueError`, the build MUST stop.** The error message explains what's wrong (generic dimension values, missing config, etc.). Fix the config and retry — never bypass the validator.
+
 - **Save the story to the checkpoint** (every output mode: Pulse, Next, CRMA, CSV). Write the values the script already engineered, so `/close-loop` and `/studio` tell the intended story later without re-asking. Merge it into the checkpoint; never overwrite other keys:
   ```python
   cp["story"] = {
       "company": COMPANY, "headline": "<one-line story headline>",
       "primary_metric": METRIC_CONFIG[0]["label"],
       "supporting_metrics": [m["label"] for m in METRIC_CONFIG[1:4]],  # leading indicator first
-      "dimensions": [...],                 # the drillable dimension columns, in drill order
-      "dimension_values": DIMENSION_VALUES, # REQUIRED — dict mapping each dim name to its list of real values
+      "dimensions": DIMENSIONS,
+      "dimension_values": DIMENSION_VALUES, # REQUIRED — real company-specific values
       "root_cause_dimension": "...",       # the cost/effort dimension
-      "entity_field": "...",               # finest-grain name column (Q4 at-risk list)
+      "entity_field": "Entity ID",         # finest-grain name column (Q4 at-risk list)
       "date_field": "Date",
   }
   save_checkpoint(cp)
@@ -891,71 +863,11 @@ dc_token, dc_domain = get_dc_token(sf_token, sf_instance)
 - NEVER call `get_sf_token(config)` without `profile_key` — this breaks token rotation persistence
 - If you get `400 "expired access/refresh token"`, the token rotated but wasn't saved — re-run `/setup` Step 4b to re-authorize
 
-**Phase 1 — Data generation** (same as above, plus CRM records if `crm_actionable`)
+**Phase 1 — Data generation** (same as above)
 
-When `crm_actionable` is True, generate an `ACCOUNT_ROSTER` alongside the fact data. Each entity in the demo (client, franchisee, employer, etc.) maps to one Salesforce Account record. The Account records share a key with the fact data so the SDM can join them.
-
-```python
-# Generate CRM Account records from the entity roster
-ACCOUNT_ROSTER = []
-for entity in ENTITIES:  # your client/franchisee/employer roster
-    ACCOUNT_ROSTER.append({
-        "Name":             entity["name"],
-        "Demo_External_ID__c": entity["id"],       # matches fact table entity key
-        "Industry":         entity.get("vertical", entity.get("industry", "Other")),
-        "BillingState":     entity.get("state", ""),
-        "BillingCity":      entity.get("city", ""),
-        "BillingCountry":   "United States",
-        "AnnualRevenue":    entity.get("annual_revenue", 0),
-        "NumberOfEmployees": entity.get("employee_count", 0),
-        "Description":      f"Demo account for {COMPANY} {USE_CASE}",
-        "Type":             "Customer - Direct",
-    })
-```
-
-**Rules for CRM record generation:**
-- `Demo_External_ID__c` must match exactly the entity key column in the fact DataFrame (e.g. `Client ID`, `Franchise ID`). This is the join key between analytics data and CRM records.
-- Map entity dimensions to standard Account fields: `vertical` → `Industry`, `region`/`state` → `BillingState`, `size_band` → `NumberOfEmployees` (approximate), `name` → `Name`
-- Include at least `Name`, `Demo_External_ID__c`, `Industry`, and `BillingState` — these are the fields that appear in the Account record page and make the drill-down feel real
-- Add `AnnualRevenue` if you can derive it from the entity's base metrics (e.g. `base_revenue * 52` for weekly revenue → annual)
-- Save `ACCOUNT_ROSTER` alongside the fact DataFrame so Phase 1b can upsert it
-
-**Phase 1b — CRM record upsert** (only if `crm_actionable`)
-
-Uses `crm_upserter.py` to upsert Account records to the Salesforce org. Fully idempotent — safe to re-run.
-
-```python
-from crm_upserter import ensure_external_id_field, upsert_crm_records
-
-if not cp.get("crm_upsert_done"):
-    config = load_config(profile_key=PROFILE_KEY)
-    sf_token, sf_instance = get_sf_token(config, profile_key=PROFILE_KEY)
-
-    # Step 1: Ensure the External ID field exists on Account
-    print("\n[Phase 1b] Upserting CRM Account records...")
-    ensure_external_id_field(sf_token, sf_instance, "Account", "Demo_External_ID__c",
-                             "Demo External ID")
-
-    # Step 2: Upsert all Account records (200 per batch, idempotent)
-    id_map = upsert_crm_records(sf_token, sf_instance, "Account",
-                                 "Demo_External_ID__c", ACCOUNT_ROSTER)
-
-    # Save to checkpoint
-    cp["crm_upsert_done"] = True
-    cp["crm_id_map"] = id_map  # {"DDI-0001": "001xx...", ...}
-    cp["crm_external_ids"] = [a["Demo_External_ID__c"] for a in ACCOUNT_ROSTER]
-    save_checkpoint(cp)
-    print(f"  Upserted {len(id_map)} Account records")
-else:
-    print("\n[Phase 1b] CRM upsert already done (checkpoint), skipping...")
-    id_map = cp.get("crm_id_map", {})
-```
-
-**Key rules:**
-- `ensure_external_id_field` uses the Tooling API to create `Demo_External_ID__c` on Account if it doesn't exist. This is a one-time operation per org — subsequent runs detect the field and skip creation.
-- `upsert_crm_records` uses the Composite sObjects Collections API (`PATCH /composite/sobjects/Account/Demo_External_ID__c`) which handles 200 records per call and is idempotent.
-- The External ID field is created as `unique=True` and `externalId=True` — this enables the upsert endpoint and prevents duplicates on re-run.
-- Save `crm_external_ids` to the checkpoint so retry cleanup can delete demo records if needed.
+<!-- CRM record generation and upsert (Phase 1b) has moved to Phase 6 / close-loop.
+     The build only generates analytics data. CRM records are created during close-loop
+     if the user selects a golden record or needs demo records for the action flow. -->
 
 **Phase 2 — Register schema + streams**
 
@@ -1120,82 +1032,10 @@ measurement_dof_map = {m["dataObjectFieldName"].replace("__c", ""): m["dataObjec
 # Do NOT use apiName + "__c" — the apiName has a numeric suffix (e.g. "rate1") that doesn't match the DLO field.
 ```
 
-**Phase 4a — Add CRM Account DMO + relationship** (only if `crm_actionable`)
-
-After the fact DLO is added to the SDM, add the Account DMO (from the standard CRM connector) and create a relationship so Concierge can join analytics data to Account records.
-
-```python
-if cp.get("crm_actionable") and not cp.get("crm_dmo_done"):
-    # The Account DLO name includes a __dll suffix (e.g. "Account_Home__dll")
-    # Discover it by listing available DLOs in the default dataspace
-    r = requests.get(
-        f"{sf_instance}/services/data/v65.0/ssot/data-model-objects",
-        headers=h, params={"dataspaceName": "default", "limit": 200})
-    dmos = r.json().get("items", r.json().get("dataModelObjects", []))
-    account_dmo = None
-    for dmo in dmos:
-        if dmo.get("name", "").startswith("Account") and dmo.get("category") == "Standard":
-            account_dmo = dmo["name"]
-            break
-
-    if account_dmo:
-        # Add Account DMO to the SDM
-        r = requests.post(
-            f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{sdm_api}/data-objects",
-            headers=h,
-            json={
-                "dataLakeObjectName": account_dmo,
-                "dataObjectName": account_dmo,
-                "dataObjectType": "dlo",
-                "label": "Account",
-                "shouldIncludeAllFields": True,
-            })
-        acct_do_api = r.json().get("apiName")
-
-        # Get the Account DO field map to find the External ID field apiName
-        r = requests.get(
-            f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{sdm_api}/data-objects/{acct_do_api}",
-            headers=h)
-        acct_dims = r.json().get("semanticDimensions", [])
-        acct_dim_map = {d["dataObjectFieldName"].replace("__c", ""): d["apiName"] for d in acct_dims}
-
-        # Find the fact DLO's entity key field (e.g. "client_id" → "client_id1")
-        # This is the field that matches Demo_External_ID__c on Account
-        entity_key_field = dim_field_map.get(ENTITY_KEY_COLUMN)  # e.g. "franchise_id"
-        acct_ext_id_field = acct_dim_map.get("Demo_External_ID")  # __c stripped
-
-        if entity_key_field and acct_ext_id_field:
-            # Create relationship: Fact DLO → Account DMO
-            r = requests.post(
-                f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{sdm_api}/relationships",
-                headers=h,
-                json={
-                    "label": "Account Link",
-                    "leftSemanticDefinitionApiName": do_api,
-                    "leftFieldApiName": entity_key_field + "__c",
-                    "rightSemanticDefinitionApiName": acct_do_api,
-                    "rightFieldApiName": acct_ext_id_field + "__c",
-                    "joinType": "Auto",
-                    "cardinality": "ManyToOne",
-                })
-            print(f"  Created relationship: {do_api} → {acct_do_api}")
-
-        cp["crm_dmo_done"] = True
-        cp["acct_do_api"] = acct_do_api
-        save_checkpoint(cp)
-    else:
-        print("  WARNING: Account DMO not found in dataspace — skipping CRM link")
-        print("  Ensure 'Connect Standard Objects' was completed in Tableau Next Setup")
-```
-
-**Key rules for CRM DMO integration:**
-- The Account DMO name varies by org (usually `Account1` but can be `Account2`, etc. after re-provisions). Always discover it dynamically by listing DMOs and matching `category: "Standard"` + name starts with `"Account"`.
-- Use `dataObjectType: "dlo"` (not `"dmo"`) for standard CRM objects — even though they come through the CRM connector, the data lake representation uses the DLO type with a `__dll` suffix (e.g. `Account_Home__dll`).
-- Include `shouldIncludeAllFields: True` so all Account fields (Name, Industry, BillingState, etc.) are available in the SDM.
-- The relationship joins the fact DLO's entity key (e.g. `franchise_id__c`) to the Account DMO's `Demo_External_ID__c` field. Both field references in the relationship payload use the `__c` suffix.
-- `joinType: "Auto"` is required — explicit types like `"LeftOuter"` cause 400 "must have the 'AUTO' join type" (explicit types are only valid inside logical views).
-- `cardinality: "ManyToOne"` because many fact rows (weekly records) map to one Account.
-- `ENTITY_KEY_COLUMN` is the snake_case name of the entity key field in your schema (e.g. `"franchise_id"`, `"client_id"`). Define it at the top of the demo script alongside `SLUG` and `COMPANY`.
+<!-- Phase 4a (CRM Account DMO + relationship) has moved to Phase 6 / close-loop.
+     The build creates the analytics SDM only. CRM linking happens in close-loop
+     when the user configures a golden record target. The code and patterns for
+     Account DMO integration are preserved in close_loop.py and crm_upserter.py. -->
 
 - Add calculated measurements (KPIs) and calculated dimensions (self-healing date shift)
 - Create a `Display Date` calculated dimension using the **self-healing formula**:
@@ -1493,15 +1333,9 @@ Generate the walkthrough `.docx` using python-docx. **Follow the standard struct
 **For Tableau Next builds, the .docx must contain (in this order):**
 1. **Demo Scenario** — same as Pulse
 2. **Metrics Reference** — same as Pulse
-3. **Concierge Prompts** — H1 with H2 per step. Labels: **"Ask:"** (bold) + **"Expected response:"** (bold). These are AI Q&A pairs. If `crm_actionable`, the final prompt should be an action step (see below).
+3. **Concierge Prompts** — H1 with H2 per step. Labels: **"Ask:"** (bold) + **"Expected response:"** (bold). These are AI Q&A pairs.
 4. **Business Preferences (SDM)** — H1 with copy-paste instructions and `#`-prefixed text block
-5. **Taking Action** (only if `crm_actionable`) — H1 with instructions for navigating from a Concierge insight to the Account record. Include:
-   - **H2: "From Insight to Action"** — Step-by-step: ask Concierge "which accounts have the steepest decline?" → review the list → click through to the Account record → launch a Flow or Global Action
-   - **H2: "Recommended Actions"** — 2-3 example actions relevant to the use case:
-     - For sales: "Create Follow-Up Task", "Reassign Territory", "Schedule Executive Review"
-     - For service: "Escalate Case", "Create Service Appointment", "Trigger Outreach Cadence"
-     - For HR/benefits: "Flag for Renewal Review", "Schedule Benefits Consultation", "Create Risk Alert"
-   - **H2: "Setting Up Actions"** — Brief instructions for creating a Screen Flow or Global Action in Setup. Note that this is a manual step — AIO creates the CRM records and the SDM link, but the Flow/Action definition is done in the Salesforce UI (or via a future AIO extension).
+**Note:** The "Taking Action" / "Close the Loop" section is NOT written during the build. It is written by `/close-loop` (Phase 6) if the user selected actionability. This keeps the build focused on analytics and the action story in one place.
 
 **Label rules (critical — do not mix):**
 - **"Action:" / "Audience sees:"** → UI navigation (Demo Click Path)
@@ -1650,7 +1484,7 @@ Print the following structured summary when the build completes. Use clean markd
 > - **— Not run** — phase was never attempted (e.g. build interrupted before reaching it)
 > 
 > For Pulse builds, phases are: Data Generation, Datasource Publish, Metric Creation, Group + Subscriptions, Pulse Discover Questions, Walkthrough Document
-> For Next builds, phases are: Data Generation, CRM Upsert (if actionable), Schema + Streams, Bulk Ingest, Workspace + SDM, CRM DMO Link (if actionable), Calculated Measurements, Metrics, Field Descriptions, Business Preferences, Visualizations, Dashboard, Walkthrough Document
+> For Next builds, phases are: Data Generation, Schema + Streams, Bulk Ingest, Workspace + SDM, Calculated Measurements, Metrics, Field Descriptions, Business Preferences, Visualizations, Dashboard, Walkthrough Document, Close the Loop (if actionability enabled)
 > For CRMA builds, phases are: Data Generation, Dataset Upload, Dashboard Creation, Walkthrough Document
 > For CSV-only: Data Generation, CSV Export
 > 
@@ -1719,13 +1553,75 @@ Note: the Tableau Next Concierge does not have a public REST API — it is UI-on
 
 ---
 
-## Optional add-ons (post-build mention)
+## Phase 6 — Close the Loop (only if `include_actionability` is True)
 
-After a successful build, mention the standalone commands available for this demo in one line. Do NOT ask questions or add steps to the build flow:
+**After a successful Tableau Next build**, if the user checked "Include actionability" in Step 5c, automatically proceed to Phase 6. This runs `/close-loop` with the build's story context — the user does NOT need to invoke it manually.
 
-> Optional: run `/close-loop {slug}` to deploy follow-up Flows (Tasks/Case/Campaign + Slack/Chatter) for this demo, or `/studio {slug}` to generate Tableau Studio Agent skills pre-loaded with this story.
+**Phase 6 flow:**
 
-For Tableau Next builds where the user selected CRM Actionability, close-loop Flows are already deployed as part of that flow. The standalone `/close-loop` command is for Pulse, CSV, or any demo where CRM Actionability wasn't selected during the build.
+**Step 6.1 — Story recap** (automatic, no input)
+Load `cp["story"]` and display a summary:
+> "Here's the story your demo tells:
+> **{headline}**
+> Primary metric: {primary_metric} — culprit: {culprit segment} — counter-trend: {counter segment}
+> Top at-risk entities: {entity_1}, {entity_2}, {entity_3}
+>
+> The close-the-loop action should complete this narrative — turning the insight into a concrete follow-up."
+
+**Step 6.2 — Golden record** (user input via AskUserQuestion)
+> "Do you have a specific CRM record this demo should point to?"
+>
+> 1. **Yes — I have a record** (I'll look it up in your org)
+> 2. **No — use the at-risk list** (follow-up targets the top entities from the story)
+
+If **yes**: ask for record type (Account, Case, Opportunity, Contact, Lead) and a name or record ID. Look it up via SOQL:
+```python
+from crm_upserter import query_records
+results = query_records(sf_token, sf_instance,
+    f"SELECT Id, Name FROM {record_type} WHERE Name LIKE '%{search_term}%' ORDER BY LastModifiedDate DESC LIMIT 10")
+```
+Let the user pick from the results. Save to checkpoint: `cp["golden_record"] = {"id": "001...", "name": "Acme Corp", "type": "Account"}`.
+
+If **no**: the follow-up targets the top at-risk entities from `analyze_story()` (existing behavior).
+
+**Step 6.3 — Action type** (user input via AskUserQuestion)
+> "What should happen when the presenter takes action?"
+>
+> 1. **Create follow-up Tasks** — one Task per at-risk entity (recommended for most demos)
+> 2. **Escalate to a Case** — single escalation Case with the full drill-down story
+> 3. **Add to a Campaign** — create a recovery Campaign for the at-risk segment
+
+The current `close_loop.py` already supports all three — `recommend_action()` auto-suggests based on keywords, but the user can override.
+
+**Step 6.4 — Trigger mechanism** (user input via AskUserQuestion)
+> "How should the action fire during the demo?"
+>
+> 1. **Record-page action** (Recommended if golden record selected) — a Quick Action button on the record page. The presenter navigates to the Account/Opportunity, clicks the button, confirms, done.
+> 2. **Slack alert with button** — insight card in Slack with a "Create follow-ups" link
+> 3. **Record-triggered** — creating a signal record automatically fires the follow-up
+
+If a golden record was selected in Step 6.2, default to "Record-page action" — it's the most natural trigger when the demo ends on a specific CRM record. The record_action trigger deploys a QuickAction + RecordActionDeployment alongside the Flows, so the button appears in the Actions & Recommendations panel on the record page.
+
+**Step 6.5 — Notification channel** (user input)
+> "Where should the team be notified?"
+>
+> 1. **Slack** — posts to a Slack channel (I'll help you set it up)
+> 2. **Chatter** — posts to Chatter (no setup needed)
+
+If Slack: run `python close_loop.py slack-check --slug {slug} --profile {profile_key}` and guide through any setup issues.
+
+**Step 6.6 — Build + Deploy** (automatic)
+Run: `python close_loop.py build --slug {slug} --action {action} --trigger {trigger} --notify {notify} --profile {profile_key}`
+
+This deploys the Flows, writes Section 7 to the walkthrough .docx, and saves `cp["close_loop"]` to the checkpoint.
+
+**Step 6.7 — Test** (guided)
+Offer to test: "Want to fire the trigger once to verify it works? This will create real records in the org."
+If yes: `python close_loop.py test --slug {slug} --profile {profile_key}`
+Show results, then offer: `python close_loop.py reset --slug {slug}` to clean up test records.
+
+**After Phase 6**, print the final summary including the close-loop assets and mention `/studio` as an optional standalone add-on:
+> Optional: run `/studio {slug}` to generate Tableau Studio Agent skills pre-loaded with this story.
 
 ---
 

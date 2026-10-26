@@ -46,7 +46,7 @@ API = "v62.0"
 SUBJECT_PREFIX = "AiO Alert"
 SIGNAL_PREFIX = "AiO Signal"
 SLACK_ACTION = "slackPostMessage"
-TRIGGERS = ["slack_button", "record_triggered"]  # P2: agentforce · P3: next_button
+TRIGGERS = ["slack_button", "record_triggered", "record_action"]
 
 # Story keywords → action. Task is the default (path of least resistance).
 CASE_KEYWORDS = ["stockout", "stock-out", "defect", "sla", "quality", "outage", "safety", "incident",
@@ -316,7 +316,7 @@ def _seg_label(s):
     return f"{s['value']} ({s['dimension']})"
 
 
-def build_payload(ctx, analysis, action, reason, top_n=5, cfg=None):
+def build_payload(ctx, analysis, action, reason, top_n=5, cfg=None, golden_record=None):
     a = analysis
     company, metric = ctx["company"], a["primary_metric"]
     culprit, compound = a["culprit"], a["compound"]
@@ -351,17 +351,27 @@ def build_payload(ctx, analysis, action, reason, top_n=5, cfg=None):
         "Created by AiO Analytics Builder from the demo insight.",
     ]))
 
+    # Golden record linking: if provided, link Tasks via WhatId, Cases via AccountId
+    gr_id = golden_record.get("id") if golden_record else None
+    gr_type = golden_record.get("type", "Account") if golden_record else None
+
     records = []
     if action == "task":
         for e, line in zip(a["at_risk"], at_risk_lines):
-            records.append({"attributes": {"type": "Task"},
-                            "Subject": f"{SUBJECT_PREFIX}: {metric} — {e['entity']}"[:255],
-                            "Description": f"{line}\n\n{summary}"[:32000],
-                            "ActivityDate": due, "Priority": "High", "Status": "Not Started"})
+            rec = {"attributes": {"type": "Task"},
+                   "Subject": f"{SUBJECT_PREFIX}: {metric} — {e['entity']}"[:255],
+                   "Description": f"{line}\n\n{summary}"[:32000],
+                   "ActivityDate": due, "Priority": "High", "Status": "Not Started"}
+            if gr_id and gr_type in ("Account", "Opportunity", "Case"):
+                rec["WhatId"] = gr_id
+            records.append(rec)
     elif action == "case":
-        records.append({"attributes": {"type": "Case"},
-                        "Subject": f"{SUBJECT_PREFIX}: {headline}"[:255],
-                        "Description": summary[:32000], "Priority": "High", "Status": "New"})
+        rec = {"attributes": {"type": "Case"},
+               "Subject": f"{SUBJECT_PREFIX}: {headline}"[:255],
+               "Description": summary[:32000], "Priority": "High", "Status": "New"}
+        if gr_id and gr_type == "Account":
+            rec["AccountId"] = gr_id
+        records.append(rec)
     elif action == "campaign":
         records.append({"attributes": {"type": "Campaign"},
                         "Name": f"AiO: {focus} {metric} recovery"[:80],
@@ -379,6 +389,7 @@ def build_payload(ctx, analysis, action, reason, top_n=5, cfg=None):
         "at_risk": a["at_risk"], "at_risk_lines": at_risk_lines, "summary": summary,
         "ask": ask, "records": records, "top_n": top_n,
         "slack": (cfg or {}).get("slack", {}), "analysis": a,
+        "golden_record": golden_record,
         "staged_at": datetime.now().isoformat(timespec="seconds"),
     }
 
@@ -433,13 +444,16 @@ def explore_link(cp):
 # ── Follow-up design: action × trigger → Flows ────────────────────────────────
 
 def recommend_trigger(cp, action):
-    """ONE trigger per demo. Operational breaches (Case) automate on a signal; everything else is a Slack
-    alert with a button. Next builds will default to an Agentforce action once P2 lands."""
+    """ONE trigger per demo. Golden record → record-page action; operational breaches → signal;
+    everything else → Slack alert with a button."""
+    if cp.get("golden_record"):
+        return "record_action", (f"golden record selected ({cp['golden_record'].get('name', '?')}) "
+                                 f"— a button on the record page is the most natural trigger")
     if action == "case":
         return "record_triggered", "operational threshold breach — the fix should fire automatically on the signal"
     why = "Pulse already alerts people — extend that alert into Slack with a one-click follow-up"
     if cp.get("next_done") or cp.get("sdm_done") or cp.get("next_sdm_done"):
-        why = "Next build — Slack button until the Agentforce trigger (P2) is available"
+        why = "Next build — Slack button until the Agentforce trigger is available"
     return "slack_button", why
 
 
@@ -451,6 +465,9 @@ def flow_names(slug, trigger):
         names.update({"alert": f"{base}_Alert", "screen": f"{base}_Followup_Screen"})
     elif trigger == "record_triggered":
         names["signal"] = f"{base}_Signal"
+    elif trigger == "record_action":
+        names["action_screen"] = f"{base}_Action_Screen"
+        names["quick_action"] = f"{base}_Action"
     return names
 
 
@@ -505,7 +522,8 @@ def generate_flows(slug, payload, trigger, inst, post, explore_url=None):
     desc = f"AiO Analytics Builder close-the-loop for {company} — {payload['headline']}"
     out = {
         n["followup"]: flows.followup_flow(f"AiO {company} Follow-up", f"{desc}. Creates {noun}.",
-                                           _flow_records(payload)),
+                                           _flow_records(payload),
+                                           golden_record=payload.get("golden_record")),
         n["notify"]: flows.notify_flow(
             f"AiO {company} Notify", f"{desc}. Posts the action-taken card when the follow-up runs.",
             obj, field, value,
@@ -528,6 +546,27 @@ def generate_flows(slug, payload, trigger, inst, post, explore_url=None):
             f"AiO {company} Signal", f"{desc}. A Task whose Subject starts with '{SIGNAL_PREFIX}: {metric}' "
             f"(a threshold breach) runs the follow-up automatically.",
             f"{SIGNAL_PREFIX}: {metric}"[:255], n["followup"])
+    elif trigger == "record_action":
+        gr = payload.get("golden_record") or {}
+        gr_type = gr.get("type", "Account")
+        gr_name = gr.get("name", "the record")
+        confirm = (f"<p><b>{payload['headline']}</b></p><p>{payload['drill_path']}</p>"
+                   f"<p>This creates {noun} linked to <b>{gr_name}</b> and tells the team in "
+                   f"{'Slack' if slack else 'Chatter'}.</p>")
+        done = (f"<p><b>Done.</b> Created {noun}.</p>"
+                f"<p><a href=\"/lightning/r/{obj}/{{!Run_Followup.firstRecordId}}/view\">Open the first record</a></p>")
+        out[n["action_screen"]] = flows.record_action_screen_flow(
+            f"AiO {company} Action", f"{desc}. Record-page action — confirm → run follow-up → done.",
+            n["followup"], confirm, done, "Create follow-ups")
+        # QuickAction + RecordActionDeployment are non-Flow metadata — stored separately
+        qa_member = f"{gr_type}.{n['quick_action']}"
+        out[f"quickActions/{qa_member}.quickAction"] = flows.quick_action_xml(
+            gr_type, n["quick_action"], n["action_screen"], f"AiO: {metric} Follow-up")
+        deploy_name = f"AiO_{gr_type}_Actions"
+        out[f"recordActionDeployments/{deploy_name}.recordActionDeployment"] = flows.record_action_deployment_xml(
+            gr_type, qa_member, f"AiO {company} Actions")
+        out["_quick_action_member"] = qa_member
+        out["_deployment_name"] = deploy_name
     return out
 
 
@@ -568,6 +607,23 @@ def demo_script(slug, payload, trigger, names, slack_cfg, post_mode):
                                  "screen.",
                       "result": f"Salesforce creates {noun} with the full story in each record, and a second card in "
                                 f"{where} tells the team what was done and who owns it."})
+    elif trigger == "record_action":
+        gr = payload.get("golden_record") or {}
+        gr_name = gr.get("name", "the record")
+        gr_type = gr.get("type", "Account")
+        steps.append({"title": "Navigate to the record",
+                      "say": f"{focus}.{because} Now watch what happens when we go straight to the "
+                             f"{gr_type} record — {gr_name}.",
+                      "trigger": f"Open the {gr_type} record for {gr_name} in Salesforce.",
+                      "result": f"The {gr_type} record page with the \"AiO: {payload['metric']} Follow-up\" "
+                                f"action button visible in the Actions & Recommendations panel."})
+        steps.append({"title": "Close the loop",
+                      "say": f"{counter} We don't need to open another tool or remember to follow up. "
+                             f"The action is right here on the record.".strip(),
+                      "trigger": f"Click \"AiO: {payload['metric']} Follow-up\" in the Actions panel and press "
+                                 f"\"Create follow-ups\" on the confirmation screen.",
+                      "result": f"Salesforce creates {noun} linked to {gr_name}, and a notification in "
+                                f"{where} tells the team what was done and who owns it."})
     else:
         steps.append({"title": "The signal fires",
                       "say": f"Nobody should have to spot this by hand. When {payload['metric']} breaches in "
@@ -595,6 +651,53 @@ def section7(payload):
     intro = (f"The demo ends with an action: {payload['action_reason']}. The follow-up is built into the org, so "
              f"nothing runs from a laptop at demo time. Trigger: {payload['trigger_label']}.")
     return intro, payload["demo_steps"]
+
+
+# ── Golden record ─────────────────────────────────────────────────────────────
+
+def lookup_golden_record(inst, h, record_type, search, limit=10):
+    """Search for a CRM record by name or ID. Returns list of {Id, Name} dicts."""
+    from crm_upserter import query_records
+    search = (search or "").strip()
+    if not search:
+        return []
+    if len(search) in (15, 18) and search[:3].isalnum():
+        rows = query_records(inst.replace("Bearer ", ""), inst,
+                             f"SELECT Id, Name FROM {record_type} WHERE Id = '{search}' LIMIT 1",
+                             _headers=h)
+        if rows:
+            return rows
+    safe = search.replace("'", "\\'")
+    return query_records(None, None,
+                         f"SELECT Id, Name FROM {record_type} WHERE Name LIKE '%{safe}%' "
+                         f"ORDER BY LastModifiedDate DESC LIMIT {limit}",
+                         _inst=inst, _headers=h)
+
+
+def _lookup_soql(inst, h, soql):
+    """Run a SOQL query and return records."""
+    r = requests.get(f"{inst}/services/data/{API}/query",
+                     headers=h, params={"q": soql}, timeout=30)
+    if r.ok:
+        return r.json().get("records", [])
+    return []
+
+
+def search_golden_record(inst, h, record_type, search_term, limit=10):
+    """Search for a CRM record by name or ID. Returns list of {Id, Name} dicts."""
+    search_term = (search_term or "").strip()
+    if not search_term:
+        return []
+    if len(search_term) in (15, 18) and search_term[:3].isalnum():
+        rows = _lookup_soql(inst, h,
+            f"SELECT Id, Name FROM {record_type} WHERE Id = '{search_term}' LIMIT 1")
+        if rows:
+            return [{"Id": r["Id"], "Name": r.get("Name", "")} for r in rows]
+    safe = search_term.replace("'", "\\'")
+    rows = _lookup_soql(inst, h,
+        f"SELECT Id, Name FROM {record_type} WHERE Name LIKE '%{safe}%' "
+        f"ORDER BY LastModifiedDate DESC LIMIT {limit}")
+    return [{"Id": r["Id"], "Name": r.get("Name", "")} for r in rows]
 
 
 # ── Salesforce calls ───────────────────────────────────────────────────────────
@@ -864,11 +967,29 @@ def find_followup_records(inst, h, payload, since=None):
 # ── Walkthrough Section 7 ──────────────────────────────────────────────────────
 
 def write_walkthrough(slug, cp, payload):
-    """Replace (or append) the 'Close the Loop' section in the demo's walkthrough .docx."""
-    path = cp.get("walkthrough") or next(iter(sorted(glob.glob(os.path.join(demo_dir(slug), "*walkthrough*.docx")))), None)
-    if not path or not os.path.exists(path) or os.path.basename(path).startswith("~$"):
-        print("No walkthrough .docx found — skipping Section 7 (talk track is in the payload JSON).")
+    """Replace (or append) the 'Close the Loop' section in the demo's walkthrough (.docx or .html)."""
+    # Find the walkthrough file — try .docx first, then .html
+    path = cp.get("walkthrough")
+    if not path or not os.path.exists(path):
+        for ext in ("*.docx", "*.html"):
+            candidates = sorted(glob.glob(os.path.join(demo_dir(slug), f"*walkthrough*{ext.lstrip('*')}")))
+            candidates = [c for c in candidates if not os.path.basename(c).startswith("~$")]
+            if candidates:
+                path = candidates[0]
+                break
+    if not path or not os.path.exists(path):
+        print("No walkthrough found — skipping Section 7 (talk track is in the payload JSON).")
         return None
+
+    intro, steps = section7(payload)
+
+    if path.endswith(".html"):
+        return _write_walkthrough_html(path, intro, steps)
+    else:
+        return _write_walkthrough_docx(path, intro, steps)
+
+
+def _write_walkthrough_docx(path, intro, steps):
     from docx import Document
     doc = Document(path)
     drop = False
@@ -878,7 +999,6 @@ def write_walkthrough(slug, cp, payload):
         if drop:
             p._element.getparent().remove(p._element)
 
-    intro, steps = section7(payload)
     doc.add_heading("Close the Loop", level=1)
     doc.add_paragraph(intro)
     for s in steps:
@@ -891,10 +1011,41 @@ def write_walkthrough(slug, cp, payload):
     return path
 
 
+def _write_walkthrough_html(path, intro, steps):
+    with open(path, "r") as f:
+        html_content = f.read()
+
+    # Remove existing Close the Loop section if present
+    import re as _re
+    html_content = _re.sub(
+        r'<h1[^>]*>\s*Close the Loop\s*</h1>.*?(?=<h1[^>]*>|</body>|$)',
+        '', html_content, flags=_re.DOTALL)
+
+    # Build new section HTML
+    section = ['<h1>Close the Loop</h1>', f'<p>{intro}</p>']
+    for s in steps:
+        section.append(f'<h2>{s["title"]}</h2>')
+        section.append(f'<p><strong>Say:</strong> {s["say"]}</p>')
+        section.append(f'<p><strong>Trigger:</strong> {s["trigger"]}</p>')
+        section.append(f'<p><strong>Result:</strong> {s["result"]}</p>')
+    section_html = '\n'.join(section)
+
+    # Insert before </body> or append
+    if '</body>' in html_content:
+        html_content = html_content.replace('</body>', f'\n{section_html}\n</body>')
+    else:
+        html_content += f'\n{section_html}\n'
+
+    with open(path, "w") as f:
+        f.write(html_content)
+    return path
+
+
 # ── Commands ───────────────────────────────────────────────────────────────────
 
 TRIGGER_LABELS = {"slack_button": "Slack message with a \"Create follow-ups\" button",
-                  "record_triggered": "Record-triggered automation on a threshold-breach signal"}
+                  "record_triggered": "Record-triggered automation on a threshold-breach signal",
+                  "record_action": "Quick Action button on the CRM record page"}
 
 
 def _cfg(profile=None):
@@ -959,7 +1110,8 @@ def cmd_plan(slug, action=None, trigger=None, top_n=5, org=None, profile=None, n
         trig_reason = f"overridden (recommended: {rec_trig} — {trig_reason})"
     trigger = trigger or rec_trig
 
-    payload = build_payload(ctx, analysis, action, reason, top_n, cfg)
+    golden_record = cp.get("golden_record")
+    payload = build_payload(ctx, analysis, action, reason, top_n, cfg, golden_record=golden_record)
     notify = notify or _saved_notify(slug)
     post_mode = "chatter" if notify == "chatter" else ("slack" if (org or {}).get("slack_ready") or notify == "slack"
                                                        else "chatter")
@@ -997,8 +1149,27 @@ def cmd_build(slug, action=None, trigger=None, top_n=5, profile=None, check_only
     xmls = generate_flows(slug, payload, payload["trigger"], inst, post, explore_link(cp))
 
     out_dir = os.path.join(demo_dir(slug), "close_loop_metadata")
-    files = {"package.xml": flows.package_xml(list(xmls))}
-    files.update({f"flows/{n}.flow": x for n, x in xmls.items()})
+
+    # Separate Flows from QuickActions/RecordActionDeployments
+    flow_xmls = {}
+    extra_files = {}
+    qa_members = []
+    deploy_names = []
+    for name, xml in xmls.items():
+        if name.startswith("quickActions/") or name.startswith("recordActionDeployments/"):
+            extra_files[name] = xml
+            if name.startswith("quickActions/"):
+                qa_members.append(name.split("/")[1].replace(".quickAction", ""))
+            elif name.startswith("recordActionDeployments/"):
+                deploy_names.append(name.split("/")[1].replace(".recordActionDeployment", ""))
+        elif name.startswith("_"):
+            pass  # internal metadata keys, not files
+        else:
+            flow_xmls[name] = xml
+
+    files = {"package.xml": flows.package_xml(list(flow_xmls), qa_members, deploy_names)}
+    files.update({f"flows/{n}.flow": x for n, x in flow_xmls.items()})
+    files.update(extra_files)
     for path, x in files.items():
         os.makedirs(os.path.dirname(os.path.join(out_dir, path)), exist_ok=True)
         with open(os.path.join(out_dir, path), "w") as f:
