@@ -1884,16 +1884,20 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 continue
 
             clc_api = f"{mc['field']}_clc"
-            clc_expression = f'AVG([{cp["do_api"]}].[{meas_api}])'
-            if mc.get("agg") == "Sum":
+            is_rate = mc.get("agg", "Average") == "Average"
+            if is_rate:
+                clc_expression = f'AVG([{cp["do_api"]}].[{meas_api}]) * 100'
+            elif mc.get("agg") == "Sum":
                 clc_expression = f'SUM([{cp["do_api"]}].[{meas_api}])'
+            else:
+                clc_expression = f'AVG([{cp["do_api"]}].[{meas_api}])'
 
             r_clc = req.post(
                 f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{cp['sdm_api']}/calculated-measurements",
                 headers=h, json={
                     "apiName": clc_api, "label": mc["label"],
                     "aggregationType": "UserAgg", "dataType": "Number",
-                    "decimalPlace": 4, "directionality": "Up" if mc.get("sentiment") == "up_is_good" else "Down",
+                    "decimalPlace": 1 if is_rate else 2, "directionality": "Up" if mc.get("sentiment") == "up_is_good" else "Down",
                     "displayCategory": "Continuous", "expression": clc_expression,
                     "filters": [], "isOverrideBase": False, "isVisible": True,
                     "level": "AggregateFunction", "overriddenProperties": [],
