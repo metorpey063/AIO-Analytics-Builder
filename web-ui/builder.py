@@ -1885,12 +1885,9 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
             clc_api = f"{mc['field']}_clc"
             is_rate = mc.get("agg", "Average") == "Average"
-            if is_rate:
-                clc_expression = f'AVG([{cp["do_api"]}].[{meas_api}]) * 100'
-            elif mc.get("agg") == "Sum":
+            clc_expression = f'AVG([{cp["do_api"]}].[{meas_api}])'
+            if mc.get("agg") == "Sum":
                 clc_expression = f'SUM([{cp["do_api"]}].[{meas_api}])'
-            else:
-                clc_expression = f'AVG([{cp["do_api"]}].[{meas_api}])'
 
             r_clc = req.post(
                 f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{cp['sdm_api']}/calculated-measurements",
@@ -2060,13 +2057,14 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 why = mc.get("why_it_matters", "")
                 if not desc:
                     continue
+                is_rate = mc.get("agg", "Average") == "Average"
                 body = {
                     "apiName": cm["apiName"], "label": cm.get("label", ""),
                     "expression": cm.get("expression", ""),
-                    "dataType": cm.get("dataType", "Number"),
+                    "dataType": "Percentage" if is_rate else cm.get("dataType", "Number"),
                     "aggregationType": cm.get("aggregationType", "UserAgg"),
                     "displayCategory": cm.get("displayCategory", "Continuous"),
-                    "decimalPlace": cm.get("decimalPlace", 4),
+                    "decimalPlace": 1 if is_rate else cm.get("decimalPlace", 4),
                     "directionality": cm.get("directionality", "Up"),
                     "isVisible": cm.get("isVisible", True),
                     "isOverrideBase": cm.get("isOverrideBase", False),
