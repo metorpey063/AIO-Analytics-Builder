@@ -4,6 +4,21 @@
 {% block title %}Build Demo — AIO Analytics Builder{% endblock %}
 
 {% block content %}
+<style>
+.dictation-wrapper { position: relative; display: flex; align-items: stretch; }
+.dictation-wrapper input[type="text"],
+.dictation-wrapper textarea { flex: 1; padding-right: 36px; }
+.btn-dictation {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; font-size: 16px;
+    opacity: 0.4; transition: opacity 0.2s; padding: 4px; line-height: 1; z-index: 1;
+}
+.btn-dictation:hover { opacity: 0.7; }
+.btn-dictation.dictating { opacity: 1; animation: pulse-mic 1s infinite; }
+@keyframes pulse-mic { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+/* For textareas, pin to top-right instead of vertical center */
+.dictation-wrapper textarea ~ .btn-dictation { top: 8px; transform: none; }
+</style>
 <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
     <div>
         <h1>Build a Demo</h1>
@@ -59,7 +74,7 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label for="w-company">Company Name</label>
-                            <input type="text" id="w-company" class="sync-field" data-sync="company" placeholder="Acme Corp" maxlength="50">
+                            <input type="text" id="w-company" class="sync-field" data-sync="company" data-dictation placeholder="Acme Corp" maxlength="50">
                         </div>
                         <div class="form-group">
                             <label for="w-demo-name">Demo Name <span class="optional">(optional)</span></label>
@@ -89,15 +104,15 @@
                     </div>
                     <div class="form-group">
                         <label for="w-usecase">Use Case / Topic</label>
-                        <textarea id="w-usecase" class="sync-field" data-sync="usecase" rows="2" placeholder="e.g. Employee benefits enrollment, Sales pipeline, Customer churn — the more detail you provide, the better the demo"></textarea>
+                        <textarea id="w-usecase" class="sync-field" data-sync="usecase" data-dictation rows="2" placeholder="e.g. Employee benefits enrollment, Sales pipeline, Customer churn — the more detail you provide, the better the demo"></textarea>
                     </div>
                     <div class="form-group">
                         <label for="w-audience">Audience (who will see this demo?)</label>
-                        <input type="text" id="w-audience" class="sync-field" data-sync="audience" placeholder="e.g. VP of HR, Chief Data Officer, Sales Operations Manager">
+                        <input type="text" id="w-audience" class="sync-field" data-sync="audience" data-dictation placeholder="e.g. VP of HR, Chief Data Officer, Sales Operations Manager">
                     </div>
                     <div class="form-group">
                         <label for="w-notes">Additional Context <span class="optional">(optional)</span></label>
-                        <textarea id="w-notes" class="sync-field" data-sync="notes" rows="3" placeholder="Any specific requirements, pain points, or details about what matters to this prospect..."></textarea>
+                        <textarea id="w-notes" class="sync-field" data-sync="notes" data-dictation rows="3" placeholder="Any specific requirements, pain points, or details about what matters to this prospect..."></textarea>
                     </div>
 
                     <!-- File Upload -->
@@ -208,7 +223,7 @@
                 </div>
                 <div class="form-group" style="margin-top:12px">
                     <label>Edit Story <span style="font-weight:400; color:var(--text-muted)">(optional — changes here update the build)</span></label>
-                    <textarea id="story-summary" rows="8" placeholder="Edit the story narrative if needed..."></textarea>
+                    <textarea id="story-summary" data-dictation rows="8" placeholder="Edit the story narrative if needed..."></textarea>
                 </div>
                 <input type="hidden" id="story-signal">
             </div>
@@ -651,7 +666,7 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label for="f-company">Company Name</label>
-                            <input type="text" id="f-company" class="sync-field" data-sync="company" placeholder="Acme Corp">
+                            <input type="text" id="f-company" class="sync-field" data-sync="company" data-dictation placeholder="Acme Corp">
                         </div>
                         <div class="form-group">
                             <label for="f-demo-name">Demo Name <span class="optional">(optional)</span></label>
@@ -679,17 +694,17 @@
                     </div>
                     <div class="form-group">
                         <label for="f-usecase">Use Case / Topic</label>
-                        <input type="text" id="f-usecase" class="sync-field" data-sync="usecase" placeholder="e.g. Employee benefits enrollment, Sales pipeline, Customer churn">
+                        <input type="text" id="f-usecase" class="sync-field" data-sync="usecase" data-dictation placeholder="e.g. Employee benefits enrollment, Sales pipeline, Customer churn">
                     </div>
                     <div class="form-row">
                         <div class="form-group">
                             <label for="f-audience">Audience</label>
-                            <input type="text" id="f-audience" class="sync-field" data-sync="audience" placeholder="e.g. VP of HR, CDO">
+                            <input type="text" id="f-audience" class="sync-field" data-sync="audience" data-dictation placeholder="e.g. VP of HR, CDO">
                         </div>
                     </div>
                     <div class="form-group">
                         <label for="f-notes">Additional Context <span class="optional">(optional)</span></label>
-                        <textarea id="f-notes" class="sync-field" data-sync="notes" rows="2" placeholder="Pain points, specific requirements..."></textarea>
+                        <textarea id="f-notes" class="sync-field" data-sync="notes" data-dictation rows="2" placeholder="Pain points, specific requirements..."></textarea>
                     </div>
                     <div class="form-group">
                         <div class="file-upload-area">
@@ -868,6 +883,9 @@ document.addEventListener('DOMContentLoaded', () => {
             card.classList.toggle('selected', cb.checked);
         });
     });
+
+    // Initialize microphone dictation buttons
+    initDictation();
 });
 
 // ---- Demo mode toggle (New / Existing) ----
@@ -1521,5 +1539,73 @@ function getChecked(key) {
     return el ? el.checked : false;
 }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ---- Microphone dictation ----
+function initDictation() {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) return;
+    document.querySelectorAll('[data-dictation]').forEach(input => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'dictation-wrapper';
+        input.parentNode.insertBefore(wrapper, input);
+        wrapper.appendChild(input);
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn-dictation';
+        btn.title = 'Dictate';
+        btn.innerHTML = '🎙'; // microphone emoji
+        btn.onclick = () => startDictation(input, btn);
+        wrapper.appendChild(btn);
+    });
+}
+
+function startDictation(input, btn) {
+    // If already dictating, stop
+    if (btn._recognition) {
+        btn._recognition.stop();
+        btn._recognition = null;
+        return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    btn.classList.add('dictating');
+    btn.innerHTML = '⏹'; // stop emoji
+    btn._recognition = recognition;
+
+    let finalTranscript = input.value;
+    if (finalTranscript && !finalTranscript.endsWith(' ')) finalTranscript += ' ';
+
+    recognition.onresult = (e) => {
+        let interim = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+            if (e.results[i].isFinal) {
+                finalTranscript += e.results[i][0].transcript;
+            } else {
+                interim += e.results[i][0].transcript;
+            }
+        }
+        input.value = finalTranscript + interim;
+        input.dispatchEvent(new Event('input', {bubbles: true}));
+    };
+
+    recognition.onend = () => {
+        btn.classList.remove('dictating');
+        btn.innerHTML = '🎙';
+        btn._recognition = null;
+    };
+
+    recognition.onerror = () => {
+        btn.classList.remove('dictating');
+        btn.innerHTML = '🎙';
+        btn._recognition = null;
+    };
+
+    recognition.start();
+}
 </script>
 {% endblock %}

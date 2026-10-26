@@ -1969,7 +1969,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{cp['sdm_api']}/calculated-measurements",
                 headers=h, json={
                     "apiName": clc_api, "label": mc["label"],
-                    "aggregationType": "UserAgg", "dataType": "Number",
+                    "aggregationType": "UserAgg", "dataType": "Percentage" if is_rate else "Number",
                     "decimalPlace": 1 if is_rate else 2, "directionality": "Up" if mc.get("sentiment") == "up_is_good" else "Down",
                     "displayCategory": "Continuous", "expression": clc_expression,
                     "filters": [], "isOverrideBase": False, "isVisible": True,
@@ -2876,6 +2876,17 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
         cp["crma_dataset_name"] = slug
         progress(q, "crma", "Dataset uploaded", 60)
 
+        # Set percentage formatting on rate fields via XMD
+        try:
+            from crma_uploader import set_percentage_fields
+            rate_fields = [_crma_safe(mc["field"]) for mc in metric_config if mc.get("agg", "Average") == "Average"]
+            if rate_fields and dataset_id:
+                ok = set_percentage_fields(sf_instance, sf_token, dataset_id, rate_fields)
+                if ok:
+                    progress(q, "crma", f"Percentage formatting applied to {len(rate_fields)} fields", -1)
+        except Exception as e:
+            progress(q, "warn", f"CRMA percentage formatting failed (non-blocking): {e}", -1)
+
         # Create CRMA dashboard from golden template
         progress(q, "crma", "Building CRM Analytics dashboard from template...", 65)
         try:
@@ -3090,12 +3101,12 @@ def run_build(build_id, build_config, progress_queue):
         cp_outputs = cp.get("_outputs")
         current_outputs = {k: v for k, v in outputs.items() if v}
         if cp_profile and cp_profile != default_profile:
-            _log(f"[warn] Connection changed ({cp_profile} → {default_profile}) — resetting checkpoint")
+            progress(q, "init", f"Connection changed ({cp_profile} → {default_profile}) — resetting checkpoint", -1)
             progress(q, "init", "Connection changed — rebuilding from scratch...", 0)
             cp = {"all_ws_apis": cp.get("all_ws_apis", []), "all_sdm_apis": cp.get("all_sdm_apis", []),
                   "all_viz_apis": cp.get("all_viz_apis", []), "all_dash_apis": cp.get("all_dash_apis", [])}
         elif cp_outputs and cp_outputs != current_outputs:
-            _log(f"[warn] Build outputs changed — resetting checkpoint (keeping asset tracking)")
+            progress(q, "init", "Build outputs changed — resetting checkpoint", -1)
             progress(q, "init", "Build outputs changed — rebuilding...", 0)
             keep = {"all_ws_apis", "all_sdm_apis", "all_viz_apis", "all_dash_apis", "story", "company"}
             cp = {k: v for k, v in cp.items() if k in keep}

@@ -200,6 +200,50 @@ def upload_dataset(
     return job_id, dataset_id or ""
 
 
+def set_percentage_fields(
+    sf_instance: str,
+    sf_token: str,
+    dataset_id: str,
+    rate_fields: List[str],
+    fmt: str = "0.0%",
+) -> bool:
+    """Set percentage number formatting on rate fields via the user XMD API.
+
+    Args:
+        sf_instance: Salesforce instance URL
+        sf_token: Bearer token
+        dataset_id: CRMA dataset ID
+        rate_fields: List of field names to format as percentages
+        fmt: Custom number format string (default: "0.0%")
+
+    Returns:
+        True if successful
+    """
+    headers = {"Authorization": f"Bearer {sf_token}", "Content-Type": "application/json"}
+    api_base = f"{sf_instance}/services/data/v61.0"
+
+    r = requests.get(f"{api_base}/wave/datasets/{dataset_id}", headers=headers)
+    if not r.ok:
+        return False
+    version_id = r.json().get("currentVersionId", "")
+    if not version_id:
+        return False
+
+    r = requests.get(f"{api_base}/wave/datasets/{dataset_id}/versions/{version_id}/xmds/main", headers=headers)
+    if not r.ok:
+        return False
+    system_fields = {m.get("field") for m in r.json().get("measures", [])}
+
+    measures = [{"field": f, "format": {"customFormat": fmt}}
+                for f in rate_fields if f in system_fields]
+    if not measures:
+        return False
+
+    r = requests.put(f"{api_base}/wave/datasets/{dataset_id}/versions/{version_id}/xmds/user",
+                     headers=headers, json={"measures": measures})
+    return r.ok
+
+
 def set_security_predicate(
     sf_instance: str,
     sf_token: str,

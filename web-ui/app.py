@@ -720,6 +720,7 @@ def oauth_mcp():
         full["profiles"][key]["salesforce"]["mcp_refresh_token"] = tokens["refresh_token"]
         if tokens.get("code_verifier"):
             full["profiles"][key]["salesforce"]["mcp_code_verifier"] = tokens["code_verifier"]
+        full["profiles"][key].pop("_token_cache", None)
         save_full_config(full)
 
         return jsonify({"ok": True, "instance_url": tokens.get("instance_url", "")})
@@ -755,6 +756,7 @@ def oauth_start():
         if tokens.get("code_verifier"):
             full["profiles"][key]["salesforce"]["code_verifier"] = tokens["code_verifier"]
         full["profiles"][key]["salesforce"].pop("pkce_refresh_mode", None)
+        full["profiles"][key].pop("_token_cache", None)
         save_full_config(full)
 
         return jsonify({
