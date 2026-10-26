@@ -4,6 +4,40 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-10-26 — Setup redesign, close-loop merge, native percentage formatting, MCP token fix (v2.9.0)
+
+### Added
+- **Setup hub-and-spoke** — Setup page redesigned from linear wizard to a hub with clickable connection cards. Users pick which connection to configure (Tableau Cloud or Salesforce) and only fill in that one. No more stepping through unrelated forms.
+- **Format dropdown (Page 3)** — new "Format" column on the Metrics step with options: Percentage, Number, Currency, Score. Auto-defaults from metric type, user can override. Flows through to data gen and build pipeline.
+- **Native percentage formatting** — rate metrics display as percentages natively on Tableau Next (`dataType: "Percentage"` on CLC POST) and CRMA (user XMD API `customFormat: "0.0%"`). No ×100 hack needed. Pulse remains UI-only (platform limitation).
+- **Microphone dictation** — mic button on all free-text inputs (company, use case, audience, context, story summary) using Web Speech API. Toggle on/off, appends to existing text.
+- **Post-build dimension validation** — checks the CSV for generic dimension values (e.g. "College 1", "Region 3") and flags them in the build log with sample values.
+- **Checkpoint invalidation** — detects when the connection profile or build outputs change and auto-resets the checkpoint instead of silently skipping phases.
+- **Close-loop Phase 6** — merged `feature/close-loop-phase6`: golden record targeting, record-level action triggers, close-loop UI page, `data_generator.py` reusable module, `ENGINEERING_GUIDELINES.md`.
+- **CRMA `set_percentage_fields()`** — new function in `crma_uploader.py` that applies percentage formatting via the Wave user XMD API after dataset upload.
+
+### Fixed
+- **MCP token rotation** — `mcp_client.py` used `active_profile` (doesn't exist) instead of `active_salesforce` to save rotated refresh tokens. Tokens were silently lost after each use, requiring re-auth every time.
+- **Token cache not cleared on re-auth** — OAuth endpoints now clear `_token_cache` when a new token is obtained, preventing stale cached tokens from being returned for 2 hours.
+- **Profile creation on fresh Setup visits** — the Setup route auto-loaded the active profile and set `profileCreated=true`, silently skipping profile creation for new connections.
+- **CRMA field name triple underscores** — fields like "Pell & First-Gen Status" produced `pell___first_gen_status` (rejected by CRM Analytics). Now collapses consecutive underscores.
+- **Field name truncation** — long field names (40+ chars) now truncate at the last underscore boundary instead of mid-word.
+- **Metric-to-measurement matching** — new 8-strategy cascade handles hyphens vs underscores, partial matches, suffix stripping, and fuzzy word overlap. Fixes 5/6 metrics failing on mismatched names.
+- **Pulse Discover retries** — retries each metric with up to 3 rephrased question variants. Filters out "I don't have enough data" responses instead of including them in the walkthrough.
+- **Concierge walkthrough honesty** — when MCP is unavailable, shows "not captured — run live in Concierge" instead of fabricated expected responses.
+- **Generic dimension fallbacks** — smarter defaults by dimension type (College → real college names, Class → "Fall 2022/2023/2024") instead of "Dim 1, Dim 2".
+- **`_log()` undefined** — replaced with `progress()` in checkpoint invalidation code.
+- **`field_key` undefined** — stale variable reference in metric creation phase after matching refactor.
+- **Setup dark mode text** — warning boxes now use amber text colors readable in dark theme.
+- **Setup Pulse reference** — removed "Enable Tableau Pulse AI" from Salesforce spoke (it's a Tableau Cloud feature).
+
+### Changed
+- **Story prompt** — dimension values are now mandatory ("NEVER use numbered placeholders"). Quick research depth no longer says "use generic".
+- **Launcher hardened** — pip install errors visible (not swallowed by `2>/dev/null`), venv health check tests all critical packages (flask, anthropic, pandas, requests, PyPDF2, docx).
+- **PyPDF2 + python-docx** added to both root and web-ui `requirements.txt` for PDF/DOCX upload support.
+
+---
+
 ## 2026-10-22 — Auto-deploy SDM business preferences, field descriptions, and sentiment via MCP (v2.8.0)
 
 ### Added
