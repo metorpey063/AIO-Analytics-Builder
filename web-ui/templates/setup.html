@@ -223,7 +223,8 @@
                         <div class="form-group">
                             <label for="w-mcp-client-id">MCP Consumer Key</label>
                             <input type="text" id="w-mcp-client-id" placeholder="Consumer Key from MCP ECA (see guide Step 8-10)"
-                                   value="{{ config.get('salesforce', {}).get('mcp_client_id', '') }}">
+                                   value="{{ config.get('salesforce', {}).get('mcp_client_id', '') }}"
+                                   oninput="checkMcpAuthNeeded()">
                         </div>
                         <div class="form-group">
                             <label for="w-mcp-client-secret">MCP Client Secret <span class="optional">(blank for PKCE-only)</span></label>
@@ -363,8 +364,8 @@
         <section class="card" style="margin-top:16px">
             <h2>Salesforce OAuth Authorization</h2>
             <p class="subtitle" style="margin-bottom:16px">Once you've created the ECA above, authorize AIO to access your org.</p>
-            <div style="margin-bottom:14px; padding:10px 14px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-radius:10px; font-size:13px; color:var(--text)">
-                <strong style="color:#D97706">Important:</strong> You must be logged into the <strong>correct Salesforce org</strong> in your browser before clicking below.
+            <div style="margin-bottom:14px; padding:10px 14px; background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.35); border-radius:10px; font-size:13px; color:#F5C76E">
+                <strong style="color:#FBBF24">Important:</strong> You must be logged into the <strong>correct Salesforce org</strong> in your browser before clicking below.
             </div>
             <div class="oauth-instructions">
                 <div class="instruction-step">
@@ -409,9 +410,9 @@
                 <div id="w-mcp-oauth-result" class="test-result"></div>
             </div>
 
-            <div style="margin-top:16px; padding:12px 16px; background:rgba(245, 158, 11, 0.08); border:1px solid rgba(245, 158, 11, 0.2); border-radius:10px">
-                <p style="font-size:13px; color:var(--text-muted); margin:0">
-                    <strong style="color:#D97706">ECA not ready yet?</strong> Your credentials are already saved. You can come back later &mdash; click <strong>Edit</strong> on your connection in <a href="/connections" style="color:var(--blue); font-weight:600">Connections</a> to pick up where you left off.
+            <div style="margin-top:16px; padding:12px 16px; background:rgba(245, 158, 11, 0.12); border:1px solid rgba(245, 158, 11, 0.3); border-radius:10px">
+                <p style="font-size:13px; color:#F5C76E; margin:0">
+                    <strong style="color:#FBBF24">ECA not ready yet?</strong> Your credentials are already saved. You can come back later &mdash; click <strong>Edit</strong> on your connection in <a href="/connections" style="color:var(--blue); font-weight:600">Connections</a> to pick up where you left off.
                 </p>
             </div>
         </section>
@@ -809,10 +810,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const saved = localStorage.getItem('aio-setup-mode');
     if (saved === 'form') setSetupMode('form');
 
-    // If editing an existing profile, pre-fill name and show hub
-    const editKey = '{{ edit_profile_key|default("") }}';
+    // Only set profileCreated when editing via ?profile= (not fresh visits)
+    const isEditing = {{ 'true' if is_editing else 'false' }};
     const editLabel = '{{ edit_profile_label|default("")|e }}';
-    if (editKey) {
+    if (isEditing && editLabel) {
         const nameField = document.getElementById('conn-name');
         if (nameField) nameField.value = editLabel;
         profileCreated = true;
@@ -852,13 +853,25 @@ async function ensureProfile() {
         return false;
     }
     document.getElementById('conn-name').style.borderColor = '';
-    await fetch('/api/setup/create-profile', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({label: connName}),
-    });
-    profileCreated = true;
-    return true;
+    try {
+        const r = await fetch('/api/setup/create-profile', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({label: connName}),
+        });
+        const j = await r.json();
+        console.log('ensureProfile result:', j);
+        if (!j.ok) {
+            alert('Failed to create profile: ' + (j.error || 'unknown'));
+            return false;
+        }
+        profileCreated = true;
+        return true;
+    } catch (e) {
+        console.error('ensureProfile error:', e);
+        alert('Failed to create profile: ' + e.message);
+        return false;
+    }
 }
 
 async function configureTableau() {

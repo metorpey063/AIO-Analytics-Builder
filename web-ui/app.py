@@ -78,6 +78,7 @@ def index():
 def setup():
     from connections import load_full_config, set_active_profile
     edit_key = request.args.get("profile")
+    is_editing = bool(edit_key)
     full = load_full_config()
 
     if edit_key and edit_key in full.get("profiles", {}):
@@ -88,23 +89,16 @@ def setup():
         tc = active_conn.get("tableau", {})
         sf = active_conn.get("salesforce", {})
     else:
-        # Find any active key (prefer SF, fall back to TC)
-        edit_key = full.get("active_salesforce") or full.get("active_tableau_cloud")
-        if edit_key and edit_key in full.get("profiles", {}):
-            active_conn = full["profiles"][edit_key]
-            config = _load_config()
-            active_label = active_conn.get("label", "")
-            tc = active_conn.get("tableau", {})
-            sf = active_conn.get("salesforce", {})
-        else:
-            config = {"tableau": {}, "salesforce": {}}
-            active_label = ""
-            tc = {}
-            sf = {}
+        config = {"tableau": {}, "salesforce": {}}
+        active_label = ""
+        edit_key = ""
+        tc = {}
+        sf = {}
 
     return render_template("setup.html", config=config,
                            edit_profile_key=edit_key or "",
                            edit_profile_label=active_label,
+                           is_editing=is_editing,
                            edit_has_tableau=bool(tc.get("pat_secret") and tc.get("site_name")),
                            edit_has_salesforce=bool(sf.get("refresh_token") and sf.get("client_id")))
 
