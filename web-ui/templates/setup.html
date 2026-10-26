@@ -860,16 +860,10 @@ async function ensureProfile() {
             body: JSON.stringify({label: connName}),
         });
         const j = await r.json();
-        console.log('ensureProfile result:', j);
-        if (!j.ok) {
-            alert('Failed to create profile: ' + (j.error || 'unknown'));
-            return false;
-        }
+        if (!j.ok) return false;
         profileCreated = true;
         return true;
     } catch (e) {
-        console.error('ensureProfile error:', e);
-        alert('Failed to create profile: ' + e.message);
         return false;
     }
 }
