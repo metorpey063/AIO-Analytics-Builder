@@ -1903,7 +1903,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 progress(q, "warn", f"CLC {mc['label']} failed: {r_clc.text[:200]}", -1)
                 continue
 
-            mtc_api = f"{field_key}_mtc"
+            mtc_api = f"{mc['field']}_mtc"
             dd_api = cp.get("display_date_api", "")
             if dd_api:
                 time_ref = {"calculatedFieldApiName": dd_api}
