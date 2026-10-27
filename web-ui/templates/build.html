@@ -1321,7 +1321,11 @@ async function startBuild() {
         story_summary: document.getElementById('story-summary') ? document.getElementById('story-summary').value : '',
         signal_description: document.getElementById('story-signal') ? document.getElementById('story-signal').value : '',
         dimensions: (storyConfig && storyConfig.dimensions) ? storyConfig.dimensions : ['Region', 'Category', 'Segment'],
+        dimension_values: (storyConfig && storyConfig.dimension_values) ? storyConfig.dimension_values : {},
         metric_config: editedMetrics.length > 0 ? editedMetrics : (storyConfig ? storyConfig.metric_config : []),
+        company_overview: (storyConfig && storyConfig.company_overview) ? storyConfig.company_overview : '',
+        audience_context: (storyConfig && storyConfig.audience) ? storyConfig.audience : '',
+        root_cause: (storyConfig && storyConfig.root_cause) ? storyConfig.root_cause : '',
     };
 
     const data = {

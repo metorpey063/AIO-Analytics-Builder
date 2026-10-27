@@ -3166,6 +3166,8 @@ def run_build(build_id, build_config, progress_queue):
                 "signal_description": story_config.get("signal_description", ""),
                 "primary_metric": primary[0]["label"] if primary else (metric_config[0]["label"] if metric_config else ""),
                 "dimensions": dims,
+                "dimension_values": story_config.get("dimension_values", {}),
+                "metric_config": metric_config,
                 "audience": story_config.get("audience", build_config.get("audience", "")),
                 "root_cause": story_config.get("root_cause", ""),
                 "entity_field": "entity_id",
