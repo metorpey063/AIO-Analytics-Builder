@@ -15,14 +15,22 @@ import uuid
 from datetime import date, timedelta
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
 from dateutil.relativedelta import relativedelta
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 TODAY = date.today()
+
+pd = None  # lazy — imported on first use by _pd()
+
+def _pd():
+    """Lazy-import pandas (and numpy). Only called by data gen / build, not story gen."""
+    global pd
+    if pd is None:
+        import pandas as _pandas
+        pd = _pandas
+    return pd
 
 SYSTEM_DIM_BASES = {"cdp_sys_sourceversion", "datasource", "datasourceobject",
                     "kq_record_id", "record_id", "entity_id", "data_source",
@@ -305,7 +313,7 @@ def _find_existing_demo(company):
             csv_files = sorted(d.glob("*.csv"))
             if csv_files:
                 try:
-                    df = pd.read_csv(str(csv_files[-1]), nrows=3)
+                    df = _pd().read_csv(str(csv_files[-1]), nrows=3)
                     cp_file = d / f"{d.name}_checkpoint.json"
                     cp = {}
                     if cp_file.exists():
@@ -488,7 +496,7 @@ Additional context: {notes or 'None'}
 # ---------------------------------------------------------------------------
 
 def signal_ramp(d, onset=-3, shape="accelerating", duration=3):
-    if isinstance(d, pd.Timestamp):
+    if isinstance(d, _pd().Timestamp):
         d = d.date()
     months_from_today = (d.year - TODAY.year) * 12 + (d.month - TODAY.month)
     months_from_onset = months_from_today - onset
@@ -595,7 +603,7 @@ def generate_data(story_config, q=None, advanced=None):
     freq = freq_map.get(grain, "MS")
 
     start_date = TODAY - relativedelta(months=history_months)
-    dates = pd.date_range(start_date, TODAY, freq=freq).date.tolist()
+    dates = _pd().date_range(start_date, TODAY, freq=freq).date.tolist()
 
     n_entities = 2
     from itertools import product as cartprod
@@ -641,7 +649,7 @@ def generate_data(story_config, q=None, advanced=None):
                         mag = supporting_magnitude
                         mult = combined_mult * 0.7
 
-                    noise = np.random.normal(0, ns)
+                    noise = random.gauss(0, ns)
                     # Signal direction: "up_is_good" metrics decline, others increase
                     if sent == "up_is_good":
                         val = base * (1 - mag * ramp * mult) + noise
@@ -667,7 +675,7 @@ def generate_data(story_config, q=None, advanced=None):
                 row["Day_Offset"] = day_offset
                 rows.append(row)
 
-    df = pd.DataFrame(rows)
+    df = _pd().DataFrame(rows)
     if q:
         progress(q, "data", f"Generated {len(df)} rows, {len(df.columns)} columns", -1)
     return df
@@ -1509,7 +1517,7 @@ def _validate_next_build(config, cp, metric_config, q):
         checks_total += 1
         generic_dims = []
         try:
-            df_check = pd.read_csv(csv_path, nrows=500)
+            df_check = _pd().read_csv(csv_path, nrows=500)
             for dim_name in user_dims:
                 col = None
                 for c in df_check.columns:
