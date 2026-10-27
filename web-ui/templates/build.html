@@ -246,7 +246,14 @@
             <div id="metrics-content" class="hidden">
                 <table class="metrics-table">
                     <thead>
-                        <tr><th>Metric</th><th>Type</th><th>Aggregation</th><th>Format</th><th>Sentiment</th><th></th></tr>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Type <span class="tooltip-trigger tooltip-wide" data-tooltip="Rate: A percentage or average that doesn't accumulate (e.g. Conversion Rate, Satisfaction Score). Uses Average aggregation and Month-to-Date default.&#10;&#10;Flow: A volume that accumulates over time (e.g. Revenue, Policy Count, Originations). Uses Sum aggregation and Year-to-Date default.&#10;&#10;Snapshot: A point-in-time stock value (e.g. AUM, Pipeline, Headcount). Uses Sum on snapshot rows with Last Month default.">?</span></th>
+                            <th>Aggregation</th>
+                            <th>Format</th>
+                            <th>Sentiment <span class="tooltip-trigger tooltip-wide" data-tooltip="Up is good: Higher values are positive (Revenue, Retention Rate).&#10;&#10;Down is good: Lower values are positive (Readmission Rate, Churn Rate, Cost per Unit).">?</span></th>
+                            <th></th>
+                        </tr>
                     </thead>
                     <tbody id="metrics-body"></tbody>
                 </table>

@@ -1377,6 +1377,12 @@ textarea.mono { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-s
 .tooltip-trigger:hover::after,
 .tooltip-trigger:hover::before { opacity: 1; }
 
+/* Wide tooltip for multi-line content (Type, Sentiment headers) */
+.tooltip-trigger.tooltip-wide::after {
+    width: 360px;
+    white-space: pre-line;
+}
+
 /* Flip tooltip below when near top of viewport */
 .tooltip-trigger.tooltip-below::after {
     bottom: auto;
