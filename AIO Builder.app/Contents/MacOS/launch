@@ -13,6 +13,25 @@
 #   - If problems:  Delete .venv and reinstall deps (auto-detected)
 # ──────────────────────────────────────────────────────────
 
+# ── Terminal detection ──────────────────────────────────────
+# When double-clicked from Finder, macOS runs this script headlessly
+# (no terminal window). Detect that and re-launch inside Terminal.app.
+if [ ! -t 1 ]; then
+    SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+    /usr/bin/osascript <<APPLESCRIPT
+tell application "Terminal"
+    activate
+    do script "exec /bin/bash \"$SCRIPT_PATH\""
+end tell
+APPLESCRIPT
+    exit 0
+fi
+
+# ── PATH hardening ──────────────────────────────────────────
+# Ensure Homebrew and system tools are available (Finder launches
+# with a minimal PATH that may exclude /opt/homebrew/bin, etc.)
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+
 # Auto-detect install dir: 3 levels up from this script (.app/Contents/MacOS/launch)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTALL_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
@@ -44,6 +63,12 @@ fi
 
 cd "$INSTALL_DIR"
 
+# ── Error logging ──────────────────────────────────────────
+# Tee all output to a log file for debugging launch failures
+LOG_FILE="$INSTALL_DIR/aio_launcher.log"
+exec > >(tee -a "$LOG_FILE") 2>&1
+echo "--- Launch: $(date) ---"
+
 # Kill stale server
 lsof -ti:5100 2>/dev/null | xargs kill 2>/dev/null
 
@@ -69,7 +94,7 @@ else
 fi
 
 # Verify venv works (check all critical packages)
-if ! arch -arm64 .venv/bin/python -c "import flask, anthropic, pandas, numpy, requests, PyPDF2, docx" 2>/dev/null; then
+if ! /usr/bin/arch -arm64 .venv/bin/python -c "import flask, anthropic, pandas, numpy, requests, PyPDF2, docx" 2>/dev/null; then
     warn "Virtual environment broken — rebuilding..."
     rm -rf .venv
     python3 -m venv .venv
@@ -97,4 +122,4 @@ echo "  ────────────────────────
 echo ""
 
 open "http://localhost:5100"
-exec arch -arm64 .venv/bin/python web-ui/app.py
+exec /usr/bin/arch -arm64 .venv/bin/python web-ui/app.py
