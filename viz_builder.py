@@ -5,6 +5,7 @@ and SDM field maps. Integrates with style_defaults and viz_validator.
 """
 
 import copy
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from style_defaults import (
@@ -113,16 +114,37 @@ def build_viz_payload(
 
     field_counter = 1
 
+    def _resolve(field_name: str, lookup: Dict[str, str], fallback_suffix: str) -> str:
+        """Robust field name resolution with multiple fallback strategies."""
+        if field_name in lookup:
+            return lookup[field_name]
+        clean = field_name.lower().replace(" ", "_").replace("-", "_")
+        clean = re.sub(r"[^a-z0-9_]", "", clean)
+        clean = re.sub(r"_+", "_", clean).strip("_")
+        if clean in lookup:
+            return lookup[clean]
+        if clean and clean[0].isdigit():
+            xclean = "X" + clean
+            if xclean in lookup:
+                return lookup[xclean]
+        for k, v in lookup.items():
+            if k.lower() == clean or k.lower() == field_name.lower():
+                return v
+        for k, v in lookup.items():
+            if clean in k.lower() or k.lower() in clean:
+                return v
+        return f"{field_name}{fallback_suffix}"
+
     def _add_field(role, display_cat, field_name, function=None) -> str:
         nonlocal field_counter
         fkey = f"F{field_counter}"
         field_counter += 1
 
         if role == "Measure":
-            fapi = measurements.get(field_name, f"{field_name}__c")
+            fapi = _resolve(field_name, measurements, "__c")
             fn = function or "Avg" if any(kw in field_name.lower() for kw in ("rate", "percent", "score", "ratio")) else function or "Sum"
         else:
-            fapi = dim_field_map.get(field_name, f"{field_name}1")
+            fapi = _resolve(field_name, dim_field_map, "1")
             fn = function
 
         entry = {

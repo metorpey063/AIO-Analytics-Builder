@@ -515,9 +515,9 @@ def main():
                 sdm_api=sdm_api,
                 ws_api=ws_api,
                 do_api=do_api,
-                field_map=spec["field_map"],          # raw field names for template slot matching
+                field_map=resolved_fields,
                 dim_field_map=dim_field_map,
-                measurements=augmented_meas_map,      # includes bridged metric_config field names
+                measurements=augmented_meas_map,
                 validate=True,
             )
         except Exception as e:
@@ -631,7 +631,10 @@ def main():
     }
 
     dash_name = f"{args.slug}_composed_{datetime.now().strftime('%Y%m%d_%H%M')}"
-    dash_label = f"{company} — {use_case_label}"
+    short_label = use_case_label[:60] if len(use_case_label) > 60 else use_case_label
+    dash_label = f"{company} — {short_label}"
+    if len(dash_label) > 120:
+        dash_label = f"{company} Dashboard"
     page_name = str(uuid.uuid4())
 
     bg_color = plan.brand.get("dashboard_bg", "#F3F3F3")

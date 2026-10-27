@@ -2002,7 +2002,8 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 progress(q, "warn", f"No measurement found for {mc['label']} (field={mc['field']}, keys={list(mmap.keys())[:8]})", -1)
                 continue
 
-            clc_api = f"{mc['field']}_clc"
+            clc_base = clean_field_name(mc['field'])
+            clc_api = f"{clc_base}_clc"
             is_rate = mc.get("agg", "Average") == "Average"
             clc_expression = f'AVG([{cp["do_api"]}].[{meas_api}])'
             if mc.get("agg") == "Sum":
@@ -2023,7 +2024,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 progress(q, "warn", f"CLC {mc['label']} failed: {r_clc.text[:200]}", -1)
                 continue
 
-            mtc_api = f"{mc['field']}_mtc"
+            mtc_api = f"{clc_base}_mtc"
             dd_api = cp.get("display_date_api", "")
             if dd_api:
                 time_ref = {"calculatedFieldApiName": dd_api}
@@ -2032,9 +2033,10 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 time_ref = {"tableFieldReference": {"fieldApiName": raw_date_api, "tableApiName": cp["do_api"]}}
                 progress(q, "warn", f"No Display Date — metric '{mc['label']}' using raw date field '{raw_date_api}'", -1)
 
+            _skip = SYSTEM_DIM_BASES | {"date", "record_id", "entity_id", "day_offset", "record id", "entity id"}
             dim_refs = [{"tableFieldReference": {"fieldApiName": dapi, "tableApiName": cp["do_api"]}}
                         for dname, dapi in cp.get("dim_field_map", {}).items()
-                        if dname.lower() not in ("date", "record_id", "entity_id", "day_offset", "record id", "entity id")]
+                        if dname.lower().replace(" ", "_") not in _skip]
 
             r_mtc = req.post(
                 f"{sf_instance}/services/data/v66.0/ssot/semantic/models/{cp['sdm_api']}/metrics?minorVersion=12",
@@ -2163,7 +2165,8 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
             try:
                 sdm_full = mcp.get_semantic_model(
                     modelApiNameOrId=sdm_api, includeModelContent=True)
-                sdm_text = sdm_full.get("content", [{}])[0].get("text", "{}")
+                _content = sdm_full if isinstance(sdm_full, list) else sdm_full.get("content", []) if isinstance(sdm_full, dict) else []
+                sdm_text = _content[0].get("text", "{}") if _content else "{}"
                 sdm_data = json.loads(sdm_text) if isinstance(sdm_text, str) else sdm_text
             except Exception:
                 sdm_data = {}
@@ -2839,7 +2842,13 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                         if context:
                             args["conversationContext"] = context
                         result = mcp.call_tool("analyze_data", args)
-                        text = result.get("content", [{}])[0].get("text", "")
+                        if isinstance(result, list):
+                            content = result
+                        elif isinstance(result, dict):
+                            content = result.get("content", [])
+                        else:
+                            content = []
+                        text = content[0].get("text", "") if content else ""
                         data = json.loads(text) if text else {}
                         answer = data.get("answer", "(no response)")
                         # Strip HTML entities for clean text
