@@ -598,8 +598,8 @@ def plan_to_grid_layout(
     *,
     grid_columns: int = 72,
     row_height: int = 10,
-    kpi_height: int = 19,
-    viz_height: int = 40,
+    kpi_height: int = 15,
+    viz_height: int = 24,
     gap_rows: int = 2,
     col_gap: int = 2,
 ) -> Dict[str, Any]:
