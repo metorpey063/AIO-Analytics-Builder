@@ -118,6 +118,9 @@ def build_viz_payload(
         """Robust field name resolution with multiple fallback strategies."""
         if field_name in lookup:
             return lookup[field_name]
+        # Calc dims/measures (Display_Date, *_clc, *_mtc) pass through as-is
+        if "_clc" in field_name or "_mtc" in field_name or field_name.startswith("Display"):
+            return field_name
         clean = field_name.lower().replace(" ", "_").replace("-", "_")
         clean = re.sub(r"[^a-z0-9_]", "", clean)
         clean = re.sub(r"_+", "_", clean).strip("_")
@@ -151,17 +154,41 @@ def build_viz_payload(
             "type": "Field",
             "displayCategory": display_cat,
             "role": role,
-            "objectName": do_api,
             "fieldName": fapi,
         }
+        # CLC measures and calc dims are SDM-level — no objectName.
+        # DO-level fields need objectName.
+        is_sdm_level = ("_clc" in fapi or "_mtc" in fapi
+                        or fapi.startswith("Display")
+                        or (role == "Measure" and fapi not in measurements.values()))
+        if not is_sdm_level:
+            entry["objectName"] = do_api
         if fn:
             entry["function"] = fn
         fields[fkey] = entry
         return fkey
 
     def _add_date_hierarchy(base_field_name: str) -> Tuple[str, str]:
-        fapi = dim_field_map.get(base_field_name, "date1")
+        fapi = _resolve(base_field_name, dim_field_map, "1")
         nonlocal field_counter
+
+        # Calc dims (like Display_Date) are SDM-level — use as a single
+        # discrete field with no objectName and no date function.
+        # DO-level date fields use Year+Month hierarchy with objectName.
+        is_calc = (base_field_name.startswith("Display")
+                   or base_field_name == fapi  # _resolve returned the name as-is
+                   or base_field_name not in dim_field_map)
+
+        if is_calc:
+            fkey = f"F{field_counter}"
+            field_counter += 1
+            fields[fkey] = {
+                "type": "Field",
+                "displayCategory": "Discrete",
+                "role": "Dimension",
+                "fieldName": fapi,
+            }
+            return fkey, fkey  # single field, no hierarchy
 
         year_key = f"F{field_counter}"
         field_counter += 1
@@ -192,9 +219,13 @@ def build_viz_payload(
         measure_field = field_map.get("measure", list(field_map.values())[0])
 
         year_key, month_key = _add_date_hierarchy(date_field)
-        columns.extend([year_key, month_key])
+        if year_key == month_key:
+            columns.append(year_key)
+        else:
+            columns.extend([year_key, month_key])
         hdr_fields[year_key] = header_field_entry()
-        hdr_fields[month_key] = header_field_entry()
+        if month_key != year_key:
+            hdr_fields[month_key] = header_field_entry()
 
         fmt_type, decimals, suffix = _infer_format(measure_field)
         meas_key = _add_field("Measure", "Continuous", measure_field)
@@ -384,9 +415,13 @@ def build_viz_payload(
         line_field = field_map.get("line_measure", list(field_map.values())[1] if len(field_map) > 1 else bar_field)
 
         year_key, month_key = _add_date_hierarchy(date_field)
-        columns.extend([year_key, month_key])
+        if year_key == month_key:
+            columns.append(year_key)
+        else:
+            columns.extend([year_key, month_key])
         hdr_fields[year_key] = header_field_entry()
-        hdr_fields[month_key] = header_field_entry()
+        if month_key != year_key:
+            hdr_fields[month_key] = header_field_entry()
 
         fmt_bar, dec_bar, suf_bar = _infer_format(bar_field)
         bar_key = _add_field("Measure", "Continuous", bar_field)

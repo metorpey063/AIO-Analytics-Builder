@@ -631,10 +631,9 @@ def main():
     }
 
     dash_name = f"{args.slug}_composed_{datetime.now().strftime('%Y%m%d_%H%M')}"
-    short_label = use_case_label[:60] if len(use_case_label) > 60 else use_case_label
-    dash_label = f"{company} — {short_label}"
-    if len(dash_label) > 120:
-        dash_label = f"{company} Dashboard"
+    dash_label = f"{company} — Analytics Dashboard"
+    if len(dash_label) > 80:
+        dash_label = f"{company} Dashboard"[:80]
     page_name = str(uuid.uuid4())
 
     bg_color = plan.brand.get("dashboard_bg", "#F3F3F3")
