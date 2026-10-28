@@ -342,6 +342,10 @@ def main():
                         help="Preview only — don't create anything on the org")
     parser.add_argument("--cleanup-first", action="store_true",
                         help="Delete existing composed vizzes/dashboard before creating new ones")
+    parser.add_argument("--brand-primary", default=None,
+                        help="Primary brand color hex (e.g. '#00796B')")
+    parser.add_argument("--brand-secondary", default=None,
+                        help="Secondary/dark brand color hex (e.g. '#004D40')")
     args = parser.parse_args()
 
     demo_dir = args.demo_dir or os.path.join(ROOT, "demos", args.slug)
@@ -425,6 +429,31 @@ def main():
         print(f"    - {mc['label']} ({mc.get('field', '?')}, {mc.get('agg', '?')})")
     print(f"  Dimensions: {dimensions}")
 
+    # ── Step 4b: Brand colors ───────────────────────────────────────────────
+    def _tint(hex_color, factor=0.92):
+        r, g, b = int(hex_color[1:3], 16), int(hex_color[3:5], 16), int(hex_color[5:7], 16)
+        return f"#{round(r+(255-r)*factor):02x}{round(g+(255-g)*factor):02x}{round(b+(255-b)*factor):02x}"
+
+    brand = {}
+    if args.brand_primary:
+        p = args.brand_primary
+        s = args.brand_secondary or args.brand_primary
+        brand = {
+            "primary": p,
+            "secondary": s,
+            "title_color": s,
+            "header_color": p,
+            "container_border": p,
+            "dashboard_bg": _tint(p),
+            "gutter": "#FFFFFF",
+            "chart_bg": "#FFFFFF",
+            "text": "#212121",
+        }
+        print(f"\n  Brand colors:")
+        print(f"    Primary:      {p}")
+        print(f"    Dashboard bg: {brand['dashboard_bg']}")
+        print(f"    Container:    {brand['container_border']}")
+
     # ── Step 5: Compose the dashboard plan ────────────────────────────────────
     print(f"\n  Composing dashboard plan...")
     plan = compose_dashboard(
@@ -434,6 +463,7 @@ def main():
         dimensions=dimensions,
         dimension_values=dimension_values,
         story=story,
+        brand=brand,
         signal_direction=args.signal_direction,
         signal_months=args.signal_months,
         max_kpi_metrics=args.max_kpi_metrics,
@@ -576,7 +606,81 @@ def main():
     widgets = {}
     page_widgets = []
 
-    # Add metric widgets from the KPI row positions in the grid layout
+    # ── Structural widgets (title, headers, containers) ──────────────────
+    title_color = brand.get("title_color", "#03234d")
+    header_color = brand.get("header_color", "#03234d")
+    container_border = brand.get("container_border", "#c9c9c9")
+
+    text_idx = 0
+    container_idx = 0
+    for item in grid_layout.get("structural", []):
+        pos = item["position"]
+        stype = item["type"]
+
+        if stype == "title":
+            wname = f"w_title_{text_idx}"
+            text_idx += 1
+            widgets[wname] = {
+                "name": wname,
+                "type": "text",
+                "parameters": {
+                    "content": [
+                        {"attributes": {"color": title_color, "size": "24px"},
+                         "insert": item["text"], "rules": []},
+                        {"insert": "\n", "rules": []},
+                        {"attributes": {"color": "#6b7280", "size": "14px"},
+                         "insert": item.get("subtitle", ""), "rules": []},
+                        {"attributes": {"align": "left"}, "insert": "\n", "rules": []},
+                    ],
+                },
+                "actions": [],
+            }
+            page_widgets.append({
+                "name": wname, "row": pos["row"], "column": pos["column"],
+                "rowspan": pos["rowspan"], "colspan": pos["colspan"],
+            })
+
+        elif stype == "section_header":
+            wname = f"w_hdr_{text_idx}"
+            text_idx += 1
+            widgets[wname] = {
+                "name": wname,
+                "type": "text",
+                "parameters": {
+                    "content": [
+                        {"attributes": {"color": header_color, "size": "18px"},
+                         "insert": item["text"], "rules": []},
+                        {"attributes": {"align": "left"}, "insert": "\n", "rules": []},
+                    ],
+                },
+                "actions": [],
+            }
+            page_widgets.append({
+                "name": wname, "row": pos["row"], "column": pos["column"],
+                "rowspan": pos["rowspan"], "colspan": pos["colspan"],
+            })
+
+        elif stype == "container":
+            wname = f"w_ctr_{container_idx}"
+            container_idx += 1
+            widgets[wname] = {
+                "name": wname,
+                "type": "container",
+                "parameters": {
+                    "widgetStyle": {
+                        "borderColor": container_border,
+                        "borderEdges": ["all"],
+                        "borderRadius": 16,
+                    },
+                },
+                "actions": [],
+            }
+            page_widgets.append({
+                "name": wname, "row": pos["row"], "column": pos["column"],
+                "rowspan": pos["rowspan"], "colspan": pos["colspan"],
+            })
+
+    # ── Content widgets (metrics, vizzes) ────────────────────────────────
     metric_idx = 0
     viz_idx = 0
 
@@ -596,11 +700,8 @@ def main():
                 "actions": [],
             }
             page_widgets.append({
-                "name": wname,
-                "row": pos["row"],
-                "column": pos["column"],
-                "rowspan": pos["rowspan"],
-                "colspan": pos["colspan"],
+                "name": wname, "row": pos["row"], "column": pos["column"],
+                "rowspan": pos["rowspan"], "colspan": pos["colspan"],
             })
             metric_idx += 1
 
@@ -614,21 +715,10 @@ def main():
                 "actions": [],
             }
             page_widgets.append({
-                "name": wname,
-                "row": pos["row"],
-                "column": pos["column"],
-                "rowspan": pos["rowspan"],
-                "colspan": pos["colspan"],
+                "name": wname, "row": pos["row"], "column": pos["column"],
+                "rowspan": pos["rowspan"], "colspan": pos["colspan"],
             })
             viz_idx += 1
-
-    # A container widget is required for the dashboard to be valid
-    widgets["w_container"] = {
-        "name": "w_container",
-        "type": "container",
-        "parameters": {"widgetStyle": {}},
-        "actions": [],
-    }
 
     dash_name = f"{args.slug}_composed_{datetime.now().strftime('%Y%m%d_%H%M')}"
     dash_label = f"{company} — Analytics Dashboard"
@@ -636,8 +726,8 @@ def main():
         dash_label = f"{company} Dashboard"[:80]
     page_name = str(uuid.uuid4())
 
-    bg_color = plan.brand.get("dashboard_bg", "#F3F3F3")
-    gutter_color = plan.brand.get("gutter_color", "#F3F3F3")
+    bg_color = brand.get("dashboard_bg", plan.brand.get("dashboard_bg", "#F3F3F3"))
+    gutter_color = brand.get("gutter", plan.brand.get("gutter_color", "#F3F3F3"))
 
     dash_payload = {
         "name": dash_name,

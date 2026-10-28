@@ -593,24 +593,57 @@ def compose_dashboard(
 
 # ── Grid layout calculator ──────────────────────────────────────────────────
 
+SECTION_LABELS = {
+    "overview": "Key Metrics",
+    "whats_wrong": "What Changed?",
+    "where": "What Changed?",
+    "why": "Root Cause",
+    "who": "Root Cause",
+    "supporting": "Supporting",
+    "composition": "Distribution",
+}
+
+
 def plan_to_grid_layout(
     plan: DashboardPlan,
     *,
     grid_columns: int = 72,
     row_height: int = 10,
-    kpi_height: int = 15,
-    viz_height: int = 24,
+    kpi_height: int = 12,
+    viz_height: int = 18,
+    title_height: int = 5,
+    header_height: int = 4,
     gap_rows: int = 2,
     col_gap: int = 2,
 ) -> Dict[str, Any]:
-    """Convert a DashboardPlan into a concrete grid layout (row/col/span positions).
+    """Convert a DashboardPlan into a concrete grid layout.
 
     Returns a dict with:
       - 'grid': columnCount, rowHeight, style
-      - 'components': list of {component, position: {row, column, rowspan, colspan}}
+      - 'components': list of {component, position}
+      - 'structural': list of title/header/container widgets with positions
     """
     positioned = []
-    current_row = 1  # start with a 1-row top margin
+    structural = []
+    current_row = 1
+    content_left = col_gap
+    content_width = grid_columns - col_gap * 2
+
+    # ── Dashboard title ──────────────────────────────────────────────────
+    structural.append({
+        "type": "title",
+        "text": plan.title[:80],
+        "subtitle": plan.subtitle,
+        "position": {
+            "row": current_row,
+            "column": content_left,
+            "rowspan": title_height,
+            "colspan": content_width,
+        },
+    })
+    current_row += title_height + 1
+
+    prev_section = None
 
     for row_components in plan.rows:
         if not row_components:
@@ -619,14 +652,13 @@ def plan_to_grid_layout(
         comp = row_components[0]
 
         if comp.component_type == "kpi_row":
-            # KPI tiles
             n = len(comp.metric_configs)
-            tile_width = (grid_columns - col_gap * 2 - (n - 1) * col_gap) // n
+            tile_width = (content_width - (n - 1) * col_gap) // n
             for i, mc in enumerate(comp.metric_configs):
-                col = col_gap + i * (tile_width + col_gap)
+                col = content_left + i * (tile_width + col_gap)
                 w = tile_width
                 if i == n - 1:
-                    w = grid_columns - col_gap - col
+                    w = content_left + content_width - col
                 positioned.append({
                     "component": DashboardComponent(
                         "kpi_tile",
@@ -644,9 +676,39 @@ def plan_to_grid_layout(
                 })
             current_row += kpi_height + gap_rows
         else:
-            # Viz components
+            # Section header if the story role changes
+            section = SECTION_LABELS.get(comp.story_role, "")
+            if section and section != prev_section:
+                structural.append({
+                    "type": "section_header",
+                    "text": section,
+                    "position": {
+                        "row": current_row,
+                        "column": content_left,
+                        "rowspan": header_height,
+                        "colspan": content_width,
+                    },
+                })
+                current_row += header_height
+                prev_section = section
+
+            # Container wrapping this row's vizzes
             n = len(row_components)
-            usable_cols = grid_columns - col_gap * 2 - (n - 1) * col_gap
+            container_height = viz_height + 2  # padding inside container
+            structural.append({
+                "type": "container",
+                "position": {
+                    "row": current_row,
+                    "column": content_left,
+                    "rowspan": container_height,
+                    "colspan": content_width,
+                },
+            })
+
+            # Viz components inside the container
+            inner_left = content_left + 1
+            inner_width = content_width - 2
+            usable_cols = inner_width - (n - 1) * col_gap
             if n == 1:
                 widths = [usable_cols]
             elif n == 2:
@@ -656,12 +718,12 @@ def plan_to_grid_layout(
                 widths = [base] * n
                 widths[-1] = usable_cols - base * (n - 1)
 
-            col_cursor = col_gap
+            col_cursor = inner_left
             for i, c in enumerate(row_components):
                 positioned.append({
                     "component": c,
                     "position": {
-                        "row": current_row,
+                        "row": current_row + 1,
                         "column": col_cursor,
                         "rowspan": viz_height,
                         "colspan": widths[i],
@@ -669,7 +731,7 @@ def plan_to_grid_layout(
                 })
                 col_cursor += widths[i] + col_gap
 
-            current_row += viz_height + gap_rows
+            current_row += container_height + gap_rows
 
     bg_color = plan.brand.get("chart_bg", "#F3F3F3")
     gutter_color = plan.brand.get("gutter", "#FFFFFF")
@@ -688,6 +750,7 @@ def plan_to_grid_layout(
         },
         "total_rows": current_row,
         "components": positioned,
+        "structural": structural,
     }
 
 
