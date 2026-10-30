@@ -1019,7 +1019,8 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
                     "singular_noun": mc.get("singular", mc["label"].lower()),
                     "plural_noun": mc.get("plural", mc["label"].lower() + "s"),
                 },
-                "sentiment_type": "SENTIMENT_TYPE_UP_IS_GOOD" if mc.get("sentiment") == "up_is_good" else "SENTIMENT_TYPE_DOWN_IS_GOOD" if mc.get("sentiment") == "down_is_good" else "SENTIMENT_TYPE_UP_IS_GOOD",
+                # up_is_bad (and legacy down_is_good) → Pulse's DOWN_IS_GOOD
+                "sentiment_type": "SENTIMENT_TYPE_DOWN_IS_GOOD" if mc.get("sentiment") in ("up_is_bad", "down_is_good") else "SENTIMENT_TYPE_UP_IS_GOOD",
             },
             "extension_options": {
                 "allowed_dimensions": dimensions,
@@ -2049,6 +2050,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                     "additionalDimensions": dim_refs,
                     "insightsSettings": {
                         "insightsDimensionsReferences": dim_refs,
+                        "sentiment": SENTIMENT_MAP.get(mc.get("sentiment", ""), "SentimentTypeUpIsGood"),
                         "singularNoun": mc.get("singular", mc["label"].lower()),
                         "pluralNoun": mc.get("plural", mc["label"].lower() + "s"),
                     },

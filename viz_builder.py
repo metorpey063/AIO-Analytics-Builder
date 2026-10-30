@@ -530,7 +530,7 @@ def build_viz_payload(
                 "headers": copy.deepcopy(VIZQL_MARK_HEADERS),
                 "panes": {
                     "encodings": encodings,
-                    "isAutomatic": not bool(encodings),
+                    "isAutomatic": False,  # True can render a default bar instead of mark_type
                     "type": mark_type,
                     "stack": {"isAutomatic": True, "isStacked": is_stacked},
                 },
