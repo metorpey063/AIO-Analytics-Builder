@@ -1394,7 +1394,9 @@ def _validate_next_build(config, cp, metric_config, q):
             if r.ok:
                 resp = r.json()
                 data = resp.get("data", resp) if isinstance(resp, dict) else resp
-                row_count = data[0].get("cnt", 0) if data and isinstance(data[0], dict) else 0
+                # queryv2 returns rows as lists ([[24000]]); older shape was dicts
+                row = data[0] if data else None
+                row_count = row.get("cnt", 0) if isinstance(row, dict) else row[0] if isinstance(row, list) and row else 0
                 if row_count and int(row_count) > 0:
                     progress(q, "validate", f"✓ SDM query returned {row_count} rows", -1)
                     checks_passed += 1

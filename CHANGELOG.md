@@ -6,12 +6,13 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ## 2026-10-30 — Sentiment fixes + viz pane fix (lessons from Tableau vibe-coding starter kit)
 
-> Compile-checked; org test build pending.
+> Sentiment verified on Brad's org (Meridian story: 4 up-is-bad + 2 up-is-good metrics all correct). The `viz_builder.py` change is compile-checked only — template builds don't exercise it.
 
 ### Fixed
 - **Tableau Next metric sentiment** — the REST metric POST never set `insightsSettings.sentiment`, so every metric defaulted to "up is good" (e.g. readmission rate rising was treated as positive by insights). Now mapped from `METRIC_CONFIG.sentiment`.
 - **Pulse metric sentiment** — `up_is_bad` metrics fell through to `SENTIMENT_TYPE_UP_IS_GOOD` because only the legacy `down_is_good` value was checked. Now maps to `SENTIMENT_TYPE_DOWN_IS_GOOD`.
 - **Viz `marks.panes.isAutomatic`** — `viz_builder.py` set it to `True` for charts without encodings (e.g. trend lines), which can render a default bar instead of the requested mark type. Now always `False`.
+- **False "SDM query returned 0 rows" validation failure** — the post-build row count parsed queryv2 rows as dicts, but they come back as lists (`[[24000]]`), so every Tableau Next build reported 0 rows and failed one validation check. Now handles both shapes.
 
 ### Docs
 - **Dashboard filter pitfall rewritten** — filter widgets are not unsupported; they need `source.id`, `receiveFilterSource` subscriptions, and a v67.0 (`minorVersion>=6`) POST to actually filter. Pending org verification.
