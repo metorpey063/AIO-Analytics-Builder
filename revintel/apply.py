@@ -146,6 +146,40 @@ def s_sales_process(cp):
     print(f"  {process}: {', '.join(stages)}")
 
 
+def product_pbes():
+    """product key -> standard price book entry Id: config value, else the products step's mapping."""
+    path = os.path.join(OUT, "products.json")
+    made = json.load(open(path)) if os.path.exists(path) else {}
+    return {k: (v.get("pbe") if v.get("pbe") and not str(v.get("pbe")).startswith("<") else made.get(k))
+            for k, v in C.PRODUCTS.items()}
+
+
+def s_products(cp):
+    """Find or create each PRODUCTS entry (Product2 + standard PricebookEntry). Keys with a real
+    `pbe` in config are left alone; others are matched by name, then created. Mapping → out/products.json."""
+    path = os.path.join(OUT, "products.json")
+    made = json.load(open(path)) if os.path.exists(path) else {}
+    std = C.STD_PRICEBOOK
+    for key, p in C.PRODUCTS.items():
+        if (p.get("pbe") and not str(p["pbe"]).startswith("<")) or made.get(key):
+            continue
+        name = p.get("name") or p["label"]
+        safe = name.replace("'", "\\'")
+        hit = query("SELECT Id, Product2Id FROM PricebookEntry WHERE Pricebook2Id = "
+                    f"'{std}' AND Product2.Name = '{safe}' AND CurrencyIsoCode = 'USD' LIMIT 1")
+        if hit:
+            made[key] = hit[0]["Id"]
+            print(f"  {name}: existing price book entry")
+        else:
+            prod = sf("data", "create", "record", "-s", "Product2", "-v",
+                      f"Name='{safe}' Family='{p.get('family', '')}' ProductCode='{p.get('code', key)}' IsActive=true")["id"]
+            made[key] = sf("data", "create", "record", "-s", "PricebookEntry", "-v",
+                           f"Pricebook2Id={std} Product2Id={prod} UnitPrice={p['list']} IsActive=true CurrencyIsoCode=USD")["id"]
+            print(f"  {name}: created product + price book entry")
+        json.dump(made, open(path, "w"), indent=1)
+    print(f"  {len(C.PRODUCTS)} products ready")
+
+
 def s_opp_external_id(cp):
     fields = [f["name"] for f in sf("sobject", "describe", "-s", "Opportunity")["fields"]]
     if "Demo_External_ID__c" in fields:
@@ -293,7 +327,9 @@ def s_line_items(cp):
         f"SELECT Id, Demo_External_ID__c FROM Opportunity WHERE Demo_External_ID__c LIKE '{C.EXT_PREFIX}-%'")}
     existing = {r["OpportunityId"] for r in query(
         f"SELECT OpportunityId FROM OpportunityLineItem WHERE Opportunity.Demo_External_ID__c LIKE '{C.EXT_PREFIX}-%'")}
-    rows = [{**{k: v for k, v in li.items() if not k.startswith("_")}, "OpportunityId": opp_ids[li["_opp_ext"]]}
+    pbes = product_pbes()
+    rows = [{**{k: v for k, v in li.items() if not k.startswith("_")}, "OpportunityId": opp_ids[li["_opp_ext"]],
+             "PricebookEntryId": pbes.get(li["_product"]) or li["PricebookEntryId"]}
             for li in cp["_plan"]["line_items"] if opp_ids[li["_opp_ext"]] not in existing]
     bulk("import", "OpportunityLineItem", rows)
 
@@ -341,7 +377,8 @@ def s_verify(cp):
         "ORDER BY CreatedDate ASC LIMIT 1"))
 
 
-STEPS = [("fix New Business sales process", s_sales_process), ("Opportunity external ID", s_opp_external_id),
+STEPS = [("fix New Business sales process", s_sales_process), ("products", s_products),
+         ("Opportunity external ID", s_opp_external_id),
          ("team managers", s_users), ("renewal territories", s_territories), ("pool accounts", s_accounts), ("pool record type", s_pool_record_type),
          ("contacts", s_contacts), ("opportunities", s_opportunities), ("line items", s_line_items),
          ("activities", s_activities), ("owners", s_owners), ("verify", s_verify)]

@@ -1,6 +1,7 @@
 """Revenue Intelligence demo data engine — one CLI for the /update-rev-intel skill and the web UI.
 
     python3 -m revintel <demo_folder> inspect            # read-only org survey (JSON report in out/)
+    python3 -m revintel <demo_folder> draft [--feedback "…"]   # Claude drafts config.json from the answers + inspect
     python3 -m revintel <demo_folder> plan [--json]      # generate + story stats + CSVs, no org writes
     python3 -m revintel <demo_folder> apply              # write CRM data (checkpointed, insert-only, backups)
     python3 -m revintel <demo_folder> team <phase>       # people (users + lead roles) | quotas | reassign
@@ -25,11 +26,11 @@ def main(argv):
     os.environ["REVINTEL_DEMO"] = demo
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-    from revintel import build
     if cmd == "plan":
+        from revintel import build
         build.plan(json_out="--json" in argv)
     elif cmd == "apply":
-        from revintel import apply as A
+        from revintel import apply as A, build
         A.apply(build.plan())
     elif cmd == "reset":
         from revintel import apply as A
@@ -41,6 +42,10 @@ def main(argv):
         import crma_refresh
         from revintel.config import C
         crma_refresh.refresh(C.ORG_ALIAS, C.REFRESH_APPS, plan_only="--plan" in argv, skip_sync="--skip-sync" in argv)
+    elif cmd == "draft":
+        from revintel import draft
+        fb = argv[argv.index("--feedback") + 1] if "--feedback" in argv else None
+        draft.run(fb)
     elif cmd == "inspect":
         from revintel import inspect_org
         inspect_org.run()

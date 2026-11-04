@@ -21,10 +21,10 @@ from revintel.config import C, DEMO_DIR, FIELDS, NB_STAGES, OPP_TYPES, RENEWAL_S
 _lr = os.path.join(DEMO_DIR, "loss_reasons.json")
 LOSS_REASONS = json.load(open(_lr)) if os.path.exists(_lr) else {}   # Primary -> valid Secondary values
 
-CORE = C.CORE_PRODUCT                               # always held; seat add-ons, contraction and upsell use it
+CORE = opt("CORE_PRODUCT", None)                    # always held; seat add-ons, contraction and upsell use it
 CHURN_PRODUCT = opt("CHURN_PRODUCT", None)          # dropped on renewals whenever held (the product-churn story)
 LAUNCHED = opt("LAUNCHED_PRODUCTS", {})             # product -> months since launch (can't be sold before)
-PIPELINE_PRODUCTS = opt("PIPELINE_PRODUCTS", list(C.EXPANSION_WEIGHTS))   # gap-fill pipeline: first not owned
+PIPELINE_PRODUCTS = opt("PIPELINE_PRODUCTS", list(opt("EXPANSION_WEIGHTS", {})))   # gap-fill pipeline: first not owned
 PIPELINE_FALLBACK = opt("PIPELINE_FALLBACK", PIPELINE_PRODUCTS[-1] if PIPELINE_PRODUCTS else CORE)
 CORE_TIERS = opt("CORE_TIERS", {})                 # Account.Type -> tier label on the core product
 CUSTOMER_LABEL = opt("CUSTOMER_LABEL", "Customer")
@@ -122,7 +122,7 @@ def fill_gaps(accounts, opps, olis, today):
                          "CloseDate": close.isoformat(), "CreatedDate": iso_dt(created), "OwnerId": owner,
                          "Territory2": S["territory"], "Pricebook2Id": C.STD_PRICEBOOK, "CurrencyIsoCode": "USD",
                          "Description": desc, "NextStep": next_step})
-            olis.append({"_opp_ext": ext, "PricebookEntryId": C.PRODUCTS[prod]["pbe"], "Quantity": 1,
+            olis.append({"_opp_ext": ext, "PricebookEntryId": C.PRODUCTS[prod].get("pbe"), "Quantity": 1,
                          "UnitPrice": price, "ServiceDate": add_months(close, 12).isoformat(),
                          "Description": f"{product_label(prod, acct)} – {desc}", "_product": prod})
 
@@ -189,7 +189,7 @@ def fill_recent_bookings(accounts, opps, olis, today, months_back=3, types=None,
                          "Territory2": S["territory"], "Pricebook2Id": C.STD_PRICEBOOK, "CurrencyIsoCode": "USD",
                          "Description": f"{OPP_TYPES['addon']}: {seats:,} additional {C.PRODUCTS[CORE]['label']} users.",
                          "NextStep": SEAT_ADDON_NEXT_STEP})
-            olis.append({"_opp_ext": ext, "PricebookEntryId": C.PRODUCTS[CORE]["pbe"], "Quantity": 1,
+            olis.append({"_opp_ext": ext, "PricebookEntryId": C.PRODUCTS[CORE].get("pbe"), "Quantity": 1,
                          "UnitPrice": r100(need), "ServiceDate": add_months(close, 12).isoformat(),
                          "Description": f"{product_label(CORE, acct)} – {seats:,} additional users", "_product": CORE})
 
@@ -321,7 +321,7 @@ def generate(pool, today=None):
             opps.append(o)
             for prod, price, end, desc in lines:
                 desc = f"{product_label(prod, acct)} – {seats:,} {C.UNIT[prod]}" + (f" · {desc}" if desc else "")
-                olis.append({"_opp_ext": ext, "PricebookEntryId": C.PRODUCTS[prod]["pbe"], "Quantity": 1,
+                olis.append({"_opp_ext": ext, "PricebookEntryId": C.PRODUCTS[prod].get("pbe"), "Quantity": 1,
                              "UnitPrice": price, "ServiceDate": end.isoformat() if end else "",
                              "Description": desc, "_product": prod})
             return o
