@@ -31,6 +31,10 @@ All notable changes to AIO Analytics Builder are documented here.
 ### Docs
 - CLAUDE.md: `/update-rev-intel` in "What this does"; `revintel/` in project structure.
 
+### Not yet verified
+- **Build everything** from the web UI hasn't been run against an org yet. Test it on a scratch org first, not a shared demo org.
+- The Update Rev Intel page was tested through Flask's test client, not yet in a browser.
+
 ---
 
 ## 2026-11-04 — CRM Analytics refresh automation + Revenue Intelligence pitfalls
