@@ -4,6 +4,19 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-04 — CRM Analytics refresh automation + Revenue Intelligence pitfalls
+
+> Built during the KnowBe4 Revenue Intelligence demo rebuild on the Tab Next & Slack org (EAM + Revenue Insights). Groundwork for the upcoming `/update-rev-intel` skill.
+
+### Added
+- **`crma_refresh.py`** — refreshes CRM Analytics apps after CRM data changes. Discovers the recipe chain from the datasets the apps' dashboards use (walking back through the recipes that save them), then runs Data Sync and the recipes in dependency waves, stopping on the first failure. `--plan` previews the chain; `--skip-sync` runs recipes only. Tolerates transient network errors while polling.
+
+### Docs
+- **Known Pitfalls** — CSV uploads over CRMA datasets break them; EAM record-type filters live in the install wizard (fix with Reconfigure); Revenue Insights is role-based only; territory forecast-manager ordering; Opportunity business-process deploy; scheduled demo-refresh Apex; sf CLI body-less POST and bulk result shapes.
+- **Project structure** — `crma_refresh.py` listed.
+
+---
+
 ## 2026-10-30 — Sentiment fixes + viz pane fix (lessons from Tableau vibe-coding starter kit)
 
 > Sentiment verified on Brad's org (Meridian story: 4 up-is-bad + 2 up-is-good metrics all correct). The `viz_builder.py` change is compile-checked only — template builds don't exercise it.
