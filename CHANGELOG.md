@@ -18,7 +18,15 @@ All notable changes to AIO Analytics Builder are documented here.
   - `refresh` / `reset` — `crma_refresh.py` chain; reset + `apply --today` re-anchors dates.
 - **`revintel/config_template.py`** — the per-customer config (Python or `config.json`).
 
-- **Web UI: Update Rev Intel Data** — a home-page card ("Tools & Skills") and a sidebar link open a Q&A page that captures the skill's design answers (customer, use case, requirements, org, products, story, team, forecast window) into `demos/{slug}/rev_intel_request.json`. It runs the engine with live output: Inspect (read-only, with warnings), Plan, then users and lead roles, data load, other demos' deals, quotas, and refresh. Every org write needs a confirm click, and the server refuses unconfirmed writes. Drafting the config from the answers still happens in Claude Code (`/update-rev-intel {slug}` reads the saved answers).
+- **Web UI: Update Rev Intel Data** — a home-page card ("Tools & Skills") and a sidebar link open a Q&A page that captures the skill's design answers (customer, use case, requirements, org, products, story, team, forecast window) into `demos/{slug}/rev_intel_request.json`. It runs the engine with live output: Inspect (read-only, with warnings), Plan, then users and lead roles, data load, other demos' deals, quotas, and refresh. Every org write needs a confirm click, and the server refuses unconfirmed writes. The whole flow runs in the UI:
+  - **Draft with Claude** writes the customer config and pool from the answers plus the org facts, and validates it by running `plan` (one automatic repair if it fails).
+  - **Review** shows the segments and their story roles, who appears under the leader, products (core, dropped, new, created by the build), Claude's assumptions and questions, and story stats.
+  - **Revise draft** takes the SE's requested changes.
+  - **Build everything** runs users and lead roles → data → other demos' deals → quotas → refresh, stopping at the first failure.
+  - **EAM Reconfigure answers** are shown when the filters need changing.
+- **`revintel draft`** — Claude (`claude-opus-5-5`, adaptive thinking) drafts the config. It uses the UI's credentials: the Bedrock gateway via its `/invoke` format, else the Anthropic SDK with server-side refusal fallback. It repairs invalid JSON once and records assumptions and questions in `out/draft_notes.json`. Verified locally on a Zendesk test (≈4 min, valid on the first pass; revision run separately).
+- **`revintel inspect` org facts** — users, record types, standard price book products, territories, the loss-reason dependent picklist, and candidate pool accounts (unused: no opportunities, contacts or cases).
+- **`revintel apply` products step** — finds or creates Product2 and its standard price book entry for products without one.
 
 ### Docs
 - CLAUDE.md: `/update-rev-intel` in "What this does"; `revintel/` in project structure.

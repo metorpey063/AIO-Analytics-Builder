@@ -116,15 +116,31 @@
         <textarea id="ri-fw-notes" rows="2" placeholder="e.g. Various stages; ATR and Amount differ; descriptions and Next Steps based on the products"></textarea></div>
 </div>
 
-<!-- 7. Run -->
+<!-- 7. Draft & review -->
 <div class="card story-section" style="padding:16px; margin-bottom:16px">
-    <h3><span class="step-num">7</span> Build</h3>
+    <h3><span class="step-num">7</span> Draft & review</h3>
+    <p class="form-hint">Claude turns your answers and the org facts from Inspect into the demo's config: segments, team, territories, products, story signals and quotas. Nothing is written to the org. It takes a few minutes.</p>
     <div class="wizard-actions" style="flex-wrap:wrap; gap:8px">
-        <button class="btn btn-primary" onclick="saveAnswers(true)">Save answers</button>
+        <button class="btn btn-primary" onclick="saveAnswers().then(() => runStep('draft'))">Draft with Claude</button>
+        <button class="btn btn-secondary btn-sm" onclick="runStep('plan')" title="Regenerate locally — no org writes">Re-run plan</button>
     </div>
-    <div id="ri-handoff" class="form-hint hidden" style="margin:10px 0"></div>
-    <div class="wizard-actions" style="flex-wrap:wrap; gap:8px; margin-top:8px">
-        <button class="btn btn-secondary btn-sm" onclick="runStep('plan')" title="Generate locally — no org writes">Plan (preview)</button>
+    <div id="ri-review" class="hidden" style="margin-top:14px"></div>
+    <div id="ri-feedback-box" class="hidden" style="margin-top:12px">
+        <div class="form-group"><label>Request changes</label>
+            <textarea id="ri-feedback" rows="3" data-dictation placeholder="e.g. Make APJ the culprit instead; use Bill as the EMEA lead with an MM rep under him; set Copilot's launch to 6 months ago"></textarea></div>
+        <button class="btn btn-secondary btn-sm" onclick="requestChanges()">Revise draft</button>
+    </div>
+</div>
+
+<!-- 8. Build -->
+<div class="card story-section" style="padding:16px; margin-bottom:16px">
+    <h3><span class="step-num">8</span> Build</h3>
+    <p class="form-hint">Writes to the org: users and lead roles, accounts, opportunities, line items, contacts, activities, other demos' deals moved off the team, and quotas. Then it refreshes CRM Analytics (about 45–60 minutes). Backups are written first; re-running skips finished steps.</p>
+    <div class="wizard-actions" style="flex-wrap:wrap; gap:8px">
+        <button class="btn btn-primary" onclick="runStep('build-all', true)">Build everything</button>
+        <button class="btn btn-ghost btn-sm" onclick="$('ri-steps').classList.toggle('hidden')">Run steps one at a time…</button>
+    </div>
+    <div id="ri-steps" class="wizard-actions hidden" style="flex-wrap:wrap; gap:8px; margin-top:8px">
         <button class="btn btn-secondary btn-sm" onclick="runStep('team-people', true)">1 · Users & lead roles</button>
         <button class="btn btn-secondary btn-sm" onclick="runStep('apply', true)">2 · Load data</button>
         <button class="btn btn-secondary btn-sm" onclick="runStep('team-reassign', true)">3 · Move other demos' deals</button>
@@ -132,7 +148,7 @@
         <button class="btn btn-secondary btn-sm" onclick="runStep('refresh-plan')" title="Show the recipe chain">Refresh chain</button>
         <button class="btn btn-secondary btn-sm" onclick="runStep('refresh', true)">5 · Refresh CRM Analytics</button>
     </div>
-    <div class="form-hint" style="margin-top:6px">Then reconfigure Einstein Account Management in Analytics Studio if Inspect flagged its filters (the skill gives the exact answers).</div>
+    <div id="ri-eam" class="hidden" style="margin-top:12px"></div>
     <div id="ri-stats" class="hidden" style="margin-top:12px"></div>
     <pre id="ri-log" class="progress-log hidden" style="max-height:360px; overflow:auto; margin-top:12px; font-size:12px; white-space:pre-wrap"></pre>
 </div>
@@ -197,12 +213,13 @@ async function saveAnswers(showHandoff = false) {
     return a;
 }
 
-function runStep(action, writes = false) {
+function runStep(action, writes = false, extra = {}) {
     const slug = $('ri-slug').value.trim();
     if (!slug) { alert('Set the demo folder first.'); return; }
-    if (writes && !confirm(`"${action}" writes to the org (${$('ri-org').value}). Backups are written first. Continue?`)) return;
+    const what = action === 'build-all' ? 'Build everything (users, data, quotas, refresh)' : `"${action}"`;
+    if (writes && !confirm(`${what} writes to the org ${$('ri-org').value}. Backups are written first. Continue?`)) return;
     fetch('/api/rev-intel/run', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                 body: JSON.stringify({ slug, action, confirmed: writes }) })
+                                 body: JSON.stringify({ slug, action, confirmed: writes, ...extra }) })
         .then(r => r.json()).then(r => {
             if (!r.ok) { alert(r.error); return; }
             const log = $('ri-log'); log.classList.remove('hidden'); log.textContent = '';
@@ -228,6 +245,7 @@ async function loadReport(slug) {
             · <strong>Pool:</strong> ${(ins.pool || {}).tagged_accounts ?? 0} accounts</div>
             ${(ins.warnings || []).map(w => `<div class="form-hint" style="color:var(--warning, #b26b00)">⚠ ${w}</div>`).join('')}`;
     }
+    renderReview(r.review, r.report.draft_notes);
     const st = r.report.story_stats;
     if (st) {
         $('ri-stats').classList.remove('hidden');
@@ -236,6 +254,43 @@ async function loadReport(slug) {
             co-termed renewals ${st.co_termed_open_renewals} · dropped products ${JSON.stringify(st.products_dropped)}</div>`;
     }
     return r;
+}
+
+function esc(t) { return String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+function renderReview(rv, notes) {
+    if (!rv) return;
+    const box = $('ri-review'); box.classList.remove('hidden'); $('ri-feedback-box').classList.remove('hidden');
+    const tag = s => ({ culprit: '#c23934', 'counter-trend': '#2e844a', flat: '#706e6b', moderate: '#b26b00' }[s] || '#444');
+    box.innerHTML = `
+      <div class="form-hint" style="margin-bottom:8px">${esc(rv.status || '')}</div>
+      <table class="table-input" style="width:100%; margin-bottom:10px"><thead><tr><th>Segment</th><th>Region</th><th>Owner</th><th>Story</th></tr></thead><tbody>
+        ${rv.segments.map(g => `<tr><td>${esc(g.segment)}</td><td>${esc(g.region)}</td><td>${esc(g.owner)}</td>
+          <td style="color:${tag(g.story)}; font-weight:600">${esc(g.story)} (${g.mult})</td></tr>`).join('')}</tbody></table>
+      <div class="form-hint"><strong>${esc(rv.leader)}</strong> → ${rv.leads.length} people on the Revenue Insights view:
+        ${rv.leads.map(l => esc(l.lead) + (l.reps.length ? ` (+ ${l.reps.map(esc).join(', ')})` : '')).join(' · ')}</div>
+      <div class="form-hint" style="margin-top:6px"><strong>Products:</strong> ${rv.products.map(p => `${esc(p.label)}
+        ${p.core ? '<em>core</em>' : ''}${p.dropped ? ' <em>dropped at renewal</em>' : ''}${p.new ? ' <em>new</em>' : ''}
+        ${p.exists ? '' : '<span title="Created in the org by the build">＋</span>'}`).join(' · ')} · <strong>Pool:</strong> ${rv.pool_size} accounts</div>
+      ${(notes && notes.questions || []).length ? `<div style="margin-top:10px"><strong>Claude's questions</strong>${notes.questions.map(q =>
+        `<div class="form-hint" style="color:var(--warning, #b26b00)">? ${esc(q)}</div>`).join('')}</div>` : ''}
+      ${(notes && notes.notes || []).length ? `<details style="margin-top:8px"><summary class="form-hint">Assumptions (${notes.notes.length})</summary>
+        ${notes.notes.map(n => `<div class="form-hint">• ${esc(n)}</div>`).join('')}</details>` : ''}`;
+    if (rv.eam) {
+        const e = $('ri-eam'); e.classList.remove('hidden');
+        e.innerHTML = rv.eam.changes_needed
+            ? `<div class="form-hint"><strong>After the build — reconfigure Einstein Account Management</strong> (Analytics Studio → Einstein Account Management → Reconfigure app). Change only these answers and keep every other answer as it is:<br>
+               Opportunity record types: <code>${rv.eam.needed['Opportunity record types'].map(esc).join(', ')}</code><br>
+               Account record types: <code>${rv.eam.needed['Account record types'].map(esc).join(', ')}</code> only (so the page lists just this customer's accounts).<br>
+               The rebuild reruns the EAM recipe.</div>`
+            : `<div class="form-hint">Einstein Account Management filters already match — no reconfigure needed.</div>`;
+    }
+}
+
+function requestChanges() {
+    const fb = $('ri-feedback').value.trim();
+    if (!fb) { alert('Describe the changes you want.'); return; }
+    runStep('draft-feedback', false, { feedback: fb });
 }
 
 async function init() {

@@ -1026,7 +1026,8 @@ def build_start():
 # ---------------------------------------------------------------------------
 # Update Rev Intel (/update-rev-intel skill) — Q&A capture + revintel engine runner
 # ---------------------------------------------------------------------------
-REVINTEL_SAFE = {"inspect": [], "plan": [], "refresh-plan": ["refresh", "--plan"]}
+REVINTEL_SAFE = {"inspect": [], "plan": [], "refresh-plan": ["refresh", "--plan"], "draft": ["draft"]}
+REVINTEL_BUILD_ALL = [["team", "people"], ["apply"], ["team", "reassign"], ["team", "quotas"], ["refresh"]]
 REVINTEL_WRITES = {"team-people": ["team", "people"], "apply": ["apply"], "team-reassign": ["team", "reassign"],
                    "team-quotas": ["team", "quotas"], "refresh": ["refresh"]}
 
@@ -1068,9 +1069,48 @@ def rev_intel_load(slug):
         f = d / "out" / f"{name}.json"
         if f.exists():
             report[name] = json.loads(f.read_text())
+    for name in ("draft_notes",):
+        f = d / "out" / f"{name}.json"
+        if f.exists():
+            report[name] = json.loads(f.read_text())
     has_config = any((d / n).exists() for n in ("config.py", "config.json")) or bool(list(d.glob("*_config.py")))
+    review = _rev_intel_review(d, report.get("inspect"))
     return jsonify({"ok": True, "request": json.loads(req.read_text()) if req.exists() else None,
-                    "report": report, "has_config": has_config})
+                    "report": report, "has_config": has_config, "review": review})
+
+
+def _rev_intel_review(d, inspect):
+    """Human-readable summary of a drafted config.json for the review panel, plus EAM wizard answers."""
+    cfg_path = d / "config.json"
+    if not cfg_path.exists():
+        return None
+    cfg = json.loads(cfg_path.read_text())
+    if "SEGMENTS" not in cfg:
+        return None
+    users = {u["id"]: u["name"] for u in ((inspect or {}).get("org_facts") or {}).get("users", [])}
+    names = {k: users.get(v, v) for k, v in (cfg.get("USERS") or {}).items()}
+    names.update({u[0]: f"{u[1]} {u[2]} (new)" for u in cfg.get("NEW_USERS", [])})
+    def role(m):
+        return "culprit" if m >= 1.5 else "counter-trend" if m < 0 else "flat" if m < 0.5 else "moderate"
+    segments = [{"segment": k, "region": v.get("region"), "owner": names.get(v.get("owner"), v.get("owner")),
+                 "story": role(v.get("mult", 1)), "mult": v.get("mult")} for k, v in cfg["SEGMENTS"].items()]
+    leads = [{"lead": names.get(k, k), "reps": [names.get(r, r) for r in reps]} for k, reps in (cfg.get("LEADS") or {}).items()]
+    products = [{"key": k, "label": v.get("label"), "list": v.get("list"), "exists": bool(v.get("pbe")),
+                 "core": k == cfg.get("CORE_PRODUCT"), "dropped": k == cfg.get("CHURN_PRODUCT"),
+                 "new": k in (cfg.get("LAUNCHED_PRODUCTS") or {})} for k, v in (cfg.get("PRODUCTS") or {}).items()]
+    eam = None
+    for a in (inspect or {}).get("apps", []):
+        if a.get("eam_filters"):
+            opp_rts = set(a["eam_filters"].get("OpptyRecordType") or [])
+            renewal_rt = cfg.get("RENEWAL_RECORD_TYPE", "Renewal")
+            eam = {"current": a["eam_filters"],
+                   "needed": {"Opportunity record types": sorted(opp_rts | {renewal_rt}),
+                              "Account record types": [cfg.get("POOL_RECORD_TYPE", "Business_Account")]},
+                   "changes_needed": renewal_rt not in opp_rts or
+                   (a["eam_filters"].get("AcctRecordType") or []) != [cfg.get("POOL_RECORD_TYPE", "Business_Account")]}
+    return {"customer": cfg.get("CUSTOMER_LABEL"), "leader": names.get(cfg.get("SALES_LEADER"), cfg.get("SALES_LEADER")),
+            "segments": segments, "leads": leads, "products": products, "pool_size": len(json.loads((d / "pool_seed.json").read_text()))
+            if (d / "pool_seed.json").exists() else 0, "eam": eam, "status": cfg.get("_status")}
 
 
 @app.route("/api/rev-intel/save", methods=["POST"])
@@ -1099,31 +1139,45 @@ def rev_intel_run():
     action = data.get("action")
     if action in REVINTEL_WRITES and not data.get("confirmed"):
         return jsonify({"ok": False, "error": "This step writes to the org — confirm first."}), 400
-    if action not in REVINTEL_SAFE and action not in REVINTEL_WRITES:
+    if action == "build-all" and not data.get("confirmed"):
+        return jsonify({"ok": False, "error": "Build everything writes to the org — confirm first."}), 400
+    if action not in REVINTEL_SAFE and action not in REVINTEL_WRITES and action not in ("build-all", "draft-feedback"):
         return jsonify({"ok": False, "error": f"Unknown action {action!r}"}), 400
     try:
         d = _revintel_dir(data.get("slug"))
     except ValueError as e:
         return jsonify({"ok": False, "error": str(e)}), 400
-    args = (REVINTEL_SAFE.get(action) or REVINTEL_WRITES.get(action)) or [action]
+    if action == "build-all":
+        steps = REVINTEL_BUILD_ALL
+    elif action == "draft-feedback":
+        fb = (data.get("feedback") or "").strip()
+        if not fb:
+            return jsonify({"ok": False, "error": "Describe the changes you want."}), 400
+        steps = [["draft", "--feedback", fb]]
+    else:
+        steps = [(REVINTEL_SAFE.get(action) or REVINTEL_WRITES.get(action)) or [action]]
     job_id = f"revintel_{_uuid.uuid4().hex[:8]}"
     progress_queues[job_id] = queue.Queue()
 
     def _run():
-        cmd = ["python3", "-u", "-m", "revintel", str(d)] + args
-        send_progress(job_id, "start", "$ " + " ".join(["python3 -m revintel", f"demos/{d.name}"] + args))
-        try:
-            p = subprocess.Popen(cmd, cwd=str(PROJECT_ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                 text=True, bufsize=1)
-            for line in p.stdout:
-                send_progress(job_id, "log", line.rstrip())
-            p.wait()
-            if p.returncode == 0:
-                send_progress(job_id, "done", f"{action} finished", 100)
-            else:
-                send_progress(job_id, "error", f"{action} failed (exit {p.returncode}) — see the log above")
-        except Exception as e:
-            send_progress(job_id, "error", str(e))
+        for i, args in enumerate(steps, 1):
+            shown = ["python3 -m revintel", f"demos/{d.name}"] + [a if len(a) < 60 else a[:57] + "…" for a in args]
+            label = f"[{i}/{len(steps)}] " if len(steps) > 1 else ""
+            send_progress(job_id, "start", label + "$ " + " ".join(shown))
+            try:
+                p = subprocess.Popen(["python3", "-u", "-m", "revintel", str(d)] + args, cwd=str(PROJECT_ROOT),
+                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+                for line in p.stdout:
+                    send_progress(job_id, "log", line.rstrip())
+                p.wait()
+            except Exception as e:
+                send_progress(job_id, "error", str(e))
+                return
+            if p.returncode != 0:
+                send_progress(job_id, "error", f"{' '.join(args[:2])} failed (exit {p.returncode}) — see the log above. "
+                                               "Fix it and run again; finished steps are skipped.")
+                return
+        send_progress(job_id, "done", f"{action} finished", 100)
 
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"ok": True, "build_id": job_id})
