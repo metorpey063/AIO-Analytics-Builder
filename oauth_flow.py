@@ -120,7 +120,11 @@ def run_oauth_flow(client_id: str, sf_login_url: str = "https://login.salesforce
     server.shutdown()
 
     if _auth_error:
-        raise RuntimeError(f"Salesforce authorization failed: {_auth_error}")
+        hint = ""
+        if "cross-org" in _auth_error.lower():
+            hint = (" — your browser is signed into a different Salesforce org. Sign out of all other orgs, "
+                    "log into only the target org, and retry.")
+        raise RuntimeError(f"Salesforce authorization failed: {_auth_error}{hint}")
     if _auth_code is None:
         # Salesforce shows invalid_client_id on its own page (no callback), so we only see a timeout
         raise RuntimeError("Timed out waiting for Salesforce authorization. Check your browser. "

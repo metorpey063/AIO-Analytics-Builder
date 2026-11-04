@@ -223,7 +223,12 @@ Pick a CLI alias from the profile key (e.g. profile `acme_demo` → alias `aio-a
 
 **4-Auto.3 — CLI login (browser 1 of 3)**
 
-> "Opening your browser for a one-time Salesforce CLI login. Log into the org you want to build demos in."
+Before the first login, tell the user:
+> "Before we start: sign out of **every other Salesforce org** in your default browser, then log into **only the org you want to build demos in**. If the browser is signed into another org, the logins fail with 'Cross-org OAuth flows are not supported'. Every browser tab that opens should land in that same org."
+
+Use `AskUserQuestion` with options `"Signed into only the target org"` / `"I need help"`. Then:
+
+> "Opening your browser for a one-time Salesforce CLI login."
 
 ```bash
 python3 org_bootstrap.py login --alias ALIAS_HERE [--sandbox]
@@ -249,7 +254,7 @@ python3 org_bootstrap.py authorize --alias ALIAS_HERE --profile PROFILE_KEY_HERE
 
 Run `wait` first (`python3 org_bootstrap.py wait --alias ALIAS_HERE`): new apps take between ~20 seconds and ~4 minutes to activate. Tell the user it's waiting. Then `authorize` opens the browser. It saves to `profiles.{key}.salesforce` everything the build needs: My Domain as `sf_login_url`, the client ID with no secret, the refresh token, `code_verifier`, the Data Cloud domain, the connector fields and `mcp_client_id`. It also makes the profile the active Salesforce connection.
 
-If the browser shows `invalid_client_id`, the app is still reaching every login server. Wait a minute and re-run `authorize`.
+If the browser shows `invalid_client_id`, the app is still reaching every login server. Wait a minute and re-run `authorize`. If it fails with "Cross-org" or "landed in a different org", the browser is signed into another org: have the user sign out of all other orgs, log into only the target org, and re-run `authorize`.
 
 **4-Auto.6 — MCP (if chosen; browser 3 of 3)**
 

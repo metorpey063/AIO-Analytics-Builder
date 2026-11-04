@@ -183,6 +183,8 @@
 
     <!-- Wizard Step 2: Salesforce ECA -->
     <div class="wizard-step hidden" id="setup-step-2">
+        {% set sfc = config.get('salesforce', {}) %}
+        {% set sf_manual_open = sfc.get('client_id') and not sfc.get('sf_cli_alias') %}
         <section class="card" style="margin-bottom:16px">
             <h2>Salesforce: Automatic Setup <span class="optional">(recommended)</span></h2>
             <p class="subtitle" style="margin-bottom:12px">AIO creates its own External Client Apps and Ingest connector in your org. You just log in through the browser. Needs the Salesforce CLI (<code>brew install sf</code>).</p>
@@ -195,15 +197,23 @@
                             onclick="setSfEnv(this, 'https://test.salesforce.com')">Sandbox</button>
                 </div>
             </div>
+            <div style="margin-bottom:12px; padding:10px 14px; background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.35); border-radius:10px; font-size:13px; color:#F5C76E">
+                <strong style="color:#FBBF24">Before you start:</strong> sign out of <strong>every other Salesforce org</strong> in your default browser, then log into <strong>only the org you want to build in</strong>. A browser signed into another org causes &ldquo;Cross-org OAuth flows are not supported&rdquo; errors. Each browser tab that opens should land in that same org.
+            </div>
             <label class="checklist-item"><input type="checkbox" id="w-auto-mcp" checked> Also set up the Tableau Next MCP server (needs the pilot org permission and <code>tableau-next-pilot</code> activated in Setup &rarr; MCP Servers)</label>
             <div style="margin-top:12px">
                 <button class="btn btn-primary" id="w-auto-btn" onclick="runAutoSetup(false)">Set Up My Org Automatically</button>
                 <button class="btn btn-secondary hidden" id="w-auto-update-btn" onclick="runAutoSetup(true)">Update Existing App and Continue</button>
+                <button class="btn btn-secondary hidden" id="w-auto-mcp-retry" onclick="runAutoMcp()">Retry MCP Login</button>
             </div>
             <ol id="w-auto-steps" class="form-hint" style="margin:12px 0 0 18px; line-height:1.8"></ol>
             <div id="w-auto-result" class="test-result"></div>
         </section>
-        <p class="subtitle" style="margin:0 0 12px">Or set up manually:</p>
+        <p class="subtitle" style="margin:0 0 12px">
+            <a href="#" id="w-manual-toggle" onclick="toggleManualSetup(event)" style="color:var(--blue); font-weight:600">{% if sf_manual_open %}Hide manual setup{% else %}Set up manually instead{% endif %}</a>
+            <span class="form-hint">— create the External Client Apps yourself (no Salesforce CLI needed)</span>
+        </p>
+        <div id="w-manual-setup" class="{% if not sf_manual_open %}hidden{% endif %}">
         <div class="setup-split">
             <section class="card setup-split-form">
                 <h2>Salesforce: External Client App</h2>
@@ -436,6 +446,7 @@
                 </p>
             </div>
         </section>
+        </div><!-- /w-manual-setup -->
 
         <!-- Salesforce spoke actions -->
         <div class="wizard-actions" style="margin-top:20px">
@@ -925,7 +936,7 @@ async function saveAndReturnToHub() {
 
     const payload = {};
     if (tabData.pat_secret) payload.tableau = tabData;
-    if (sfData.client_id) payload.salesforce = sfData;
+    if (sfData.client_id && !sfAutoManaged) payload.salesforce = sfData;
     if (Object.keys(payload).length) {
         await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
     }
@@ -961,8 +972,10 @@ async function testSalesforceFromWizard() {
     };
     const mcpId = document.getElementById('w-mcp-client-id');
     if (mcpId && mcpId.value) sfData.mcp_client_id = mcpId.value;
-    const payload = { salesforce: sfData };
-    await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    if (!sfAutoManaged) {
+        const payload = { salesforce: sfData };
+        await fetch('/api/save-config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    }
     showResult('w-sf-result', null, 'Testing...');
     try {
         const r = await fetch('/api/test-salesforce', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
@@ -1066,6 +1079,33 @@ async function runOAuth() {
     }
 }
 
+// True when automatic setup saved this connection — the manual form's fields
+// (login URL, stale secret) must not be re-saved over it.
+let sfAutoManaged = {{ 'true' if config.get('salesforce', {}).get('sf_cli_alias') else 'false' }};
+
+function toggleManualSetup(e) {
+    e.preventDefault();
+    const box = document.getElementById('w-manual-setup');
+    const open = box.classList.toggle('hidden') === false;
+    document.getElementById('w-manual-toggle').textContent = open ? 'Hide manual setup' : 'Set up manually instead';
+    if (open) sfAutoManaged = false;   // the user is taking over manually
+}
+
+async function runAutoMcp() {
+    const list = document.getElementById('w-auto-steps');
+    const retry = document.getElementById('w-auto-mcp-retry');
+    retry.classList.add('hidden');
+    try {
+        await _autoStep(list, 'MCP login (click Allow in the browser tab)', '/api/oauth/mcp', {});
+        return true;
+    } catch (e) {
+        retry.classList.remove('hidden');
+        showResult('w-auto-result', false, 'Salesforce is connected, but the MCP login failed: ' + e.message
+            + '. Check the MCP server is activated in Setup → MCP Servers, then retry.');
+        return false;
+    }
+}
+
 async function _autoStep(list, label, url, body) {
     const li = document.createElement('li');
     li.textContent = label + '…';
@@ -1107,13 +1147,19 @@ async function runAutoSetup(updateExisting) {
         list.lastChild.textContent += ` ${w.seconds}s`;
         const s = await _autoStep(list, 'AIO login (log in and click Allow in the browser tab)', '/api/setup/auto/authorize',
                                   {rest_key: a.apps.rest.consumer_key, mcp_key: a.apps.mcp ? a.apps.mcp.consumer_key : ''});
-        // Reflect the saved keys in the manual form so the rest of the page (MCP auth) works
+        sfAutoManaged = true;
+        // Mirror the saved values in the (hidden) manual form and clear stale secrets
         document.querySelectorAll('.setup-sync[data-field="sf-client-id"]').forEach(el => el.value = s.client_id);
+        document.querySelectorAll('.setup-sync[data-field="sf-client-secret"]').forEach(el => el.value = '');
+        document.querySelectorAll('.setup-sync[data-field="sf-login-url"]').forEach(el => el.value = s.instance_url);
         const mcpField = document.getElementById('w-mcp-client-id');
-        if (mcpField && s.mcp_client_id) { mcpField.value = s.mcp_client_id; checkMcpAuthNeeded(); }
+        if (mcpField) mcpField.value = s.mcp_client_id || '';
+        const mcpSecretField = document.getElementById('w-mcp-client-secret');
+        if (mcpSecretField) mcpSecretField.value = '';
         const c = s.connector;
-        showResult('w-auto-result', true, `Connected — Data Cloud ${s.data_cloud_domain}, Ingest connector "${c.ingestion_connector_name}" (${c.created ? 'created' : 'existing'}).`
-            + (s.mcp_client_id ? ' Next: click "Authorize MCP Connection" below.' : ''));
+        const summary = `Data Cloud ${s.data_cloud_domain}, Ingest connector "${c.ingestion_connector_name}" (${c.created ? 'created' : 'existing'})`;
+        if (s.mcp_client_id && !(await runAutoMcp())) return;
+        showResult('w-auto-result', true, `All set — ${summary}${s.mcp_client_id ? ', MCP connected' : ''}. Click Save & Return.`);
     } catch (e) {
         showResult('w-auto-result', false, e.message + ' — you can retry, or use manual setup below.');
     } finally {

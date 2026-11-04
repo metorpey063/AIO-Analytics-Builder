@@ -230,6 +230,8 @@ def setup_salesforce_auto(profile: dict, profile_key: str) -> dict | None:
     1. Browser login through the Salesforce CLI
     2. AIO deploys its External Client Apps and reads their keys
     3. Browser login for AIO (after the apps go live, ~20s-4min)
+
+  Before you start: Sign out of every other Salesforce org in your default browser first, then log into only the org you want to build in. A browser signed into another org causes 'Cross-org OAuth flows are not supported' errors.
 """)
     sandbox = input("  Is this a sandbox org? [y/N]: ").strip().lower() in ("y", "yes")
     with_mcp = input("  Also set up the Tableau Next MCP server? [Y/n]: ").strip().lower() not in ("n", "no")

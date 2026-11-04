@@ -341,6 +341,13 @@ def authorize_and_save(profile_key, my_domain, rest_key, mcp_key="", label=None,
 
     tokens = get_refresh_token(rest_key, "", my_domain, scopes=REST_SCOPES)
     sf_token, sf_instance = tokens["access_token"], tokens["instance_url"]
+    if alias:
+        cli_org = org_info(alias)["org_id"][:15]
+        oauth_org = tokens.get("id", "").split("/id/")[-1].split("/")[0][:15]
+        if cli_org and oauth_org and cli_org != oauth_org:
+            raise RuntimeError(
+                f"The AIO login landed in a different org ({oauth_org}) than the CLI login ({cli_org}). "
+                "Sign out of all other Salesforce orgs in your browser, log into only the target org, and retry.")
     dc_token, dc_domain = get_dc_token(sf_token, sf_instance)
     conn = ensure_ingest_connector(sf_token, sf_instance)
 
@@ -411,6 +418,7 @@ def main():
         sys.exit(0 if ok else 1)
 
     if a.command in ("login", "all"):
+        print("Sign out of every other Salesforce org in your default browser first, then log into only the org you want to build in. A browser signed into another org causes 'Cross-org OAuth flows are not supported' errors.", flush=True)
         info = cli_login(a.alias, a.sandbox)
         _print({"step": "login", **info})
         if a.command == "login":

@@ -11,13 +11,15 @@ All notable changes to AIO Analytics Builder are documented here.
 ### Added
 - **`org_bootstrap.py`** — sets up a Salesforce org for AIO with only browser logins: Salesforce CLI login, deploys or reuses the two AIO External Client Apps (REST + MCP), reads their consumer keys, waits until they're live, runs the AIO OAuth login with no secret, finds or creates the Ingest API connector, and saves the profile. Registers `tableau-next-pilot` in Claude Code with the MCP app's key.
 - **/setup Step 4-Auto** — the default Salesforce path. The manual ECA steps are kept as a fallback.
-- **Web UI setup wizard: "Set Up My Org Automatically"** — runs the same steps from the Salesforce step (`/api/setup/auto/login|apps|wait|authorize`) and offers to update an existing app AIO can't use.
+- **Web UI setup wizard: "Set Up My Org Automatically"** — the main path on the Salesforce step. It runs the same steps (`/api/setup/auto/login|apps|wait|authorize`), then the MCP login, and offers to update an existing app AIO can't use. Manual setup is collapsed behind "Set up manually instead" (it opens by default for connections that were set up by hand).
+- **One-org guidance** — `/setup`, `setup.py` and the Web UI tell the user to sign out of every other Salesforce org and log into only the target org before the browser logins. The automatic setup stops if the AIO login lands in a different org than the CLI login, and a "Cross-org" error now explains the fix.
 - **`setup.py`** — offers automatic setup before the manual Connected App prompts.
 
 ### Fixed
 - `setup.py` created connectors with `connectorType: "INGEST_API"`; the API takes `"IngestApi"`.
 - `setup.py` sent an empty `client_secret` on refresh; it's now left out when blank (needed for no-secret apps).
 - `oauth_flow` timeout now explains that `invalid_client_id` in the browser means the app is still activating.
+- Web UI "Save & Return" and "Test Connection" no longer re-save the manual form over an automatically configured connection. They used to put back the login URL and any stale secret, which would break a no-secret app.
 
 ---
 
