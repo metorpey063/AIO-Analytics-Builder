@@ -122,7 +122,9 @@ def run_oauth_flow(client_id: str, sf_login_url: str = "https://login.salesforce
     if _auth_error:
         raise RuntimeError(f"Salesforce authorization failed: {_auth_error}")
     if _auth_code is None:
-        raise RuntimeError("Timed out waiting for Salesforce authorization. Check your browser.")
+        # Salesforce shows invalid_client_id on its own page (no callback), so we only see a timeout
+        raise RuntimeError("Timed out waiting for Salesforce authorization. Check your browser. "
+                           "If it shows 'invalid_client_id', the app is still activating — wait a minute and retry.")
 
     return _auth_code, code_verifier
 

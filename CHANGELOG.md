@@ -4,6 +4,23 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-04 — Zero-click Salesforce org setup
+
+> Tested end to end on the AIO Dev org with throwaway apps (all removed): deploy → wait → AIO login with no secret → Data Cloud exchange, Semantics, Bulk Ingest API → profile save and refresh; MCP app login → MCP `initialize` 200 → refresh with no secret; updating a secret-requiring app keeps its consumer key. Ingest connector creation via the API was tested separately (schema registered). The Web UI button and the `setup.py` prompts have been checked (page renders, JS parses, routes respond) but not clicked through against an org.
+
+### Added
+- **`org_bootstrap.py`** — sets up a Salesforce org for AIO with only browser logins: Salesforce CLI login, deploys or reuses the two AIO External Client Apps (REST + MCP), reads their consumer keys, waits until they're live, runs the AIO OAuth login with no secret, finds or creates the Ingest API connector, and saves the profile. Registers `tableau-next-pilot` in Claude Code with the MCP app's key.
+- **/setup Step 4-Auto** — the default Salesforce path. The manual ECA steps are kept as a fallback.
+- **Web UI setup wizard: "Set Up My Org Automatically"** — runs the same steps from the Salesforce step (`/api/setup/auto/login|apps|wait|authorize`) and offers to update an existing app AIO can't use.
+- **`setup.py`** — offers automatic setup before the manual Connected App prompts.
+
+### Fixed
+- `setup.py` created connectors with `connectorType: "INGEST_API"`; the API takes `"IngestApi"`.
+- `setup.py` sent an empty `client_secret` on refresh; it's now left out when blank (needed for no-secret apps).
+- `oauth_flow` timeout now explains that `invalid_client_id` in the browser means the app is still activating.
+
+---
+
 ## 2026-11-04 — /update-rev-intel skill + revintel engine
 
 > Generalised from the KnowBe4 Revenue Intelligence rebuild. Regression-checked: the KnowBe4 demo regenerated through the new package produces an identical plan (all accounts, opportunities, line items, contacts, activities) and identical quotas (180 rep-months). `inspect` and `refresh --plan` run against the Tab Next & Slack org; `apply` / `team` write paths are the same code that loaded the KnowBe4 data, but haven't been run through the new CLI yet.

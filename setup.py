@@ -190,7 +190,7 @@ def test_salesforce(profile: dict) -> tuple[bool, str, str]:
                 "grant_type": "refresh_token",
                 "refresh_token": sf["refresh_token"],
                 "client_id": sf["client_id"],
-                "client_secret": sf["client_secret"],
+                **({"client_secret": sf["client_secret"]} if sf.get("client_secret") else {}),
             },
         )
         if r.status_code != 200:
@@ -218,7 +218,62 @@ def test_salesforce(profile: dict) -> tuple[bool, str, str]:
         return False, "", ""
 
 
-def setup_salesforce(profile: dict) -> dict:
+def setup_salesforce_auto(profile: dict, profile_key: str) -> dict | None:
+    """Zero-click org setup via org_bootstrap. Returns the saved profile, or None to fall back to manual."""
+    import org_bootstrap as ob
+    ok, msg = ob.preflight()
+    if not ok:
+        print(f"\n  {msg}")
+        return None
+    print("""
+  AIO will set up this org for you:
+    1. Browser login through the Salesforce CLI
+    2. AIO deploys its External Client Apps and reads their keys
+    3. Browser login for AIO (after the apps go live, ~20s-4min)
+""")
+    sandbox = input("  Is this a sandbox org? [y/N]: ").strip().lower() in ("y", "yes")
+    with_mcp = input("  Also set up the Tableau Next MCP server? [Y/n]: ").strip().lower() not in ("n", "no")
+    alias = "aio-" + profile_key.replace("_", "-")
+    try:
+        info = ob.cli_login(alias, sandbox)
+        print(f"  Logged in: {info['username']} ({info['instance_url']})")
+        apps = ob.deploy_apps(alias, include_mcp=with_mcp)
+        stale = {k: v for k, v in apps.items() if v["status"] == "needs_update"}
+        if stale:
+            for v in stale.values():
+                print(f"  Existing app {v['name']} can't be used as-is: {'; '.join(v['problems'])}")
+            if input("  Update it? Its consumer key stays the same. [Y/n]: ").strip().lower() in ("n", "no"):
+                return None
+            apps = ob.deploy_apps(alias, include_mcp=with_mcp, update_existing=True)
+        for v in apps.values():
+            print(f"  {v['name']}: {v['status']}")
+        print("  Waiting for the apps to go live...", end="", flush=True)
+        secs = ob.wait_until_active(info["instance_url"], [v["consumer_key"] for v in apps.values()])
+        print(f" live after {secs}s")
+        print("\n  Opening browser for the AIO login — log in and click Allow.")
+        saved = ob.authorize_and_save(profile_key, info["instance_url"], apps["rest"]["consumer_key"],
+                                      apps.get("mcp", {}).get("consumer_key", ""), profile.get("label"), alias)
+        print(f"  Data Cloud: {saved['data_cloud_domain']}")
+        c = saved["connector"]
+        print(f"  Ingest connector: {c['ingestion_connector_name']} ({'created' if c['created'] else 'existing'})")
+        if with_mcp:
+            ok, msg = ob.register_claude_mcp(apps["mcp"]["consumer_key"])
+            print(f"  MCP: {'registered — run /mcp in Claude Code to log in' if ok else msg}")
+    except Exception as e:
+        print(f"\n  Automatic setup failed: {e}")
+        return None
+    return load_full_config()["profiles"][profile_key]
+
+
+def setup_salesforce(profile: dict, profile_key: str = None) -> dict:
+    if profile_key:
+        auto = input("\n  Set up Salesforce automatically (recommended)? [Y/n]: ").strip().lower()
+        if auto not in ("n", "no"):
+            saved = setup_salesforce_auto(profile, profile_key)
+            if saved:
+                return saved
+            print("  Falling back to manual setup.")
+
     print("\n" + "=" * 60)
     print("  Salesforce Connected App")
     print("=" * 60)
@@ -310,7 +365,7 @@ def create_connector(sf_token: str, sf_instance: str, connector_name: str) -> di
     r = requests.post(
         f"{sf_instance}/services/data/v62.0/ssot/connections",
         headers={"Authorization": f"Bearer {sf_token}", "Content-Type": "application/json"},
-        json={"connectorType": "INGEST_API", "label": connector_name, "name": connector_name},
+        json={"connectorType": "IngestApi", "label": connector_name, "name": connector_name},
     )
     if r.status_code not in (200, 201):
         raise RuntimeError(f"Failed to create connector: {r.status_code} {r.text}")
@@ -334,7 +389,7 @@ def setup_connector(profile: dict) -> dict:
             "grant_type": "refresh_token",
             "refresh_token": sf["refresh_token"],
             "client_id": sf["client_id"],
-            "client_secret": sf["client_secret"],
+            **({"client_secret": sf["client_secret"]} if sf.get("client_secret") else {}),
         },
     )
     sf_token = r.json()["access_token"]
@@ -571,9 +626,9 @@ def run_setup():
         if is_section_configured("salesforce", profile):
             reconfig = input("\n  Salesforce already configured. Reconfigure? [y/N]: ").strip().lower()
             if reconfig in ("y", "yes"):
-                profile = setup_salesforce(profile)
+                profile = setup_salesforce(profile, profile_key)
         else:
-            profile = setup_salesforce(profile)
+            profile = setup_salesforce(profile, profile_key)
 
     if "connector" in steps:
         connector_id = profile["salesforce"].get("connector_sf_id", "")

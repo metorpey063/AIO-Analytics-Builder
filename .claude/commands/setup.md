@@ -201,7 +201,71 @@ except Exception as e:
 
 ## Step 4 — Salesforce + Data Cloud (skip if user chose option 1)
 
-### Step 4a — External Client App
+**Default: automatic setup (Step 4-Auto).** AIO deploys its own External Client Apps from a Salesforce CLI session, reads their consumer keys, waits until they're live, then finds or creates the Ingest connector. The user only logs in through the browser. Use the manual Steps 4a–4d only if 4-Auto can't run (no Salesforce CLI and the user can't install it, or the user lacks permission to deploy metadata).
+
+### Step 4-Auto — Automatic org setup
+
+All commands use `org_bootstrap.py`. Never hand-build ECA XML or connector payloads; the module holds the working settings.
+
+**4-Auto.1 — Preflight**
+
+```bash
+python3 org_bootstrap.py preflight
+```
+
+If `ok` is false, the Salesforce CLI is missing. Offer to install it (`brew install sf`, or `npm install -g @salesforce/cli` when there's no Homebrew), then re-run preflight. If the user declines, use the manual Steps 4a–4d.
+
+**4-Auto.2 — Ask what you need first.** Use `AskUserQuestion`:
+- Production or sandbox org?
+- Set up the Tableau Next MCP server too? (recommended; it needs the `TableauPilotMCPServerEnabled` org permission and the server activated, see 4-Auto.6)
+
+Pick a CLI alias from the profile key (e.g. profile `acme_demo` → alias `aio-acme-demo`).
+
+**4-Auto.3 — CLI login (browser 1 of 3)**
+
+> "Opening your browser for a one-time Salesforce CLI login. Log into the org you want to build demos in."
+
+```bash
+python3 org_bootstrap.py login --alias ALIAS_HERE [--sandbox]
+```
+
+Confirm the returned `username` and `instance_url` with the user before deploying anything.
+
+**4-Auto.4 — Deploy the apps**
+
+```bash
+python3 org_bootstrap.py apps --alias ALIAS_HERE [--no-mcp]
+```
+
+Each app comes back as `created`, `reused` or `needs_update`:
+- `created` / `reused`: continue.
+- `needs_update` (exit code 2): an `AIO_Analytics_Builder` or `AIO_MCP_Client` app already exists, but with settings AIO can't use (the `problems` list says which). Show the problems and ask with `AskUserQuestion`: "Update the existing app (its consumer key stays the same)" / "Use manual setup instead". If they choose update, re-run with `--update-existing`.
+
+**4-Auto.5 — Wait, then the AIO login (browser 2 of 3)**
+
+```bash
+python3 org_bootstrap.py authorize --alias ALIAS_HERE --profile PROFILE_KEY_HERE --label "LABEL_HERE" [--no-mcp]
+```
+
+Run `wait` first (`python3 org_bootstrap.py wait --alias ALIAS_HERE`): new apps take between ~20 seconds and ~4 minutes to activate. Tell the user it's waiting. Then `authorize` opens the browser. It saves to `profiles.{key}.salesforce` everything the build needs: My Domain as `sf_login_url`, the client ID with no secret, the refresh token, `code_verifier`, the Data Cloud domain, the connector fields and `mcp_client_id`. It also makes the profile the active Salesforce connection.
+
+If the browser shows `invalid_client_id`, the app is still reaching every login server. Wait a minute and re-run `authorize`.
+
+**4-Auto.6 — MCP (if chosen; browser 3 of 3)**
+
+The org permission and server activation can't be automated. Ask the user to confirm both, using the text in Steps 4d.1 and 4d.2. Then:
+
+```bash
+python3 org_bootstrap.py mcp --alias ALIAS_HERE
+```
+
+This registers `tableau-next-pilot` in Claude Code using the deployed MCP app's key. Tell the user to run `/mcp`, select **tableau-next-pilot** and log in. Then verify with Step 4d.5.
+
+Skip to Step 5. Steps 4a–4d below are the manual fallback.
+
+---
+
+### Step 4a — External Client App (manual fallback)
 
 Ask the user:
 > "Do you already have a Salesforce External Client App set up for AIO Analytics Builder, or do you need to create one?"
@@ -533,7 +597,20 @@ The direct REST ECA (Step 4a) and the MCP ECA (Step 4d) are **separate apps** wi
 
 ## Step 5 — Save config and validate
 
-Write the completed profile to config.json using:
+**If Step 4-Auto ran**, the Salesforce section is already saved. Don't use the full-profile snippet below, because it would overwrite that section. Merge only the Tableau section instead:
+
+```bash
+python3 -c "
+from connections import load_full_config, save_full_config
+full = load_full_config()
+full['profiles']['PROFILE_KEY_HERE'].setdefault('tableau', {}).update({
+    'server_url': 'URL_HERE', 'site_name': 'SITE_HERE', 'pat_name': 'Claude Code', 'pat_secret': 'SECRET_HERE'})
+save_full_config(full)
+print('Saved.')
+"
+```
+
+Otherwise (manual setup), write the completed profile to config.json using:
 
 ```bash
 python3 -c "

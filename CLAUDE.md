@@ -106,7 +106,7 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
 
 ## What this does
 
-- **/setup** — Guided one-time setup: connects to Tableau Cloud (PAT) and Salesforce (OAuth), discovers or creates Data Cloud ingest connector
+- **/setup** — Guided one-time setup: connects to Tableau Cloud (PAT) and Salesforce. For Salesforce, `org_bootstrap.py` deploys AIO's External Client Apps and finds or creates the Data Cloud ingest connector, so the user only logs in through the browser (manual ECA steps remain as a fallback)
 - **/build-demo** — Story-driven demo builder: generates synthetic data with engineered signals, then offers three outputs:
   1. **Tableau Pulse** — publishes a .hyper datasource and creates Pulse metric definitions + group subscriptions
   2. **Tableau Next** — pushes data to Data Cloud, builds a Semantic Data Model, metrics, visualizations, and dashboard
@@ -120,6 +120,7 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
 - `connections.py` — all auth logic; import this everywhere, never inline credentials
 - `oauth_flow.py` — Salesforce OAuth browser flow (port 8080 callback)
 - `setup.py` — setup wizard logic called by /setup
+- `org_bootstrap.py` — zero-click Salesforce org setup: Salesforce CLI login → deploy/reuse the two AIO ECAs (`AIO_Analytics_Builder`, `AIO_MCP_Client`) → read consumer keys → wait until live → AIO OAuth with no secret → find/create Ingest connector → save profile. CLI: `preflight | login | apps | wait | authorize | mcp | all`. Used by /setup Step 4-Auto, `setup.py` and the Web UI setup wizard
 - `config.json` — per-SE credentials (gitignored, never commit)
 - `config.json.template` — safe to commit, shows required fields
 - `demos/` — generated demo scripts and exports land here
@@ -678,3 +679,9 @@ BRAND = {
 - Metadata: **Opportunity business processes reject `<default>` on values** — deploy `businessProcesses` values with `<fullName>` only ("Cannot specify a default on: Opportunity").
 - Demo orgs: **Check for scheduled demo-refresh Apex before loading data.** Jobs like `SalesInsightsRefresh` (CronTrigger "Sales Insights Weekly Refresh") create, advance, close and re-date opportunities org-wide and create quotas for a fixed user list. Exclude demo records (e.g. `Demo_External_ID__c != null`) or pause the job.
 - sf CLI: **a POST with no body fails** ("No 'mode' found in 'body' entry") — pass `-b '{}'`. Start a CRMA Data Sync with `POST /wave/dataConnectors/{id}/ingest` and body `{}`, and check for "Sync request was sent". Bulk CSVs need LF line endings; `sf data update bulk` reports `processedRecords`/`failedRecords` (other bulk commands use `numberRecords*`). macOS has no `timeout` command.
+- Org setup: **AIO needs two External Client Apps — they can't be combined.** The MCP endpoint only accepts named-user JWT access tokens (`isNamedUserJwtEnabled=true`); REST, Semantics and the Data Cloud `a360/token` exchange reject them (401). `org_bootstrap.APPS` holds both definitions; never hand-build ECA XML.
+- Org setup: **ECAs deploy from a Salesforce CLI session, and the consumer key can be read back.** Retrieving `ExtlClntAppGlobalOauthSettings:{name}_glbloauth` returns `<consumerKey>`. With `isConsumerSecretOptional=true` + PKCE, AIO needs no secret. Hand-made apps often require a secret (the MCP one especially, which fails with `invalid client credentials`); `deploy_apps` reports those as `needs_update`. Updating redeploys with the existing `<consumerKey>` so the key never changes.
+- Org setup: **A new ECA takes ~20s–4 min to go live, and login servers pick it up one at a time.** The authorize endpoint returns 400 (`invalid_client_id`) until then and 302 after. login.salesforce.com flips between 400 and 302 for minutes after the org's My Domain is stable, so `wait_until_active` polls My Domain until it sees 30 consecutive 302s, and bootstrapped profiles use My Domain as `sf_login_url`. Salesforce shows `invalid_client_id` on its own page (no callback), so `oauth_flow` can only report it as a timeout.
+- Org setup: **With refresh-token rotation on, a refresh invalidates the earlier access token.** Always use the access token from the latest token response (`connections.get_sf_token` does).
+- Org setup: **Create the Ingest API connector with `POST /services/data/v62.0/ssot/connections` `{"label", "name", "connectorType": "IngestApi"}`.** It comes back `CONNECTED` with its UUID name and ID. `"INGEST_API"` is wrong, and deploying `DataConnectorIngestApi` metadata only creates the definition (no connection, no `DataSource`). Bulk Ingest `sourceName` is the UUID name minus the UUID suffix (`org_bootstrap.connector_short_name`).
+- Org setup: **`sf org display` redacts the access token** on current CLI versions, even with `--verbose`. Use `sf api request rest` for calls that need the CLI session; AIO's own calls use the token from its OAuth login.

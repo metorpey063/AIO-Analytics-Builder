@@ -183,6 +183,27 @@
 
     <!-- Wizard Step 2: Salesforce ECA -->
     <div class="wizard-step hidden" id="setup-step-2">
+        <section class="card" style="margin-bottom:16px">
+            <h2>Salesforce: Automatic Setup <span class="optional">(recommended)</span></h2>
+            <p class="subtitle" style="margin-bottom:12px">AIO creates its own External Client Apps and Ingest connector in your org. You just log in through the browser. Needs the Salesforce CLI (<code>brew install sf</code>).</p>
+            <div class="form-group">
+                <label>Environment</label>
+                <div class="env-toggle">
+                    <button type="button" class="env-toggle-btn {% if config.get('salesforce', {}).get('sf_login_url', 'https://login.salesforce.com') != 'https://test.salesforce.com' %}active{% endif %}"
+                            onclick="setSfEnv(this, 'https://login.salesforce.com')">Production</button>
+                    <button type="button" class="env-toggle-btn {% if config.get('salesforce', {}).get('sf_login_url') == 'https://test.salesforce.com' %}active{% endif %}"
+                            onclick="setSfEnv(this, 'https://test.salesforce.com')">Sandbox</button>
+                </div>
+            </div>
+            <label class="checklist-item"><input type="checkbox" id="w-auto-mcp" checked> Also set up the Tableau Next MCP server (needs the pilot org permission and <code>tableau-next-pilot</code> activated in Setup &rarr; MCP Servers)</label>
+            <div style="margin-top:12px">
+                <button class="btn btn-primary" id="w-auto-btn" onclick="runAutoSetup(false)">Set Up My Org Automatically</button>
+                <button class="btn btn-secondary hidden" id="w-auto-update-btn" onclick="runAutoSetup(true)">Update Existing App and Continue</button>
+            </div>
+            <ol id="w-auto-steps" class="form-hint" style="margin:12px 0 0 18px; line-height:1.8"></ol>
+            <div id="w-auto-result" class="test-result"></div>
+        </section>
+        <p class="subtitle" style="margin:0 0 12px">Or set up manually:</p>
         <div class="setup-split">
             <section class="card setup-split-form">
                 <h2>Salesforce: External Client App</h2>
@@ -1042,6 +1063,61 @@ async function runOAuth() {
         }
     } catch (e) {
         showResult('w-oauth-result', false, 'Request failed: ' + e.message);
+    }
+}
+
+async function _autoStep(list, label, url, body) {
+    const li = document.createElement('li');
+    li.textContent = label + '…';
+    list.appendChild(li);
+    const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
+    const j = await r.json();
+    li.textContent = label + (j.ok ? ' ✓' : ' ✗');
+    if (!j.ok) throw new Error(j.error || 'unknown error');
+    return j;
+}
+
+async function runAutoSetup(updateExisting) {
+    const list = document.getElementById('w-auto-steps');
+    const btn = document.getElementById('w-auto-btn');
+    const updBtn = document.getElementById('w-auto-update-btn');
+    const includeMcp = document.getElementById('w-auto-mcp').checked;
+    const sandbox = getSetupVal('sf-login-url') === 'https://test.salesforce.com';
+    list.innerHTML = '';
+    btn.disabled = true;
+    updBtn.classList.add('hidden');
+    showResult('w-auto-result', null, '');
+    try {
+        if (!updateExisting) {
+            const login = await _autoStep(list, 'Salesforce CLI login (log in in the browser tab)', '/api/setup/auto/login', {sandbox});
+            list.lastChild.textContent += ' ' + login.username;
+        }
+        const a = await _autoStep(list, 'Creating External Client Apps', '/api/setup/auto/apps',
+                                  {include_mcp: includeMcp, update_existing: updateExisting});
+        if (a.needs_update) {
+            const probs = Object.values(a.apps).filter(v => v.status === 'needs_update')
+                .map(v => `${v.name}: ${v.problems.join('; ')}`).join(' | ');
+            showResult('w-auto-result', false, `An existing app has settings AIO can't use — ${probs}. Update it? Its consumer key stays the same.`);
+            updBtn.classList.remove('hidden');
+            return;
+        }
+        list.lastChild.textContent += ' ' + Object.values(a.apps).map(v => `${v.name} (${v.status})`).join(', ');
+        const keys = Object.values(a.apps).map(v => v.consumer_key);
+        const w = await _autoStep(list, 'Waiting for the apps to go live (20s–4 min)', '/api/setup/auto/wait', {keys});
+        list.lastChild.textContent += ` ${w.seconds}s`;
+        const s = await _autoStep(list, 'AIO login (log in and click Allow in the browser tab)', '/api/setup/auto/authorize',
+                                  {rest_key: a.apps.rest.consumer_key, mcp_key: a.apps.mcp ? a.apps.mcp.consumer_key : ''});
+        // Reflect the saved keys in the manual form so the rest of the page (MCP auth) works
+        document.querySelectorAll('.setup-sync[data-field="sf-client-id"]').forEach(el => el.value = s.client_id);
+        const mcpField = document.getElementById('w-mcp-client-id');
+        if (mcpField && s.mcp_client_id) { mcpField.value = s.mcp_client_id; checkMcpAuthNeeded(); }
+        const c = s.connector;
+        showResult('w-auto-result', true, `Connected — Data Cloud ${s.data_cloud_domain}, Ingest connector "${c.ingestion_connector_name}" (${c.created ? 'created' : 'existing'}).`
+            + (s.mcp_client_id ? ' Next: click "Authorize MCP Connection" below.' : ''));
+    } catch (e) {
+        showResult('w-auto-result', false, e.message + ' — you can retry, or use manual setup below.');
+    } finally {
+        btn.disabled = false;
     }
 }
 

@@ -694,6 +694,70 @@ def create_profile():
         return jsonify({"ok": False, "error": str(e)})
 
 
+def _auto_ctx():
+    """Profile key + CLI alias for the automatic org setup routes."""
+    from connections import load_full_config
+    data = request.get_json(silent=True) or {}
+    full = load_full_config()
+    key = data.get("profile_key") or full.get("active_salesforce")
+    if not key or key not in full.get("profiles", {}):
+        raise RuntimeError("No active connection. Create one in Step 1 first.")
+    return data, full, key, "aio-" + key.replace("_", "-")
+
+
+@app.route("/api/setup/auto/login", methods=["POST"])
+def auto_setup_login():
+    """Automatic setup 1/4: Salesforce CLI preflight + browser login (no app needed)."""
+    try:
+        import org_bootstrap as ob
+        ok, msg = ob.preflight()
+        if not ok:
+            return jsonify({"ok": False, "error": msg, "no_cli": True})
+        data, _, _, alias = _auto_ctx()
+        return jsonify({"ok": True, **ob.cli_login(alias, bool(data.get("sandbox")))})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/api/setup/auto/apps", methods=["POST"])
+def auto_setup_apps():
+    """Automatic setup 2/4: deploy or reuse AIO's External Client Apps."""
+    try:
+        import org_bootstrap as ob
+        data, _, _, alias = _auto_ctx()
+        apps = ob.deploy_apps(alias, include_mcp=bool(data.get("include_mcp", True)),
+                              update_existing=bool(data.get("update_existing")))
+        return jsonify({"ok": True, "apps": apps,
+                        "needs_update": any(v["status"] == "needs_update" for v in apps.values())})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/api/setup/auto/wait", methods=["POST"])
+def auto_setup_wait():
+    """Automatic setup 3/4: block until the new apps are live on every login server."""
+    try:
+        import org_bootstrap as ob
+        data, _, _, alias = _auto_ctx()
+        secs = ob.wait_until_active(ob.org_info(alias)["instance_url"], data.get("keys", []))
+        return jsonify({"ok": True, "seconds": secs})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/api/setup/auto/authorize", methods=["POST"])
+def auto_setup_authorize():
+    """Automatic setup 4/4: AIO browser login, Data Cloud check, Ingest connector, profile save."""
+    try:
+        import org_bootstrap as ob
+        data, full, key, alias = _auto_ctx()
+        saved = ob.authorize_and_save(key, ob.org_info(alias)["instance_url"], data["rest_key"],
+                                      data.get("mcp_key", ""), full["profiles"][key].get("label"), alias)
+        return jsonify({"ok": True, **saved})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
 @app.route("/api/oauth/mcp", methods=["POST"])
 def oauth_mcp():
     """Run OAuth flow specifically for the MCP ECA to get an MCP refresh token."""
