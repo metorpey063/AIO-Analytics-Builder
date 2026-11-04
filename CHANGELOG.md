@@ -19,6 +19,7 @@ All notable changes to AIO Analytics Builder are documented here.
 - `setup.py` created connectors with `connectorType: "INGEST_API"`; the API takes `"IngestApi"`.
 - `setup.py` sent an empty `client_secret` on refresh; it's now left out when blank (needed for no-secret apps).
 - `oauth_flow` timeout now explains that `invalid_client_id` in the browser means the app is still activating.
+- Web UI setup page always opens the wizard. A "Form" choice saved in the browser by an older version left users stuck in the old form view (its toggle is hidden), which has no automatic setup.
 - Web UI "Save & Return" and "Test Connection" no longer re-save the manual form over an automatically configured connection. They used to put back the login URL and any stale secret, which would break a no-secret app.
 
 ---

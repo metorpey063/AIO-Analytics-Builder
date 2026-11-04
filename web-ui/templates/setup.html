@@ -838,8 +838,9 @@ function setSetupMode(mode) {
 function toggleSetupMode() { setSetupMode(setupMode === 'wizard' ? 'form' : 'wizard'); }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const saved = localStorage.getItem('aio-setup-mode');
-    if (saved === 'form') setSetupMode('form');
+    // The mode toggle is hidden (wizard only), so a 'form' choice saved by an older
+    // version would strand the user in form mode, which lacks automatic org setup.
+    localStorage.removeItem('aio-setup-mode');
 
     // Only set profileCreated when editing via ?profile= (not fresh visits)
     const isEditing = {{ 'true' if is_editing else 'false' }};
