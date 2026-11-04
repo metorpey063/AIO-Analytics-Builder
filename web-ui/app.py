@@ -1023,6 +1023,112 @@ def build_start():
     return jsonify({"ok": True, "build_id": build_id})
 
 
+# ---------------------------------------------------------------------------
+# Update Rev Intel (/update-rev-intel skill) — Q&A capture + revintel engine runner
+# ---------------------------------------------------------------------------
+REVINTEL_SAFE = {"inspect": [], "plan": [], "refresh-plan": ["refresh", "--plan"]}
+REVINTEL_WRITES = {"team-people": ["team", "people"], "apply": ["apply"], "team-reassign": ["team", "reassign"],
+                   "team-quotas": ["team", "quotas"], "refresh": ["refresh"]}
+
+
+def _revintel_dir(slug):
+    import re as _re
+    if not _re.fullmatch(r"[a-z0-9_]{2,60}", slug or ""):
+        raise ValueError("Demo folder name must be lowercase letters, numbers and underscores")
+    return PROJECT_ROOT / "demos" / slug
+
+
+@app.route("/update-rev-intel")
+def update_rev_intel_page():
+    return render_template("rev_intel.html", slug=request.args.get("slug", ""))
+
+
+@app.route("/api/rev-intel/orgs")
+def rev_intel_orgs():
+    """Connected sf CLI orgs (the revintel engine writes through the sf CLI)."""
+    import subprocess
+    try:
+        out = subprocess.run(["sf", "org", "list", "--json"], capture_output=True, text=True, timeout=60).stdout
+        res = json.loads(out).get("result", {})
+        orgs = [{"alias": o.get("alias") or o.get("username"), "username": o.get("username"),
+                 "instance": o.get("instanceUrl")}
+                for o in res.get("nonScratchOrgs", []) + res.get("scratchOrgs", [])
+                if o.get("connectedStatus") == "Connected"]
+        return jsonify({"ok": True, "orgs": orgs})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/rev-intel/request/<slug>")
+def rev_intel_load(slug):
+    d = _revintel_dir(slug)
+    req = d / "rev_intel_request.json"
+    report = {}
+    for name in ("inspect", "story_stats"):
+        f = d / "out" / f"{name}.json"
+        if f.exists():
+            report[name] = json.loads(f.read_text())
+    has_config = any((d / n).exists() for n in ("config.py", "config.json")) or bool(list(d.glob("*_config.py")))
+    return jsonify({"ok": True, "request": json.loads(req.read_text()) if req.exists() else None,
+                    "report": report, "has_config": has_config})
+
+
+@app.route("/api/rev-intel/save", methods=["POST"])
+def rev_intel_save():
+    """Save the Q&A answers; create a minimal config.json (org only) so Inspect can run."""
+    data = request.get_json() or {}
+    try:
+        d = _revintel_dir(data.get("slug"))
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "rev_intel_request.json").write_text(json.dumps(data, indent=1))
+    has_config = any((d / n).exists() for n in ("config.py", "config.json")) or bool(list(d.glob("*_config.py")))
+    if not has_config and data.get("org_alias"):
+        (d / "config.json").write_text(json.dumps({"ORG_ALIAS": data["org_alias"], "POOL_PREFIX": "AIO-POOL",
+                                                   "_status": "draft — /update-rev-intel fills in the rest"}, indent=1))
+    return jsonify({"ok": True, "path": str(d / "rev_intel_request.json")})
+
+
+@app.route("/api/rev-intel/run", methods=["POST"])
+def rev_intel_run():
+    """Run one revintel command in the background; stream its output on /api/build/progress/<id>."""
+    import subprocess
+    import uuid as _uuid
+    data = request.get_json() or {}
+    action = data.get("action")
+    if action in REVINTEL_WRITES and not data.get("confirmed"):
+        return jsonify({"ok": False, "error": "This step writes to the org — confirm first."}), 400
+    if action not in REVINTEL_SAFE and action not in REVINTEL_WRITES:
+        return jsonify({"ok": False, "error": f"Unknown action {action!r}"}), 400
+    try:
+        d = _revintel_dir(data.get("slug"))
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    args = (REVINTEL_SAFE.get(action) or REVINTEL_WRITES.get(action)) or [action]
+    job_id = f"revintel_{_uuid.uuid4().hex[:8]}"
+    progress_queues[job_id] = queue.Queue()
+
+    def _run():
+        cmd = ["python3", "-u", "-m", "revintel", str(d)] + args
+        send_progress(job_id, "start", "$ " + " ".join(["python3 -m revintel", f"demos/{d.name}"] + args))
+        try:
+            p = subprocess.Popen(cmd, cwd=str(PROJECT_ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                 text=True, bufsize=1)
+            for line in p.stdout:
+                send_progress(job_id, "log", line.rstrip())
+            p.wait()
+            if p.returncode == 0:
+                send_progress(job_id, "done", f"{action} finished", 100)
+            else:
+                send_progress(job_id, "error", f"{action} failed (exit {p.returncode}) — see the log above")
+        except Exception as e:
+            send_progress(job_id, "error", str(e))
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"ok": True, "build_id": job_id})
+
+
 @app.route("/api/build/progress/<build_id>")
 def build_progress(build_id):
     """SSE endpoint streaming build progress."""

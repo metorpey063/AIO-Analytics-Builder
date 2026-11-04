@@ -18,6 +18,8 @@ All notable changes to AIO Analytics Builder are documented here.
   - `refresh` / `reset` — `crma_refresh.py` chain; reset + `apply --today` re-anchors dates.
 - **`revintel/config_template.py`** — the per-customer config (Python or `config.json`).
 
+- **Web UI: Update Rev Intel Data** — a home-page card ("Tools & Skills") and a sidebar link open a Q&A page that captures the skill's design answers (customer, use case, requirements, org, products, story, team, forecast window) into `demos/{slug}/rev_intel_request.json`. It runs the engine with live output: Inspect (read-only, with warnings), Plan, then users and lead roles, data load, other demos' deals, quotas, and refresh. Every org write needs a confirm click, and the server refuses unconfirmed writes. Drafting the config from the answers still happens in Claude Code (`/update-rev-intel {slug}` reads the saved answers).
+
 ### Docs
 - CLAUDE.md: `/update-rev-intel` in "What this does"; `revintel/` in project structure.
 

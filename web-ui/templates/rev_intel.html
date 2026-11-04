@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+{% set active = "rev_intel" %}
+
+{% block title %}Update Rev Intel Data{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Update Rev Intel Data</h1>
+    <p class="subtitle">Tailor a demo org's Revenue Intelligence data (Revenue Insights + Einstein Account Management) to one customer and use case. Answer the questions below, inspect the org, then run the steps.</p>
+</div>
+
+<!-- 1. Customer & use case -->
+<div class="card story-section" style="padding:16px; margin-bottom:16px">
+    <h3><span class="step-num">1</span> Customer & use case</h3>
+    <div class="form-row">
+        <div class="form-group"><label>Customer *</label>
+            <input type="text" id="ri-customer" data-dictation placeholder="e.g. KnowBe4" oninput="autoSlug()"></div>
+        <div class="form-group"><label>Industry</label>
+            <input type="text" id="ri-industry" placeholder="e.g. Cybersecurity SaaS"></div>
+    </div>
+    <div class="form-group"><label>Use case *</label>
+        <textarea id="ri-usecase" rows="2" data-dictation placeholder="e.g. Renewals forecasting — bottoms-up forecast, renewal stages, product churn on won renewals"></textarea></div>
+    <div class="form-group"><label>Audience</label>
+        <input type="text" id="ri-audience" data-dictation placeholder="e.g. EVP of Renewals, RevOps"></div>
+    <div class="form-group"><label>Requirements <span class="optional">(optional)</span></label>
+        <textarea id="ri-requirements" rows="4" placeholder="Paste the BRD / RFP / discovery notes, or the key asks. The story, fields and stages will be aligned to these."></textarea>
+        <div class="form-hint">Everything generated — products, segments, stages, fields and story — should trace back to these answers.</div></div>
+    <div class="form-group"><label>Demo folder</label>
+        <input type="text" id="ri-slug" placeholder="knowbe4_renewals">
+        <div class="form-hint">Saved under <code>demos/&lt;folder&gt;/</code>.</div></div>
+</div>
+
+<!-- 2. Org -->
+<div class="card story-section" style="padding:16px; margin-bottom:16px">
+    <h3><span class="step-num">2</span> Demo org</h3>
+    <div class="form-group"><label>Salesforce org (sf CLI) *</label>
+        <select id="ri-org"><option value="">Loading connected orgs…</option></select>
+        <div class="form-hint">The engine writes through the sf CLI. Connect an org with <code>sf org login web</code> if it isn't listed.</div></div>
+    <div class="wizard-actions">
+        <button class="btn btn-primary" onclick="saveAnswers().then(() => runStep('inspect'))">Save & inspect org</button>
+        <span class="form-hint">Read-only — surveys apps, refresh chain, stages, team and known traps.</span>
+    </div>
+    <div id="ri-inspect" class="hidden" style="margin-top:12px"></div>
+</div>
+
+<!-- 3. Products -->
+<div class="card story-section" style="padding:16px; margin-bottom:16px">
+    <h3><span class="step-num">3</span> Products</h3>
+    <p class="form-hint">The customer's catalog. Mark the core product everyone owns, the product that gets dropped at renewal (if the story has product churn), and any newly launched product.</p>
+    <table class="table-input" style="width:100%">
+        <thead><tr><th>Product</th><th>Family</th><th>Annual list price</th><th>Unit</th><th>Core</th><th>Dropped at renewal</th><th>New</th><th></th></tr></thead>
+        <tbody id="ri-products"></tbody>
+    </table>
+    <button class="btn btn-secondary btn-sm" onclick="addProduct()" style="margin-top:8px">+ Add product</button>
+</div>
+
+<!-- 4. Story -->
+<div class="card story-section" style="padding:16px; margin-bottom:16px">
+    <h3><span class="step-num">4</span> The story</h3>
+    <div class="form-group"><label>What's going wrong? <span class="optional">(pick any)</span></label>
+        <div id="ri-problems" style="display:flex; flex-wrap:wrap; gap:8px">
+            {% for p in ["Product churn on won renewals", "Full churn", "Contraction (seat cuts)", "Renewals slipping (timing)", "Low expansion / whitespace", "Forecast accuracy"] %}
+            <button type="button" class="btn btn-ghost btn-sm" onclick="this.classList.toggle('btn-primary')">{{ p }}</button>
+            {% endfor %}
+        </div></div>
+    <div class="form-row">
+        <div class="form-group"><label>Where is it worst?</label>
+            <input type="text" id="ri-culprit" data-dictation placeholder="e.g. EMEA Enterprise & Mid-Market"></div>
+        <div class="form-group"><label>Who's doing well? (counter-trend)</label>
+            <input type="text" id="ri-counter" data-dictation placeholder="e.g. NAMR Enterprise — adopting the new AI product"></div>
+    </div>
+    <div class="form-row">
+        <div class="form-group"><label>Why? (root cause)</label>
+            <input type="text" id="ri-cause" data-dictation placeholder="e.g. Vendor consolidation — email security overlaps M365"></div>
+        <div class="form-group"><label>What moves first? (leading indicator)</label>
+            <input type="text" id="ri-leading" data-dictation placeholder="e.g. Add-on products dropped before full churn; engagement falls"></div>
+    </div>
+</div>
+
+<!-- 5. Team -->
+<div class="card story-section" style="padding:16px; margin-bottom:16px">
+    <h3><span class="step-num">5</span> Team & territories</h3>
+    <div class="form-row">
+        <div class="form-group"><label>Sales leader</label>
+            <input type="text" id="ri-leader" placeholder="e.g. Elliot Executive — EVP Renewals"></div>
+        <div class="form-group"><label>People directly under the leader</label>
+            <input type="number" id="ri-leads" min="2" max="12" value="8">
+            <div class="form-hint">Revenue Insights shows these on the leader's view — 7–9 reads best.</div></div>
+    </div>
+    <div class="form-row">
+        <div class="form-group"><label>Regions</label>
+            <div id="ri-regions">{% for r in ["NAMR", "EMEA", "APJ", "LTAM"] %}<label style="margin-right:12px"><input type="checkbox" value="{{ r }}" checked> {{ r }}</label>{% endfor %}</div></div>
+        <div class="form-group"><label>Segments</label>
+            <div id="ri-segments">{% for s in ["Enterprise", "Mid-Market", "SMB", "Transactional"] %}<label style="margin-right:12px"><input type="checkbox" value="{{ s }}" {% if s != 'Transactional' %}checked{% endif %}> {{ s }}</label>{% endfor %}</div></div>
+    </div>
+    <div class="form-row">
+        <div class="form-group"><label>People</label>
+            <select id="ri-personas"><option value="existing">Reuse the org's demo personas</option><option value="fictional">Create new fictional users where needed</option></select></div>
+        <div class="form-group"><label>Split-role example?</label>
+            <select id="ri-splitrole"><option value="yes">Yes — one rep whose HR line differs from the forecast line</option><option value="no">No</option></select></div>
+    </div>
+    <div class="form-group"><label>Forecast structure notes <span class="optional">(optional)</span></label>
+        <textarea id="ri-structure" rows="2" placeholder="e.g. NAMR head is TBH; EMEA lead carries a book; territories mirror the BRD's reference structure"></textarea></div>
+</div>
+
+<!-- 6. Forecast window -->
+<div class="card story-section" style="padding:16px; margin-bottom:16px">
+    <h3><span class="step-num">6</span> Forecast window <span class="optional">(optional — from the AE's ask)</span></h3>
+    <div class="form-row">
+        <div class="form-group"><label>Owners / territories</label>
+            <input type="text" id="ri-fw-owners" placeholder="e.g. NAMR Enterprise (Cindy Central), NAMR Mid-Market (Ely East)"></div>
+        <div class="form-group"><label>Close months</label>
+            <input type="text" id="ri-fw-months" placeholder="e.g. Nov, Dec, Jan"></div>
+    </div>
+    <div class="form-group"><label>Other asks</label>
+        <textarea id="ri-fw-notes" rows="2" placeholder="e.g. Various stages; ATR and Amount differ; descriptions and Next Steps based on the products"></textarea></div>
+</div>
+
+<!-- 7. Run -->
+<div class="card story-section" style="padding:16px; margin-bottom:16px">
+    <h3><span class="step-num">7</span> Build</h3>
+    <div class="wizard-actions" style="flex-wrap:wrap; gap:8px">
+        <button class="btn btn-primary" onclick="saveAnswers(true)">Save answers</button>
+    </div>
+    <div id="ri-handoff" class="form-hint hidden" style="margin:10px 0"></div>
+    <div class="wizard-actions" style="flex-wrap:wrap; gap:8px; margin-top:8px">
+        <button class="btn btn-secondary btn-sm" onclick="runStep('plan')" title="Generate locally — no org writes">Plan (preview)</button>
+        <button class="btn btn-secondary btn-sm" onclick="runStep('team-people', true)">1 · Users & lead roles</button>
+        <button class="btn btn-secondary btn-sm" onclick="runStep('apply', true)">2 · Load data</button>
+        <button class="btn btn-secondary btn-sm" onclick="runStep('team-reassign', true)">3 · Move other demos' deals</button>
+        <button class="btn btn-secondary btn-sm" onclick="runStep('team-quotas', true)">4 · Quotas</button>
+        <button class="btn btn-secondary btn-sm" onclick="runStep('refresh-plan')" title="Show the recipe chain">Refresh chain</button>
+        <button class="btn btn-secondary btn-sm" onclick="runStep('refresh', true)">5 · Refresh CRM Analytics</button>
+    </div>
+    <div class="form-hint" style="margin-top:6px">Then reconfigure Einstein Account Management in Analytics Studio if Inspect flagged its filters (the skill gives the exact answers).</div>
+    <div id="ri-stats" class="hidden" style="margin-top:12px"></div>
+    <pre id="ri-log" class="progress-log hidden" style="max-height:360px; overflow:auto; margin-top:12px; font-size:12px; white-space:pre-wrap"></pre>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+function autoSlug() {
+    if ($('ri-slug').dataset.touched) return;
+    const c = $('ri-customer').value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    $('ri-slug').value = c ? `${c}_rev_intel` : '';
+}
+$('ri-slug').addEventListener('input', () => $('ri-slug').dataset.touched = '1');
+
+function addProduct(p = {}) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><input type="text" class="rp-name" value="${p.name || ''}" placeholder="KSAT"></td>
+        <td><input type="text" class="rp-family" value="${p.family || ''}" placeholder="Security Awareness"></td>
+        <td><input type="number" class="rp-price" value="${p.list_price || ''}" placeholder="40000"></td>
+        <td><input type="text" class="rp-unit" value="${p.unit || 'users'}"></td>
+        <td style="text-align:center"><input type="radio" name="rp-core" class="rp-core" ${p.core ? 'checked' : ''}></td>
+        <td style="text-align:center"><input type="checkbox" class="rp-dropped" ${p.dropped ? 'checked' : ''}></td>
+        <td style="text-align:center"><input type="checkbox" class="rp-new" ${p.new ? 'checked' : ''}></td>
+        <td><button class="btn btn-ghost btn-sm" onclick="this.closest('tr').remove()">×</button></td>`;
+    $('ri-products').appendChild(tr);
+}
+
+function answers() {
+    const checked = id => [...$(id).querySelectorAll('input:checked')].map(i => i.value);
+    return {
+        slug: $('ri-slug').value.trim(), customer: $('ri-customer').value.trim(), industry: $('ri-industry').value.trim(),
+        use_case: $('ri-usecase').value.trim(), audience: $('ri-audience').value.trim(),
+        requirements: $('ri-requirements').value.trim(), org_alias: $('ri-org').value,
+        products: [...$('ri-products').querySelectorAll('tr')].map(tr => ({
+            name: tr.querySelector('.rp-name').value.trim(), family: tr.querySelector('.rp-family').value.trim(),
+            list_price: Number(tr.querySelector('.rp-price').value) || null, unit: tr.querySelector('.rp-unit').value.trim(),
+            core: tr.querySelector('.rp-core').checked, dropped: tr.querySelector('.rp-dropped').checked,
+            new: tr.querySelector('.rp-new').checked })).filter(p => p.name),
+        story: { problems: [...$('ri-problems').querySelectorAll('.btn-primary')].map(b => b.textContent.trim()),
+                 worst: $('ri-culprit').value.trim(), counter_trend: $('ri-counter').value.trim(),
+                 root_cause: $('ri-cause').value.trim(), leading_indicator: $('ri-leading').value.trim() },
+        team: { leader: $('ri-leader').value.trim(), people_under_leader: Number($('ri-leads').value),
+                regions: checked('ri-regions'), segments: checked('ri-segments'), personas: $('ri-personas').value,
+                split_role_example: $('ri-splitrole').value === 'yes', structure_notes: $('ri-structure').value.trim() },
+        forecast_window: { owners: $('ri-fw-owners').value.trim(), months: $('ri-fw-months').value.trim(),
+                           notes: $('ri-fw-notes').value.trim() },
+        saved_at: new Date().toISOString(),
+    };
+}
+
+async function saveAnswers(showHandoff = false) {
+    const a = answers();
+    if (!a.slug || !a.customer || !a.org_alias) { alert('Customer, demo folder and org are required.'); throw new Error('missing'); }
+    const r = await (await fetch('/api/rev-intel/save', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                          body: JSON.stringify(a) })).json();
+    if (!r.ok) { alert(r.error); throw new Error(r.error); }
+    if (showHandoff) {
+        $('ri-handoff').classList.remove('hidden');
+        $('ri-handoff').innerHTML = `Answers saved to <code>demos/${a.slug}/rev_intel_request.json</code>. Next, in Claude Code run
+            <code>/update-rev-intel ${a.slug}</code> — it reads these answers, researches ${a.customer}, and drafts the config with you.
+            Then use <strong>Plan</strong> to preview the story before loading anything.`;
+    }
+    return a;
+}
+
+function runStep(action, writes = false) {
+    const slug = $('ri-slug').value.trim();
+    if (!slug) { alert('Set the demo folder first.'); return; }
+    if (writes && !confirm(`"${action}" writes to the org (${$('ri-org').value}). Backups are written first. Continue?`)) return;
+    fetch('/api/rev-intel/run', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                 body: JSON.stringify({ slug, action, confirmed: writes }) })
+        .then(r => r.json()).then(r => {
+            if (!r.ok) { alert(r.error); return; }
+            const log = $('ri-log'); log.classList.remove('hidden'); log.textContent = '';
+            const es = new EventSource(`/api/build/progress/${r.build_id}`);
+            es.onmessage = e => {
+                const m = JSON.parse(e.data);
+                if (m.stage === 'heartbeat') return;
+                log.textContent += m.message + '\n'; log.scrollTop = log.scrollHeight;
+                if (m.stage === 'done' || m.stage === 'error') { es.close(); loadReport(slug); }
+            };
+        });
+}
+
+async function loadReport(slug) {
+    const r = await (await fetch(`/api/rev-intel/request/${slug}`)).json();
+    if (!r.ok) return;
+    const ins = r.report.inspect;
+    if (ins) {
+        const t = ins.team || {};
+        $('ri-inspect').classList.remove('hidden');
+        $('ri-inspect').innerHTML = `<div class="form-hint"><strong>Apps:</strong> ${(ins.apps || []).map(a => a.label).join(', ') || 'none found'}
+            · <strong>Under ${t.leader_role || 'leader'}:</strong> ${t.people_under_leader_in_revenue_insights ?? '?'} people
+            · <strong>Pool:</strong> ${(ins.pool || {}).tagged_accounts ?? 0} accounts</div>
+            ${(ins.warnings || []).map(w => `<div class="form-hint" style="color:var(--warning, #b26b00)">⚠ ${w}</div>`).join('')}`;
+    }
+    const st = r.report.story_stats;
+    if (st) {
+        $('ri-stats').classList.remove('hidden');
+        $('ri-stats').innerHTML = `<div class="form-hint"><strong>Plan:</strong> ${st.counts.opportunities} opportunities,
+            ${st.counts.accounts} accounts · win rate ${(st.win_rate.all * 100).toFixed(0)}% ·
+            co-termed renewals ${st.co_termed_open_renewals} · dropped products ${JSON.stringify(st.products_dropped)}</div>`;
+    }
+    return r;
+}
+
+async function init() {
+    const orgs = await (await fetch('/api/rev-intel/orgs')).json();
+    $('ri-org').innerHTML = (orgs.orgs || []).map(o => `<option value="${o.alias}">${o.alias} — ${o.username}</option>`).join('')
+        || '<option value="">No connected sf CLI orgs</option>';
+    const slug = "{{ slug }}";
+    if (!slug) { addProduct({ core: true }); return; }
+    $('ri-slug').value = slug; $('ri-slug').dataset.touched = '1';
+    const r = await loadReport(slug);
+    const q = r && r.request;
+    if (!q) { addProduct({ core: true }); return; }
+    const set = (id, v) => { if (v !== undefined && v !== null) $(id).value = v; };
+    set('ri-customer', q.customer); set('ri-industry', q.industry); set('ri-usecase', q.use_case);
+    set('ri-audience', q.audience); set('ri-requirements', q.requirements); set('ri-org', q.org_alias);
+    (q.products || []).forEach(addProduct);
+    if (!(q.products || []).length) addProduct({ core: true });
+    const s = q.story || {}; set('ri-culprit', s.worst); set('ri-counter', s.counter_trend);
+    set('ri-cause', s.root_cause); set('ri-leading', s.leading_indicator);
+    $('ri-problems').querySelectorAll('button').forEach(b => { if ((s.problems || []).includes(b.textContent.trim())) b.classList.add('btn-primary'); });
+    const t = q.team || {}; set('ri-leader', t.leader); set('ri-leads', t.people_under_leader);
+    set('ri-personas', t.personas); set('ri-splitrole', t.split_role_example === false ? 'no' : 'yes'); set('ri-structure', t.structure_notes);
+    const fw = q.forecast_window || {}; set('ri-fw-owners', fw.owners); set('ri-fw-months', fw.months); set('ri-fw-notes', fw.notes);
+}
+init();
+</script>
+{% endblock %}

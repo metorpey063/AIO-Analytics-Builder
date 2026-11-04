@@ -19,6 +19,8 @@ python3 -m revintel demos/{slug} inspect | plan | apply | team <people|reassign|
 
 No slug: list `demos/` folders that have a revintel config and ask which, or offer a new one.
 
+**Started from the web UI?** The **Update Rev Intel Data** page (home page → Tools & Skills) captures the answers to step 2 in `demos/{slug}/rev_intel_request.json`: customer, use case, requirements, org, products (core / dropped at renewal / new), story (problems, where it's worst, counter-trend, root cause, leading indicator), team (leader, people under the leader, regions, segments, personas, split-role), forecast window. It also writes a minimal `config.json` (org only). Read the file first, treat its answers as given, and only ask about gaps. Then draft the full config with the user. The page's buttons run the same `python3 -m revintel` commands (Plan, users and lead roles, data load, move other demos' deals, quotas, refresh), so the SE can finish there or here.
+
 ## Ground rules
 
 - **Align everything to the customer and use case.** Research the company (products, pricing model, segments, regions, go-to-market), and read any requirements doc the SE shares (a BRD, RFP or discovery notes). Every product, segment, stage, field and story beat should trace back to that research or doc. Ask when the research doesn't say.
