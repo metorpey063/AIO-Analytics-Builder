@@ -4,6 +4,25 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-04 — /update-rev-intel skill + revintel engine
+
+> Generalised from the KnowBe4 Revenue Intelligence rebuild. Regression-checked: the KnowBe4 demo regenerated through the new package produces an identical plan (all accounts, opportunities, line items, contacts, activities) and identical quotas (180 rep-months). `inspect` and `refresh --plan` run against the Tab Next & Slack org; `apply` / `team` write paths are the same code that loaded the KnowBe4 data, but haven't been run through the new CLI yet.
+
+### Added
+- **`/update-rev-intel`** — tailors a shared demo org's Revenue Intelligence data (Revenue Insights + Einstein Account Management) to a customer and use case: inspect → design the story with the SE → plan → apply → team/quotas → refresh → verify, plus a date refresh.
+- **`revintel/` engine** (`python3 -m revintel demos/{slug} <command>`), built for both the skill and the web UI (non-interactive, JSON outputs in `out/`):
+  - `inspect` — read-only org survey: Revenue Intelligence apps and duplicates, refresh chain, EAM wizard filters, stages per record type, price books, renewal fields, forecast types, territory models, who shows under the sales leader in Revenue Insights, scheduled Apex, pool size. Warns on the known traps.
+  - `plan` — deterministic generator (culprit / moderate / counter-trend segments, accelerating ramps, product churn as a leading indicator, co-terms, forecast-window renewals, gap fillers) with story stats (`--json`) and config validation that names every unfilled setting.
+  - `apply` — checkpointed, insert-only sf CLI bulk loads with CSV backups; owner moves; pool record type; territories created parents-first.
+  - `team people | reassign | quotas` — fictional personas, lead roles under the sales leader (forecast manager each), other demos' opps moved off the team, monthly quotas for role and territory forecast types (ATR due + run rate, floor, story stretch).
+  - `refresh` / `reset` — `crma_refresh.py` chain; reset + `apply --today` re-anchors dates.
+- **`revintel/config_template.py`** — the per-customer config (Python or `config.json`).
+
+### Docs
+- CLAUDE.md: `/update-rev-intel` in "What this does"; `revintel/` in project structure.
+
+---
+
 ## 2026-11-04 — CRM Analytics refresh automation + Revenue Intelligence pitfalls
 
 > Built during the KnowBe4 Revenue Intelligence demo rebuild on the Tab Next & Slack org (EAM + Revenue Insights). Groundwork for the upcoming `/update-rev-intel` skill.

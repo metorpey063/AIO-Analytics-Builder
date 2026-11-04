@@ -113,6 +113,7 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
   3. **CSV export** — exports the generated dataset for manual use in any viz tool
 - **/close-loop** — Optional final step (offered at the end of `/build-demo`, or run standalone on any `demos/{slug}/`): deploys Flows that create the story's follow-up records and notify the team in Slack (or Chatter). Slack is configured here only, never in `/setup`
 - **/studio** — Tableau Studio Agent skills pre-loaded with the demo's story (aio-story, aio-autobuilder, aio-audience, plus custom skills Claude writes on request). Offered after close-loop at the end of `/build-demo`, or run standalone on any `demos/{slug}/`, an outside CSV/.hyper/.tdsx, or a published Tableau datasource. Needs no org
+- **/update-rev-intel** — Tailors a shared demo org's Revenue Intelligence data (Revenue Insights + Einstein Account Management) to one customer and use case: re-skins a pool of accounts, generates ~2 years of opportunity/renewal history with an engineered story, builds the team (7–9 leads under the sales leader), territories and quotas, then refreshes CRM Analytics in order. Engine: `revintel/` (CLI `python3 -m revintel demos/{slug} inspect|plan|apply|team|refresh|reset`, also called by the web UI)
 
 ## Project structure
 
@@ -137,6 +138,7 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
 - `setup_slack.py` — saves Slack IDs to `profiles.{key}.slack` and runs the read-only Slack check; called by /close-loop only when the user picks Slack
 - `studio_skills.py` — /studio engine: story derivation (reuses `close_loop.analyze_story`) → `demo-story.md` → skill folders + `install.sh` + README → walkthrough Section 8. Also imports outside sources and validates custom skills. CLI: `story | generate | custom | install | status`
 - `crma_refresh.py` — refreshes CRM Analytics apps after CRM data changes: discovers the recipe chain from the datasets the apps' dashboards use, then runs Data Sync + recipes in dependency waves. CLI: `--org <alias> --apps <App_API_Names> [--plan] [--skip-sync]`
+- `revintel/` — /update-rev-intel engine: `generate.py` (deterministic story generator), `apply.py` (checkpointed, insert-only sf CLI bulk loads with backups), `team.py` (users, lead roles, quotas), `inspect_org.py` (read-only org survey → `out/inspect.json`), `build.py` (plan + story stats + config validation). Customer specifics live in `demos/{slug}/config.py` (template `revintel/config_template.py`; example `demos/knowbe4_renewals/kb4_config.py`) or `config.json` (web UI)
 - `sidekicks/studio/skills/` — the three Tableau Studio skill templates (generic; each falls back to asking for the story if `references/demo-story.md` is missing). Design: `sidekicks/studio/docs/studio-skills-design.md`
 
 ## CRM actionability (Tableau Next)
