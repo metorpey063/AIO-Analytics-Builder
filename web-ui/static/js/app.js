@@ -129,3 +129,43 @@ async function runUpdate() {
 
     btn.classList.remove('spinning');
 }
+
+// ---- Claude AI status (Setup + Connections) ----
+// Renders where AIO's Claude credentials come from, with Test / switch actions.
+// `box` is the element to fill; `onManual` shows that page's paste form.
+async function renderClaudeStatus(box, onManual) {
+    let j;
+    try { j = await (await fetch('/api/chat/status')).json(); } catch (e) { return null; }
+    if (!j.available) { box.innerHTML = ''; return j; }
+    const switchBack = (!j.auto && j.claude_code_available)
+        ? `<button class="btn btn-ghost btn-sm" onclick="useClaudeCodeCreds(this)">Use Claude Code credentials instead</button>` : '';
+    const other = j.auto ? `<button class="btn btn-ghost btn-sm" data-act="manual">Use a different key</button>` : '';
+    box.innerHTML = `
+        <div style="padding:12px 16px; background:rgba(20,184,166,0.08); border:1px solid rgba(20,184,166,0.25); border-radius:10px">
+            <p style="font-size:13px; margin:0 0 8px"><strong style="color:#14B8A6">✓ Claude connected</strong> — using ${j.source_label} (${j.kind})</p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+                <button class="btn btn-secondary btn-sm" onclick="testClaudeCreds(this)">Test</button>
+                ${other}${switchBack}
+                <span class="test-result" data-role="claude-test"></span>
+            </div>
+        </div>`;
+    const m = box.querySelector('[data-act="manual"]');
+    if (m && onManual) m.onclick = () => onManual();
+    return j;
+}
+
+async function testClaudeCreds(btn) {
+    const out = btn.parentElement.querySelector('[data-role="claude-test"]');
+    out.textContent = 'Testing…'; out.className = 'test-result loading';
+    try {
+        const j = await (await fetch('/api/chat/test', {method: 'POST'})).json();
+        out.textContent = j.ok ? '✓ ' + j.message : (j.message || j.error);
+        out.className = 'test-result ' + (j.ok ? 'ok' : 'err');
+    } catch (e) { out.textContent = e.message; out.className = 'test-result err'; }
+}
+
+async function useClaudeCodeCreds(btn) {
+    btn.disabled = true;
+    await fetch('/api/chat/use-claude-code', {method: 'POST'});
+    location.reload();
+}

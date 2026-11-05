@@ -1,9 +1,8 @@
 """Claude calls for revintel (draft and research). Needs no demo config, so research can run
 before an org or folder is chosen.
 
-Credentials, in the web UI's order: Bedrock gateway (ANTHROPIC_BEDROCK_BASE_URL +
-ANTHROPIC_AUTH_TOKEN, or config.json "bedrock"), then an Anthropic API key or OAuth token
-(ANTHROPIC_API_KEY or config.json "anthropic.api_key").
+Credentials come from claude_credentials.py, shared with the web UI: Claude Code's
+session or settings first, then keys saved in config.json.
 """
 
 import json
@@ -16,21 +15,18 @@ GATEWAY_MODEL = "us.anthropic.claude-opus-5-5"   # Bedrock gateway model ID for 
 
 
 def credentials():
-    try:
-        aio = json.load(open(os.path.join(ROOT, "config.json")))
-    except (OSError, json.JSONDecodeError):
-        aio = {}
-    url = os.environ.get("ANTHROPIC_BEDROCK_BASE_URL") or (aio.get("bedrock") or {}).get("base_url")
-    tok = os.environ.get("ANTHROPIC_AUTH_TOKEN") if os.environ.get("ANTHROPIC_BEDROCK_BASE_URL") \
-        else (aio.get("bedrock") or {}).get("auth_token")
-    if url and tok:
-        return {"mode": "gateway", "base_url": url.rstrip("/"), "token": tok,
-                "ca_bundle": os.environ.get("NODE_EXTRA_CA_CERTS") or (aio.get("bedrock") or {}).get("ca_bundle") or True}
-    key = os.environ.get("ANTHROPIC_API_KEY") or (aio.get("anthropic") or {}).get("api_key")
-    if key:
-        return {"mode": "sdk", "key": key}
-    raise SystemExit("No Claude credentials: set ANTHROPIC_API_KEY, add an Anthropic key in Setup, "
-                     "or run inside a Claude Code session with the Bedrock gateway.")
+    """Same credentials as the web UI (claude_credentials.py), in this module's shape."""
+    import sys
+    if ROOT not in sys.path:
+        sys.path.insert(0, ROOT)
+    from claude_credentials import resolve
+    cred = resolve()
+    if not cred:
+        raise SystemExit("No Claude credentials found. Run inside Claude Code, or connect Claude in "
+                         "Setup → AI Configuration.")
+    if cred["mode"] == "bedrock_gateway":
+        return {"mode": "gateway", "base_url": cred["base_url"], "token": cred["token"], "ca_bundle": cred["ca_bundle"]}
+    return {"mode": "sdk", "key": cred["api_key"]}
 
 
 def call(system, user, effort="high", max_tokens=64000):

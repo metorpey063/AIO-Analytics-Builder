@@ -120,6 +120,7 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
 - `connections.py` — all auth logic; import this everywhere, never inline credentials
 - `oauth_flow.py` — Salesforce OAuth browser flow (port 8080 callback)
 - `setup.py` — setup wizard logic called by /setup
+- `claude_credentials.py` — finds the Claude credentials for AIO's own Claude calls (Web UI chat + story generation, revintel drafting): Claude Code session env → `~/.claude/settings.json` `env` (the Salesforce rollout's gateway URL, token and CA bundle) → keys saved in config.json. A key the user saves explicitly (`ai_preference: "saved"`) wins. Never read Claude credentials anywhere else
 - `org_bootstrap.py` — zero-click Salesforce org setup: Salesforce CLI login → deploy/reuse the two AIO ECAs (`AIO_Analytics_Builder`, `AIO_MCP_Client`) → read consumer keys → wait until live → AIO OAuth with no secret → find/create Ingest connector → save profile. CLI: `preflight | login | apps | wait | authorize | mcp | all`. Used by /setup Step 4-Auto, `setup.py` and the Web UI setup wizard
 - `config.json` — per-SE credentials (gitignored, never commit)
 - `config.json.template` — safe to commit, shows required fields

@@ -1389,42 +1389,10 @@ CHAT_MODEL = "claude-haiku-4-5-20251001"
 
 
 def _get_chat_config():
-    """Resolve chat API credentials. Returns dict with mode + params, or None."""
-    # 1. Check env vars (Claude Code session)
-    bedrock_url = os.environ.get("ANTHROPIC_BEDROCK_BASE_URL", "")
-    bedrock_token = os.environ.get("ANTHROPIC_AUTH_TOKEN", "")
-    ca_bundle = os.environ.get("NODE_EXTRA_CA_CERTS", "")
-
-    if bedrock_url and bedrock_token:
-        return {
-            "mode": "bedrock_gateway",
-            "base_url": bedrock_url.rstrip("/"),
-            "token": bedrock_token,
-            "ca_bundle": ca_bundle or True,
-        }
-
-    # 2. Check config.json for saved Bedrock or Anthropic credentials
-    try:
-        full = json.loads(CONFIG_PATH.read_text()) if CONFIG_PATH.exists() else {}
-    except (json.JSONDecodeError, OSError):
-        full = {}
-
-    bedrock_cfg = full.get("bedrock", {})
-    if bedrock_cfg.get("base_url") and bedrock_cfg.get("auth_token"):
-        return {
-            "mode": "bedrock_gateway",
-            "base_url": bedrock_cfg["base_url"].rstrip("/"),
-            "token": bedrock_cfg["auth_token"],
-            "ca_bundle": bedrock_cfg.get("ca_bundle", True),
-        }
-
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        api_key = full.get("anthropic", {}).get("api_key", "")
-    if api_key:
-        return {"mode": "anthropic_sdk", "api_key": api_key}
-
-    return None
+    """Resolve chat API credentials. Returns dict with mode + params, or None.
+    Order and sources live in claude_credentials.py (Claude Code settings are read automatically)."""
+    from claude_credentials import resolve
+    return resolve()
 
 
 @app.route("/api/chat", methods=["POST"])
@@ -1432,8 +1400,8 @@ def chat():
     """Stream a Claude response for the chat widget."""
     cfg = _get_chat_config()
     if not cfg:
-        return jsonify({"ok": False, "error": "No API key found. "
-                        "Set ANTHROPIC_API_KEY env var or add it in Setup."}), 400
+        return jsonify({"ok": False, "error": "Claude isn't connected yet. "
+                        "Open Setup → AI Configuration to connect it."}), 400
 
     data = request.get_json(silent=True) or {}
     messages = data.get("messages", [])
@@ -1545,8 +1513,31 @@ def _chat_via_anthropic_sdk(cfg, messages, system_prompt):
 
 @app.route("/api/chat/status", methods=["GET"])
 def chat_status():
-    """Check if chat is available (API credentials found)."""
-    return jsonify({"available": _get_chat_config() is not None})
+    """Check if chat is available, and where the credentials come from (no secrets)."""
+    from claude_credentials import describe
+    return jsonify(describe(_get_chat_config()))
+
+
+@app.route("/api/chat/test", methods=["POST"])
+def chat_test():
+    """Send one tiny request with the credentials AIO would use."""
+    from claude_credentials import describe, test
+    cfg = _get_chat_config()
+    if not cfg:
+        return jsonify({"ok": False, "error": "No Claude credentials found."})
+    ok, msg = test(cfg, CHAT_MODEL)
+    return jsonify({"ok": ok, "message": msg, **describe(cfg)})
+
+
+@app.route("/api/chat/use-claude-code", methods=["POST"])
+def chat_use_claude_code():
+    """Drop the "use my own key" preference so Claude Code's credentials are used again."""
+    from connections import load_full_config, save_full_config
+    from claude_credentials import describe
+    full = load_full_config()
+    full.pop("ai_preference", None)
+    save_full_config(full)
+    return jsonify({"ok": True, **describe(_get_chat_config())})
 
 
 @app.route("/api/chat/save-key", methods=["POST"])
@@ -1565,12 +1556,14 @@ def chat_save_key():
                 return jsonify({"ok": False, "error": "Both Gateway URL and Auth Token are required"})
             full["bedrock"] = {"base_url": base_url, "auth_token": auth_token}
             full.pop("anthropic", None)
+            full["ai_preference"] = "saved"   # an explicit choice beats Claude Code's credentials
         else:
             api_key = data.get("api_key", "").strip()
             if not api_key:
                 return jsonify({"ok": False, "error": "No API key provided"})
             full.setdefault("anthropic", {})["api_key"] = api_key
             full.pop("bedrock", None)
+            full["ai_preference"] = "saved"   # an explicit choice beats Claude Code's credentials
 
         save_full_config(full)
         return jsonify({"ok": True})

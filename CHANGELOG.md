@@ -4,6 +4,21 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-05 — Claude credentials detected automatically
+
+> Tested with the Claude Code environment variables removed (as when the Web UI starts from the launcher): credentials found in `~/.claude/settings.json`, gateway test call and a chat message succeed, revintel resolves the same credentials, precedence cases pass, Setup and Connections pages render. Not clicked through in a browser yet.
+
+### Added
+- **`claude_credentials.py`** — one place for AIO's Claude credentials, used by the chat, Web UI story generation and Rev Intel drafting. It reads the Salesforce rollout's gateway URL, token and CA bundle from Claude Code's settings, so users no longer copy `echo $ANTHROPIC_AUTH_TOKEN` into the Web UI, and AIO follows the token if the rollout changes it. A key the user saves explicitly still wins; "Use Claude Code credentials instead" switches back.
+- **Setup and Connections: Claude status** — "✓ Claude connected — using your Claude Code settings (Salesforce gateway)", a **Test** button (one tiny request), and "Use a different key". The paste form only shows when nothing is found.
+- `/api/chat/test`, `/api/chat/use-claude-code`; `/api/chat/status` now says where the credentials come from (no secrets).
+
+### Fixed
+- A pasted gateway token now uses Claude Code's corporate CA bundle when it has none of its own.
+- Chat's "No API key found" error now points to Setup → AI Configuration.
+
+---
+
 ## 2026-11-05 — Deploy Sales Insights: design + verified API findings
 
 ### Added
