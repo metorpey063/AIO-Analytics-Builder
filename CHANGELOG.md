@@ -53,6 +53,19 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-05 — Updates install new dependencies
+
+### Fixed
+- **New Python packages now arrive with updates, not only on a fresh install.** Before, only the launcher installed dependencies, and only when `requirements.txt` changed during its own update. Updates made with the web UI's Update button or `/update` never installed anything. For example, `pypdf` was missing from existing installs.
+  - New `deps.py` compares `requirements.txt` with what's installed and runs pip only for missing or outdated packages (about 0.1 s when nothing is missing).
+  - **Update button:** installs the incoming version's new dependencies *before* switching code. If pip fails, the update isn't applied, so code and packages stay in step.
+  - **AIO Builder launcher:** checks dependencies on every start. Only lines after its `git reset` changed, so an older launcher updating itself carries on cleanly.
+  - **`/update`:** new step 3b runs `deps.py`.
+- **The Update button now actually restarts the server.** The web UI runs without Flask's reloader, so after an update the old code kept running until the next relaunch. The button now re-executes the server once the update is applied, closing inherited sockets so the port is free.
+- `pypdf` is in the root `requirements.txt`, the one installs and updates read.
+
+---
+
 ## 2026-11-05 — Update Rev Intel: Upload documents
 
 ### Added

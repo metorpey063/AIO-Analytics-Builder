@@ -646,12 +646,30 @@ def version_check():
 
 @app.route("/api/update", methods=["POST"])
 def update():
-    """Reset to origin/main (same strategy as /update CLI skill). Protects config.json and demos/."""
+    """Reset to origin/main (same strategy as /update CLI skill). Protects config.json and demos/.
+    Installs the incoming version's new dependencies first (pip failure = no update), then restarts
+    the server so the new code and packages are loaded."""
     import subprocess
+    import tempfile
     run = lambda cmd: subprocess.run(cmd, cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=30)
     try:
         run(["git", "fetch", "origin", "main", "--quiet"])
         rev_before = run(["git", "rev-parse", "HEAD"]).stdout.strip()
+        deps_note = ""
+        incoming = run(["git", "show", "origin/main:requirements.txt"])
+        if incoming.returncode == 0 and rev_before != run(["git", "rev-parse", "origin/main"]).stdout.strip():
+            import deps
+            with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as tf:
+                tf.write(incoming.stdout)
+            try:
+                res = deps.sync(path=tf.name, log=lambda m: None)
+            finally:
+                os.unlink(tf.name)
+            if not res["ok"]:
+                return jsonify({"ok": False, "updated": False,
+                                "output": "Couldn't install the update's new dependencies, so the update wasn't "
+                                          "applied: " + res["output"]})
+            deps_note = res["output"] if res["installed"] else ""
         run(["git", "stash", "push", "-m", "pre-update-stash", "--", "config.json"])
         result = run(["git", "reset", "--hard", "origin/main"])
         run(["git", "stash", "pop"])
@@ -660,7 +678,13 @@ def update():
         output = result.stdout.strip() or result.stderr.strip()
         if updated:
             log = run(["git", "log", "--oneline", f"{rev_before[:8]}..HEAD"])
-            output += "\n" + log.stdout.strip()
+            output += "\n" + log.stdout.strip() + ("\n" + deps_note if deps_note else "")
+
+            def _restart():   # no reloader, so re-exec to load the new code (the page waits for /api/version)
+                os.environ["AIO_RESTARTED"] = "1"
+                os.closerange(3, 4096)   # werkzeug's listening socket is inheritable and would keep the port busy
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+            threading.Timer(1.5, _restart).start()
         return jsonify({"ok": True, "updated": updated, "output": output})
     except Exception as e:
         return jsonify({"ok": False, "updated": False, "output": str(e)})
@@ -1632,6 +1656,6 @@ if __name__ == "__main__":
     port = int(os.environ.get("AIO_PORT", 5100))
     print(f"\n  AIO Analytics Builder")
     print(f"  http://localhost:{port}\n")
-    if not os.environ.get("WERKZEUG_RUN_MAIN"):
+    if not os.environ.get("WERKZEUG_RUN_MAIN") and not os.environ.get("AIO_RESTARTED"):
         webbrowser.open(f"http://localhost:{port}")
     app.run(host="127.0.0.1", port=port, debug=True, use_reloader=False)

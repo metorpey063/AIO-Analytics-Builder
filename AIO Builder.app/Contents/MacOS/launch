@@ -82,11 +82,6 @@ if [ "$LOCAL" != "$REMOTE" ]; then
     log "Updating..."
     git reset --hard origin/main 2>/dev/null
 
-    # Check if requirements changed
-    if git diff "$LOCAL" "$REMOTE" -- requirements.txt | grep -q '^[+-]'; then
-        log "Dependencies changed — reinstalling..."
-        .venv/bin/pip install -r requirements.txt -q || warn "pip install failed — try: .venv/bin/pip install -r requirements.txt"
-    fi
 
     log "Updated to latest!"
 else
@@ -101,6 +96,12 @@ if ! /usr/bin/arch -arm64 .venv/bin/python -c "import flask, anthropic, pandas, 
     .venv/bin/pip install --upgrade pip -q
     .venv/bin/pip install -r requirements.txt -q
     log "Rebuilt virtual environment"
+fi
+
+# Install any dependencies the current code needs that the venv lacks (covers updates made from
+# the web UI's Update button or /update too). Quick when nothing is missing.
+if [ -f deps.py ]; then
+    /usr/bin/arch -arm64 .venv/bin/python deps.py || warn "Dependency install failed — try: .venv/bin/pip install -r requirements.txt"
 fi
 
 # Clear stale Python cache

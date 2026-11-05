@@ -92,6 +92,18 @@ If `config.json` was not modified (stash is empty), that's fine — `git stash p
 - Prevents stale local fixes from persisting after the fix is properly committed upstream
 - The only files users modify locally (`config.json`, `demos/`) are either gitignored or stash-protected
 
+### 3b. Install new dependencies
+
+The update may add Python packages to `requirements.txt`. Install anything missing with the venv's Python, or with `python3` if there's no `.venv`:
+
+```bash
+if [ -x .venv/bin/python ]; then .venv/bin/python deps.py; else python3 deps.py; fi
+```
+
+`deps.py` checks the installed versions first and runs pip only when something is missing or too old. If it fails, show the user its output and the manual fix: `.venv/bin/pip install -r requirements.txt`.
+
+If the web UI is running, tell the user to restart it (quit and relaunch AIO Builder) so it loads the new code and packages.
+
 ### 4. Verify the update landed
 
 ```bash
