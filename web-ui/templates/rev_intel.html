@@ -20,8 +20,11 @@
     </div>
     <div class="wizard-actions" style="flex-wrap:wrap; gap:8px; margin-bottom:10px">
         <button class="btn btn-primary" id="ri-research-btn" onclick="researchCustomer()">Research customer</button>
-        <span class="form-hint">Fills industry, audience, products, story and team from web research (add the use case or requirements first for a sharper story). Only empty fields are filled. Check the highlighted ones.</span>
+        <button class="btn btn-secondary" id="ri-upload-btn" onclick="$('ri-file-input').click()">Upload documents</button>
+        <input type="file" id="ri-file-input" multiple accept=".pdf,.docx,.pptx,.txt,.md,.csv" style="display:none" onchange="uploadDocs(this.files)">
+        <span class="form-hint">Upload the BRD, RFP, deck or discovery notes (PDF, Word, PowerPoint, text). Their text goes into Requirements. Then <strong>Research customer</strong> fills industry, audience, products, story and team from those documents plus web research. Only empty fields are filled. Check the highlighted ones.</span>
     </div>
+    <div id="ri-docs" class="form-hint hidden" style="margin-bottom:10px"></div>
     <pre id="ri-research-log" class="progress-log hidden" style="max-height:160px; overflow:auto; margin-bottom:10px; font-size:12px; white-space:pre-wrap"></pre>
     <div id="ri-research" class="hidden" style="margin-bottom:12px"></div>
     <div class="form-group"><label>Use case *</label>
@@ -295,6 +298,28 @@ function renderReview(rv, notes) {
                The rebuild reruns the EAM recipe.</div>`
             : `<div class="form-hint">Einstein Account Management filters already match — no reconfigure needed.</div>`;
     }
+}
+
+async function uploadDocs(files) {
+    if (!files || !files.length) return;
+    const btn = $('ri-upload-btn'), box = $('ri-docs'), req = $('ri-requirements');
+    btn.disabled = true; btn.textContent = 'Reading…'; box.classList.remove('hidden');
+    for (const file of files) {
+        const line = document.createElement('div');
+        line.textContent = `⏳ ${file.name}`; box.appendChild(line);
+        const fd = new FormData(); fd.append('file', file); fd.append('max_chars', '60000');
+        try {
+            const r = await (await fetch('/api/build/upload', { method: 'POST', body: fd })).json();
+            if (!r.ok || r.type !== 'text' || !r.text.trim()) {
+                line.textContent = `⚠ ${file.name}: ${r.error || 'no text found (scanned PDF?)'}`; continue;
+            }
+            req.value = (req.value.trim() ? req.value.trim() + '\n\n' : '') + `--- ${file.name} ---\n${r.text.trim()}`;
+            markPrefilled(req);
+            line.textContent = `✓ ${file.name}: ${r.text.length.toLocaleString()} characters added to Requirements` +
+                (r.text.endsWith('(truncated)') ? ' (truncated)' : '');
+        } catch (e) { line.textContent = `⚠ ${file.name}: ${e}`; }
+    }
+    btn.disabled = false; btn.textContent = 'Upload documents'; $('ri-file-input').value = '';
 }
 
 function markPrefilled(el) {

@@ -4,6 +4,22 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-05 — Update Rev Intel: Upload documents
+
+### Added
+- **Upload documents** button on the Update Rev Intel page, next to Research customer. It takes the BRD, RFP, deck or discovery notes (PDF, Word, PowerPoint, text, Markdown, CSV) and adds each file's text to Requirements, under a `--- filename ---` header. Research customer and Draft with Claude both read Requirements. Up to 60,000 characters per file; the full KnowBe4 BRD is about 33,000.
+- **Shared `/api/build/upload`**, also used by the Build Demo page:
+  - reads **PowerPoint (.pptx)** slides, by parsing the slide XML (no new dependency)
+  - includes **Word tables**, where BRD requirements usually live
+  - accepts an optional `max_chars` (default 15,000, up to 100,000)
+  - reads up to 60 PDF pages (was 20)
+
+### Fixed
+- PDF text now comes from `pypdf` (added to `web-ui/requirements.txt`), falling back to PyPDF2. PyPDF2 split the KnowBe4 BRD one word per line and broke words ("Short-T erm").
+- Research customer now reads up to 60,000 characters of Requirements (was 30,000).
+
+---
+
 ## 2026-11-05 — Update Rev Intel: Research customer
 
 ### Added

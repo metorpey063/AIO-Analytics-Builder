@@ -89,7 +89,7 @@ def run(answers, progress=print):
     req = (answers.get("requirements") or "").strip()
     parts = ["## What the SE entered\n" + json.dumps(given, indent=1)]
     if req:
-        parts.append("## The customer's requirements (BRD / discovery notes) — align the story to these\n" + req[:30000])
+        parts.append("## The customer's requirements (BRD / discovery notes) — align the story to these\n" + req[:60000])
     parts.append("## Search results\n" + ("\n".join(f"- {h['title']} ({h['url']}): {h['snippet']}" for h in hits)
                                           or "(none — web search returned nothing; rely on what you know and lower confidence)"))
     parts.append(CONTRACT)

@@ -976,7 +976,8 @@ def demos_list_api():
 
 @app.route("/api/build/upload", methods=["POST"])
 def build_upload():
-    """Extract text from uploaded files (PDF, DOCX, TXT, CSV, images)."""
+    """Extract text from uploaded files (PDF, DOCX, PPTX, TXT, CSV, images). Optional form field
+    max_chars (default 15000, up to 100000) — the Update Rev Intel page sends more for long BRDs."""
     if "file" not in request.files:
         return jsonify({"ok": False, "error": "No file provided"})
     f = request.files["file"]
@@ -984,6 +985,10 @@ def build_upload():
         return jsonify({"ok": False, "error": "Empty filename"})
 
     fname = f.filename.lower()
+    try:
+        limit = max(1000, min(int(request.form.get("max_chars", 15000)), 100000))
+    except ValueError:
+        limit = 15000
     try:
         if fname.endswith(".txt") or fname.endswith(".md"):
             text = f.read().decode("utf-8", errors="replace")
@@ -993,16 +998,37 @@ def build_upload():
             if len(lines) > 50:
                 text = "\n".join(lines[:50]) + f"\n... ({len(lines)} total rows)"
         elif fname.endswith(".pdf"):
-            import PyPDF2
-            reader = PyPDF2.PdfReader(f)
+            try:
+                import pypdf as _pdf   # cleaner text than PyPDF2 (keeps words on one line)
+            except ImportError:
+                import PyPDF2 as _pdf
+            reader = _pdf.PdfReader(f)
             pages = []
-            for page in reader.pages[:20]:
+            for page in reader.pages[:60]:
                 pages.append(page.extract_text() or "")
-            text = "\n".join(pages)
+            import re as _re
+            text = _re.sub(r"[^\S\n]{2,}", " ", "\n".join(pages))   # collapse padded word gaps
         elif fname.endswith(".docx"):
             import docx
             doc = docx.Document(f)
             text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+            for t in doc.tables:   # BRD requirements usually live in tables
+                rows = [" | ".join(c.text.strip() for c in r.cells) for r in t.rows]
+                text += "\n\n" + "\n".join(r for r in rows if r.strip(" |"))
+        elif fname.endswith(".pptx"):
+            import io, zipfile, re as _re, html as _html
+            z = zipfile.ZipFile(io.BytesIO(f.read()))
+            slides = sorted((n for n in z.namelist() if _re.fullmatch(r"ppt/slides/slide\d+\.xml", n)),
+                            key=lambda n: int(_re.search(r"(\d+)\.xml$", n).group(1)))
+            parts = []
+            for i, n in enumerate(slides, 1):
+                xml = z.read(n).decode("utf-8", errors="replace")
+                paras = ["".join(_re.findall(r"<a:t[^>]*>([^<]*)</a:t>", para))
+                         for para in _re.findall(r"<a:p[ >].*?</a:p>", xml, _re.S)]
+                body = "\n".join(_html.unescape(x) for x in paras if x.strip())
+                if body:
+                    parts.append(f"[Slide {i}]\n{body}")
+            text = "\n\n".join(parts)
         elif fname.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
             import base64
             data = f.read()
@@ -1015,8 +1041,8 @@ def build_upload():
         else:
             text = f.read().decode("utf-8", errors="replace")
 
-        if len(text) > 15000:
-            text = text[:15000] + "\n... (truncated)"
+        if len(text) > limit:
+            text = text[:limit] + "\n... (truncated)"
 
         return jsonify({"ok": True, "filename": f.filename, "type": "text", "text": text})
     except Exception as e:
