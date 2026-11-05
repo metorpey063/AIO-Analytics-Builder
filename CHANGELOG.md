@@ -4,6 +4,23 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-05 — Deploy Sales Insights: standalone deploy to any Data Cloud org
+
+> Deployed end to end to a test org (aio-dev): 15 data streams, 171 semantic objects, 68 vizzes and 6 dashboards; all 471 widgets and 128 dynamic tokens read back `Ok`, and all 7 metrics return data. The dashboards haven't had a visual pass in the browser yet.
+
+### Added
+- **`salesinsights/` package** (`python3 -m salesinsights capture | generate | deploy | status | reset`):
+  - `capture.py` (maintainer): turns the six Package & Deploy exports into one portable package. It keeps only the part of the SDM the dashboards use (15 tables, 78 fields, 136 calcs, 9 parameters, 7 metrics, 17 joins), adds bridge tables automatically, orders calcs by dependency, and switches data objects from DMOs to placeholder DLOs. One documented calc fix (`SOURCE_FIXES`).
+  - `generate.py`: seeded synthetic data dated relative to today. Deals are simulated stage by stage, so history, weekly trend, pushes, stalls and activity all agree. The baseline story: one team behind, pushes clustered on two reps, a wide lead-conversion spread, and open deals with no activity. It validates the data against the contract before writing.
+  - `deploy.py`: a checkpointed deploy that resumes after a failure. It refuses the source org, and `reset` deletes only what the checkpoint lists.
+  - `package/`: the committed package (1.4 MB) and data contract, so every SE gets the same deploy.
+- **`/deploy-sales-insights` rewritten** as a short wrapper around the CLI (was a 744-line description of a pipeline that never ran).
+
+### Fixed (docs)
+- New Known Pitfalls: copying DMO-based data objects onto DLOs (drop `standardDataObjectName`, keep `tableType: "Shared"` or multi-fact joins fail as cyclic), and case-sensitive string comparison in calcs.
+
+---
+
 ## 2026-11-05 — Claude credentials detected automatically
 
 > Tested with the Claude Code environment variables removed (as when the Web UI starts from the launcher): credentials found in `~/.claude/settings.json`, gateway test call and a chat message succeed, revintel resolves the same credentials, precedence cases pass, Setup and Connections pages render. Not clicked through in a browser yet.

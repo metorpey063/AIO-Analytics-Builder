@@ -1,0 +1,542 @@
+{
+ "Account": {
+  "schema": "si_account",
+  "fields": [
+   {
+    "name": "Record_Id",
+    "dataType": "Text",
+    "isPrimaryKey": true
+   },
+   {
+    "name": "Account_Id",
+    "dataType": "Text",
+    "label": "Account Id"
+   },
+   {
+    "name": "Account_Name",
+    "dataType": "Text",
+    "label": "Account Name"
+   },
+   {
+    "name": "Account_Type",
+    "dataType": "Text",
+    "label": "Account Type"
+   },
+   {
+    "name": "Annual_Revenue_Amount",
+    "dataType": "Number",
+    "label": "Annual Revenue Amount"
+   },
+   {
+    "name": "Employee_Count",
+    "dataType": "Number",
+    "label": "Employee Count"
+   },
+   {
+    "name": "Owner",
+    "dataType": "Text",
+    "label": "Owner"
+   },
+   {
+    "name": "Primary_Industry",
+    "dataType": "Text",
+    "label": "Primary Industry"
+   }
+  ]
+ },
+ "Calendar_Event": {
+  "schema": "si_calendar_event",
+  "fields": [
+   {
+    "name": "Record_Id",
+    "dataType": "Text",
+    "isPrimaryKey": true
+   },
+   {
+    "name": "Calendar_Event_Calendar_Event_Id",
+    "dataType": "Text",
+    "label": "Calendar Event Id"
+   }
+  ]
+ },
+ "Task": {
+  "schema": "si_task",
+  "fields": [
+   {
+    "name": "Record_Id",
+    "dataType": "Text",
+    "isPrimaryKey": true
+   },
+   {
+    "name": "Task_Related_To_Item",
+    "dataType": "Text",
+    "label": "Related To Item"
+   },
+   {
+    "name": "Task_Task_Id",
+    "dataType": "Text",
+    "label": "Task Id"
+   }
+  ]
+ },
+ "Business_Period": {
+  "schema": "si_business_period",
+  "fields": [
+   {
+    "name": "Record_Id",
+    "dataType": "Text",
+    "isPrimaryKey": true
+   },
+   {
+    "name": "Business_Period_Id",
+    "dataType": "Text",
+    "label": "Business Period Id"
+   },
+   {
+    "name": "Fully_Qualified_Name",
+    "dataType": "Text",
+    "label": "Fully Qualified Name"
+   },
+   {
+    "name": "Is_Forecast_Period",
+    "dataType": "Boolean",
+    "label": "Is Forecast Period"
+   },
+   {
+    "name": "Start_Date",
+    "dataType": "Date",
+    "label": "Start Date"
+   }
+  ]
+ },
+ "Contact_Point_Address": {
+  "schema": "si_contact_point_address",
+  "fields": [
+   {
+    "name": "Record_Id",
+    "dataType": "Text",
+    "isPrimaryKey": true
+   },
+   {
+    "name": "City",
+    "dataType": "Text",
+    "label": "City"
+   },
+   {
+    "name": "Country",
+    "dataType": "Text",
+    "label": "Country"
+   },
+   {
+    "name": "Party",
+    "dataType": "Text",
+    "label": "Party"
+   },
+   {
+    "name": "State_Province",
+    "dataType": "Text",
+    "label": "State Province"
+   }
+  ]
+ },
+ "Forecasting_Fact": {
+  "schema": "si_forecasting_fact",
+  "fields": [
+   {
+    "name": "Record_Id",
+    "dataType": "Text",
+    "isPrimaryKey": true
+   },
+   {
+    "name": "Business_Period",
+    "dataType": "Text",
+    "label": "Business Period"
+   },
+   {
+    "name": "Opportunity",
+    "dataType": "Text",
+    "label": "Opportunity"
+   },
+   {
+    "name": "Target_Value",
+    "dataType": "Number",
+    "label": "Target Value"
+   }
+  ]
+ },
+ "Lead": {
+  "schema": "si_lead",
+  "fields": [
+   {
+    "name": "Record_Id",
+    "dataType": "Text",
+    "isPrimaryKey": true
+   },
+   {
+    "name": "City",
+    "dataType": "Text",
+    "label": "City"
+   },
+   {
+    "name": "Company_Name",
+    "dataType": "Text",
+    "label": "Company Name"
+   },
+   {
+    "name": "Converted_Date",
+    "dataType": "DateTime",
+    "label": "Converted Date"
+   },
+   {
+    "name": "Converted_To_Account",
+    "dataType": "Text",
+    "label": "Converted To Account"
+   },
+   {
+    "name": "Created_Date",
+    "dataType": "DateTime",
+    "label": "Created Date"
+   },
+   {
+    "name": "Industry",
+    "dataType": "Text",
+    "label": "Industry"
+   },
+   {
+    "name": "Is_Converted",
+    "dataType": "Text",
+    "label": "Is Converted"
+   },
+   {
+    "name": "Lead_Id",
+    "dataType": "Text",
+    "label": "Lead Id"
+   },
+   {
+    "name": "Lead_Source",
+    "dataType": "Text",
+    "label": "Lead Source"
+   },
+   {
+    "name": "Lead_Status",
+    "dataType": "Text",
+    "label": "Lead Status"
+   },
+   {
+    "name": "Owner",
+    "dataType": "Text",
+    "label": "Owner"
+   },
+   {
+    "name": "Person_Name",
+    "dataType": "Text",
+    "label": "Person Name"
+   },
+   {
+    "name": "State_Province",
+    "dataType": "Text",
+    "label": "State Province"
+   }
+  ]
+ },
+ "Opportunity": {
+  "schema": "si_opportunity",
+  "fields": [
+   {
+    "name": "Record_Id",
+    "dataType": "Text",
+    "isPrimaryKey": true
+   },
+   {
+    "name": "Close_Date",
+    "dataType": "DateTime",
+    "label": "Close Date"
+   },
+   {
+    "name": "Created_Date",
+    "dataType": "DateTime",
+    "label": "Created Date"
+   },
+   {
+    "name": "CustomerAccount",
+    "dataType": "Text",
+    "label": "CustomerAccount"
+   },
+   {
+    "name": "Is_Closed",
+    "dataType": "Text",
+    "label": "Is Closed"
+   },
+   {
+    "name": "Is_Won",
+    "dataType": "Text",
+    "label": "Is Won"
+   },
+   {
+    "name": "Last_Activity_Date",
+    "dataType": "DateTime",
+    "label": "Last Activity Date"
+   },
+   {
+    "name": "Last_Modified_Date",
+    "dataType": "DateTime",
+    "label": "Last Modified Date"
+   },
+   {
+    "name": "Lead_Source",
+    "dataType": "Text",
+    "label": "Lead Source"
+   },
+   {
+    "name": "Name",
+    "dataType": "Text",
+    "label": "Name"
+   },
+   {
+    "name": "Next_Step",
+    "dataType": "Text",
+    "label": "Next Step"
+   },
+   {
+    "name": "Opportunity_Forecast_Category1",
+    "dataType": "Text",
+    "label": "Opportunity Forecast Category"
+   },
+   {
+    "name": "Opportunity_Id",
+    "dataType": "Text",
+    "label": "Opportunity Id"
+   },
+   {
+    "name": "Opportunity_Name",
+    "dataType": "Text",
+    "label": "Opportunity Name"
+   },
+   {
+    "name": "Opportunity_Stage",
+    "dataType": "Text",
+    "label": "Opportunity Stage"
+   },
+   {
+    "name": "Opportunity_Type",
+    "dataType": "Text",
+    "label": "Opportunity Type"
+   },
+   {
+    "name": "OwnerUser",
+    "dataType": "Text",
+    "label": "OwnerUser"
+   },
+   {
+    "name": "Total_Amount",
+    "dataType": "Number",
+    "label": "Total Amount"
+   }
+  ]
+ },
+ "Opportunity_Historical_Trend": {
+  "schema": "si_opportunity_historical_trend",
+  "fields": [
+   {
+    "name": "Record_Id",
+    "dataType": "Text",
+    "isPrimaryKey": true
+   },
+   {
+    "name": "Created_Date",
+    "dataType": "DateTime",
+    "label": "Created Date"
+   },
+   {
+    "name": "Effective_From_Date",
+    "dataType": "DateTime",
+    "label": "Effective From Date"
+   },
+   {
+    "name": "Effective_To_Date",
+    "dataType": "DateTime",
+    "label": "Effective To Date"
+   },
+   {
+    "name": "New_Close_Date",
+    "dataType": "DateTime",
+    "label": "New Close Date"
+   },
+   {
+    "name": "Opportunity",
+    "dataType": "Text",
+    "label": "Opportunity"
+   }
+  ]
+ },
+ "Opportunity_History": {
+  "schema": "si_opportunity_history",
+  "fields": [
+   {
+    "name": "Record_Id",
+    "dataType": "Text",
+    "isPrimaryKey": true
+   },
+   {
+    "name": "Close_Date",
+    "dataType": "DateTime",
+    "label": "Close Date"
+   },
+   {
+    "name": "Created_Date",
+    "dataType": "DateTime",
+    "label": "Created Date"
+   },
+   {
+    "name": "Forecast_Category",
+    "dataType": "Text",
+    "label": "Forecast Category"
+   },
+   {
+    "name": "Opportunity",
+    "dataType": "Text",
+    "label": "Opportunity"
+   },
+   {
+    "name": "Opportunity_History_Id",
+    "dataType": "Text",
+    "label": "Opportunity History Id"
+   },
+   {
+    "name": "Opportunity_Stage",
+    "dataType": "Text",
+    "label": "Opportunity Stage"
+   },
+   {
+    "name": "Previous_Close_Date",
+    "dataType": "DateTime",
+    "label": "Previous Close Date"
+   },
+   {
+    "name": "Previous_Total_Sale_Amount",
+    "dataType": "Number",
+    "label": "Previous Total Sale Amount"
+   },
+   {
+    "name": "Total_Sale_Amount",
+    "dataType": "Number",
+    "label": "Total Sale Amount"
+   }
+  ]
+ },
+ "Opportunity_Product": {
+  "schema": "si_opportunity_product",
+  "fields": [
+   {
+    "name": "Record_Id",
+    "dataType": "Text",
+    "isPrimaryKey": true
+   },
+   {
+    "name": "Opportunity",
+    "dataType": "Text",
+    "label": "Opportunity"
+   },
+   {
+    "name": "Product",
+    "dataType": "Text",
+    "label": "Product"
+   }
+  ]
+ },
+ "Opportunity_Stage": {
+  "schema": "si_opportunity_stage",
+  "fields": [
+   {
+    "name": "Record_Id",
+    "dataType": "Text",
+    "isPrimaryKey": true
+   },
+   {
+    "name": "Label",
+    "dataType": "Text",
+    "label": "Label"
+   },
+   {
+    "name": "Sort_Order",
+    "dataType": "Number",
+    "label": "Sort Order"
+   }
+  ]
+ },
+ "Product": {
+  "schema": "si_product",
+  "fields": [
+   {
+    "name": "Record_Id",
+    "dataType": "Text",
+    "isPrimaryKey": true
+   },
+   {
+    "name": "Product_Family",
+    "dataType": "Text",
+    "label": "Product Family"
+   },
+   {
+    "name": "Product_Id",
+    "dataType": "Text",
+    "label": "Product Id"
+   },
+   {
+    "name": "Product_Name",
+    "dataType": "Text",
+    "label": "Product Name"
+   }
+  ]
+ },
+ "User": {
+  "schema": "si_user",
+  "fields": [
+   {
+    "name": "Record_Id",
+    "dataType": "Text",
+    "isPrimaryKey": true
+   },
+   {
+    "name": "First_Name",
+    "dataType": "Text",
+    "label": "First Name"
+   },
+   {
+    "name": "Full_Name",
+    "dataType": "Text",
+    "label": "Full Name"
+   },
+   {
+    "name": "User_Id",
+    "dataType": "Text",
+    "label": "User Id"
+   }
+  ]
+ },
+ "User_Role_Flattened": {
+  "schema": "si_user_role_flattened",
+  "fields": [
+   {
+    "name": "Record_Id",
+    "dataType": "Text",
+    "isPrimaryKey": true
+   },
+   {
+    "name": "Full_Name",
+    "dataType": "Text",
+    "label": "Full Name"
+   },
+   {
+    "name": "Parent_Name",
+    "dataType": "Text",
+    "label": "Parent Name"
+   },
+   {
+    "name": "User_Id",
+    "dataType": "Text",
+    "label": "User Id"
+   }
+  ]
+ }
+}

@@ -1,6 +1,6 @@
 # /deploy-sales-insights — Design (draft, 2026-11-05)
 
-Status: **decisions confirmed and all 6 spikes passed on `aio-dev` (2026-11-05).** Ready to build. No production code has been written yet; spike scripts are in `/tmp/si_spike/`.
+Status: **built; first full deploy to `aio-dev` passed verify (2026-11-05).** 171 semantic objects, 68 vizzes, 6 dashboards; all 471 widgets and 128 dynamic tokens `Ok`; all 7 metrics return data. Spike scripts are in `/tmp/si_spike/`.
 
 ## 1. Goal and scope
 
@@ -111,6 +111,15 @@ All checked against values predicted from the generated rows, through the semant
 Verbatim calcs created with no edits: `Closed_Won_Sales_RI_clc`, `Win_Rate_RI_clc`, `Closed_Lost_Opportunities_clc`, `Closed_Opportunities_RI_clc`, `Opportunity_Created_Date_clc`, `Count_Flag_RI_clc`. Also the `Forecast_Category_Name_RI_prm` parameter and the `Closed_Won_Sales_mtc` metric.
 
 Spike assets on `aio-dev` (`SI Spike` workspace, `SI_Spike_834` SDM, 2 vizzes, 2 dashboards, 4 `si_spike_*` streams/DLOs) are listed in `demos/sales_insights/spike_assets_aio_dev.json`. They're left up for a visual check; delete them with `/tmp/si_spike/cleanup.py`.
+
+## 7b. Lessons from the first deploy
+
+- Data objects copied from DMOs: drop `standardDataObjectName` and field `storageDataType` (DLOs reject them), but **keep `tableType: "Shared"`** on Account, Contact_Point_Address, Product and User. Lead and Opportunity both join those tables, and without `Shared` the second join is rejected as cyclic.
+- Semantic string comparisons are case-sensitive. The data stores flags as lowercase `true`/`false` like the source, and `SOURCE_FIXES` corrects the one calc that compared against `'False'`.
+- Source calc quirks found by comparing metrics with the original (same queries against `ExtendedSalesInsights`):
+  - `Average_Days_to_Close_RI_clc` and the two `LA_Lead_Age` calcs compute `DATEDIFF(later, earlier)`, which is negative on realistic data. The original shows positive values only because its replayed data has deals created after they closed.
+  - `Open_pipeline_RI_clc` is `MAX({FIXED opp, created : SUM(...)})`, so the "Open Pipeline" BAN is the largest single Pipeline history row (source: $1,588,400 = its largest deal).
+  - `Average_Deal_Size_mtc` reads 2–4× below the true average through the date-dimension join, in the original as well.
 
 ## 8. What gets retired
 
