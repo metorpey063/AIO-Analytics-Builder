@@ -539,7 +539,7 @@ This keeps the builder working in both MCP-connected and non-MCP environments.
 - **`isVisible` silent reset** — updating any measure/dimension property without including `isVisible` silently resets it to `true`
 - **DMO category** — `"Engagement"` DMOs cannot be mapped from file-upload DLOs; default to `"Other"`
 - **DLO-to-DMO mapping not idempotent** — duplicate mapping = 500 error
-- **Relationship criteria for IngestAPI DLOs** — still silently dropped (same as direct REST); continue denormalizing
+- **Relationship criteria for IngestAPI DLOs** — not retested through MCP. Over REST they're kept when posted as `criteria: [{leftSemanticFieldApiName, rightSemanticFieldApiName, ...}]` (see CLAUDE.md Known Pitfalls); keep denormalizing for `/build-demo`
 - **`generate_insight_bundle`** — internal/app-only, not for direct client use
 - **Only simple-CASE in expressions** — searched-CASE and `IF()` not supported in calc measures
 - **Grid is 48 columns** — not 72 as in direct REST dashboard layouts

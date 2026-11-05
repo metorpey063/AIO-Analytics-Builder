@@ -102,9 +102,9 @@ Write to the checkpoint after every phase. Include tracking lists (`all_viz_apis
 
 Use the MCP `create_visualization` tool for creating vizzes (slim IR-v2 spec, better quality). Use REST for dashboard assembly — MCP `edit_dashboard` widgets don't render on the canvas. When styling beyond what MCP can set (dual-axis, per-field colors, continuous palettes), use REST PATCH with GET → modify → PATCH.
 
-## 11. Never create IngestAPI DLO relationships
+## 11. Denormalize by default; post relationships with `criteria[]`
 
-SDM relationships between IngestAPI DLOs and CRM DLOs fail silently — `criteria` always comes back `[]` and queries throw "No join criteria found." Denormalize dimension fields into the fact table instead. Only create relationships within logical views or between CRM-native DLOs.
+For `/build-demo`, denormalize dimension fields into one fact DLO. It's the simplest, most reliable SDM. When a build does need relationships (e.g. `/deploy-sales-insights`), post them with `criteria: [{leftSemanticFieldApiName, rightSemanticFieldApiName, ...}]`. Top-level `leftFieldApiName`/`rightFieldApiName` are silently ignored (201 with `criteria: []`, then "No join criteria found" at query time), which is what made IngestAPI DLO relationships look broken. Always read relationships back and delete any with `criteria: []`.
 
 ## 12. Pulse builds must include AI insights
 

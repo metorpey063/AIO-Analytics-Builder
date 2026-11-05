@@ -18,7 +18,7 @@ Every demo must be designed so the presenter can walk through a sequence of ques
 When designing data for a demo, always ask: *"Can the audience answer all four questions using only the filters and metrics I've built?"* If not, add dimensions until they can.
 
 **Dimension rules:**
-- Denormalize all categorical dimensions into the fact table — IngestAPI DLO joins silently drop criteria (see CLAUDE.md Known Pitfalls). Every filterable field must be a column on the fact row.
+- Denormalize all categorical dimensions into the fact table: one fact DLO is the simplest, most reliable SDM (relationships only keep their join with the `criteria[]` payload; see CLAUDE.md Known Pitfalls). Every filterable field must be a column on the fact row.
 - Include at least one *cost/effort* dimension (Plan Cost Tier, Deal Size, Spend Bucket) — this is almost always the root cause the audience cares most about.
 - Include at least one *who/where* dimension set (Region, Vertical, Size Band, State).
 - Include category breakdowns that decompose the primary metric — e.g. Medical vs Dental vs Voluntary enrollment, or New Logo vs Expansion vs Renewal revenue.
@@ -1193,7 +1193,7 @@ Before creating vizzes, check for broken relationships via MCP or REST:
 list_semantic_model_relationships(modelApiNameOrId=sdm_api)
 ```
 
-If any relationship has `criteria: []`, delete it — it poisons every query against the SDM. Known Pitfall: IngestAPI DLO relationships silently drop join criteria.
+If any relationship has `criteria: []`, delete it — it poisons every query against the SDM. Known Pitfall: relationships posted with top-level `leftFieldApiName`/`rightFieldApiName` come back with empty criteria; use the `criteria[]` payload.
 
 **Step 5c — Deploy via template_deployer (primary path):**
 

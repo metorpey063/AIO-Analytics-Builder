@@ -4,6 +4,23 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-05 — Deploy Sales Insights: design + verified API findings
+
+### Added
+- **`salesinsights/DESIGN.md`**: the design for rebuilding `/deploy-sales-insights`. It deploys the 6 original Sales Insights dashboards from the Tableau Next & Slack org to any org with Data Cloud, on seeded synthetic data. The design covers a capture → portable package step, a data generator and a checkpointed deploy. All 6 design spikes passed on a test org. No deploy code yet.
+
+### Fixed (docs)
+- **The relationship pitfall was wrong.** Ingest API DLO relationships don't drop their join criteria. The payload we documented does: top-level `leftFieldApiName`/`rightFieldApiName` are silently ignored (201 with `criteria: []`). Posted as `criteria: [{leftSemanticFieldApiName, rightSemanticFieldApiName, ...}]`, the joins work and query correctly. Corrected in CLAUDE.md, ENGINEERING_GUIDELINES §11, `/build-demo` and MCP_BUILD_GUIDE. `/build-demo` still denormalizes into one fact table by default.
+- New verified Known Pitfalls in CLAUDE.md:
+  - Custom-SQL logical views need API v66.0; v65.0 silently creates an empty view.
+  - Read-only "setterless" keys (e.g. `dataDefinedGoals`) must be omitted from payloads.
+  - REST dashboard POST at v67.0 `minorVersion=14` takes every widget type inline, but accepts tiles for metrics that don't exist.
+  - Explicit DO and field apiNames are kept on SDM create.
+  - Ingest schemas accept `DateTime` and `Boolean`.
+  - `POST /services/data/v65.0/semantic-engine/gateway` queries an SDM over REST.
+
+---
+
 ## 2026-11-05 — Update Rev Intel: Upload documents
 
 ### Added
