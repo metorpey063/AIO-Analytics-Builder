@@ -31,8 +31,18 @@ TYPE_MAP = {"Text": "Text", "Number": "Number", "Currency": "Number", "Percentag
 # Deliberate fixes to source calcs, applied at capture. Keep this list short: everything else is verbatim.
 # Semantic-layer string comparison is case-sensitive (verified 2026-11-05), and the data stores flags as
 # lowercase 'true'/'false' like the source org, so this one literal never matched (empty Neglected views).
+#
+# The DATEDIFF fixes swap reversed arguments (later -> earlier), which give negative days on realistic
+# data. The original only shows positive values because its replayed demo data has deals created after
+# they closed. Approved by the user 2026-11-05.
+_LEAD_AGE = ("DATEDIFF('day',[Lead].[Converted_Date],[Lead].[Created_Date])",
+             "DATEDIFF('day',[Lead].[Created_Date],[Lead].[Converted_Date])")
 SOURCE_FIXES = {
     "Total_Neglected_Opportunities_RI_clc": [("[Opportunity].[Is_Closed]) = 'False'", "[Opportunity].[Is_Closed]) = 'false'")],
+    "Average_Days_to_Close_RI_clc": [("DATEDIFF('day',[Opportunity].[Close_Date], [Opportunity].[Created_Date])",
+                                      "DATEDIFF('day',[Opportunity].[Created_Date], [Opportunity].[Close_Date])")],
+    "LA_Lead_Age_RI_clc": [_LEAD_AGE],
+    "LA_Lead_Age_RI_clc_1_clc": [_LEAD_AGE],
 }
 
 QREF = re.compile(r"\[([^\[\]]+)\]\.\[([^\[\]]+)\]")

@@ -10,7 +10,7 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ### Added
 - **`salesinsights/` package** (`python3 -m salesinsights capture | generate | deploy | status | reset`):
-  - `capture.py` (maintainer): turns the six Package & Deploy exports into one portable package. It keeps only the part of the SDM the dashboards use (15 tables, 78 fields, 136 calcs, 9 parameters, 7 metrics, 17 joins), adds bridge tables automatically, orders calcs by dependency, and switches data objects from DMOs to placeholder DLOs. One documented calc fix (`SOURCE_FIXES`).
+  - `capture.py` (maintainer): turns the six Package & Deploy exports into one portable package. It keeps only the part of the SDM the dashboards use (15 tables, 78 fields, 136 calcs, 9 parameters, 7 metrics, 17 joins), adds bridge tables automatically, orders calcs by dependency, and switches data objects from DMOs to placeholder DLOs. Documented calc fixes in `SOURCE_FIXES`: one case-sensitive flag comparison, plus three reversed `DATEDIFF`s that made Average Days to Close and converted-lead Lead Age negative on realistic data.
   - `generate.py`: seeded synthetic data dated relative to today. Deals are simulated stage by stage, so history, weekly trend, pushes, stalls and activity all agree. The baseline story: one team behind, pushes clustered on two reps, a wide lead-conversion spread, and open deals with no activity. It validates the data against the contract before writing.
   - `deploy.py`: a checkpointed deploy that resumes after a failure. It refuses the source org, and `reset` deletes only what the checkpoint lists.
   - `package/`: the committed package (1.4 MB) and data contract, so every SE gets the same deploy.

@@ -117,7 +117,7 @@ Spike assets on `aio-dev` (`SI Spike` workspace, `SI_Spike_834` SDM, 2 vizzes, 2
 - Data objects copied from DMOs: drop `standardDataObjectName` and field `storageDataType` (DLOs reject them), but **keep `tableType: "Shared"`** on Account, Contact_Point_Address, Product and User. Lead and Opportunity both join those tables, and without `Shared` the second join is rejected as cyclic.
 - Semantic string comparisons are case-sensitive. The data stores flags as lowercase `true`/`false` like the source, and `SOURCE_FIXES` corrects the one calc that compared against `'False'`.
 - Source calc quirks found by comparing metrics with the original (same queries against `ExtendedSalesInsights`):
-  - `Average_Days_to_Close_RI_clc` and the two `LA_Lead_Age` calcs compute `DATEDIFF(later, earlier)`, which is negative on realistic data. The original shows positive values only because its replayed data has deals created after they closed.
+  - `Average_Days_to_Close_RI_clc` and the two `LA_Lead_Age` calcs compute `DATEDIFF(later, earlier)`, which is negative on realistic data. The original shows positive values only because its replayed data has deals created after they closed. **Fixed** in `SOURCE_FIXES` (approved 2026-11-05). Open Pipeline and Average Deal Size are kept as-is, matching the original.
   - `Open_pipeline_RI_clc` is `MAX({FIXED opp, created : SUM(...)})`, so the "Open Pipeline" BAN is the largest single Pipeline history row (source: $1,588,400 = its largest deal).
   - `Average_Deal_Size_mtc` reads 2–4× below the true average through the date-dimension join, in the original as well.
 
