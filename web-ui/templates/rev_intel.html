@@ -18,6 +18,12 @@
         <div class="form-group"><label>Industry</label>
             <input type="text" id="ri-industry" placeholder="e.g. Cybersecurity SaaS"></div>
     </div>
+    <div class="wizard-actions" style="flex-wrap:wrap; gap:8px; margin-bottom:10px">
+        <button class="btn btn-primary" id="ri-research-btn" onclick="researchCustomer()">Research customer</button>
+        <span class="form-hint">Fills industry, audience, products, story and team from web research (add the use case or requirements first for a sharper story). Only empty fields are filled. Check the highlighted ones.</span>
+    </div>
+    <pre id="ri-research-log" class="progress-log hidden" style="max-height:160px; overflow:auto; margin-bottom:10px; font-size:12px; white-space:pre-wrap"></pre>
+    <div id="ri-research" class="hidden" style="margin-bottom:12px"></div>
     <div class="form-group"><label>Use case *</label>
         <textarea id="ri-usecase" rows="2" data-dictation placeholder="e.g. Renewals forecasting — bottoms-up forecast, renewal stages, product churn on won renewals"></textarea></div>
     <div class="form-group"><label>Audience</label>
@@ -153,6 +159,9 @@
     <pre id="ri-log" class="progress-log hidden" style="max-height:360px; overflow:auto; margin-top:12px; font-size:12px; white-space:pre-wrap"></pre>
 </div>
 
+<style>
+.ri-prefilled { background: rgba(255, 196, 0, 0.12) !important; outline: 1px dashed #b26b00; outline-offset: 1px; }
+</style>
 <script>
 const $ = id => document.getElementById(id);
 function autoSlug() {
@@ -161,13 +170,14 @@ function autoSlug() {
     $('ri-slug').value = c ? `${c}_rev_intel` : '';
 }
 $('ri-slug').addEventListener('input', () => $('ri-slug').dataset.touched = '1');
+['ri-regions', 'ri-segments'].forEach(id => $(id).addEventListener('change', () => $(id).dataset.touched = '1'));
 
 function addProduct(p = {}) {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><input type="text" class="rp-name" value="${p.name || ''}" placeholder="KSAT"></td>
-        <td><input type="text" class="rp-family" value="${p.family || ''}" placeholder="Security Awareness"></td>
-        <td><input type="number" class="rp-price" value="${p.list_price || ''}" placeholder="40000"></td>
-        <td><input type="text" class="rp-unit" value="${p.unit || 'users'}"></td>
+    tr.innerHTML = `<td><input type="text" class="rp-name" value="${esc(p.name || '')}" placeholder="KSAT"></td>
+        <td><input type="text" class="rp-family" value="${esc(p.family || '')}" placeholder="Security Awareness"></td>
+        <td><input type="number" class="rp-price" value="${esc(p.list_price || '')}" placeholder="40000"></td>
+        <td><input type="text" class="rp-unit" value="${esc(p.unit || 'users')}"></td>
         <td style="text-align:center"><input type="radio" name="rp-core" class="rp-core" ${p.core ? 'checked' : ''}></td>
         <td style="text-align:center"><input type="checkbox" class="rp-dropped" ${p.dropped ? 'checked' : ''}></td>
         <td style="text-align:center"><input type="checkbox" class="rp-new" ${p.new ? 'checked' : ''}></td>
@@ -287,6 +297,70 @@ function renderReview(rv, notes) {
     }
 }
 
+function markPrefilled(el) {
+    el.classList.add('ri-prefilled');
+    el.addEventListener('input', () => el.classList.remove('ri-prefilled'), { once: true });
+    el.addEventListener('change', () => el.classList.remove('ri-prefilled'), { once: true });
+}
+
+function researchCustomer() {
+    const a = answers();
+    if (!a.customer) { alert('Enter the customer name first.'); return; }
+    const btn = $('ri-research-btn'); btn.disabled = true; btn.textContent = 'Researching…';
+    const log = $('ri-research-log'); log.classList.remove('hidden'); log.textContent = '';
+    const finish = () => { btn.disabled = false; btn.textContent = 'Research customer'; };
+    fetch('/api/rev-intel/research', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(a) })
+        .then(r => r.json()).then(r => {
+            if (!r.ok) { alert(r.error); finish(); return; }
+            const es = new EventSource(`/api/build/progress/${r.build_id}`);
+            es.onmessage = async e => {
+                const m = JSON.parse(e.data);
+                if (m.stage === 'heartbeat') return;
+                log.textContent += m.message + '\n'; log.scrollTop = log.scrollHeight;
+                if (m.stage === 'error') { es.close(); finish(); }
+                if (m.stage === 'done') {
+                    es.close(); finish();
+                    const res = await (await fetch(`/api/rev-intel/research/${r.build_id}`)).json();
+                    if (res.ok) applyResearch(res.result);
+                }
+            };
+        }).catch(e => { alert(e); finish(); });
+}
+
+function applyResearch(s) {
+    const fill = (id, v) => { if (v && !$(id).value.trim()) { $(id).value = v; markPrefilled($(id)); } };
+    fill('ri-industry', s.industry); fill('ri-usecase', s.use_case); fill('ri-audience', s.audience);
+    const st = s.story || {}, tm = s.team || {};
+    fill('ri-culprit', st.worst); fill('ri-counter', st.counter_trend);
+    fill('ri-cause', st.root_cause); fill('ri-leading', st.leading_indicator); fill('ri-structure', tm.structure_notes);
+    const rows = [...$('ri-products').querySelectorAll('tr')];
+    if ((s.products || []).length && !rows.some(tr => tr.querySelector('.rp-name').value.trim())) {
+        rows.forEach(tr => tr.remove());
+        s.products.forEach(p => addProduct(p));
+        $('ri-products').querySelectorAll('input[type=text], input[type=number]').forEach(markPrefilled);
+    }
+    const probs = [...$('ri-problems').querySelectorAll('button')];
+    if (!probs.some(b => b.classList.contains('btn-primary')))
+        probs.forEach(b => { if ((st.problems || []).includes(b.textContent.trim())) { b.classList.add('btn-primary'); markPrefilled(b); } });
+    // Region/segment boxes start with defaults, so research replaces them unless the SE changed them
+    for (const [id, vals] of [['ri-regions', tm.regions], ['ri-segments', tm.segments]]) {
+        if (!(vals || []).length || $(id).dataset.touched) continue;
+        $(id).querySelectorAll('input').forEach(i => i.checked = vals.includes(i.value));
+        markPrefilled($(id));
+    }
+    const conf = s.confidence || {}, why = s.why || {};
+    const confColor = { high: '#2e844a', medium: '#b26b00', low: '#c23934' };
+    const c = k => conf[k] ? ` <span style="color:${confColor[conf[k]] || '#706e6b'}">(${esc(conf[k])})</span>` : '';
+    const box = $('ri-research'); box.classList.remove('hidden');
+    box.innerHTML = `<div class="form-hint"><strong>${esc($('ri-customer').value)}:</strong> ${esc(s.summary || '')}</div>
+        ${s.searched ? '' : '<div class="form-hint" style="color:var(--warning, #b26b00)">⚠ Web search returned nothing, so these come from Claude\'s own knowledge. Check them carefully.</div>'}
+        <details style="margin-top:6px"><summary class="form-hint">Why these answers</summary>
+        ${Object.keys(why).map(k => `<div class="form-hint">• <strong>${esc(k)}</strong>${c(k)}: ${esc(why[k])}</div>`).join('')}
+        ${(s.sources || []).length ? `<div class="form-hint" style="margin-top:4px">Sources: ${s.sources.map(u =>
+            `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\//, '').slice(0, 50))}</a>`).join(' · ')}</div>` : ''}
+        </details>`;
+}
+
 function requestChanges() {
     const fb = $('ri-feedback').value.trim();
     if (!fb) { alert('Describe the changes you want.'); return; }
@@ -312,6 +386,11 @@ async function init() {
     set('ri-cause', s.root_cause); set('ri-leading', s.leading_indicator);
     $('ri-problems').querySelectorAll('button').forEach(b => { if ((s.problems || []).includes(b.textContent.trim())) b.classList.add('btn-primary'); });
     const t = q.team || {}; set('ri-leader', t.leader); set('ri-leads', t.people_under_leader);
+    for (const [id, vals] of [['ri-regions', t.regions], ['ri-segments', t.segments]]) {
+        if (!vals) continue;
+        $(id).querySelectorAll('input').forEach(i => i.checked = vals.includes(i.value));
+        $(id).dataset.touched = '1';
+    }
     set('ri-personas', t.personas); set('ri-splitrole', t.split_role_example === false ? 'no' : 'yes'); set('ri-structure', t.structure_notes);
     const fw = q.forecast_window || {}; set('ri-fw-owners', fw.owners); set('ri-fw-months', fw.months); set('ri-fw-notes', fw.notes);
 }

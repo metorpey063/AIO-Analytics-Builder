@@ -32,7 +32,7 @@ def _ddg_search(query: str, max_results: int = 5) -> List[Dict[str, str]]:
             {"title": r.get("title", ""), "snippet": r.get("body", ""), "url": r.get("href", "")}
             for r in raw if r.get("title") and r.get("body")
         ]
-    except ImportError:
+    except Exception:   # ImportError, or ddgs raising "No results found." — try the HTML endpoint instead
         pass
 
     # Fallback: DuckDuckGo HTML scraping

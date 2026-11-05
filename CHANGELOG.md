@@ -4,6 +4,22 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-05 — Update Rev Intel: Research customer
+
+### Added
+- **Research customer** button at the top of the Update Rev Intel page. From the customer name, plus the use case and requirements if they're entered, it suggests the industry, audience, products and list prices (core / dropped at renewal / new), regions and segments, the story (problems, worst segment, counter-trend, root cause, leading indicator) and team structure notes.
+  - Only empty fields are filled. Prefilled fields are highlighted until you edit them.
+  - A "Why these answers" panel shows the reasoning, a confidence rating per area (pricing is usually low) and the sources.
+  - It takes about a minute and doesn't touch the org. Verified live on Zendesk and KnowBe4.
+- **`revintel/research.py`** uses the web UI's DuckDuckGo search, then Claude (`claude-opus-5-5`, medium effort). The story is framed as a demo hypothesis, and the company's employees are never named.
+- **`revintel/llm.py`** holds the shared Claude calls and credentials (moved out of `draft.py`, which now uses it).
+
+### Fixed
+- `researcher.py`: one search with no results (`ddgs` raises "No results found.") ended all research, including `/build-demo`'s story research. It now falls back to the HTML search.
+- Update Rev Intel page: saved regions and segments weren't restored when a demo folder was reopened. Product names are now escaped in the products table.
+
+---
+
 ## 2026-11-04 — Zero-click Salesforce org setup
 
 > Tested end to end on the AIO Dev org with throwaway apps (all removed): deploy → wait → AIO login with no secret → Data Cloud exchange, Semantics, Bulk Ingest API → profile save and refresh; MCP app login → MCP `initialize` 200 → refresh with no secret; updating a secret-requiring app keeps its consumer key. Ingest connector creation via the API was tested separately (schema registered). The Web UI button and the `setup.py` prompts have been checked (page renders, JS parses, routes respond) but not clicked through against an org.

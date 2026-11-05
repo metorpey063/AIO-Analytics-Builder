@@ -1247,6 +1247,38 @@ def rev_intel_run():
     return jsonify({"ok": True, "build_id": job_id})
 
 
+REVINTEL_RESEARCH = {}   # job id -> suggested answers, read once by the page
+
+
+@app.route("/api/rev-intel/research", methods=["POST"])
+def rev_intel_research():
+    """Research the customer and suggest answers for the Q&A (read-only; no org or demo folder needed)."""
+    import uuid as _uuid
+    data = request.get_json() or {}
+    if not (data.get("customer") or "").strip():
+        return jsonify({"ok": False, "error": "Enter the customer name first."}), 400
+    job_id = f"riresearch_{_uuid.uuid4().hex[:8]}"
+    progress_queues[job_id] = queue.Queue()
+
+    def _run():
+        from revintel import research
+        try:
+            REVINTEL_RESEARCH[job_id] = research.run(data, lambda m: send_progress(job_id, "log", m))
+        except (SystemExit, Exception) as e:
+            send_progress(job_id, "error", f"Research failed: {e}")
+            return
+        send_progress(job_id, "done", "Research finished — suggested answers filled in", 100)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"ok": True, "build_id": job_id})
+
+
+@app.route("/api/rev-intel/research/<job_id>")
+def rev_intel_research_result(job_id):
+    res = REVINTEL_RESEARCH.pop(job_id, None)
+    return jsonify({"ok": res is not None, "result": res})
+
+
 @app.route("/api/build/progress/<build_id>")
 def build_progress(build_id):
     """SSE endpoint streaming build progress."""
