@@ -351,6 +351,8 @@ def _sf_rest(alias, method, path, body=None):
     args = ["sf", "api", "request", "rest", path, "--method", method, "--target-org", alias, "--include"]
     if body is not None:
         args += ["--body", json.dumps(body)]
+    elif method != "GET":
+        args += ["--body", "{}"]   # the CLI rejects body-less POST/DELETE ("No 'mode' found in 'body' entry")
     r = subprocess.run(args, capture_output=True, text=True, timeout=120)
     m = re.match(r"HTTP/\S+\s+(\d+)", r.stdout)
     # --include prints the status line and headers, then the body with no blank line between
