@@ -208,7 +208,15 @@
                 <button class="btn btn-secondary hidden" id="w-auto-update-btn" onclick="runAutoSetup(true)">Update Existing App and Continue</button>
                 <button class="btn btn-secondary hidden" id="w-auto-mcp-retry" onclick="runAutoMcp()">Retry MCP Login</button>
             </div>
-            <ol id="w-auto-steps" class="form-hint" style="margin:12px 0 0 18px; line-height:1.8"></ol>
+            <div id="w-auto-progress" class="progress-container hidden" style="margin-top:16px; max-width:none">
+                <div class="progress-bar"><div class="progress-fill" id="w-auto-fill" style="width:0%"></div></div>
+                <div style="display:flex; align-items:center; gap:8px">
+                    <span class="spinner" id="w-auto-spinner" style="width:14px; height:14px; border-width:2px; margin:0; flex:none"></span>
+                    <span class="progress-label" id="w-auto-label" style="margin:0; color:inherit; font-weight:600"></span>
+                </div>
+                <p class="form-hint" id="w-auto-hint" style="margin:6px 0 12px 22px"></p>
+                <ol id="w-auto-steps" style="list-style:none; margin:0; padding:0; font-size:13px; line-height:2"></ol>
+            </div>
             <div id="w-auto-result" class="test-result"></div>
         </section>
         <p class="subtitle" style="margin:0 0 12px">
@@ -1094,71 +1102,137 @@ function toggleManualSetup(e) {
     if (open) sfAutoManaged = false;   // the user is taking over manually
 }
 
-async function runAutoMcp() {
+// ---- Automatic setup progress ----
+const AUTO_STEPS = {
+    login:     {label: 'Log into Salesforce', hint: 'A Salesforce login tab opened in your browser. Log into the org you want to build in.'},
+    apps:      {label: "Create AIO's apps in your org", hint: 'Deploying two External Client Apps into your org. Usually under a minute.'},
+    servers:   {label: 'Activate the Tableau Next MCP servers', hint: ''},
+    wait:      {label: 'Wait for the apps to go live', hint: 'Salesforce takes 20 seconds to 4 minutes to activate new apps. Keep this page open.'},
+    authorize: {label: 'Connect AIO', hint: 'A Salesforce tab opened: click Allow. AIO then checks Data Cloud and sets up the Ingest connector.'},
+    mcp:       {label: 'Connect the MCP server', hint: 'One more Salesforce tab opened: click Allow.'},
+};
+let autoRun = null;
+
+function autoStart(ids) {
+    clearInterval(autoRun && autoRun.timer);
+    autoRun = {ids, done: 0, timer: null};
     const list = document.getElementById('w-auto-steps');
+    list.innerHTML = ids.map(id => `<li data-step="${id}"><span class="st" style="display:inline-block; width:20px; color:var(--text-muted)">○</span>`
+        + `<span class="lbl" style="color:var(--text-muted)">${AUTO_STEPS[id].label}</span> <span class="det form-hint"></span></li>`).join('');
+    document.getElementById('w-auto-progress').classList.remove('hidden');
+    document.getElementById('w-auto-spinner').style.display = '';
+    document.getElementById('w-auto-fill').style.width = '0%';
+    document.getElementById('w-auto-fill').style.background = '';
+}
+
+function _autoRow(id) { return document.querySelector(`#w-auto-steps li[data-step="${id}"]`); }
+
+function autoBegin(id) {
+    const n = autoRun.ids.length, i = autoRun.ids.indexOf(id) + 1, label = AUTO_STEPS[id].label;
+    const row = _autoRow(id);
+    row.querySelector('.st').textContent = '▸'; row.querySelector('.st').style.color = 'var(--blue)';
+    // inherit, not var(--text): --text stays dark in the dark theme
+    row.querySelector('.lbl').style.color = 'inherit'; row.querySelector('.lbl').style.fontWeight = '600';
+    document.getElementById('w-auto-hint').textContent = AUTO_STEPS[id].hint;
+    const started = Date.now();
+    const tick = () => {
+        const sec = Math.floor((Date.now() - started) / 1000);
+        document.getElementById('w-auto-label').textContent =
+            `Step ${i} of ${n} — ${label} · ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+    };
+    clearInterval(autoRun.timer); tick(); autoRun.timer = setInterval(tick, 1000);
+}
+
+function autoEnd(id, ok, detail) {
+    clearInterval(autoRun.timer);
+    const row = _autoRow(id);
+    row.querySelector('.st').textContent = ok ? '✓' : '✗';
+    row.querySelector('.st').style.color = ok ? 'var(--green)' : 'var(--red)';
+    row.querySelector('.lbl').style.fontWeight = '';
+    row.querySelector('.det').textContent = detail ? '— ' + detail : '';
+    if (ok) autoRun.done++;
+    document.getElementById('w-auto-fill').style.width = Math.round(100 * autoRun.done / autoRun.ids.length) + '%';
+}
+
+function autoFinish(ok, message) {
+    clearInterval(autoRun && autoRun.timer);
+    document.getElementById('w-auto-spinner').style.display = 'none';
+    document.getElementById('w-auto-hint').textContent = '';
+    document.getElementById('w-auto-label').textContent = message;
+    if (!ok) document.getElementById('w-auto-fill').style.background = 'var(--red)';
+}
+
+async function _autoCall(id, url, body) {
+    autoBegin(id);
+    let j;
+    try {
+        const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
+        j = await r.json();
+    } catch (e) { j = {ok: false, error: e.message}; }
+    if (!j.ok) { autoEnd(id, false, j.error || 'failed'); throw new Error(j.error || 'unknown error'); }
+    return j;
+}
+
+async function runAutoMcp() {
     const retry = document.getElementById('w-auto-mcp-retry');
     retry.classList.add('hidden');
+    if (!autoRun || !autoRun.ids.includes('mcp')) autoStart(['mcp']);
     try {
-        await _autoStep(list, 'MCP login (click Allow in the browser tab)', '/api/oauth/mcp', {});
+        await _autoCall('mcp', '/api/oauth/mcp', {});
+        autoEnd('mcp', true);
         return true;
     } catch (e) {
         retry.classList.remove('hidden');
-        showResult('w-auto-result', false, 'Salesforce is connected, but the MCP login failed: ' + e.message
-            + '. Check the MCP server is activated in Setup → MCP Servers, then retry.');
+        autoFinish(false, 'Salesforce is connected, but the MCP login failed.');
+        showResult('w-auto-result', false, 'MCP login failed: ' + e.message
+            + '. Check the MCP servers are active in Setup → MCP Servers, then click Retry MCP Login.');
         return false;
     }
 }
 
-async function _autoStep(list, label, url, body) {
-    const li = document.createElement('li');
-    li.textContent = label + '…';
-    list.appendChild(li);
-    const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
-    const j = await r.json();
-    li.textContent = label + (j.ok ? ' ✓' : ' ✗');
-    if (!j.ok) throw new Error(j.error || 'unknown error');
-    return j;
-}
-
 async function runAutoSetup(updateExisting) {
-    const list = document.getElementById('w-auto-steps');
     const btn = document.getElementById('w-auto-btn');
     const updBtn = document.getElementById('w-auto-update-btn');
     const includeMcp = document.getElementById('w-auto-mcp').checked;
     const sandbox = getSetupVal('sf-login-url') === 'https://test.salesforce.com';
-    list.innerHTML = '';
+    const ids = [...(updateExisting ? [] : ['login']), 'apps', ...(includeMcp ? ['servers'] : []),
+                 'wait', 'authorize', ...(includeMcp ? ['mcp'] : [])];
+    autoStart(ids);
     btn.disabled = true;
     updBtn.classList.add('hidden');
     showResult('w-auto-result', null, '');
     try {
         if (!updateExisting) {
-            const login = await _autoStep(list, 'Salesforce CLI login (log in in the browser tab)', '/api/setup/auto/login', {sandbox});
-            list.lastChild.textContent += ' ' + login.username;
+            const login = await _autoCall('login', '/api/setup/auto/login', {sandbox});
+            autoEnd('login', true, login.username);
         }
-        const a = await _autoStep(list, 'Creating External Client Apps', '/api/setup/auto/apps',
-                                  {include_mcp: includeMcp, update_existing: updateExisting});
+        const a = await _autoCall('apps', '/api/setup/auto/apps', {include_mcp: includeMcp, update_existing: updateExisting});
         if (a.needs_update) {
             const probs = Object.values(a.apps).filter(v => v.status === 'needs_update')
                 .map(v => `${v.name}: ${v.problems.join('; ')}`).join(' | ');
+            autoEnd('apps', false, 'an existing app needs updating');
+            autoFinish(false, 'Waiting for you: an existing app needs updating.');
             showResult('w-auto-result', false, `An existing app has settings AIO can't use — ${probs}. Update it? Its consumer key stays the same.`);
             updBtn.classList.remove('hidden');
             return;
         }
-        list.lastChild.textContent += ' ' + Object.values(a.apps).map(v => `${v.name} (${v.status})`).join(', ');
-        const servers = a.mcp_servers || {};
-        if (Object.keys(servers).length) {
-            const li = document.createElement('li');
-            li.textContent = 'MCP servers: ' + Object.entries(servers).map(([n, v]) =>
-                `${n} ${v.status === 'failed' ? '✗' : '✓'}`).join(', ');
+        autoEnd('apps', true, Object.values(a.apps).map(v => `${v.name} (${v.status})`).join(', '));
+        if (includeMcp) {
+            const servers = a.mcp_servers || {};
+            const failed = Object.entries(servers).filter(([, v]) => v.status === 'failed');
             const hint = Object.values(servers).find(v => v.hint);
-            if (hint) li.textContent += ' — ' + hint.hint;
-            list.appendChild(li);
+            // An MCP activation problem doesn't stop the Salesforce connection
+            autoEnd('servers', !failed.length, failed.length
+                ? failed.map(([n, v]) => `${n}: ${v.error}`).join('; ') + (hint ? ' — ' + hint.hint : '')
+                : Object.keys(servers).join(', '));
         }
         const keys = Object.values(a.apps).map(v => v.consumer_key);
-        const w = await _autoStep(list, 'Waiting for the apps to go live (20s–4 min)', '/api/setup/auto/wait', {keys});
-        list.lastChild.textContent += ` ${w.seconds}s`;
-        const s = await _autoStep(list, 'AIO login (log in and click Allow in the browser tab)', '/api/setup/auto/authorize',
+        const w = await _autoCall('wait', '/api/setup/auto/wait', {keys});
+        autoEnd('wait', true, `live after ${w.seconds}s`);
+        const s = await _autoCall('authorize', '/api/setup/auto/authorize',
                                   {rest_key: a.apps.rest.consumer_key, mcp_key: a.apps.mcp ? a.apps.mcp.consumer_key : ''});
+        const c = s.connector;
+        autoEnd('authorize', true, `Data Cloud connected, Ingest connector "${c.ingestion_connector_name}" (${c.created ? 'created' : 'existing'})`);
         sfAutoManaged = true;
         // Mirror the saved values in the (hidden) manual form and clear stale secrets
         document.querySelectorAll('.setup-sync[data-field="sf-client-id"]').forEach(el => el.value = s.client_id);
@@ -1168,11 +1242,11 @@ async function runAutoSetup(updateExisting) {
         if (mcpField) mcpField.value = s.mcp_client_id || '';
         const mcpSecretField = document.getElementById('w-mcp-client-secret');
         if (mcpSecretField) mcpSecretField.value = '';
-        const c = s.connector;
-        const summary = `Data Cloud ${s.data_cloud_domain}, Ingest connector "${c.ingestion_connector_name}" (${c.created ? 'created' : 'existing'})`;
         if (s.mcp_client_id && !(await runAutoMcp())) return;
-        showResult('w-auto-result', true, `All set — ${summary}${s.mcp_client_id ? ', MCP connected' : ''}. Click Save & Return.`);
+        autoFinish(true, 'All set — your org is connected.');
+        showResult('w-auto-result', true, 'Click Save & Return to finish.');
     } catch (e) {
+        autoFinish(false, 'Setup stopped.');
         showResult('w-auto-result', false, e.message + ' — you can retry, or use manual setup below.');
     } finally {
         btn.disabled = false;
