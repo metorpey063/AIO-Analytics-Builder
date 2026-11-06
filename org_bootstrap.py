@@ -18,6 +18,7 @@ CLI:
   python org_bootstrap.py apps      --alias aio-dev [--no-mcp] [--update-existing]
   python org_bootstrap.py wait      --alias aio-dev [--no-mcp]
   python org_bootstrap.py authorize --alias aio-dev --profile KEY [--label "My Org"]
+  python org_bootstrap.py mcp       --alias aio-dev   # activate the MCP servers + register in Claude Code
   python org_bootstrap.py all       --alias aio-dev --profile KEY [--label ...] [--sandbox] [--no-mcp]
 
 `authorize` runs the AIO browser login, finds/creates the Ingest connector,
@@ -328,6 +329,86 @@ def ensure_ingest_connector(sf_token, sf_instance, name=DEFAULT_CONNECTOR):
             "ingestion_connector_name": connector_short_name(match), "created": created}
 
 
+# ── Tableau Next MCP servers ────────────────────────────────────────────────
+
+# Setup → Integrations → API Catalog → MCP Servers. The Activate button sets
+# McpServerAccess.Active (Tooling API): one record per Salesforce-provided server.
+MCP_SERVERS = {
+    "analytics_tableau_next_pilot": "tableau-next-pilot",   # "Tableau Next Beta" in Setup — the one AIO uses
+    "analytics_tableau_next": "tableau-next",               # "Tableau Next"
+}
+MCP_PILOT_HINT = ("Tableau Next Beta needs the TableauPilotMCPServerEnabled org permission. Request it through "
+                  "BlackTab or #q-branch-xdo-license-extension-requests, then run setup again.")
+
+
+def _sf_rest(alias, method, path, body=None):
+    """REST call through the CLI session. Returns (status, parsed body or text)."""
+    args = ["sf", "api", "request", "rest", path, "--method", method, "--target-org", alias, "--include"]
+    if body is not None:
+        args += ["--body", json.dumps(body)]
+    r = subprocess.run(args, capture_output=True, text=True, timeout=120)
+    m = re.match(r"HTTP/\S+\s+(\d+)", r.stdout)
+    # --include prints the status line and headers, then the body with no blank line between
+    b = re.search(r"^[\[{]", r.stdout, re.M)
+    text = r.stdout[b.start():].strip() if b else ""
+    try:
+        parsed = json.loads(text) if text else {}
+    except json.JSONDecodeError:
+        parsed = text
+    return (int(m.group(1)) if m else 0), (parsed if m else (r.stderr or r.stdout)[:300])
+
+
+def _api_error(body):
+    if isinstance(body, list) and body and isinstance(body[0], dict):
+        return body[0].get("message", str(body[0]))[:300]
+    return str(body)[:300]
+
+
+def _mcp_access(alias):
+    q = "SELECT Id, DeveloperName, Active FROM McpServerAccess"
+    status, body = _sf_rest(alias, "GET", "/services/data/v66.0/tooling/query?q=" + requests.utils.quote(q))
+    if status != 200:
+        raise RuntimeError(f"Couldn't read MCP server status: {_api_error(body)}")
+    return {r["DeveloperName"]: r for r in body.get("records", [])}
+
+
+def ensure_mcp_servers(alias):
+    """
+    Activate the Tableau Next MCP servers (same as clicking Activate in Setup).
+    Returns {server: {"status": "already_active"|"activated"|"failed", "error"?, "hint"?}}.
+    Never raises for a single server: the REST setup works without MCP.
+    """
+    try:
+        found = _mcp_access(alias)
+    except RuntimeError as e:
+        return {label: {"status": "failed", "error": str(e)} for label in MCP_SERVERS.values()}
+    out = {}
+    for dev, label in MCP_SERVERS.items():
+        rec = found.get(dev)
+        if rec and rec.get("Active"):
+            out[label] = {"status": "already_active"}
+            continue
+        if rec:
+            st, body = _sf_rest(alias, "PATCH", f"/services/data/v66.0/tooling/sobjects/McpServerAccess/{rec['Id']}",
+                                {"Active": True})
+        else:
+            st, body = _sf_rest(alias, "POST", "/services/data/v66.0/tooling/sobjects/McpServerAccess",
+                                {"DeveloperName": dev, "MasterLabel": label, "Active": True})
+        out[label] = {"status": "activated"} if st in (200, 201, 204) else {"status": "failed", "error": _api_error(body)}
+    # Trust the org, not the response code
+    try:
+        after = _mcp_access(alias)
+        for dev, label in MCP_SERVERS.items():
+            if out[label]["status"] == "activated" and not (after.get(dev) or {}).get("Active"):
+                out[label] = {"status": "failed", "error": "The org accepted the change but the server still shows inactive."}
+    except RuntimeError:
+        pass
+    pilot = out["tableau-next-pilot"]
+    if pilot["status"] == "failed":
+        pilot["hint"] = MCP_PILOT_HINT
+    return out
+
+
 # ── AIO login + profile save ────────────────────────────────────────────────
 
 def authorize_and_save(profile_key, my_domain, rest_key, mcp_key="", label=None, alias=""):
@@ -454,6 +535,7 @@ def main():
         _print({"step": "authorize", **saved})
 
     if a.command in ("mcp", "all") and "mcp" in apps:
+        _print({"step": "mcp_servers", "servers": ensure_mcp_servers(a.alias)})
         ok, msg = register_claude_mcp(apps["mcp"]["consumer_key"])
         _print({"step": "mcp", "ok": ok, "message": msg,
                 "next": "Run /mcp in Claude Code, select tableau-next-pilot, and log in."})

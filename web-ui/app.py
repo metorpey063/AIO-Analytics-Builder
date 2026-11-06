@@ -749,10 +749,11 @@ def auto_setup_apps():
     try:
         import org_bootstrap as ob
         data, _, _, alias = _auto_ctx()
-        apps = ob.deploy_apps(alias, include_mcp=bool(data.get("include_mcp", True)),
-                              update_existing=bool(data.get("update_existing")))
-        return jsonify({"ok": True, "apps": apps,
-                        "needs_update": any(v["status"] == "needs_update" for v in apps.values())})
+        include_mcp = bool(data.get("include_mcp", True))
+        apps = ob.deploy_apps(alias, include_mcp=include_mcp, update_existing=bool(data.get("update_existing")))
+        needs_update = any(v["status"] == "needs_update" for v in apps.values())
+        servers = ob.ensure_mcp_servers(alias) if include_mcp and not needs_update else {}
+        return jsonify({"ok": True, "apps": apps, "needs_update": needs_update, "mcp_servers": servers})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 

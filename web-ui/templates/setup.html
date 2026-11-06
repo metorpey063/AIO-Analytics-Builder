@@ -202,7 +202,7 @@
             <div style="margin-bottom:12px; padding:10px 14px; background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.35); border-radius:10px; font-size:13px; color:#F5C76E">
                 <strong style="color:#FBBF24">Before you start:</strong> sign out of <strong>every other Salesforce org</strong> in your default browser, then log into <strong>only the org you want to build in</strong>. A browser signed into another org causes &ldquo;Cross-org OAuth flows are not supported&rdquo; errors. Each browser tab that opens should land in that same org.
             </div>
-            <label class="checklist-item"><input type="checkbox" id="w-auto-mcp" checked> Also set up the Tableau Next MCP server (needs the pilot org permission and <code>tableau-next-pilot</code> activated in Setup &rarr; MCP Servers)</label>
+            <label class="checklist-item"><input type="checkbox" id="w-auto-mcp" checked> Also set up the Tableau Next MCP server (AIO activates it in your org; needs the <code>TableauPilotMCPServerEnabled</code> org permission)</label>
             <div style="margin-top:12px">
                 <button class="btn btn-primary" id="w-auto-btn" onclick="runAutoSetup(false)">Set Up My Org Automatically</button>
                 <button class="btn btn-secondary hidden" id="w-auto-update-btn" onclick="runAutoSetup(true)">Update Existing App and Continue</button>
@@ -1145,6 +1145,15 @@ async function runAutoSetup(updateExisting) {
             return;
         }
         list.lastChild.textContent += ' ' + Object.values(a.apps).map(v => `${v.name} (${v.status})`).join(', ');
+        const servers = a.mcp_servers || {};
+        if (Object.keys(servers).length) {
+            const li = document.createElement('li');
+            li.textContent = 'MCP servers: ' + Object.entries(servers).map(([n, v]) =>
+                `${n} ${v.status === 'failed' ? '✗' : '✓'}`).join(', ');
+            const hint = Object.values(servers).find(v => v.hint);
+            if (hint) li.textContent += ' — ' + hint.hint;
+            list.appendChild(li);
+        }
         const keys = Object.values(a.apps).map(v => v.consumer_key);
         const w = await _autoStep(list, 'Waiting for the apps to go live (20s–4 min)', '/api/setup/auto/wait', {keys});
         list.lastChild.textContent += ` ${w.seconds}s`;

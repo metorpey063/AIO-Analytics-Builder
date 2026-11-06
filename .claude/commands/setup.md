@@ -258,13 +258,13 @@ If the browser shows `invalid_client_id`, the app is still reaching every login 
 
 **4-Auto.6 — MCP (if chosen; browser 3 of 3)**
 
-The org permission and server activation can't be automated. Ask the user to confirm both, using the text in Steps 4d.1 and 4d.2. Then:
+The org permission (`TableauPilotMCPServerEnabled`) can't be automated: ask the user to confirm it, using the text in Step 4d.1. Activating the servers is automatic. Run:
 
 ```bash
 python3 org_bootstrap.py mcp --alias ALIAS_HERE
 ```
 
-This registers `tableau-next-pilot` in Claude Code using the deployed MCP app's key. Tell the user to run `/mcp`, select **tableau-next-pilot** and log in. Then verify with Step 4d.5.
+This activates the Tableau Next MCP servers in the org (both "Tableau Next Beta" = `tableau-next-pilot` and "Tableau Next" = `tableau-next`, the same as clicking Activate in Setup → MCP Servers), then registers `tableau-next-pilot` in Claude Code using the deployed MCP app's key. If `tableau-next-pilot` comes back `failed` with a hint, the org permission is missing; relay the hint. Tell the user to run `/mcp`, select **tableau-next-pilot** and log in. Then verify with Step 4d.5.
 
 Skip to Step 5. Steps 4a–4d below are the manual fallback.
 
