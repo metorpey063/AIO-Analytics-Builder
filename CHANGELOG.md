@@ -12,6 +12,9 @@ All notable changes to AIO Analytics Builder are documented here.
 - **MCP server activation** — the automatic Salesforce setup (`/setup`, `setup.py`, Web UI) now activates "Tableau Next Beta" (`tableau-next-pilot`) and "Tableau Next" (`tableau-next`). That's the same as clicking Activate in Setup → Integrations → API Catalog → MCP Servers: it sets `McpServerAccess.Active` through the Tooling API. `python3 org_bootstrap.py mcp` does it on its own.
 - If `tableau-next-pilot` can't be activated, setup says the `TableauPilotMCPServerEnabled` org permission is the likely cause and where to request it. That permission is still a manual request.
 
+### Fixed
+- The automatic setup's "waiting for the apps to go live" step could hang forever if the computer slept mid-wait: its checks had no timeout. Each check now gives up after 10 seconds and is retried.
+
 ---
 
 ## 2026-11-05 — Deploy Sales Insights: standalone deploy to any Data Cloud org

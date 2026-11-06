@@ -292,10 +292,15 @@ def wait_until_active(my_domain, consumer_keys, timeout=900, stable=30, on_tick=
         for k in consumer_keys:
             if ok[k] >= stable:
                 continue
-            r = requests.get(f"{my_domain}/services/oauth2/authorize", allow_redirects=False, params={
-                "response_type": "code", "client_id": k, "redirect_uri": CALLBACK_URL,
-                "code_challenge": "aio_probe", "code_challenge_method": "S256"})
-            ok[k] = ok[k] + 1 if r.status_code == 302 else 0
+            try:
+                # A stalled connection without a timeout hung this loop forever (the outer timeout never ran)
+                r = requests.get(f"{my_domain}/services/oauth2/authorize", allow_redirects=False, timeout=10, params={
+                    "response_type": "code", "client_id": k, "redirect_uri": CALLBACK_URL,
+                    "code_challenge": "aio_probe", "code_challenge_method": "S256"})
+                live = r.status_code == 302
+            except requests.exceptions.RequestException:
+                live = False
+            ok[k] = ok[k] + 1 if live else 0
         if all(v >= stable for v in ok.values()):
             return int(time.time() - start)
         if on_tick:
