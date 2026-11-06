@@ -28,11 +28,20 @@ Planned enhancements, fixes, and integration work. Updated as items are complete
 - Default trigger for Tableau Next builds once available
 - Replaces the Slack button trigger for Next demos
 
+### Terminal setup (`setup.py`) — untested automatic path (low priority)
+- The automatic Salesforce setup was tested end to end in the Web UI on a fresh org (2026-11-06). The terminal wizard (`python3 setup.py`, also used by `/setup`'s fallback) calls the same `org_bootstrap.py` steps, but its prompts haven't been run against a real org.
+- Low priority: the Web UI is the main way SEs set up AIO now. Run it once against a fresh org if terminal setup issues are reported.
+
 ### Existing Next SDM loader for close-loop
 - P3: load an existing Tableau Next SDM (not built by AIO) so close-loop can analyze its data
 - Enables close-loop on demos the SE already has without rebuilding
 
 ## Completed
+
+### Zero-click Salesforce org setup (2026-11-04 → 2026-11-06)
+- `org_bootstrap.py`: AIO deploys its own External Client Apps, activates the Tableau Next MCP servers, and finds or creates the Ingest connector. Users only log in through the browser.
+- Web UI automatic setup with a progress bar; Claude credentials read from Claude Code's settings (`claude_credentials.py`)
+- Verified end to end on a fresh org. Manual: Data Cloud provisioning and the `TableauPilotMCPServerEnabled` permission
 
 ### close-loop and studio integration (2026-10-19)
 - Applied jzitko's two patches (close-loop + studio)
