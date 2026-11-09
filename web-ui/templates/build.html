@@ -1227,10 +1227,9 @@ async function generateMetrics() {
     const metrics = (storyConfig && storyConfig.metric_config) ? storyConfig.metric_config : [];
 
     if (metrics.length > 0) {
-        metrics.forEach(mc => {
-            const sent = mc.sentiment === 'down_is_good' ? 'Down is good' : 'Up is good';
-            const fmt = mc.number_format || (mc.agg === 'Sum' ? 'Number' : 'Percentage');
-            addMetricRow({name: mc.label, type: mc.agg === 'Sum' ? 'Flow' : 'Rate', agg: mc.agg || 'Average', format: fmt, sentiment: sent});
+        metrics.forEach((mc, i) => {
+            const sent = (mc.sentiment === 'up_is_bad' || mc.sentiment === 'down_is_good') ? 'Down is good' : 'Up is good';
+            addMetricRow({name: mc.label, type: mc.agg === 'Sum' ? 'Flow' : 'Rate', agg: mc.agg || 'Average', format: storyFormat(mc), sentiment: sent, origIndex: i});
         });
     } else {
         // Fallback — empty table for manual entry
@@ -1241,11 +1240,23 @@ async function generateMetrics() {
     document.getElementById('metrics-content').classList.remove('hidden');
 }
 
+// Format for a story metric: its unit if the story gave one, else a percent
+// only when it's an Average with a 0-1 base_range (Days Until Renewal isn't a %)
+function storyFormat(mc) {
+    if (mc.number_format) return mc.number_format;
+    const unitFormats = {percent: 'Percentage', currency: 'Currency', days: 'Number', number: 'Number'};
+    if (unitFormats[mc.unit]) return unitFormats[mc.unit];
+    if (mc.agg === 'Sum') return 'Number';
+    const br = mc.base_range || [0.55, 0.85];
+    return (br[0] >= 0 && br[1] <= 1) ? 'Percentage' : 'Number';
+}
+
 function addMetricRow(m) {
     m = m || {name: '', type: 'Rate', agg: 'Average', format: 'Percentage', sentiment: 'Up is good'};
     if (!m.format) m.format = (m.type === 'Rate') ? 'Percentage' : 'Number';
     const tbody = document.getElementById('metrics-body');
     const tr = document.createElement('tr');
+    if (m.origIndex !== undefined) tr.dataset.origIndex = m.origIndex;
     tr.innerHTML = `
         <td><input type="text" value="${m.name}" placeholder="Metric name" class="table-input"></td>
         <td><select class="table-input"><option ${m.type==='Rate'?'selected':''}>Rate</option><option ${m.type==='Flow'?'selected':''}>Flow</option><option ${m.type==='Snapshot'?'selected':''}>Snapshot</option></select></td>
@@ -1260,6 +1271,7 @@ function addMetricRow(m) {
 // ---- Build ----
 function collectMetricsFromTable() {
     const rows = document.querySelectorAll('#metrics-body tr');
+    const original = (storyConfig && storyConfig.metric_config) ? storyConfig.metric_config : [];
     const metrics = [];
     rows.forEach(tr => {
         const cells = tr.querySelectorAll('.table-input');
@@ -1267,21 +1279,31 @@ function collectMetricsFromTable() {
             const name = cells[0].value.trim();
             const agg = cells[2].value;
             const format = cells[3].value;
-            const sent = cells[4].value.includes('Down') ? 'down_is_good' : 'up_is_good';
-            const field = name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-            const baseRange = format === 'Percentage' ? [0.50, 0.90] :
+            const sent = cells[4].value.includes('Down') ? 'up_is_bad' : 'up_is_good';
+            // Keep the story's metric (description, base_range, is_primary, nouns)
+            // and apply only what the table edits. Rebuilding from the table alone
+            // dropped the story's base_range and descriptions on every build.
+            const orig = tr.dataset.origIndex !== undefined ? (original[+tr.dataset.origIndex] || {}) : {};
+            const renamed = orig.label && orig.label !== name;
+            const field = (!renamed && orig.field) || name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+            const baseRange = (orig.base_range && format === storyFormat(orig)) ? orig.base_range :
+                              format === 'Percentage' ? [0.50, 0.90] :
                               format === 'Currency'   ? [1000, 5000] :
                               format === 'Score'      ? [1.0, 10.0] :
                                                         [100, 500];
+            const unit = {Percentage: 'percent', Currency: 'currency', Score: 'number', Number: orig.unit === 'days' ? 'days' : 'number'}[format];
             metrics.push({
+                ...orig,
                 label: name, field: field, agg: agg,
                 number_format: format,
-                description: `Measures ${name.toLowerCase()}`,
-                why_it_matters: `Indicates performance trend for ${name.toLowerCase()}`,
-                singular: name.toLowerCase(), plural: name.toLowerCase() + 's',
+                unit: unit,
+                description: (!renamed && orig.description) || `Measures ${name.toLowerCase()}`,
+                why_it_matters: (!renamed && orig.why_it_matters) || `Indicates performance trend for ${name.toLowerCase()}`,
+                singular: (!renamed && orig.singular) || name.toLowerCase(),
+                plural: (!renamed && orig.plural) || name.toLowerCase() + 's',
                 sentiment: sent,
                 pulse_agg: agg === 'Sum' ? 'AGGREGATION_SUM' : 'AGGREGATION_AVERAGE',
-                is_primary: metrics.length < 2,
+                is_primary: orig.is_primary !== undefined ? orig.is_primary : metrics.length < 2,
                 base_range: baseRange,
             });
         }

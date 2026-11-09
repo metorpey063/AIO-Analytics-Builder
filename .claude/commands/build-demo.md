@@ -1105,6 +1105,7 @@ METRIC_CONFIG = [
         'plural':      'benefits enrollment rates',
         'sentiment':   'up_is_good',     # "up_is_good" or "up_is_bad" — NEVER "down_is_good"
         'base_range':  [0.70, 0.88],     # realistic starting range BEFORE the signal
+        'unit':        'percent',        # "percent" | "days" | "currency" | "number"
         'is_primary':  True,
         'pulse_agg':   'AGGREGATION_AVERAGE',
     },
@@ -1113,6 +1114,8 @@ METRIC_CONFIG = [
 ```
 
 **`base_range` is required** — without it the generator defaults to `[0.55, 0.85]`, which produces unrealistic values for metrics like readmission rates (should be 0.10-0.16) or churn rates (should be 0.03-0.08). Set the range to match the real-world scale of each metric.
+
+**`unit` decides formatting** — only `"percent"` metrics are formatted as percentages (`viz_templates.is_percent_metric()`). An Average is not automatically a percent: Days Until Renewal (base_range `[25, 60]`, `unit: "days"`) formatted as a percentage reads "3000%". If `unit` is missing it is inferred: an Average with a 0–1 `base_range` and no duration word in the label is a percent.
 
 **`sentiment` values:** `"up_is_good"` (retention, satisfaction, utilization) or `"up_is_bad"` (readmission rate, churn, error rate). Legacy `"down_is_good"` is auto-normalized but should not be used in new builds.
 
@@ -1201,6 +1204,9 @@ Use `template_deployer.deploy_template()` to create the complete dashboard from 
 
 ```python
 from template_deployer import deploy_template
+from viz_templates import is_percent_metric
+
+breakdown_mc = METRIC_CONFIG[1]  # metric shown in the detail charts
 
 results = deploy_template(
     template_name="z_layout",  # or "f_layout"
@@ -1221,7 +1227,10 @@ results = deploy_template(
     ],
     title_text=f"{company} {use_case}",
     detail_header="Details",
-    field_map=None,  # set if field names differ from template
+    field_map=field_map,  # REQUIRED — see story-ordered mapping below
+    label_map=label_map,  # template labels → this demo's metric/dimension labels
+    percent_fields=[f"{m['field']}_clc" for m in METRIC_CONFIG if is_percent_metric(m)],
+    donut_as_bar=breakdown_mc["agg"] != "Sum",  # a donut only makes sense for a summed metric
 )
 
 # Results contain created asset names/IDs for checkpoint
@@ -1240,16 +1249,18 @@ cp["all_dash_apis"] = [results["dashboard"]["name"]] if results["dashboard"] els
 | Detail table | All categorical dimensions | Data gen dimensions |
 | Filters (up to 6 Z / 6 F) | Dimension fieldName + objectName (DO apiName) | Phase 4 DO field discovery |
 
-The template packages reference specific field names from the D16 demo (`platform_utilization_rate_clc`, `team1`, etc.). For other demos, pass `field_map` to remap template field names to the target SDM's field names:
+The template packages reference specific field names from the D16 demo (`platform_utilization_rate_clc`, `team1`, etc.). Pass `field_map` to remap them. **Fill the slots in story order, never SDM order**: the data generator puts the signal on `DIMENSIONS[0]` (the culprit), so `team1` (the trend line's color, and Detail Bar 2) must be `DIMENSIONS[0]`. Mapping a dimension with no signal there makes every trend line flat. Don't fix a flat trend by hard-coding per-segment values into the `_clc` expression (`CASE`/`IF` on a dimension) — the calc then disagrees with the data, so filters and Concierge answers are wrong. Keep `_clc` a plain `AVG(...)`/`SUM(...)` and fix the mapping.
+
+The deployer also: starts the trend line's Y axis at the data, not zero (`trend_include_zero=False`); colors bars by their dimension (`color_bars=True`); blanks unfilled placeholder text ("Section Subheader"). Remove widgets from a dashboard payload only with `template_deployer.remove_widget()` — it updates both the `widgets` dict and the layout positions.
 
 ```python
 field_map = {
     "platform_utilization_rate_clc": "your_primary_clc_name",
     "reports_migrated_to_tableau_clc": "your_breakdown_clc_name",
-    "team1": "your_grouping_dim_name",
-    "report_type1": "your_breakdown_dim_1",
-    "system_source1": "your_breakdown_dim_2",
-    "request_status1": "your_detail_dim",
+    "team1": "dim_api_of_DIMENSIONS[0]",           # culprit — trend color + Detail Bar 2
+    "report_type1": "dim_api_of_DIMENSIONS[1]",    # Horizontal Bar
+    "system_source1": "dim_api_of_DIMENSIONS[2]",  # donut slot (a bar unless the metric is a Sum)
+    "request_status1": "dim_api_of_DIMENSIONS[3]", # detail table
     "Display_Date": "Display_Date",  # usually same across all demos
 }
 ```
@@ -1357,7 +1368,7 @@ Uses the same SF token from the active profile (CRMA lives in the same org as Ta
 
 ```python
 from crma_uploader import build_metadata, fields_from_metric_config, upload_dataset, find_or_create_app
-from crma_dashboard_builder import build_dashboard_state, create_dashboard, find_or_create_app
+from crma_dashboard_builder import build_dashboard_state, upsert_dashboard, find_or_create_app
 
 # Build metadata from METRIC_CONFIG
 fields = fields_from_metric_config(METRIC_CONFIG, list(DIM_DESCRIPTIONS.keys()))
@@ -1413,8 +1424,10 @@ result = create_dashboard_from_template(
     measure_fields=[mc["field"] for mc in METRIC_CONFIG[:4]],
     date_field="date",
     filter_fields=list(DIM_DESCRIPTIONS.keys())[:4],
+    existing_app_id=cp.get("crma_app_id"),  # reruns reuse the app instead of creating another
 )
 # result = {"app_id": "...", "dashboard_id": "...", "dashboard_url": "..."}
+cp["crma_app_id"] = result["app_id"]
 ```
 
 This uses Salesforce's built-in Smart Templates which produce polished, professional dashboards. The template auto-discovers its required variables and maps our metrics/dimensions to the correct inputs.
@@ -1423,6 +1436,8 @@ This uses Salesforce's built-in Smart Templates which produce polished, professi
 - Cannot `group by` `_sec_epoch` fields — use `_Year`, `_Month`, `_Day` instead
 - Dataset re-upload creates a new version — security predicates must be re-applied
 - Dashboard PATCH requires deep-unescaping HTML entities from GET response
+- **Never re-POST a dashboard on rebuild** — use `upsert_dashboard(..., dashboard_id=cp.get("crma_dashboard_id"))`, which PATCHes it in place (a re-POST adds a copy with an `X1`-suffixed developer name)
+- Read `CRMA_BUILD_PLAYBOOK.md` before adding widgets beyond the golden template — `time` charts and a 3rd `listselector` white-screen, `donut` renders as a bar (use `pie` + `inner: 0.6`)
 - `datasets` arrays in steps must only contain `{"name": "..."}` (no label, id, url)
 - Text widgets use `richTextContent` format, not Quill `ops`
 

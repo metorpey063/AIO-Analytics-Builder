@@ -4,6 +4,7 @@ Templates define the structure of each chart type. The viz_builder module
 uses these to produce complete API payloads.
 """
 
+import re
 from typing import Any, Dict, List, Optional
 
 TEMPLATES: Dict[str, Dict[str, Any]] = {
@@ -151,6 +152,39 @@ TEMPLATES: Dict[str, Dict[str, Any]] = {
 }
 
 
+METRIC_UNITS = ("percent", "number", "days", "currency")
+
+_DURATION_RE = re.compile(r"\b(days?|hours?|minutes?)\b", re.I)
+
+
+def metric_unit(metric_config: Dict[str, Any]) -> str:
+    """Return a METRIC_CONFIG entry's unit: "percent", "number", "days" or "currency".
+
+    Uses an explicit `unit` (or the web UI's `number_format`) when present.
+    Otherwise only an Average metric whose base_range sits within 0-1 and
+    whose label doesn't name a duration is a percent. "Average" alone doesn't mean percent: an average of
+    Days Until Renewal (~30) formatted as a percentage reads "3000%".
+    """
+    unit = str(metric_config.get("unit", "")).lower()
+    if unit in METRIC_UNITS:
+        return unit
+    # Web UI Format dropdown
+    fmt = {"Percentage": "percent", "Currency": "currency", "Number": "number", "Score": "number"}
+    if metric_config.get("number_format") in fmt:
+        return fmt[metric_config["number_format"]]
+    if metric_config.get("agg", "Average") != "Average":
+        return "number"
+    label = metric_config.get("label", "")
+    if _DURATION_RE.search(label) and "per day" not in label.lower():
+        return "days" if re.search(r"\bdays?\b", label, re.I) else "number"
+    lo, hi = (metric_config.get("base_range") or [0.55, 0.85])[:2]
+    return "percent" if 0 <= lo and hi <= 1.0 else "number"
+
+
+def is_percent_metric(metric_config: Dict[str, Any]) -> bool:
+    return metric_unit(metric_config) == "percent"
+
+
 def recommend_chart_type(metric_config: Dict[str, Any]) -> str:
     """Recommend a template name based on metric configuration.
 
@@ -196,7 +230,8 @@ def recommend_dashboard_vizzes(metric_configs: List[Dict[str, Any]], dimensions:
                 template = "stacked_bar"
             elif "bar_by_category" not in used_types:
                 template = "bar_by_category"
-            elif "donut" not in used_types and dimensions:
+            # Donuts show share of a whole — only meaningful for summed metrics
+            elif "donut" not in used_types and dimensions and mc.get("agg") == "Sum":
                 template = "donut"
 
         used_types.add(template)

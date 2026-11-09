@@ -219,6 +219,20 @@ def demos():
     return render_template("demos.html", demos=demo_list)
 
 
+@app.route("/api/demos/<slug>/concierge", methods=["POST"])
+def retry_concierge(slug):
+    """Re-ask a Tableau Next demo's Concierge questions and update its walkthrough."""
+    demo_dir = PROJECT_ROOT / "demos" / slug
+    if not (demo_dir / f"{slug}_checkpoint.json").exists():
+        return jsonify({"ok": False, "error": "Demo not found"})
+    from builder import recapture_concierge
+    try:
+        res = recapture_concierge(slug, str(demo_dir))
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)[:300]})
+    return jsonify({"ok": res["captured"] > 0, **res})
+
+
 @app.route("/api/demos/<slug>/delete", methods=["POST"])
 def delete_demo(slug):
     """Delete a demo folder and optionally clean up remote assets."""

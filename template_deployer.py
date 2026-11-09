@@ -113,6 +113,166 @@ def _strip_readonly(obj: Any) -> Any:
     return obj
 
 
+# Placeholder text in the template's text widgets. Any left after label_map
+# substitution is blanked so it never shows on a live dashboard.
+TEXT_PLACEHOLDERS = {"Section Subheader", "Title/ Time + Name"}
+
+BAR_VIZZES = {"Horizontal_Bar", "Horizontal_Bar1", "Detail_Bar_2"}
+
+
+def _first_dimension_key(payload: Dict[str, Any]) -> Optional[str]:
+    for fk, fv in payload.get("fields", {}).items():
+        if fv.get("role") == "Dimension":
+            return fk
+    return None
+
+
+def _set_percent_format(payload: Dict[str, Any], percent_fields: set) -> None:
+    """Format measures whose fieldName is in percent_fields as percentages.
+
+    The template ships every measure as Number with 2 decimals, so a rate
+    reads 0.73 instead of 73%. Cell/label values use "Percentage", axis
+    ticks use "PercentageShort" (same pairing as Number/NumberShort).
+    """
+    spec = payload.get("visualSpecification", {})
+    style = spec.get("style", {})
+    for fk, fv in payload.get("fields", {}).items():
+        if fv.get("role") != "Measure" or fv.get("fieldName") not in percent_fields:
+            continue
+        enc = style.get("encodings", {}).get("fields", {}).get(fk)
+        if enc:
+            nfi = enc.setdefault("defaults", {}).setdefault("format", {}).setdefault("numberFormatInfo", {})
+            nfi.update({"type": "Percentage", "decimalPlaces": 1})
+        axis = style.get("axis", {}).get("fields", {}).get(fk)
+        if axis:
+            nfi = axis.setdefault("scale", {}).setdefault("format", {}).setdefault("numberFormatInfo", {})
+            nfi.update({"type": "PercentageShort", "decimalPlaces": 0})
+
+
+def _color_by_dimension(payload: Dict[str, Any]) -> None:
+    """Color a bar chart's bars by its category dimension, so one partner/segment
+    keeps the same color across every breakdown chart. The axis already names
+    each bar, so the legend stays hidden (same as the template trend line)."""
+    dim_key = _first_dimension_key(payload)
+    spec = payload.get("visualSpecification", {})
+    panes = spec.get("marks", {}).get("panes")
+    if not dim_key or panes is None:
+        return
+    encodings = panes.setdefault("encodings", [])
+    if any(e.get("type") == "Color" for e in encodings):
+        return
+    encodings.append({"fieldKey": dim_key, "type": "Color"})
+    spec.setdefault("legends", {})[dim_key] = {
+        "isVisible": False, "position": "Right", "title": {"isVisible": True}}
+
+
+def _month_grain_dates(payload: Dict[str, Any]) -> None:
+    """Group a trend line's date by month. With no function every daily date
+    is its own header and the x-axis labels truncate ("12/..."). "Mdy" is the
+    month-level date function the product's own line charts use."""
+    for fv in payload.get("fields", {}).values():
+        if fv.get("role") == "Dimension" and "date" in fv.get("fieldName", "").lower() and not fv.get("function"):
+            fv["function"] = "Mdy"
+
+
+def _add_table_measures(payload: Dict[str, Any], measures: List[Dict[str, Any]]) -> None:
+    """Append metric columns to a details table (the template ships dimensions only).
+
+    Each measure: {"fieldName": clc_api, "label": str, "percent": bool}. Same shape
+    as the product's Leaderboard tables: discrete measures in `rows`, each with a
+    number format and a header entry.
+    """
+    spec = payload.get("visualSpecification", {})
+    style = spec.setdefault("style", {})
+    fields = payload.setdefault("fields", {})
+    used = [int(k[1:]) for k in fields if k[1:].isdigit()]
+    nxt = max(used or [0]) + 1
+    for m in measures:
+        fk = f"F{nxt}"
+        nxt += 1
+        fields[fk] = {"displayCategory": "Discrete", "fieldName": m["fieldName"], "function": "UserAgg",
+                      "label": m.get("label", m["fieldName"]), "role": "Measure", "type": "Field"}
+        spec.setdefault("rows", []).append(fk)
+        nfi = {"decimalPlaces": 1 if m.get("percent") else 0, "displayUnits": "Auto",
+               "includeThousandSeparator": True, "negativeValuesFormat": "Auto",
+               "prefix": "", "suffix": "", "type": "Percentage" if m.get("percent") else "Number"}
+        style.setdefault("encodings", {}).setdefault("fields", {})[fk] = {"defaults": {"format": {"numberFormatInfo": nfi}}}
+        style.setdefault("headers", {}).setdefault("fields", {})[fk] = {
+            "hiddenValues": [], "isVisible": True, "showMissingValues": False}
+
+
+_TABLE_MARK_STYLE = {"color": {"color": ""}, "isAutomaticSize": True,
+                     "label": {"canOverlapLabels": False, "marksToLabel": {"type": "All"}, "showMarkLabels": False},
+                     "range": {"reverse": True}, "size": {"isAutomatic": True, "type": "Pixel", "value": 12}}
+_TABLE_MARK = {"encodings": [], "isAutomatic": True, "stack": {"isAutomatic": True, "isStacked": False}, "type": "Text"}
+
+
+def _to_table_layout(payload: Dict[str, Any]) -> None:
+    """Convert a Vizql-layout text table to the Table layout, fit to width.
+
+    A Vizql table only accepts fit "Standard" or "Entire" (which squeezes every
+    row into the widget). Fit-to-width ("RowHeadersWidth") needs the Table
+    layout — the shape the product's own Leaderboard tables use, copied here
+    key for key. Keeps the payload's fields, rows, number formats and fonts.
+    """
+    spec = payload["visualSpecification"]
+    old_style = spec.get("style", {})
+    fields = payload.get("fields", {})
+    rows = spec.get("rows", [])
+    enc = old_style.get("encodings", {}).get("fields", {})
+    header_fields = {}
+    for fk in rows:
+        hf = {"hiddenValues": [], "isVisible": True, "showMissingValues": False}
+        if fields.get(fk, {}).get("role") == "Measure" and fk in enc:
+            hf["defaults"] = copy.deepcopy(enc[fk]["defaults"])
+        header_fields[fk] = hf
+    spec_new = {
+        "layout": "Table",
+        "groups": [],
+        "legends": {},
+        "rows": rows,
+        "marks": {
+            "fields": {fk: copy.deepcopy(_TABLE_MARK) for fk in rows},
+            "headers": {**copy.deepcopy(_TABLE_MARK), "isAutomatic": False},
+            "panes": {**copy.deepcopy(_TABLE_MARK), "isAutomatic": False},
+        },
+        "style": {
+            "encodings": {"fields": {fk: e for fk, e in enc.items() if fk in rows}},
+            "fieldLabels": {"columns": {"backgroundColor": "#E5E5E5", "showDividerLine": False, "showLabels": True},
+                            "groups": {"showDividerLine": False, "showLabels": True},
+                            "rows": {"backgroundColor": "#E5E5E5", "showDividerLine": False, "showLabels": True}},
+            "fit": "RowHeadersWidth",
+            "fonts": old_style.get("fonts", {}),
+            "headers": {"columns": {"mergeRepeatedCells": False, "showIndex": False, "sizing": {"fieldHeight": {}}},
+                        "fields": header_fields,
+                        "groups": {"mergeRepeatedCells": True, "sizing": {"fieldWidth": {}}},
+                        "rows": {"mergeRepeatedCells": False, "showIndex": False, "sizing": {"fieldWidth": {}}}},
+            "lines": {"axisLine": {"color": "#C9C9C9"}, "fieldLabelDividerLine": {"color": "#C9C9C9"},
+                      "separatorLine": {"color": "#C9C9C9"}, "zeroLine": {"color": "#E5E5E5"}},
+            "marks": {"fields": {fk: copy.deepcopy(_TABLE_MARK_STYLE) for fk in rows},
+                      "headers": copy.deepcopy(_TABLE_MARK_STYLE),
+                      "panes": {**copy.deepcopy(_TABLE_MARK_STYLE), "range": {"reverse": False}}},
+            "shading": {"backgroundColor": "#FFFFFF", "banding": {"rows": {"color": "#E5E5E5"}}},
+            "title": old_style.get("title", {"isVisible": True}),
+        },
+    }
+    payload["visualSpecification"] = spec_new
+
+
+def remove_widget(dash_payload: Dict[str, Any], widget_name: str) -> None:
+    """Remove a widget from a dashboard payload everywhere it's referenced.
+
+    A widget lives in two places: the top-level `widgets` dict and each layout
+    page's `widgets` position list. Removing it from only one makes the POST
+    fail (an orphaned `{{VIZ_NAME_...}}` source returns 500 "Visualization Not
+    Found"), so always remove widgets through this helper.
+    """
+    dash_payload.get("widgets", {}).pop(widget_name, None)
+    for layout in dash_payload.get("layouts", []):
+        for page in layout.get("pages", []):
+            page["widgets"] = [w for w in page.get("widgets", []) if w.get("name") != widget_name]
+
+
 def prepare_viz_payloads(
     package: Dict[str, Any],
     *,
@@ -126,6 +286,11 @@ def prepare_viz_payloads(
     slug: str,
     field_map: Optional[Dict[str, str]] = None,
     label_map: Optional[Dict[str, str]] = None,
+    percent_fields: Optional[List[str]] = None,
+    donut_as_bar: bool = False,
+    trend_include_zero: bool = False,
+    color_bars: bool = True,
+    table_measures: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Prepare viz creation payloads from a template package.
 
@@ -145,6 +310,17 @@ def prepare_viz_payloads(
         field_map: Optional mapping of template field names to target field names.
                    Keys are template fieldNames, values are target fieldNames.
                    Only needed if the target SDM has different field apiNames.
+        percent_fields: Target measure fieldNames (e.g. `_clc` apiNames) to format
+                   as percentages. Only pass rate metrics (viz_templates.is_percent_metric).
+        donut_as_bar: Replace the donut with a horizontal bar on the same dimension.
+                   Use when the donut's measure is an Average — slices of an average
+                   (e.g. Days Until Renewal) don't add up to anything.
+        trend_include_zero: Start the trend line's Y axis at zero. Off by default:
+                   rates in a narrow band (0.71-0.92) look flat on a 0-100% axis.
+        color_bars: Color bar charts by their category dimension.
+        table_measures: Metric columns for the details table, e.g.
+                   [{"fieldName": "win_rate_clc", "label": "Win Rate", "percent": True}].
+                   Without them the table lists dimension combinations only.
     """
     replacements = {
         "{{SDM_API_NAME}}": sdm_api,
@@ -173,6 +349,21 @@ def prepare_viz_payloads(
                 break
         bar2["label"] = "Detail Bar 2"
         vizzes["Detail_Bar_2"] = bar2
+
+    # Swap the donut for a bar on the donut's own dimension (keeps its slot and label)
+    if donut_as_bar and "Donut_Chart" in vizzes and horiz_key:
+        donut = vizzes["Donut_Chart"]
+        donut_dim = next((fv["fieldName"] for fv in donut.get("fields", {}).values()
+                          if fv.get("role") == "Dimension"), None)
+        if donut_dim:
+            bar = copy.deepcopy(vizzes[horiz_key])
+            for fv in bar.get("fields", {}).values():
+                if fv.get("role") == "Dimension":
+                    fv["fieldName"] = donut_dim
+                    break
+            bar["label"] = donut.get("label", "Donut Chart")
+            bar["name"] = donut.get("name", "Donut_Chart")
+            vizzes["Donut_Chart"] = bar
 
     payloads = {}
 
@@ -206,6 +397,24 @@ def prepare_viz_payloads(
         # Substitute display labels (axis titles, viz titles, etc.)
         if label_map:
             payload = _substitute(payload, label_map)
+
+        if percent_fields:
+            _set_percent_format(payload, set(percent_fields))
+        if viz_name == "Trend_Line":
+            _month_grain_dates(payload)
+        if viz_name == "Details_Table":
+            if table_measures:
+                _add_table_measures(payload, table_measures)
+            # Fit to width: needs the Table layout (a Vizql table only takes
+            # "Standard" or "Entire"); deploy_template posts it on v67.0
+            _to_table_layout(payload)
+        if viz_name == "Trend_Line" and not trend_include_zero:
+            axis_fields = payload.get("visualSpecification", {}).get("style", {}).get("axis", {}).get("fields", {})
+            for ax in axis_fields.values():
+                if "range" in ax:
+                    ax["range"]["includeZero"] = False
+        if color_bars and (viz_name in BAR_VIZZES or (donut_as_bar and viz_name == "Donut_Chart")):
+            _color_by_dimension(payload)
 
         payloads[viz_name] = payload
 
@@ -397,6 +606,13 @@ def prepare_dashboard_payload(
                         for old, new in label_map.items():
                             entry["insert"] = entry["insert"].replace(old, new)
 
+    # Blank any template placeholder text nothing replaced
+    for w in widgets.values():
+        if w.get("type") == "text":
+            for entry in w.get("parameters", {}).get("content", []):
+                if isinstance(entry.get("insert"), str) and entry["insert"].strip() in TEXT_PLACEHOLDERS:
+                    entry["insert"] = ""
+
     # Clean all widgets for REST POST compatibility
     dash_def["widgets"] = {
         wname: _clean_widget_for_post(w)
@@ -428,6 +644,11 @@ def deploy_template(
     detail_headers: Optional[List[str]] = None,
     do_api: str = "",
     api_version: str = "v66.0",
+    percent_fields: Optional[List[str]] = None,
+    donut_as_bar: bool = False,
+    trend_include_zero: bool = False,
+    color_bars: bool = True,
+    table_measures: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Deploy a complete template dashboard to an org via REST API.
 
@@ -450,6 +671,8 @@ def deploy_template(
         label_map: Optional text substitutions for viz titles and dashboard text
         detail_headers: Optional chart section headers [text_6, text_7, text_8]
         api_version: Salesforce API version
+        percent_fields, donut_as_bar, trend_include_zero, color_bars, table_measures:
+            story-driven styling, see prepare_viz_payloads()
     """
     package = load_template(template_name)
     headers = {
@@ -472,13 +695,21 @@ def deploy_template(
         sdm_api=sdm_api, sdm_label=sdm_label, sdm_id=sdm_id,
         ws_api=ws_api, ws_label=ws_label, ws_id=ws_id,
         do_api=do_api, slug=slug, field_map=field_map, label_map=label_map,
+        percent_fields=percent_fields, donut_as_bar=donut_as_bar,
+        trend_include_zero=trend_include_zero, color_bars=color_bars,
+        table_measures=table_measures,
     )
+
+    # Table-layout vizzes (fit-to-width tables) need v67.0 — v66.0 rejects their
+    # "groups" key ("setterless property 'groups'")
+    table_viz_base = f"{sf_instance}/services/data/v67.0/tableau/visualizations?minorVersion=14"
 
     viz_name_map = {}
     for template_viz_name, payload in viz_payloads.items():
         target_name = payload["name"]
         print(f"  Creating viz: {payload['label']} ({target_name})...")
-        r = requests.post(viz_base, headers=headers, json=payload)
+        is_table_layout = payload.get("visualSpecification", {}).get("layout") == "Table"
+        r = requests.post(table_viz_base if is_table_layout else viz_base, headers=headers, json=payload)
         if r.status_code == 201:
             resp = r.json()
             created_name = resp.get("name", target_name)

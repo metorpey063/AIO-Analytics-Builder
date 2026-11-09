@@ -38,6 +38,11 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px; vertical-align:-2px; margin-right:4px"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
                     Open Folder
                 </button>
+                {% if 'next' in demo.get('build_types', []) %}
+                <button class="btn btn-ghost btn-sm" title="Ask the story's questions to Concierge again and update the walkthrough" onclick="retryConcierge('{{ demo.slug }}', this)">
+                    Retry Concierge
+                </button>
+                {% endif %}
                 <a href="/api/demos/{{ demo.slug }}/build-log" target="_blank" class="btn btn-ghost btn-sm" title="View build log">
                     Log
                 </a>
@@ -85,6 +90,25 @@ async function openFolder(slug) {
     const r = await fetch('/api/demos/' + slug + '/open');
     const j = await r.json();
     if (!j.ok) alert('Could not open folder: ' + (j.error || 'unknown error'));
+}
+
+async function retryConcierge(slug, btn) {
+    const label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Asking Concierge...';
+    try {
+        const r = await fetch('/api/demos/' + slug + '/concierge', {method: 'POST'});
+        const j = await r.json();
+        if (j.ok) {
+            alert(`Captured ${j.captured} of ${j.total} Concierge answers. The walkthrough is updated.`);
+        } else {
+            alert('Concierge answers not captured: ' + (j.error || 'unknown error'));
+        }
+    } catch (e) {
+        alert('Retry failed: ' + e);
+    }
+    btn.disabled = false;
+    btn.textContent = label;
 }
 
 async function openWalkthrough(slug, filename) {

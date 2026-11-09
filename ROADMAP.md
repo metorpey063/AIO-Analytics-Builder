@@ -32,6 +32,12 @@ Planned enhancements, fixes, and integration work. Updated as items are complete
 - The automatic Salesforce setup was tested end to end in the Web UI on a fresh org (2026-11-06). The terminal wizard (`python3 setup.py`, also used by `/setup`'s fallback) calls the same `org_bootstrap.py` steps, but its prompts haven't been run against a real org.
 - Low priority: the Web UI is the main way SEs set up AIO now. Run it once against a fresh org if terminal setup issues are reported.
 
+### Polished CRMA mode
+- Today's CRMA output is one dataset + one dark-theme dashboard from `crma_golden_template.json`. `CRMA_BUILD_PLAYBOOK.md` (SE-contributed, ATI Restoration build) documents the shapes for a much more polished build
+- Candidates, roughly in value order: light branded cards (white, rounded, brand tints); KPI tiles with %Δ arrow + "vs prior 30 days" + sparkline; worst-first table with colored status dots and severity rank; `pie` + `inner` donuts with center counts; `pillbox` filters past 2
+- Later: multi-dashboard nav (needs update-in-place PATCH, done), record links in a new tab via an `analytics__Dashboard` LWC, segmented filter LWC with live counts
+- Needs render checks in the browser each round — a successful POST doesn't mean it renders (playbook §0 rule 5)
+
 ### Existing Next SDM loader for close-loop
 - P3: load an existing Tableau Next SDM (not built by AIO) so close-loop can analyze its data
 - Enables close-loop on demos the SE already has without rebuilding

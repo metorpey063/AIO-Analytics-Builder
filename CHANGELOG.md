@@ -4,6 +4,84 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-09 — The data follows the story; readable trend axis; metrics in the details table
+
+> Rebuilt demo_build_test_1 on its org through `run_build` (16/16 checks passed). Concierge now walks the story's own path: win rate 30.5% → 26.2% over 6 months → West worst → Enterprise worst within West (31.6% → 26.1%) → West deal size down ~45% → in-person activities up (~4,550 → 5,564 a month). The vizzes read back from the org with the new settings. The dashboard hasn't had a visual check in the browser yet.
+
+### Fixed
+- **The walkthrough and the data named different culprits.** The generator picked the culprit segment at random, so a story about "West / Enterprise" built data where Midwest was worst. The story now returns a structured `signal_plan` (culprit, drill-down value, counter-trend metric, onset), and the generator follows it. `apply_signal_plan()` puts the culprit's dimension first and the drill-down dimension second. In 9 of 10 test builds, the story's segment came out worst.
+- **The counter-trend metric declined with everything else.** The plan's `counter_trend_metric` now rises (In-Person Activities +36% by the latest month), and the Concierge counter-trend question asks about it.
+- **The signal onset ignored the story.** It was always 3 months, even when the story said 6–8. It now comes from `onset_months_ago`, and the comparison window follows it.
+- **Trend line x-axis labels were cut off ("12/...").** The date had no grouping, so each day was its own header. It's now month-level (`Mdy`, the function the product's own line charts use).
+- **The details table showed dimensions only.** It now has the first three metrics as columns (`table_measures`). It's now fit to width: it's created in the product's Table layout (`_to_table_layout()`, posted on v67.0), because the template's layout can't fit to width.
+- The full story is saved to the checkpoint (`story_config`), so rebuilds and Retry Concierge keep the company overview and the signal plan.
+
+---
+
+## 2026-11-09 — Demo data looks real: segment differences, seasonality, movement
+
+> Compared on demo_build_test_1's story across 20 random builds: before the signal, win rate now moves about 1 point a month (was 0.2) and regions differ by 2–5 points (was 0.3). Deal size runs Enterprise ≈ $245K > Mid-Market ≈ $183K > SMB ≈ $120K (was ≈ $185K for all three). 18 of 20 builds have a culprit region at least 1.5 points worse than the next. Not yet built into an org.
+
+### Changed
+- **New `data_generator.Realism`**, used by both the Web UI and `/build-demo` generators. It adds segment levels, yearly seasonality, per-segment drift and monthly shocks that survive averaging, and noise relative to the value. All of it is applied before the designed signal, so the story is unchanged. `variability` sets the strength (0 turns it off).
+- **Signal scaled, not clipped.** The worst segment now drops at most 45% (`signal_scale()`, was up to 100%: 30% → 10%), and every segment keeps its designed ratio.
+- The culprit's drill-down cells are centered on the culprit's own multiplier. An independent 1.2–2.8× draw could leave the culprit level with the moderate segment.
+
+### Fixed
+- Noise was a fixed ±0.02, so it was invisible on money metrics ($185K) and cancelled out once averaged. It's now relative to the value.
+- Sum metrics were multiplied by 1,000 even with a real `base_range` (In-Person Activities 32–48 became ≈ 40,000). The ×1,000 now applies only to legacy 0–1 ranges.
+
+---
+
+## 2026-11-09 — Retry Concierge for a built demo
+
+> Ran against demo_build_test_1, where Concierge still returns 404: the clear error and the cleaned-up walkthrough section both work. The capture path was checked with a mocked Concierge (6 of 6 answers written into the walkthrough).
+
+### Added
+- **Retry Concierge** button on My Demos (Tableau Next demos) and `python3 web-ui/builder.py concierge <slug>`. These ask the story's questions again and replace only the walkthrough's Concierge section. Use it when Concierge wasn't available at build time.
+
+### Fixed
+- When Concierge returned an error, every prompt failed with `'list' object has no attribute 'get'`, and the error text went into the walkthrough as the "Expected response". Errors now show Salesforce's own message (e.g. "Concierge isn't available on this org yet (404)"). Capture stops after the first failure, and the walkthrough lists unanswered questions as "not captured".
+- A failed capture blocked any retry, because the step only ran when no results were saved. It now re-runs until at least one answer is captured.
+- **Concierge reported a 30%→23% win-rate drop as "stable".** The business preferences told it to compare the last 6 months with the prior 6, while the signal starts 3 months back. The window now comes from the signal onset (`trend_window_months()`), and the Concierge questions name it ("over the last 3 months").
+- Follow-up questions said "that region", and Concierge asked back which one. They now name the segment the drill-down answer found ("the Midwest region"). The counter-trend question asks which segment is improving, instead of asking whether the lead metric "is also declining".
+- Walkthrough answers render `$` and Concierge's markdown (bold, headings, bullets) properly.
+
+---
+
+## 2026-11-06 — CRMA: rebuilds update in place, SE playbook captured
+
+> Checked with mocked API calls (update, deleted-dashboard and first-build paths). Not yet run against a CRMA org.
+
+### Added
+- **`CRMA_BUILD_PLAYBOOK.md`**: an SE-contributed playbook from the ATI Restoration build. It covers the crash list, widget cookbook, faceting, lenses, LWCs in dashboards, record actions and branding. Its API rules are summarized in CLAUDE.md Known Pitfalls. A "Polished CRMA mode" item based on it is in ROADMAP.md.
+- `crma_dashboard_builder.upsert_dashboard()`: PATCHes the demo's saved dashboard in place (checkpoint `crma_dashboard_id`), or creates one if there's none.
+
+### Fixed
+- **CRMA rebuilds no longer pile up copies.** The Web UI POSTed a new dashboard on every run, and each copy got an auto-suffixed developer name. It now updates the saved one in place. `/build-demo`'s Smart Template path reuses the app it made earlier (`existing_app_id`) instead of creating a new app each run.
+- `CHART_TYPE_MAP` no longer maps to CRMA chart types that break: `time` (white-screens the dashboard) is now `line`, and `donut` (renders as a bar) is now `pie` + `DONUT_PARAMS`.
+
+---
+
+## 2026-11-06 — Tableau Next dashboards tell the story out of the box
+
+> From field feedback on a Corporate Relations demo (Adam D'Ambrosio). Checked offline against the Z Layout template and with a simulated metrics table. Not yet run against an org.
+
+### Fixed
+- **Flat trend lines.** The dashboard template's slots were filled with dimensions in SDM order, so the trend line could be colored by a dimension with no signal (e.g. Academic Program instead of Employer Partner). Slots now follow the story's dimension order, so the culprit dimension colors the trend line. This applies to the template, MCP and legacy REST paths.
+- **The Web UI's metrics table was dropping the story's metric details.** Every Web UI build rebuilt the metrics from the table and lost each metric's description, why-it-matters, nouns, `base_range` and primary flag. Metrics with `up_is_bad` sentiment were saved as `up_is_good`. The table now keeps the story's metric and applies only the edits.
+- **"3000%".** Any metric with Average aggregation was formatted as a percentage, so an average of Days Until Renewal read 3000%. New `viz_templates.metric_unit()` / `is_percent_metric()` use the metric's `unit` (or the Web UI's Format column) and otherwise infer it from `base_range` and the label. They're used for the SDM calc fields, Pulse workbooks, MCP vizzes and CRMA. The data generator no longer caps non-percent averages at 1.0.
+- **Donut of an average.** The donut slot becomes a horizontal bar unless its metric is a Sum.
+- **Template styling.** The trend line's Y axis no longer starts at zero. Bars are colored by their dimension. Rate measures show as percentages. Unfilled placeholder text ("Section Subheader") is blanked.
+- Captured Concierge answers that contain a percentage over 100% are flagged in the build log and the walkthrough.
+
+### Added
+- `template_deployer.remove_widget()`: removes a widget from both the `widgets` dict and the layout positions.
+- `python connections.py token [profile]` prints AIO's own Salesforce token (`sf org display` hides the CLI's).
+- `unit` field in `METRIC_CONFIG` (`percent` / `days` / `currency` / `number`), included in the story prompt and `/build-demo`.
+
+---
+
 ## 2026-11-06 — Automatic setup activates the Tableau Next MCP servers
 
 > Verified on a fresh org where both servers were inactive and had no `McpServerAccess` records yet: AIO created them and the MCP Servers page then showed both Active. On AIO Dev, where they were already active, nothing changed.

@@ -51,6 +51,136 @@ def signal_ramp(d: date, today: date, onset: int = -6, shape: str = "acceleratin
     return progress
 
 
+# ── Realism layers ───────────────────────────────────────────────────────────
+
+# The worst segment's designed change never exceeds this share of its base
+# value: 0.40 magnitude × a 2.5× culprit multiplier is a 100% drop otherwise.
+MAX_DECLINE = 0.45
+MAX_INCREASE = 0.60
+
+
+def signal_scale(magnitude: float, multipliers) -> float:
+    """Factor (≤ 1) for the signal magnitude so the worst segment's full
+    effect is MAX_DECLINE. Scaling every segment by the same factor keeps the
+    designed ratios (culprit vs moderate vs flat); clamping each segment
+    instead would squash the culprit and the moderate segment together.
+    """
+    worst = max([m for m in multipliers if m > 0] or [1.0])
+    return min(1.0, MAX_DECLINE / (magnitude * worst)) if magnitude > 0 else 1.0
+
+
+def cap_signal(effect: float, worsens_upward: bool = False) -> float:
+    """Safety clamp on a signal effect (magnitude × ramp × multiplier) —
+    use signal_scale() first so this rarely binds."""
+    return max(-0.15, min(MAX_INCREASE if worsens_upward else MAX_DECLINE, effect))
+
+
+# Size-type dimension values: money/volume metrics should rank with company
+# size (Enterprise deals > SMB deals), not randomly. Matched case-insensitively.
+_SIZE_RANKS = [
+    (("global", "strategic", "enterprise", "large", "tier 1", "key account", "premium"), 1.0),
+    (("mid", "medium", "commercial", "corporate", "tier 2", "standard"), 0.0),
+    (("small", "smb", "micro", "startup", "tier 3", "basic", "emerging"), -1.0),
+]
+
+
+def _size_rank(value: str):
+    v = str(value).lower()
+    for words, rank in _SIZE_RANKS:
+        if any(w in v for w in words):
+            return rank
+    return None
+
+
+class Realism:
+    """Background variation so demo data doesn't look generated.
+
+    Without it every segment averages to the middle of base_range, per-row
+    noise cancels out once Tableau averages hundreds of rows, and trend lines
+    sit dead flat until the signal starts. This adds, per metric:
+
+    - segment levels: each value of each dimension gets its own level, so
+      bars differ (Enterprise deal size above SMB), largest on the first dims
+    - seasonality: a gentle yearly cycle, same phase for every segment
+    - drift + shocks: each dimension-0 segment wanders month to month
+      (AR(1)), plus a shared monthly shock — both survive aggregation
+    - row noise relative to the value, not a fixed ±0.02
+
+    All of it is multiplicative and centered on 1.0, and applied to the base
+    BEFORE the signal, so the designed story (who declines, by how much,
+    starting when) is unchanged. `strength` scales everything (0 = off).
+    """
+
+    def __init__(self, metrics, dimensions, dimension_values, dates, *,
+                 seed: int = 42, strength: float = 1.0):
+        rng = np.random.RandomState(seed)
+        self.strength = strength
+        self.dims = list(dimensions)
+        self.date_index = {d: i for i, d in enumerate(dates)}
+        n = len(dates)
+        self.levels, self.season, self.paths, self.row_sd = {}, {}, {}, {}
+        for mc in metrics:
+            f = mc["field"]
+            lo, hi = (mc.get("base_range") or [0.55, 0.85])[:2]
+            is_rate = 0 <= lo and hi <= 1.0
+            spread = (0.10 if is_rate else 0.22) * strength
+            # Segment levels: dims 0-1 get the full spread, later dims less
+            for di, dim in enumerate(self.dims):
+                vals = dimension_values.get(dim, [])
+                if not vals:
+                    continue
+                s = spread * (1.0 if di < 2 else 0.5)
+                raw = 1 + rng.uniform(-s, s, len(vals))
+                ranks = [_size_rank(v) for v in vals]
+                if not is_rate and sum(r is not None for r in ranks) >= 2:
+                    # Size dimension on a money/volume metric: order by size, with jitter
+                    raw = np.array([1 + (r if r is not None else 0) * s * 1.5 + rng.uniform(-s, s) * 0.3
+                                    for r in ranks])
+                raw = raw / raw.mean()  # keep the overall average on base_range
+                for v, lv in zip(vals, raw):
+                    self.levels[(f, dim, v)] = float(lv)
+            # Seasonality: yearly sine, random phase per metric
+            amp = rng.uniform(0.02, 0.04) * strength
+            phase = rng.uniform(0, 12)
+            self.season[f] = (amp, phase)
+            # Drift + AR(1) shocks per dimension-0 segment, plus a shared shock
+            shared = self._ar1(rng, n, 0.015 * strength)
+            seg_vals = dimension_values.get(self.dims[0], []) if self.dims else []
+            for v in seg_vals or [None]:
+                slope = rng.uniform(-0.04, 0.04) * strength
+                drift = slope * (np.linspace(-1, 1, n) if n > 1 else np.zeros(n))
+                self.paths[(f, v)] = 1 + drift + self._ar1(rng, n, 0.03 * strength) + shared
+            self.row_sd[f] = (0.05 if is_rate else 0.08) * strength
+
+    @staticmethod
+    def _ar1(rng, n, sd, phi=0.6):
+        e = np.zeros(n)
+        for t in range(n):
+            e[t] = (phi * e[t - 1] if t else 0) + rng.normal(0, sd)
+        return e
+
+    def factor(self, field: str, row_dims: dict, d) -> float:
+        """Multiplicative background factor for one metric on one row/date."""
+        if not self.strength:
+            return 1.0
+        f = 1.0
+        for dim in self.dims:
+            f *= self.levels.get((field, dim, row_dims.get(dim)), 1.0)
+        amp, phase = self.season.get(field, (0, 0))
+        f *= 1 + amp * np.sin(2 * np.pi * (d.month + phase) / 12)
+        t = self.date_index.get(d)
+        seg = row_dims.get(self.dims[0]) if self.dims else None
+        path = self.paths.get((field, seg)) if (field, seg) in self.paths else self.paths.get((field, None))
+        if path is not None and t is not None:
+            f *= max(0.5, float(path[t]))
+        return f
+
+    def row_noise(self, field: str, value: float, rng=None) -> float:
+        """Random row-level noise, proportional to the value."""
+        sd = self.row_sd.get(field, 0.0) * abs(value)
+        return float((rng or np.random).normal(0, sd)) if sd else 0.0
+
+
 # ── Noise scaling ────────────────────────────────────────────────────────────
 
 DEFAULT_NOISE_SCALE = 0.015
@@ -83,6 +213,7 @@ def generate_demo_data(
     seed: int = 42,
     today: date | None = None,
     goal_columns: dict[str, float] | None = None,
+    variability: float = 1.0,
 ) -> pd.DataFrame:
     """Generate synthetic demo data with engineered signals.
 
@@ -112,6 +243,9 @@ def generate_demo_data(
         seed: random seed for reproducibility.
         today: reference date. Defaults to date.today().
         goal_columns: optional {column_label: constant_value} for goal/threshold columns.
+        variability: strength of the background realism (segment levels,
+                     seasonality, drift, shocks — see Realism). 1.0 default,
+                     0 = flat background (signal only), 1.5 = noisier.
 
     Returns:
         DataFrame with columns: Record ID, Date, Entity ID, [dimensions...],
@@ -198,6 +332,13 @@ def generate_demo_data(
                "monthly": history_months}.get(grain, history_months)
     start = today.replace(day=1) - timedelta(days=history_months * 30)
     dates = pd.date_range(start, periods=periods, freq=freq).date
+    realism = Realism(metrics, dimensions, dimension_values, list(dates),
+                      seed=seed, strength=variability)
+
+    # Scale the primary signal so the worst segment drops at most MAX_DECLINE
+    # (segment multipliers only — extreme 2D drill cells are held by cap_signal)
+    all_mults = [m for mm in multipliers.values() for m in mm.values()]
+    sig_magnitude *= signal_scale(sig_magnitude, all_mults)
 
     # ── Generate rows ────────────────────────────────────────────────────
     rows = []
@@ -240,8 +381,10 @@ def generate_demo_data(
                 row[dim] = entity.get(dim, "")
 
             # Metric columns
+            row_dims = {dim: entity.get(dim) for dim in dimensions}
             for i, mc in enumerate(metrics):
-                base = entity[f"_base_{mc['field']}"]
+                # Background realism first, then the designed signal on top
+                base = entity[f"_base_{mc['field']}"] * realism.factor(mc["field"], row_dims, d)
                 is_primary = (i == primary_idx)
                 up_good = mc.get("sentiment", "up_is_good") == "up_is_good"
 
@@ -257,12 +400,13 @@ def generate_demo_data(
                         # Supporting metrics lag — use s_ramp * 0.5 for headcount-type metrics
                         eff_ramp = s_ramp
 
+                noise = realism.row_noise(mc["field"], base) + np.random.normal(0, ns * abs(base))
                 if up_good:
                     # Signal pushes value DOWN (decline)
-                    value = base * (1 - mag * eff_ramp) + np.random.normal(0, ns)
+                    value = base * (1 - cap_signal(mag * eff_ramp)) + noise
                 else:
                     # Signal pushes value UP (increase = bad)
-                    value = base * (1 + mag * eff_ramp * 2.0) + np.random.normal(0, ns * abs(base))
+                    value = base * (1 + cap_signal(mag * eff_ramp * 2.0, worsens_upward=True)) + noise
 
                 # Clamp to reasonable bounds
                 lo, hi = mc.get("base_range", [0.0, 1.0])

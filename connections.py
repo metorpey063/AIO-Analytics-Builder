@@ -552,4 +552,14 @@ def validate_all():
 
 
 if __name__ == "__main__":
-    validate_all()
+    import sys as _sys
+    if _sys.argv[1:2] == ["token"]:
+        # Print AIO's own Salesforce token (refreshed if needed) for manual API
+        # calls. `sf org display` hides the CLI's token, and the CLI session
+        # isn't AIO's: AIO keeps its token in config.json `_token_cache`.
+        # Usage: python connections.py token [profile_key]
+        _token, _instance = get_sf_token(profile_key=_sys.argv[2] if len(_sys.argv) > 2 else None)
+        print(f"SF_INSTANCE={_instance}")
+        print(f"SF_TOKEN={_token}")
+    else:
+        validate_all()

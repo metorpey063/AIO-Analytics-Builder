@@ -20,6 +20,8 @@ from dateutil.relativedelta import relativedelta
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from viz_templates import is_percent_metric
+
 TODAY = date.today()
 
 pd = None  # lazy — imported on first use by _pd()
@@ -37,6 +39,17 @@ SYSTEM_DIM_BASES = {"cdp_sys_sourceversion", "datasource", "datasourceobject",
                     "data_source_object", "day_offset"}
 
 SENTIMENT_MAP = {"up_is_good": "SentimentTypeUpIsGood", "up_is_bad": "SentimentTypeUpIsBad"}
+
+
+def story_ordered(dim_keys, story_config):
+    """Sort SDM dimension base names into the story's dimension order.
+
+    The data generator puts the signal on story dimension 0 (the culprit), so
+    charts that take "the first dimension" must get that one. SDM order is
+    arbitrary — it put e.g. academic_program first and every trend line was flat.
+    """
+    order = [clean_field_name(d) for d in story_config.get("dimensions", [])]
+    return sorted(dim_keys, key=lambda k: order.index(k) if k in order else len(order))
 
 
 def clean_field_name(name):
@@ -138,6 +151,13 @@ def _find_measurement(mc, mmap):
     return None
 
 
+def trend_window_months(story_config):
+    """Months to compare when asking "how is it trending". Matches the signal's
+    onset: a 3-month decline compared 6-vs-6 months averages out to almost
+    nothing, and Concierge reported a 30%→23% drop as "stable"."""
+    return max(2, abs(int(story_config.get("signal_onset", -3))))
+
+
 def generate_business_preferences(company, story_config, metric_config, dim_values):
     """Generate atomic '# ' prefixed business preference lines for Concierge.
 
@@ -191,7 +211,8 @@ def generate_business_preferences(company, story_config, metric_config, dim_valu
     # --- Sorting and display defaults ---
     if up_bad:
         lines.append(f"# When ranking or sorting {dims[0].lower() if dims else 'segments'}, sort by {lead_label} descending — worst first.")
-    lines.append(f"# When asked about trends, default to the last 6 months compared to the prior 6 months.")
+    n = trend_window_months(story_config)
+    lines.append(f"# When asked about trends or changes, default to the last {n} months compared to the prior {n} months.")
     if len(metric_config) >= 2:
         lines.append(f"# When asked to 'summarize' or 'give an overview', show {lead_label} and {metric_config[1]['label']} together.")
 
@@ -248,6 +269,12 @@ Return ONLY valid JSON with this exact structure:
   "strategic_initiatives": ["Current initiative or priority 1", "Initiative 2"],
   "story_summary": "3-5 sentence narrative: what is happening (the problem), where it's concentrated (segment), what's causing it (root cause), and the counter-trend that masks it. This is the demo story the presenter will walk through.",
   "signal_description": "1-2 sentences describing the engineered data signal: which metric declines, when it starts, where it's worst, and what the counter-trend is",
+  "signal_plan": {
+    "culprit": {"dimension": "Region", "value": "West"},
+    "culprit_detail": {"dimension": "Category", "value": "Enterprise"},
+    "counter_trend_metric": "Exact label of the metric that improves while the others decline",
+    "onset_months_ago": 6
+  },
   "audience_context": "1 sentence: who the audience is and what decision this demo helps them make",
   "dimensions": ["Region", "Department", "Category", "Segment"],
   "dimension_values": {
@@ -268,6 +295,7 @@ Return ONLY valid JSON with this exact structure:
       "sentiment": "up_is_good",
       "pulse_agg": "AGGREGATION_AVERAGE",
       "is_primary": true,
+      "unit": "percent",
       "base_range": [0.05, 0.12]
     }
   ]
@@ -277,6 +305,7 @@ Rules:
 - Generate 6 metrics. 1-2 should be primary (is_primary: true) with strong signal, rest are supporting.
 - Primary metrics show the "uh oh" moment. Supporting metrics explain why or show consequences.
 - Include at least one counter-trend metric (one that improves while others decline).
+- signal_plan MUST match story_summary and signal_description exactly: "culprit" is the dimension + value where the decline is worst (the dimension must be one of "dimensions", the value one of its "dimension_values"); "culprit_detail" is the second dimension + value the presenter drills into within the culprit (a different dimension); "counter_trend_metric" is the exact label of the counter-trend metric; "onset_months_ago" is how many months ago the decline started (2-9). The data is generated from signal_plan — if the prose names a different segment, the demo contradicts itself.
 - Generate at least 4 dimensions to support dashboard filters. Include one "where" (Region, Location), one "what" (Category, Type), one "who" (Team, Rep), and one "segment" (Size Band, Tier).
 - CRITICAL: "dimension_values" MUST contain 3-6 specific, realistic values per dimension that match the company's actual business. For a university: real college names ("College of Engineering", "College of Arts & Sciences"), real cohort types ("First-Generation", "Pell-Eligible"), real programs. For a company: real product lines, real regions they operate in, real customer segments. NEVER use numbered placeholders ("Region 1", "College 1") or single-letter labels ("A", "B"). The demo audience will see these values — they must be recognizable.
 - Field names use snake_case with no spaces. Keep field names SHORT — max 35 characters.
@@ -285,6 +314,7 @@ Rules:
 - base_range: realistic [min, max] decimal range for the metric's starting value BEFORE the signal. Examples: readmission rate [0.10, 0.16], retention rate [0.80, 0.92], satisfaction score [0.70, 0.88], churn rate [0.03, 0.08], utilization rate [0.55, 0.75]. This MUST match the real-world scale of the metric.
 - CRITICAL: Metrics must be about the CUSTOMER'S BUSINESS, not about Salesforce/Tableau platform features. If uploaded documents mention Salesforce reports, dashboards, or platform features, IGNORE those — focus on the customer's industry KPIs (revenue, retention, efficiency, satisfaction, etc.).
 - All metrics should be rates/averages stored as decimals (0.0-1.0 range) OR flow metrics stored as raw numbers.
+- unit: "percent" for rates stored as decimals, "days" for durations in days (e.g. Days Until Renewal, base_range [25, 60]), "currency" for money, "number" for anything else (scores, counts, averages that aren't rates). Only "percent" metrics are formatted as percentages.
 - pulse_agg: "AGGREGATION_AVERAGE" for rates, "AGGREGATION_SUM" for flows/counts.
 """
 
@@ -510,6 +540,27 @@ def signal_ramp(d, onset=-3, shape="accelerating", duration=3):
     return progress_val
 
 
+def apply_signal_plan(story_config):
+    """Line the data up with the story's signal_plan (in place).
+
+    Puts the culprit's dimension first and the drill-down dimension second
+    (the generator signals on dimension 0 and compounds on dimension 1, and
+    the dashboard slots follow this order), and sets signal_onset from
+    onset_months_ago. Plans that name unknown dimensions are ignored.
+    """
+    plan = story_config.get("signal_plan") or {}
+    dims = list(story_config.get("dimensions", []))
+    order = [(plan.get(k) or {}).get("dimension") for k in ("culprit", "culprit_detail")]
+    front = [d for d in order if d in dims]
+    if front and len(set(front)) == len(front):
+        story_config["dimensions"] = front + [d for d in dims if d not in front]
+    months = plan.get("onset_months_ago")
+    if isinstance(months, (int, float)) and 2 <= months <= 12:
+        story_config["signal_onset"] = -int(months)
+    story_config.setdefault("signal_onset", -3)
+    return story_config
+
+
 def generate_data(story_config, q=None, advanced=None):
     """Generate synthetic data from story config. Returns DataFrame."""
     metric_config = story_config["metric_config"]
@@ -576,6 +627,16 @@ def generate_data(story_config, q=None, advanced=None):
         random.shuffle(mults)
         segment_mults[dim] = dict(zip(vals, mults[:len(vals)]))
 
+    # The story's named culprit gets the culprit multiplier (the shuffle above
+    # otherwise picks one at random and the walkthrough names a different segment)
+    plan = story_config.get("signal_plan") or {}
+    culprit = plan.get("culprit") or {}
+    if dimensions and culprit.get("value") in segment_mults[dimensions[0]]:
+        sm = segment_mults[dimensions[0]]
+        top = max(sm, key=sm.get)
+        sm[top], sm[culprit["value"]] = sm[culprit["value"]], sm[top]
+    detail_value = (plan.get("culprit_detail") or {}).get("value")
+
     # 2D compound multiplier table for the primary culprit dimension pair
     # Creates the "drill deeper" story: overall down → dim1 filtered → dim1+dim2 filtered → steeper
     compound_2d = {}
@@ -586,7 +647,11 @@ def generate_data(story_config, q=None, advanced=None):
         for v1 in dim1_vals:
             for v2 in dim2_vals:
                 if v1 == culprit_dim1:
-                    compound_2d[(v1, v2)] = random.uniform(1.2, 2.8)
+                    # Centered on the culprit's own multiplier, so the culprit stays
+                    # clearly worst on average (an independent 1.2-2.8 draw could
+                    # average out level with the moderate segment)
+                    compound_2d[(v1, v2)] = segment_mults[dimensions[0]][v1] * (
+                        1.45 if v2 == detail_value else random.uniform(0.85, 1.25))
                 else:
                     compound_2d[(v1, v2)] = segment_mults[dimensions[0]].get(v1, 0.5)
 
@@ -604,6 +669,18 @@ def generate_data(story_config, q=None, advanced=None):
 
     start_date = TODAY - relativedelta(months=history_months)
     dates = _pd().date_range(start_date, TODAY, freq=freq).date.tolist()
+
+    # Background variation (segment levels, seasonality, drift, shocks) so the
+    # data doesn't look flat — the designed signal is applied on top of it
+    from data_generator import Realism, cap_signal, signal_scale
+    # Worst segment drops at most MAX_DECLINE (45%); every segment scales alike
+    # Scale from the segment multipliers, not the 2D drill cells: one extreme
+    # cell (up to 2.8x) would shrink the whole story into the noise. The few
+    # deepest cells above the line are held by cap_signal.
+    signal_magnitude *= signal_scale(signal_magnitude, segment_mults[dimensions[0]].values())
+    realism = Realism(metric_config, dimensions, dim_values, dates,
+                      seed=random.randrange(1 << 30),
+                      strength=float(advanced.get("variability", 1.0)))
 
     n_entities = 2
     from itertools import product as cartprod
@@ -637,8 +714,9 @@ def generate_data(story_config, q=None, advanced=None):
                 for i, dim in enumerate(dimensions):
                     row[dim] = combo[i]
 
+                row_dims = dict(zip(dimensions, combo))
                 for mc in metric_config:
-                    base = base_values[mc["field"]]
+                    base = base_values[mc["field"]] * realism.factor(mc["field"], row_dims, dt)
                     is_primary = mc.get("is_primary", False)
                     sent = mc.get("sentiment", "up_is_good")
 
@@ -649,20 +727,31 @@ def generate_data(story_config, q=None, advanced=None):
                         mag = supporting_magnitude
                         mult = combined_mult * 0.7
 
-                    noise = random.gauss(0, ns)
-                    # Signal direction: "up_is_good" metrics decline, others increase
-                    if sent == "up_is_good":
-                        val = base * (1 - mag * ramp * mult) + noise
+                    # Noise relative to the value (a fixed ±0.02 vanished on $185K deals)
+                    noise = random.gauss(0, ns) * abs(base) + realism.row_noise(mc["field"], base)
+                    # Signal direction: "up_is_good" metrics decline, others increase.
+                    # Capped: a 2.5x culprit at 0.40 magnitude would otherwise drop 100%.
+                    if mc["label"] == plan.get("counter_trend_metric"):
+                        # The story's counter-trend metric improves (up to ~45% at full signal, most in
+                        # the culprit) while the rest decline — the "working harder" mask
+                        improve = 0.30 * ramp * min(1.5, 0.5 + abs(combined_mult) / 2)
+                        val = base * (1 + improve if sent == "up_is_good" else 1 - improve) + noise
+                    elif sent == "up_is_good":
+                        val = base * (1 - cap_signal(mag * ramp * mult)) + noise
                     else:
-                        val = base * (1 + mag * ramp * mult) + noise
+                        val = base * (1 + cap_signal(mag * ramp * mult, worsens_upward=True)) + noise
 
                     if mc["agg"] == "Average":
                         br = mc.get("base_range", [0.55, 0.85])
                         floor = max(0.001, br[0] * 0.3)
-                        ceiling = min(1.0, br[1] * 2.5)
+                        # Only rates are capped at 100% — a days/score average isn't
+                        ceiling = min(1.0, br[1] * 2.5) if is_percent_metric(mc) else br[1] * 2.5
                         val = max(floor, min(ceiling, val))
                     else:
-                        val = max(0, val * 1000)
+                        # Legacy 0-1 base_range for a Sum metric meant "thousands"; real
+                        # ranges (e.g. 32-48 activities) are used as-is
+                        br = mc.get("base_range", [0.55, 0.85])
+                        val = max(0, val * 1000 if br[1] <= 1.0 else val)
 
                     row[mc["label"]] = round(val, 4)
 
@@ -684,6 +773,216 @@ def generate_data(story_config, q=None, advanced=None):
 # ---------------------------------------------------------------------------
 # Walkthrough document generation
 # ---------------------------------------------------------------------------
+
+def concierge_prompts(metric_config, story_config):
+    """The story's Concierge question sequence: [(title, question), ...]."""
+    lead_label = metric_config[0]["label"] if metric_config else "the primary metric"
+    lead = lead_label.lower()
+    dims = story_config.get("dimensions", [])
+    supporting = metric_config[1:4]
+    n = trend_window_months(story_config)
+    window = f"over the last {n} months"
+    worsening = "increase" if metric_config and metric_config[0].get("sentiment") in ("up_is_bad", "down_is_good") else "decline"
+
+    # Each question names the window: without it Concierge picks its own
+    # (often 6-vs-6 or 12 months) and a recent decline reads as "stable"
+    prompts = [("Opening", f"How has {lead} changed {window}?")]
+    if dims:
+        prompts.append((f"Drill — {dims[0]}", f"Which {dims[0].lower()} has had the biggest {worsening} in {lead} {window}?"))
+    if len(dims) >= 2:
+        prompts.append((f"Drill — {dims[1]}", f"Within that {dims[0].lower()}, how has {lead} changed by {dims[1].lower()}?"))
+    if supporting:
+        prompts.append((f"Root Cause — {supporting[0]['label']}", f"How has {supporting[0]['label'].lower()} changed {window} in that {dims[0].lower() if dims else 'segment'}?"))
+    counter_metric = (story_config.get("signal_plan") or {}).get("counter_trend_metric")
+    if counter_metric:
+        # The story's counter-trend metric improves while the rest decline
+        prompts.append(("Counter-Trend", f"How has {counter_metric.lower()} changed {window}?"))
+    elif dims:
+        # Otherwise the data's counter-trend is a segment of dimension 0 that improves
+        prompts.append(("Counter-Trend", f"Is any {dims[0].lower()} improving on {lead} {window}?"))
+    prompts.append(("At Risk", f"Where is {lead} most at risk, by {dims[1].lower() if len(dims) > 1 else 'segment'}?"))
+    return prompts
+
+
+def _concierge_answer(result):
+    """Pull the answer text out of an analyze_data result.
+
+    Salesforce errors come back as isError + a JSON list of {errorCode, message}
+    (e.g. a 404 from /v1/analyze-semantic-data when Concierge isn't on for the
+    org). Raise those with their message instead of failing on the list shape.
+    """
+    import html as _html_mod
+    content = result if isinstance(result, list) else result.get("content", []) if isinstance(result, dict) else []
+    text = content[0].get("text", "") if content else ""
+    try:
+        data = json.loads(text) if text else {}
+    except json.JSONDecodeError:
+        data = {"answer": text}
+    if (isinstance(result, dict) and result.get("isError")) or isinstance(data, list):
+        errs = data if isinstance(data, list) else [data]
+        msg = "; ".join(str(e.get("message", e)) if isinstance(e, dict) else str(e) for e in errs)
+        raise RuntimeError(msg or text or "Concierge returned an error")
+    return _html_mod.unescape(data.get("answer", "(no response)"))
+
+
+def concierge_captured(cp):
+    """True when at least one live Concierge answer is saved."""
+    return any(r.get("ok", not r.get("answer", "").startswith("(Concierge unavailable"))
+               for r in cp.get("concierge_results", []))
+
+
+def capture_concierge(cp, config, metric_config, story_config, q=None):
+    """Ask the story's questions to Concierge and save the answers to cp["concierge_results"].
+
+    Stops after the first failure: the questions build on each other, and an
+    org without Concierge fails every one the same way.
+    """
+    from mcp_client import MCPClient
+    mcp = MCPClient(config)
+    if not mcp.available:
+        raise RuntimeError("Tableau Next MCP isn't configured for this connection")
+    mcp.authenticate()
+    mcp.initialize()
+
+    dims = story_config.get("dimensions", [])
+    dim0_values = story_config.get("dimension_values", {}).get(dims[0], []) if dims else []
+    worst = None  # the dimension-0 value the drill-down answer names
+
+    results = []
+    context = ""
+    for title, ask in concierge_prompts(metric_config, story_config):
+        # Concierge doesn't resolve "that region" from the previous answer — it asks
+        # back which one. Name the value the drill-down found instead.
+        if worst:
+            ask = ask.replace(f"that {dims[0].lower()}", f"the {worst} {dims[0].lower()}")
+        args = {"utterance": ask, "targetEntityType": "sdm",
+                "targetEntityIdOrApiName": cp["sdm_api"]}
+        if context:
+            args["conversationContext"] = context
+        try:
+            answer = _concierge_answer(mcp.call_tool("analyze_data", args))
+        except Exception as e:
+            err = str(e)
+            if "analyze-semantic-data" in err and "404" in err:
+                err = ("Concierge isn't available on this org yet (Salesforce's analysis "
+                       "service returned 404). Turn on Tableau Next / Concierge, then retry.")
+            results.append({"title": title, "question": ask, "ok": False,
+                            "answer": f"(Concierge unavailable: {err[:300]})"})
+            progress(q, "warn", f"  {title}: failed — {err[:200]}", -1)
+            break
+        if dims and title == f"Drill — {dims[0]}" and not worst:
+            # First value named in the answer (Concierge bolds it: **Midwest**)
+            hits = sorted((answer.find(v), v) for v in dim0_values if v in answer)
+            worst = hits[0][1] if hits else None
+        context = f"Previous Q: {ask}\nPrevious A: {answer[:500]}"
+        results.append({"title": title, "question": ask, "answer": answer, "ok": True})
+        progress(q, "info", f"  {title}: captured", -1)
+
+    # Flag impossible percentages (e.g. "3000%") — a sign a metric is
+    # formatted as a percent but isn't one. Don't let it reach the walkthrough unseen.
+    for r in results:
+        if not r["ok"]:
+            continue
+        bad = [m for m in re.findall(r"(\d[\d,]*(?:\.\d+)?)\s?%", r["answer"])
+               if float(m.replace(",", "")) > 100]
+        if bad:
+            r["suspect"] = f"percent over 100% ({', '.join(bad[:3])}%)"
+            progress(q, "warn", f"  {r['title']}: answer has {r['suspect']} — check the metric's Format", -1)
+
+    cp["concierge_results"] = results
+    captured = sum(r["ok"] for r in results)
+    progress(q, "info", f"  Captured {captured} of {len(concierge_prompts(metric_config, story_config))} Concierge responses", -1)
+    return results
+
+
+def _answer_html(answer):
+    """Concierge answer text → safe HTML. Answers can arrive double-encoded
+    (`&#36;` for $) and use markdown bold (`**30%**`)."""
+    import html as _html
+    prev = None
+    while prev != answer:  # decode until stable
+        prev, answer = answer, _html.unescape(answer)
+    out = _html.escape(answer.strip())
+    out = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", out)
+    out = re.sub(r"(?m)^#{1,6}\s*(.+)$", r"<b>\1</b>", out)   # markdown headings
+    out = re.sub(r"(?m)^\s*[-*]\s+", "&bull; ", out)            # bullets
+    return out.replace("\n", "<br>")
+
+
+def concierge_section_html(checkpoint, metric_config, story_config):
+    """Walkthrough "Concierge Prompts" section as a list of HTML strings.
+
+    Only real answers are shown — a failed capture lists the question as
+    "not captured". Used by generate_walkthrough() and by recapture_concierge(),
+    which swaps just this section into an existing walkthrough.
+    """
+    import html as _html
+    e = _html.escape
+    h = []
+    # Only real answers — a failed capture shows the question as "not captured"
+    answered = {cr["title"]: cr for cr in checkpoint.get("concierge_results", [])
+                if cr.get("ok", not cr.get("answer", "").startswith("(Concierge unavailable"))}
+    h.append(f"<h1>Tableau Next — Concierge Prompts</h1>")
+    if answered:
+        h.append("<p class='subtitle'>Each question was asked to Concierge at build time. Responses are live AI-generated answers based on the actual demo data.</p>")
+    else:
+        h.append("<p class='subtitle'><b>Note:</b> Concierge wasn't available during this build. The prompts below are the questions to ask — run them live in the Tableau Next workspace, or use Retry Concierge on the My Demos page to capture the answers.</p>")
+    for title, ask in concierge_prompts(metric_config, story_config):
+        cr = answered.get(title)
+        h.append(f'<div class="step"><h2>{e(title)}</h2>')
+        # Show the question as actually asked (it names the drill-down's segment)
+        h.append(f'<p><b>Ask:</b> &ldquo;{e(cr["question"] if cr else ask)}&rdquo;</p>')
+        if cr:
+            h.append(f'<p><b>Expected response:</b> {_answer_html(cr["answer"])}</p>')
+            if cr.get("suspect"):
+                h.append(f'<p><b>Check before presenting:</b> this answer has a {e(cr["suspect"])}. Re-ask it live in Concierge.</p>')
+        else:
+            h.append('<p><b>Expected response:</b> <i>(not captured — run live in Concierge)</i></p>')
+        h.append('</div>')
+    return h
+
+
+def recapture_concierge(slug, demo_dir, q=None):
+    """Re-ask a built demo's Concierge questions and update its walkthrough.
+
+    For builds where Concierge wasn't available at build time (e.g. Tableau Next
+    wasn't enabled yet). Replaces only the Concierge section of the existing
+    walkthrough HTML, so the rest (company overview, metrics, preferences) stays.
+    Returns {"captured": n, "total": n, "error": str|None}.
+    """
+    from connections import load_config
+    cp_path = os.path.join(demo_dir, f"{slug}_checkpoint.json")
+    with open(cp_path) as f:
+        cp = json.load(f)
+    if not cp.get("sdm_api"):
+        return {"captured": 0, "total": 0, "error": "This demo has no Tableau Next semantic model"}
+    story_config = cp.get("story_config") or cp.get("story", {})  # full story when saved
+    metric_config = story_config.get("metric_config", [])
+    config = load_config(cp.get("_profile_key"), connection_type="salesforce")
+
+    total = len(concierge_prompts(metric_config, story_config))
+    try:
+        results = capture_concierge(cp, config, metric_config, story_config, q)
+    except Exception as e:
+        return {"captured": 0, "total": total, "error": str(e)[:300]}
+    _save_cp(cp, slug, demo_dir)
+
+    wt_path = os.path.join(demo_dir, f"{slug}_demo_walkthrough.html")
+    if os.path.exists(wt_path):
+        with open(wt_path) as f:
+            page = f.read()
+        start = page.find("<h1>Tableau Next — Concierge Prompts</h1>")
+        if start != -1:
+            end = page.find("<h1>", start + 1)
+            end = end if end != -1 else page.find("</body>", start)
+            page = page[:start] + "\n".join(concierge_section_html(cp, metric_config, story_config)) + "\n" + page[end:]
+            with open(wt_path, "w") as f:
+                f.write(page)
+
+    captured = sum(1 for r in results if r.get("ok"))
+    failed = next((r["answer"] for r in results if not r.get("ok")), None)
+    return {"captured": captured, "total": total, "error": failed if not captured else None}
+
 
 def generate_walkthrough(slug, company, story_config, metric_config, build_type, checkpoint, demo_dir):
     """Generate an HTML walkthrough following the CLAUDE.md standard format.
@@ -834,31 +1133,7 @@ ul{{padding-left:1.5em}}li{{margin:4px 0}}
 
     # ── Section 4: Tableau Next — Concierge Prompts ──────────────────────────
     if built_next:
-        concierge_live = checkpoint.get("concierge_results", [])
-        if concierge_live:
-            h.append(f"<h1>Tableau Next — Concierge Prompts</h1>")
-            h.append("<p class='subtitle'>Each question was asked to Concierge at build time. Responses are live AI-generated answers based on the actual demo data.</p>")
-            for cr in concierge_live:
-                h.append(f'<div class="step"><h2>{e(cr["title"])}</h2>')
-                h.append(f'<p><b>Ask:</b> &ldquo;{e(cr["question"])}&rdquo;</p>')
-                h.append(f'<p><b>Expected response:</b> {e(cr.get("answer", "(no response captured)"))}</p></div>')
-        else:
-            h.append(f"<h1>Tableau Next — Concierge Prompts</h1>")
-            h.append("<p class='subtitle'><b>Note:</b> Concierge was not available during this build (MCP authentication required). The prompts below are suggested questions to ask — run them live in the Tableau Next workspace to see actual responses.</p>")
-            prompts = [
-                ("Opening", f"How is {lead_metric.lower()} trending?"),
-            ]
-            if dims:
-                prompts.append((f"Drill — {dims[0]}", f"Which {dims[0].lower()} has the worst {lead_metric.lower()}?"))
-            if len(dims) >= 2:
-                prompts.append((f"Drill — {dims[1]}", f"Within that {dims[0].lower()}, break it down by {dims[1].lower()}"))
-            if supporting:
-                prompts.append((f"Root Cause — {supporting[0]['label']}", f"What about {supporting[0]['label'].lower()}?"))
-            if counter:
-                prompts.append(("Counter-Trend", f"Is {counter[0]['label'].lower()} also declining?"))
-            prompts.append(("At Risk", f"Which segments are most at risk?"))
-            for title, ask in prompts:
-                h.append(f'<div class="step"><h2>{e(title)}</h2><p><b>Ask:</b> &ldquo;{e(ask)}&rdquo;</p><p><b>Expected response:</b> <i>(not captured — run live in Concierge)</i></p></div>')
+        h.extend(concierge_section_html(checkpoint, metric_config, story_config))
 
     # ── Business Preferences (Next only) ─────────────────────────────────────
     if built_next:
@@ -1118,7 +1393,7 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
             for d in dims:
                 columns.append({"name": d, "role": "dimension", "datatype": "string"})
             for mc in metric_config:
-                fmt = "percentage" if mc.get("agg") == "Average" else "decimal"
+                fmt = "percentage" if is_percent_metric(mc) else "decimal"
                 columns.append({"name": mc["label"], "role": "measure", "datatype": "real", "format": fmt})
 
             # Build worksheets using label names (matching the published .hyper columns)
@@ -2007,7 +2282,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
             clc_base = clean_field_name(mc['field'])
             clc_api = f"{clc_base}_clc"
-            is_rate = mc.get("agg", "Average") == "Average"
+            is_rate = is_percent_metric(mc)
             clc_expression = f'AVG([{cp["do_api"]}].[{meas_api}])'
             if mc.get("agg") == "Sum":
                 clc_expression = f'SUM([{cp["do_api"]}].[{meas_api}])'
@@ -2183,7 +2458,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 why = mc.get("why_it_matters", "")
                 if not desc:
                     continue
-                is_rate = mc.get("agg", "Average") == "Average"
+                is_rate = is_percent_metric(mc)
                 body = {
                     "apiName": cm["apiName"], "label": cm.get("label", ""),
                     "expression": cm.get("expression", ""),
@@ -2309,6 +2584,14 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                                "data_source_object", "data_source"}
                 user_dims = [(k, v) for k, v in dim_map.items()
                              if k.lower().replace(" ", "_") not in SYSTEM_DIMS]
+                # Story order: the culprit dimension must color the trend line
+                user_dims = [(k, dim_map[k]) for k in story_ordered([k for k, _ in user_dims], story_config)]
+
+                # Metrics actually created, in METRIC_CONFIG order
+                mc_by_base = {clean_field_name(mc["field"]): mc for mc in metric_config}
+                created_mcs = [mc_by_base[b] for b in created_metric_bases if b in mc_by_base]
+                # Breakdown charts show the first supporting metric that was created
+                detail_mc = created_mcs[1] if len(created_mcs) > 1 else (created_mcs[0] if created_mcs else None)
 
                 # Map template fields to this demo's fields
                 field_map = {}
@@ -2328,16 +2611,18 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                     if i < len(user_dims):
                         field_map[tmpl_dim] = user_dims[i][1]  # map to target dim apiName
 
+                # Display labels: the story's own dimension names ("Employer Partner")
+                story_dim_labels = {clean_field_name(d): d for d in story_config.get("dimensions", [])}
+                dim_labels = [story_dim_labels.get(ud[0], ud[0].replace("_", " ").title()) for ud in user_dims]
+
                 # Filter fields
                 filter_fields = [
-                    {"fieldName": api, "objectName": cp["do_api"], "label": name.replace("_", " ").title()}
-                    for name, api in user_dims[:6]
+                    {"fieldName": api, "objectName": cp["do_api"], "label": dim_labels[i]}
+                    for i, (name, api) in enumerate(user_dims[:6])
                 ]
 
                 # Build label_map: remap D16 display labels → this demo's labels
-                label_map = {
-                    "Section Subheader": company,
-                }
+                label_map = {}
                 # Map D16 metric labels to this demo's metric labels
                 d16_metric_labels = [
                     "Tableau Platform Utilization Rate",
@@ -2347,18 +2632,21 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 ]
                 d16_dim_labels = ["Team", "Report Type", "System Source", "Request Status"]
                 for i, d16_label in enumerate(d16_metric_labels):
-                    if i < len(metric_config):
-                        label_map[d16_label] = metric_config[i]["label"]
+                    if i < len(created_mcs):
+                        label_map[d16_label] = created_mcs[i]["label"]
                 for i, d16_label in enumerate(d16_dim_labels):
-                    if i < len(user_dims):
-                        label_map[d16_label] = user_dims[i][0].replace("_", " ").title()
+                    if i < len(dim_labels):
+                        label_map[d16_label] = dim_labels[i]
 
                 # Viz title labels — replace generic template labels with meaningful ones
-                primary_label = metric_config[0]["label"] if metric_config else "Metric"
-                detail_label = metric_config[1]["label"] if len(metric_config) > 1 else primary_label
-                dim_labels = [ud[0].replace("_", " ").title() for ud in user_dims]
+                primary_label = created_mcs[0]["label"] if created_mcs else "Metric"
+                detail_label = detail_mc["label"] if detail_mc else primary_label
                 label_map["Trend Line"] = f"{primary_label} Over Time"
                 label_map["Donut Chart"] = f"{detail_label} by {dim_labels[2]}" if len(dim_labels) > 2 else detail_label
+                # A donut is share of a whole — only a summed metric has one
+                donut_as_bar = not detail_mc or detail_mc.get("agg") != "Sum"
+                percent_fields = [f"{clean_field_name(mc['field'])}_clc" for mc in created_mcs
+                                  if is_percent_metric(mc)]
                 label_map["Horizontal Bar"] = f"{detail_label} by {dim_labels[1]}" if len(dim_labels) > 1 else detail_label
                 label_map["Detail Bar 2"] = f"{detail_label} by {dim_labels[0]}" if dim_labels else detail_label
                 label_map["Details Table"] = "Details"
@@ -2393,6 +2681,11 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                     field_map=field_map if field_map else None,
                     label_map=label_map if label_map else None,
                     detail_headers=detail_headers,
+                    percent_fields=percent_fields,
+                    donut_as_bar=donut_as_bar,
+                    # Details table: the first metrics as columns (it shipped dimensions only)
+                    table_measures=[{"fieldName": f"{clean_field_name(mc['field'])}_clc", "label": mc["label"],
+                                     "percent": is_percent_metric(mc)} for mc in created_mcs[:3]],
                 )
 
                 if results.get("dashboard") and not results.get("errors"):
@@ -2464,8 +2757,8 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 SYSTEM_DIMS = {"date", "record_id", "entity_id", "day_offset", "kq_record_id",
                                "datasourceobject", "datasource", "cdp_sys_sourceversion",
                                "data_source_object", "data_source"}
-                user_dim_names = [k for k in cp.get("dim_field_map", {}).keys()
-                                  if k.lower().replace(" ", "_") not in SYSTEM_DIMS]
+                user_dim_names = story_ordered([k for k in cp.get("dim_field_map", {}).keys()
+                                                if k.lower().replace(" ", "_") not in SYSTEM_DIMS], story_config)
                 do_api = cp["do_api"]
                 # MCP vizzes use the raw date field (not Display_Date calc dim)
                 # because calc dims are model-level and can't have objectName
@@ -2486,9 +2779,8 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                         continue
                     dim = user_dim_names[i % len(user_dim_names)] if user_dim_names else None
                     dim_api = cp.get("dim_field_map", {}).get(dim, "") if dim else ""
-                    is_rate = mc.get("agg", "Average") == "Average"
-                    func = "Avg" if is_rate else "Sum"
-                    fmt = "Percent" if is_rate else "Number"
+                    func = "Avg" if mc.get("agg", "Average") == "Average" else "Sum"
+                    fmt = "Percent" if is_percent_metric(mc) else "Number"
 
                     if i == 0:
                         # First viz: trend line over time
@@ -2687,8 +2979,8 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 SYSTEM_DIMS = {"date", "record_id", "entity_id", "day_offset", "kq_record_id",
                            "datasourceobject", "datasource", "cdp_sys_sourceversion",
                            "data_source_object", "data_source"}
-                user_dim_names = [k for k in cp.get("dim_field_map", {}).keys()
-                                  if k.lower().replace(" ", "_") not in SYSTEM_DIMS]
+                user_dim_names = story_ordered([k for k in cp.get("dim_field_map", {}).keys()
+                                                if k.lower().replace(" ", "_") not in SYSTEM_DIMS], story_config)
 
                 brand = build_config.get("brand", {}) if build_config else {}
                 style_overrides = {}
@@ -2812,64 +3104,14 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         progress(q, "warn", f"Asset linking failed: {e}", -1)
 
     # --- Phase 7b: Concierge prompt testing (capture live responses for walkthrough) ---
-    if not cp.get("concierge_results") and cp.get("sdm_api"):
+    # Re-runs whenever no answer was captured yet — a failed capture doesn't block a retry
+    if not concierge_captured(cp) and cp.get("sdm_api"):
         progress(q, "concierge", "Testing Concierge prompts...", 90)
         try:
-            from mcp_client import MCPClient
-            mcp = MCPClient(config)
-            if mcp.available:
-                mcp.authenticate()
-                mcp.initialize()
-                sdm_api = cp["sdm_api"]
-                lead_label = metric_config[0]["label"] if metric_config else "the primary metric"
-                dims = story_config.get("dimensions", [])
-                supporting = metric_config[1:4]
-                counter = [mc for mc in metric_config if mc.get("sentiment") == "up_is_good"]
-
-                prompts = [("Opening", f"How is {lead_label.lower()} trending?")]
-                if dims:
-                    prompts.append((f"Drill — {dims[0]}", f"Which {dims[0].lower()} has the worst {lead_label.lower()}?"))
-                if len(dims) >= 2:
-                    prompts.append((f"Drill — {dims[1]}", f"Within that {dims[0].lower()}, break it down by {dims[1].lower()}"))
-                if supporting:
-                    prompts.append((f"Root Cause — {supporting[0]['label']}", f"What about {supporting[0]['label'].lower()}?"))
-                if counter:
-                    prompts.append(("Counter-Trend", f"Is {counter[0]['label'].lower()} also declining?"))
-                prompts.append(("At Risk", "Which segments are most at risk?"))
-
-                results = []
-                context = ""
-                for title, ask in prompts:
-                    try:
-                        args = {"utterance": ask, "targetEntityType": "sdm",
-                                "targetEntityIdOrApiName": sdm_api}
-                        if context:
-                            args["conversationContext"] = context
-                        result = mcp.call_tool("analyze_data", args)
-                        if isinstance(result, list):
-                            content = result
-                        elif isinstance(result, dict):
-                            content = result.get("content", [])
-                        else:
-                            content = []
-                        text = content[0].get("text", "") if content else ""
-                        data = json.loads(text) if text else {}
-                        answer = data.get("answer", "(no response)")
-                        # Strip HTML entities for clean text
-                        import html as _html_mod
-                        answer = _html_mod.unescape(answer)
-                        context = f"Previous Q: {ask}\nPrevious A: {answer[:500]}"
-                        results.append({"title": title, "question": ask, "answer": answer})
-                        progress(q, "info", f"  {title}: captured", -1)
-                    except Exception as e:
-                        results.append({"title": title, "question": ask, "answer": f"(Concierge unavailable: {str(e)[:100]})"})
-                        progress(q, "warn", f"  {title}: failed — {str(e)[:100]}", -1)
-
-                cp["concierge_results"] = results
-                _save_cp(cp, slug, demo_dir)
-                progress(q, "info", f"  Captured {len(results)} Concierge responses", -1)
+            capture_concierge(cp, config, metric_config, story_config, q)
+            _save_cp(cp, slug, demo_dir)
         except Exception as e:
-            progress(q, "warn", f"Concierge testing skipped: {str(e)[:150]}", -1)
+            progress(q, "warn", f"Concierge testing skipped: {str(e)[:200]}", -1)
 
     progress(q, "walkthrough", "Generating walkthrough document...", 92)
     generate_walkthrough(slug, company, story_config, metric_config, "next", cp, demo_dir)
@@ -2935,7 +3177,7 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
         # Set percentage formatting on rate fields via XMD
         try:
             from crma_uploader import set_percentage_fields
-            rate_fields = [_crma_safe(mc["field"]) for mc in metric_config if mc.get("agg", "Average") == "Average"]
+            rate_fields = [_crma_safe(mc["field"]) for mc in metric_config if is_percent_metric(mc)]
             if rate_fields and dataset_id:
                 ok = set_percentage_fields(sf_instance, sf_token, dataset_id, rate_fields)
                 if ok:
@@ -2946,7 +3188,7 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
         # Create CRMA dashboard from golden template
         progress(q, "crma", "Building CRM Analytics dashboard from template...", 65)
         try:
-            from crma_dashboard_builder import create_dashboard
+            from crma_dashboard_builder import upsert_dashboard
 
             golden_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "crma_golden_template.json")
             with open(golden_path) as _gf:
@@ -3070,17 +3312,19 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
                 for page in gl.get("pages", []):
                     page.pop("label", None)
 
-            dash_id = create_dashboard(
+            # Rebuilds update the saved dashboard in place instead of adding a copy
+            dash_id = upsert_dashboard(
                 sf_instance=sf_instance,
                 sf_token=sf_token,
                 dashboard_label=f"{company} — Analytics Dashboard",
                 state=state,
                 app_id=app_id,
                 description=f"CRM Analytics dashboard for {company} demo",
+                dashboard_id=cp.get("crma_dashboard_id"),
             )
             if dash_id:
                 cp["crma_dashboard_id"] = dash_id
-                progress(q, "crma", f"CRMA dashboard created: {dash_id}", 80)
+                progress(q, "crma", f"CRMA dashboard ready: {dash_id}", 80)
             else:
                 progress(q, "warn", "CRMA dashboard creation returned no ID", -1)
         except Exception as e:
@@ -3184,12 +3428,21 @@ def run_build(build_id, build_config, progress_queue):
                 "audience": story_config.get("audience", build_config.get("audience", "")),
                 "root_cause": story_config.get("root_cause", ""),
                 "entity_field": "entity_id",
+                "signal_onset": story_config.get("signal_onset", -3),
+                "signal_plan": story_config.get("signal_plan", {}),
             }
             cp["company"] = company
             cp["build_type"] = "next" if outputs.get("next") else "pulse" if outputs.get("pulse") else "csv"
             _save_cp(cp, slug, demo_dir)
 
         progress(q, "init", "Generating data...", 0)
+        # The signal's onset sets the comparison window Concierge uses (business
+        # preferences + Concierge prompts), so it must travel with the story
+        apply_signal_plan(story_config)
+        if "signal_onset" in advanced:
+            story_config["signal_onset"] = advanced["signal_onset"]
+        advanced = {**advanced, "signal_onset": story_config["signal_onset"]}
+        cp["story_config"] = story_config  # full story, so rebuilds keep the overview
         df = generate_data(story_config, q, advanced=advanced)
 
         if outputs.get("csv"):
@@ -3221,3 +3474,18 @@ def _save_cp(cp, slug, demo_dir):
     path = os.path.join(demo_dir, f"{slug}_checkpoint.json")
     with open(path, "w") as f:
         json.dump(cp, f, indent=2, default=str)
+
+
+if __name__ == "__main__":
+    # python3 web-ui/builder.py concierge <slug> — re-ask a built demo's Concierge
+    # questions and update its walkthrough (e.g. Tableau Next wasn't on at build time)
+    if sys.argv[1:2] == ["concierge"] and len(sys.argv) > 2:
+        _slug = sys.argv[2]
+        _res = recapture_concierge(_slug, str(PROJECT_ROOT / "demos" / _slug))
+        print(f"Captured {_res['captured']} of {_res['total']} Concierge answers")
+        if _res["error"]:
+            print(f"Error: {_res['error']}")
+            sys.exit(1)
+    else:
+        print("Usage: python3 web-ui/builder.py concierge <slug>")
+        sys.exit(2)

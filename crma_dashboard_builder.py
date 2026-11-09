@@ -12,18 +12,23 @@ from typing import Any, Dict, List, Optional
 import requests
 
 
-# Chart type mapping from our template system to CRMA visualizationType
+# Chart type mapping from our template system to CRMA visualizationType.
+# Never "time" (white-screens a dashboard with filters + charts) or "donut"
+# (silently renders as a bar) — see CRMA_BUILD_PLAYBOOK.md §4.
 CHART_TYPE_MAP = {
-    "trend_over_time": "time",
-    "multi_series_line": "time",
+    "trend_over_time": "line",
+    "multi_series_line": "line",
     "bar_by_category": "hbar",
     "stacked_bar": "bar",
     "horizontal_bar": "hbar",
-    "donut": "donut",
+    "donut": "pie",  # pair with DONUT_PARAMS
     "scatter": "scatter",
     "heatmap": "matrix",
     "funnel": "hbar",
 }
+
+# A CRMA donut is a pie with a hole. centerText without a hole overlaps the slices.
+DONUT_PARAMS = {"inner": 0.6}
 
 
 def _uid() -> str:
@@ -480,6 +485,45 @@ def create_dashboard(
         return None
 
 
+def upsert_dashboard(
+    sf_instance: str,
+    sf_token: str,
+    dashboard_label: str,
+    state: dict,
+    app_id: Optional[str] = None,
+    description: str = "",
+    dashboard_id: Optional[str] = None,
+) -> Optional[str]:
+    """Update the demo's CRMA dashboard in place, or create it if there isn't one.
+
+    Re-POSTing on every rebuild leaves a stray copy each time, and the new one
+    gets an auto-suffixed developer name (`X1`) that breaks nav links. So when
+    `dashboard_id` (from the checkpoint) still exists, PATCH it (PUT returns
+    405). Only the dashboard AIO recorded is ever updated — never one matched
+    by label. Falls back to create_dashboard() when there's no ID or it was
+    deleted.
+
+    Returns the dashboard ID, or None on failure.
+    """
+    if dashboard_id:
+        headers = {"Authorization": f"Bearer {sf_token}", "Content-Type": "application/json"}
+        url = f"{sf_instance}/services/data/v61.0/wave/dashboards/{dashboard_id}"
+        r = requests.get(url, headers=headers)
+        if r.status_code == 200:
+            payload = {"label": dashboard_label, "state": state, "description": description}
+            if app_id:
+                payload["folder"] = {"id": app_id}
+            r = requests.patch(url, headers=headers, json=payload)
+            if r.status_code == 200:
+                print(f"  CRMA dashboard updated in place: {dashboard_id}")
+                return dashboard_id
+            print(f"  CRMA dashboard update FAILED ({r.status_code}): {r.text[:400]}")
+            return None
+        print(f"  Saved CRMA dashboard {dashboard_id} not found ({r.status_code}) — creating a new one")
+    return create_dashboard(sf_instance, sf_token, dashboard_label, state,
+                            app_id=app_id, description=description)
+
+
 def find_or_create_app(
     sf_instance: str,
     sf_token: str,
@@ -579,6 +623,7 @@ def create_dashboard_from_template(
     measure_fields: List[str],
     date_field: str,
     filter_fields: List[str],
+    existing_app_id: Optional[str] = None,
 ) -> Optional[Dict[str, str]]:
     """Create a CRMA dashboard from a Smart Template.
 
@@ -598,6 +643,10 @@ def create_dashboard_from_template(
         measure_fields: List of numeric field names to visualize (max 4)
         date_field: Date field name for time axis
         filter_fields: Dimension field names for filter widgets (max 4)
+        existing_app_id: The app this demo created on an earlier run (checkpoint
+                   `crma_app_id`). If it still exists it's reused, not re-created:
+                   each template run makes a whole new app, and its dashboard reads
+                   the dataset by ID, which an Overwrite re-upload keeps.
 
     Returns:
         Dict with 'app_id', 'dashboard_id', 'dashboard_url' or None on failure
@@ -609,6 +658,17 @@ def create_dashboard_from_template(
 
     headers = {"Authorization": f"Bearer {sf_token}", "Content-Type": "application/json"}
     api_base = f"{sf_instance}/services/data/v61.0"
+
+    if existing_app_id:
+        r = requests.get(f"{api_base}/wave/folders/{existing_app_id}", headers=headers)
+        if r.status_code == 200:
+            r2 = requests.get(f"{api_base}/wave/dashboards", headers=headers, params={"folderId": existing_app_id})
+            dashboards = r2.json().get("dashboards", []) if r2.status_code == 200 else []
+            if dashboards:
+                dash_id = dashboards[0]["id"]
+                print(f"  Reusing CRMA app {existing_app_id} (delete it to regenerate from the template)")
+                return {"app_id": existing_app_id, "dashboard_id": dash_id,
+                        "dashboard_url": f"{sf_instance}/analytics/dashboard/{dash_id}"}
 
     # Discover variable schema for this template
     r = requests.get(f"{api_base}/wave/templates/{template['id']}/configuration", headers=headers)
