@@ -4,6 +4,17 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-09 — Deploy Sales Insights in the Web UI
+
+> Tested with the Flask test client and on a second server instance (port 5199): page renders, profiles list with org URLs and deploy state, unconfirmed writes rejected, `check` and a no-op `deploy` on aio-dev run through the job/poll endpoints, deployed state renders (headless Chrome). A full fresh deploy hasn't been run from the page yet.
+
+### Added
+- **Deploy Sales Insights page** (replaces the info-only placeholder): pick a Salesforce connection (listed with its org URL and whether Sales Insights is deployed there), **Check org**, **Deploy** with a 7-phase tracker and live log, the finish-in-Tableau-Next items (share the workspace; business preferences fallback) and the demo story, and **Remove** (deletes only what the deploy created). `?profile=<key>` preselects a connection.
+- `/api/sales-insights/profiles | run | job/<id>`: one job per connection. Writes need confirmation. Progress is polled, so a page reload during a 10–15 minute deploy reconnects to the running job. Logs also go to `demos/sales_insights/{profile}/{action}.log`.
+- `python3 -m salesinsights check --profile <key>`: read-only preflight (login, ingest connector, source-org guard, earlier deploy).
+
+---
+
 ## 2026-11-09 — Dynamic Dashboard tile; Skills section in the sidebar
 
 > The build path ran on demo_build_test_1 with Z Layout + Dynamic selected: both dashboards were created, 16/16 checks passed, and the org was left with exactly those 2 dashboards and 10 vizzes. All Web UI pages render with the new sidebar (Flask test client).

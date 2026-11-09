@@ -417,6 +417,21 @@ def deploy(profile):
         print("Business preferences were not accepted by the API; paste package businessPreferences into the SDM in the UI.")
 
 
+def check(profile):
+    """Read-only preflight: auth, ingest connector, source-org guard, and any earlier deploy here."""
+    cp = _load_cp(profile)
+    org = _Org(profile)
+    print("[check]")
+    _preflight(org, cp)
+    if cp.get("instance") and cp["instance"] != org.inst:
+        print(f"  note: checkpoint is for {cp['instance']}; this profile now points at {org.inst}")
+    if cp["done"]:
+        print(f"  earlier deploy: phases done {cp['done']}; deploy resumes from there")
+    else:
+        print("  no earlier deploy for this profile")
+    print("check ok: ready to deploy")
+
+
 def status(profile):
     cp = _load_cp(profile)
     print(json.dumps({"instance": cp.get("instance"), "done": cp["done"], "workspace": cp["workspace"], "sdm": cp["sdm"],

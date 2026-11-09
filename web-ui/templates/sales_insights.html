@@ -9,41 +9,183 @@
     <p class="subtitle">Deploy a standalone copy of Tableau Next Sales Insights to any org with Data Cloud: six dashboards, 68 vizzes and the semantic model behind them, on synthetic data dated relative to today. The org doesn't need the managed Sales Insights app or any CRM data.</p>
 </div>
 
+<!-- 1. Org -->
 <div class="card story-section" style="padding:16px; margin-bottom:16px">
-    <h3>Runs from Claude Code for now</h3>
-    <p class="form-hint" style="margin-bottom:12px">This skill doesn't have a web UI yet. In Claude Code, type <code>/deploy-sales-insights</code>: it asks which org, confirms what it will create, and runs the deploy (about 10–15 minutes). Or run the steps yourself in a terminal from the AIO folder:</p>
-    {% for cmd, what in [
-        ("python3 -m salesinsights deploy --profile <key>", "Full deploy. Checkpointed: rerun it to resume where it stopped."),
-        ("python3 -m salesinsights status --profile <key>", "What's deployed and what failed."),
-        ("python3 -m salesinsights reset --profile <key>", "Delete only what the deploy created."),
-    ] %}
-    <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px">
-        <code style="flex:1; padding:8px 10px; border-radius:6px; background:var(--glass-bg); border:1px solid var(--border); font-size:12px">{{ cmd }}</code>
-        <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText({{ cmd|tojson }}); this.textContent='Copied'; setTimeout(() => this.textContent='Copy', 1500)">Copy</button>
+    <h3><span class="step-num">1</span> Org</h3>
+    <div class="form-group"><label>Salesforce connection *</label>
+        <select id="si-profile" onchange="onPick()"><option value="">Loading connections…</option></select>
+        <div class="form-hint">Pick by org URL, not name: never the Tableau Next &amp; Slack org (the source; the deploy refuses it). Add an org on <a href="/connections">Connections</a>.</div></div>
+    <div class="wizard-actions">
+        <button class="btn btn-secondary" id="si-check" onclick="run('check')">Check org</button>
+        <span class="form-hint">Read-only: login, Data Cloud ingest connector, and any earlier deploy.</span>
     </div>
-    <p class="form-hint" style="margin:-4px 0 12px">{{ what }}</p>
-    {% endfor %}
-    <p class="form-hint"><code>&lt;key&gt;</code> is the Salesforce connection's profile key (see <a href="/connections">Connections</a>). Never target the Tableau Next &amp; Slack org: it's the source, and the deploy refuses it.</p>
+    <div id="si-state" class="form-hint" style="margin-top:10px"></div>
 </div>
 
+<!-- 2. Deploy -->
 <div class="card story-section" style="padding:16px; margin-bottom:16px">
-    <h3>What it creates</h3>
-    <ul class="form-hint" style="margin:0; padding-left:18px; line-height:1.7">
+    <h3><span class="step-num">2</span> Deploy</h3>
+    <ul class="form-hint" style="margin:0 0 12px; padding-left:18px; line-height:1.7">
         <li>One workspace, "Sales Insights", with six dashboards: Sales Performance, Team Performance, Leaderboard, Sales Stage Progression, Sales Stage Conversion, Lead Analysis</li>
         <li>One semantic model (136 calculations, 9 parameters, 7 metrics, 17 joins) and 68 vizzes</li>
         <li>15 <code>si_*</code> data streams on the connection's ingest connector</li>
     </ul>
-    <p class="form-hint" style="margin-top:10px">Afterwards, share the workspace in the UI: Share → All Internal Users → View (the API can't share it).</p>
+    <div class="wizard-actions" style="flex-wrap:wrap; gap:8px">
+        <button class="btn btn-primary" id="si-deploy" onclick="run('deploy')">Deploy</button>
+        <span class="form-hint">About 10–15 minutes, mostly Data Cloud. If it stops, fix the cause and press Deploy again: it resumes and never recreates finished assets.</span>
+    </div>
+    <div id="si-phases" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:12px"></div>
+    <pre id="si-log" class="progress-log hidden" style="max-height:360px; overflow:auto; margin-top:12px; font-size:12px; white-space:pre-wrap"></pre>
 </div>
 
-<div class="card story-section" style="padding:16px">
-    <h3>The demo story</h3>
+<!-- 3. Finish -->
+<div class="card story-section hidden" id="si-finish" style="padding:16px; margin-bottom:16px">
+    <h3><span class="step-num">3</span> Finish in Tableau Next</h3>
+    <ul class="form-hint" style="margin:0; padding-left:18px; line-height:1.7">
+        <li><strong>Share the workspace</strong> <span id="si-ws"></span>: Share → All Internal Users → View. The API can't share it.</li>
+        <li id="si-prefs" class="hidden"><strong>Business preferences</strong> weren't accepted by the API: paste <code>semanticModel.businessPreferences</code> from <code>salesinsights/package/sales_insights_package.json</code> into the SDM (Data 360 → Semantic Model → AI Optimization → Manage Business Preferences).</li>
+    </ul>
+    <h3 style="margin-top:14px">The demo story</h3>
     <ul class="form-hint" style="margin:0; padding-left:18px; line-height:1.7">
         <li><strong>Team Harbor is behind:</strong> Rachel Kim's team wins ~29% of closed deals vs ~42–44% for Summit and Ridge, with smaller deals.</li>
         <li><strong>Pushes and stalls cluster on two Harbor reps,</strong> Lucas Moreau and Mateo Silva (Sales Stage Progression, Leaderboard).</li>
         <li><strong>Lead conversion</strong> runs from ~60% (Referral) to under 10% (Trade Show) (Lead Analysis).</li>
         <li><strong>Open deals with no activity</strong> fill the Leaderboard "No Activity" tab.</li>
+        <li>Sales leader: Morgan Reyes. Use the "Team Member" filter to drill from the leader to a manager's team. All names are fictional.</li>
     </ul>
-    <p class="form-hint" style="margin-top:10px">The data is anchored to the day it's generated. If the deploy is more than a couple of weeks old, refresh it before a meeting (<code>reset</code>, then <code>deploy</code>).</p>
+    <p class="form-hint" style="margin-top:10px">The data is dated to the day it's generated. If the deploy is more than a couple of weeks old, refresh it before a meeting: Remove, then Deploy.</p>
 </div>
+
+<!-- Remove -->
+<div class="card story-section" style="padding:16px">
+    <h3>Remove</h3>
+    <div class="wizard-actions" style="flex-wrap:wrap; gap:8px">
+        <button class="btn btn-ghost btn-sm" id="si-reset" onclick="run('reset')">Remove this deploy</button>
+        <span class="form-hint">Deletes only what this page deployed to the selected org (dashboards, vizzes, semantic model, workspace, data streams). Nothing else in the org is touched.</span>
+    </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const PHASES = [["preflight", "Preflight"], ["data", "Data"], ["sdm", "Semantic model"], ["semantic", "Calcs & joins"],
+                ["vizzes", "Vizzes"], ["dashboards", "Dashboards"], ["verify", "Verify"]];
+const CONFIRM = {
+    deploy: org => `Deploy Sales Insights to ${org}?\n\nCreates a "Sales Insights" workspace, a semantic model, 68 vizzes, 6 dashboards and 15 data streams.`,
+    reset: org => `Remove the Sales Insights deploy from ${org}?\n\nDeletes the dashboards, vizzes, semantic model, workspace and data streams this page created. This can't be undone.`,
+};
+let profiles = [], job = null;
+
+function phaseState(done, current, failed) {
+    $('si-phases').innerHTML = PHASES.map(([k, label]) => {
+        let cls = 'badge-pending', mark = '';
+        if (done.includes(k)) { cls = 'badge-ok'; mark = '✓ '; }
+        else if (k === failed) return `<span class="badge" style="background:var(--red-light); color:var(--red)">✕ ${label}</span>`;
+        else if (k === current) { cls = 'badge-neutral'; mark = '… '; }
+        return `<span class="badge ${cls}">${mark}${label}</span>`;
+    }).join('');
+}
+
+function picked() { return profiles.find(p => p.key === $('si-profile').value); }
+
+function renderState(p) {
+    if (!p) { $('si-state').innerHTML = ''; phaseState([], null, null); $('si-finish').classList.add('hidden'); return; }
+    const d = p.deploy;
+    let html = `<strong>Org:</strong> <code>${p.instance || 'not signed in yet'}</code>`;
+    if (!p.has_connector) html += `<div style="color:var(--orange)">⚠ This connection has no Data Cloud ingest connector saved. Re-run setup for it on <a href="/connections">Connections</a>.</div>`;
+    if (d && d.done.includes('verify')) {
+        const v = d.verify || {};
+        html += `<div style="color:var(--green)">✓ Deployed and verified${v.at ? ' ' + v.at : ''}: workspace <code>${d.workspace}</code>, ${d.dashboards} dashboards, ${d.vizzes} vizzes.</div>`;
+    } else if (d && d.done.length) {
+        html += `<div>Partly deployed (${d.done.length}/${PHASES.length} phases). Deploy resumes from where it stopped.</div>`;
+    } else {
+        html += `<div>Not deployed to this org yet.</div>`;
+    }
+    if (d && d.instance && p.instance && !p.instance.startsWith(d.instance) && !d.instance.startsWith(p.instance))
+        html += `<div style="color:var(--orange)">⚠ The saved deploy is for ${d.instance}, but this connection now points at ${p.instance}.</div>`;
+    $('si-state').innerHTML = html;
+    phaseState(d ? d.done : [], null, null);
+    showFinish(d);
+}
+
+function showFinish(d) {
+    const ok = d && d.done.includes('verify');
+    $('si-finish').classList.toggle('hidden', !ok);
+    if (ok) {
+        $('si-ws').innerHTML = `(<code>${d.workspace_label || 'Sales Insights'}</code>)`;
+        $('si-prefs').classList.toggle('hidden', !d.business_preferences_manual);
+    }
+}
+
+async function loadProfiles(keep) {
+    const r = await (await fetch('/api/sales-insights/profiles')).json();
+    profiles = r.profiles || [];
+    const want = keep || new URLSearchParams(location.search).get('profile') || localStorage.getItem('si-profile')
+        || (profiles.find(p => p.active) || {}).key || '';
+    $('si-profile').innerHTML = '<option value="">— pick a connection —</option>' + profiles.map(p => {
+        const tag = p.running ? ' · running' : (p.deploy && p.deploy.done.includes('verify') ? ' · deployed' : '');
+        return `<option value="${p.key}" ${p.key === want ? 'selected' : ''}>${p.label} — ${p.instance || 'not signed in'}${tag}</option>`;
+    }).join('');
+    onPick(true);
+}
+
+function onPick(fromLoad) {
+    const p = picked();
+    if (p) localStorage.setItem('si-profile', p.key);
+    if (!fromLoad || !job) renderState(p);
+    if (p && p.running && (!job || job.id !== p.running)) attach(p.running, true);
+}
+
+function setBusy(busy) { ['si-check', 'si-deploy', 'si-reset', 'si-profile'].forEach(id => $(id).disabled = busy); }
+
+async function run(action) {
+    const p = picked();
+    if (!p) { alert('Pick a Salesforce connection first.'); return; }
+    const org = `${p.label} (${p.instance || p.key})`;
+    if (CONFIRM[action] && !confirm(CONFIRM[action](org))) return;
+    const r = await (await fetch('/api/sales-insights/run', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile: p.key, action, confirmed: !!CONFIRM[action] }) })).json();
+    if (!r.ok) { alert(r.error); return; }
+    attach(r.job_id, r.already_running);
+}
+
+function attach(id, resumed) {
+    job = { id, next: 0, done: [], current: null, failed: null };
+    const p = picked();
+    if (p && p.deploy) job.done = [...p.deploy.done];
+    const log = $('si-log'); log.classList.remove('hidden'); log.textContent = resumed ? '(reconnected to the running job)\n' : '';
+    setBusy(true);
+    poll();
+}
+
+async function poll() {
+    if (!job) return;
+    let r;
+    try { r = await (await fetch(`/api/sales-insights/job/${job.id}?since=${job.next}`)).json(); }
+    catch (e) { setTimeout(poll, 4000); return; }
+    if (!r.ok) { $('si-log').textContent += r.error + '\n'; setBusy(false); job = null; loadProfiles(); return; }
+    const log = $('si-log');
+    for (const line of r.lines) {
+        log.textContent += line + '\n';
+        const m = line.match(/^\[(\w+)\]( done)?/);
+        if (m && PHASES.some(([k]) => k === m[1])) {
+            if (job.current && job.current !== m[1] && !job.done.includes(job.current)) job.done.push(job.current);
+            if (m[2]) { if (!job.done.includes(m[1])) job.done.push(m[1]); job.current = null; }
+            else job.current = m[1];
+        }
+    }
+    job.next = r.next;
+    log.scrollTop = log.scrollHeight;
+    if (r.action === 'deploy' || r.action === 'reset') phaseState(job.done, job.current, null);
+    if (r.state === 'running') { setTimeout(poll, 2000); return; }
+    if (r.state === 'error' && r.action === 'deploy') phaseState(job.done, null, job.current || PHASES.find(([k]) => !job.done.includes(k))[0]);
+    log.textContent += r.state === 'done' ? `\n✓ ${r.action} finished\n` : `\n✕ ${r.action} stopped — see the log above. Fix the cause and run it again.\n`;
+    log.scrollTop = log.scrollHeight;
+    const failedDeploy = r.state === 'error' && r.action === 'deploy';
+    job = null; setBusy(false);
+    await loadProfiles(r.profile);
+    if (failedDeploy) { const d = (picked() || {}).deploy; phaseState(d ? d.done : [], null, PHASES.find(([k]) => !(d ? d.done : []).includes(k))[0]); }
+}
+
+loadProfiles();
+</script>
 {% endblock %}

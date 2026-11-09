@@ -2,6 +2,7 @@
 
     python3 -m salesinsights capture --from <dir>     # maintainer: Package & Deploy exports -> package/
     python3 -m salesinsights generate [--out <dir>]   # seeded synthetic data -> CSVs (no org writes)
+    python3 -m salesinsights check --profile <key>    # read-only preflight (auth, connector, source-org guard)
     python3 -m salesinsights deploy --profile <key>   # checkpointed deploy to a target org
     python3 -m salesinsights status --profile <key>   # what the checkpoint says is deployed
     python3 -m salesinsights reset --profile <key>    # delete only what the deploy created
@@ -29,7 +30,7 @@ def main(argv):
     elif cmd == "generate":
         from salesinsights import generate
         generate.write_csvs(_arg(argv, "--out", os.path.join("demos", "sales_insights", "data")))
-    elif cmd in ("deploy", "status", "reset"):
+    elif cmd in ("check", "deploy", "status", "reset"):
         from salesinsights import deploy
         profile = _arg(argv, "--profile") or sys.exit(f"{cmd} needs --profile <config.json profile key>")
         getattr(deploy, cmd)(profile)

@@ -1171,8 +1171,103 @@ def _revintel_dir(slug):
 
 @app.route("/deploy-sales-insights")
 def deploy_sales_insights_page():
-    """Info page for /deploy-sales-insights — the deploy itself runs from Claude Code / the CLI."""
+    """Deploy Sales Insights (/deploy-sales-insights skill): runs the salesinsights engine."""
     return render_template("sales_insights.html")
+
+
+# Sales Insights jobs: polled (not SSE) so a page reload during a 10-15 minute deploy reconnects.
+SI_JOBS = {}        # job id -> {profile, action, lines, state, rc}
+SI_RUNNING = {}     # profile -> job id currently running
+SI_ACTIONS = {"check": False, "status": False, "deploy": True, "reset": True}  # action -> writes to the org
+
+
+def _si_checkpoint(key):
+    p = PROJECT_ROOT / "demos" / "sales_insights" / key / "checkpoint.json"
+    if not p.exists():
+        return None
+    try:
+        cp = json.loads(p.read_text())
+    except Exception:
+        return None
+    return {"instance": cp.get("instance"), "done": cp.get("done", []),
+            "workspace": (cp.get("workspace") or {}).get("name"), "workspace_label": (cp.get("workspace") or {}).get("label"),
+            "sdm": (cp.get("sdm") or {}).get("apiName"), "vizzes": len(cp.get("vizzes") or {}),
+            "dashboards": len(cp.get("dashboards") or {}), "streams": len(cp.get("streams") or {}),
+            "verify": cp.get("verify"),
+            "business_preferences_manual": bool((cp.get("failures") or {}).get("business_preferences"))}
+
+
+@app.route("/api/sales-insights/profiles")
+def sales_insights_profiles():
+    """Salesforce connections with their org URL and this page's deploy state per connection."""
+    from connections import load_full_config
+    full = load_full_config()
+    out = []
+    for key, p in full.get("profiles", {}).items():
+        sf = p.get("salesforce", {})
+        if not (sf.get("refresh_token") and sf.get("client_id")):
+            continue
+        instance = (p.get("_token_cache") or {}).get("instance_url") or sf.get("sf_login_url", "")
+        out.append({"key": key, "label": p.get("label", key), "instance": instance,
+                    "active": key == full.get("active_salesforce"),
+                    "has_connector": bool(sf.get("connector_sf_id")),
+                    "running": SI_RUNNING.get(key), "deploy": _si_checkpoint(key)})
+    return jsonify({"ok": True, "profiles": out})
+
+
+@app.route("/api/sales-insights/run", methods=["POST"])
+def sales_insights_run():
+    """Run one salesinsights command for a connection in the background."""
+    import subprocess
+    import uuid as _uuid
+    from connections import load_full_config
+    data = request.get_json() or {}
+    action, key = data.get("action"), data.get("profile")
+    if action not in SI_ACTIONS:
+        return jsonify({"ok": False, "error": f"Unknown action {action!r}"}), 400
+    if key not in load_full_config().get("profiles", {}):
+        return jsonify({"ok": False, "error": "Pick a Salesforce connection first."}), 400
+    if SI_ACTIONS[action] and not data.get("confirmed"):
+        return jsonify({"ok": False, "error": "This writes to the org — confirm first."}), 400
+    if SI_RUNNING.get(key):
+        return jsonify({"ok": True, "job_id": SI_RUNNING[key], "already_running": True})
+    job_id = f"si_{_uuid.uuid4().hex[:8]}"
+    job = SI_JOBS[job_id] = {"profile": key, "action": action, "lines": [], "state": "running", "rc": None}
+    SI_RUNNING[key] = job_id
+    log_dir = PROJECT_ROOT / "demos" / "sales_insights" / key
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    def _run():
+        cmd = ["python3", "-u", "-m", "salesinsights", action, "--profile", key]
+        job["lines"].append("$ python3 " + " ".join(cmd[2:]))
+        try:
+            with open(log_dir / f"{action}.log", "a") as log:
+                p = subprocess.Popen(cmd, cwd=str(PROJECT_ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                     text=True, bufsize=1)
+                for line in p.stdout:
+                    job["lines"].append(line.rstrip()); log.write(line); log.flush()
+                p.wait()
+            job["rc"] = p.returncode
+            job["state"] = "done" if p.returncode == 0 else "error"
+        except Exception as e:
+            job["lines"].append(f"error: {e}"); job["state"] = "error"
+        finally:
+            SI_RUNNING.pop(key, None)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"ok": True, "job_id": job_id})
+
+
+@app.route("/api/sales-insights/job/<job_id>")
+def sales_insights_job(job_id):
+    """New log lines since ?since=N, the job state, and the connection's checkpoint once finished."""
+    job = SI_JOBS.get(job_id)
+    if not job:
+        return jsonify({"ok": False, "error": "Unknown job (the server may have restarted). Check status."}), 404
+    since = int(request.args.get("since", 0))
+    return jsonify({"ok": True, "lines": job["lines"][since:], "next": len(job["lines"]), "state": job["state"],
+                    "action": job["action"], "profile": job["profile"],
+                    "deploy": _si_checkpoint(job["profile"]) if job["state"] != "running" else None})
 
 
 @app.route("/update-rev-intel")

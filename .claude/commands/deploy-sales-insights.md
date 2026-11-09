@@ -4,7 +4,10 @@ Deploys a standalone copy of Tableau Next **Sales Insights**: the six original d
 
 All logic lives in the `salesinsights/` package; this command only orchestrates. Design and verified API findings: `salesinsights/DESIGN.md`.
 
+**Web UI:** the **Deploy Sales Insights** page (sidebar → Skills; `/deploy-sales-insights?profile=<key>` preselects a connection) runs the same CLI: Check org, Deploy with a phase tracker and log, the finish-in-the-UI items, and Remove. A job keeps running if the page is closed; reopening the page reconnects to it. If the SE comes to Claude Code instead, the checkpoint is shared, so `status` shows what the page did.
+
 ```
+python3 -m salesinsights check  --profile <key>   # read-only preflight: auth, ingest connector, source-org guard
 python3 -m salesinsights deploy --profile <key>   # checkpointed; rerun resumes where it stopped
 python3 -m salesinsights status --profile <key>   # what's deployed, what failed
 python3 -m salesinsights reset  --profile <key>   # delete only what the deploy created
