@@ -4,6 +4,20 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-09 — Dynamic Dashboard tile; Skills section in the sidebar
+
+> The build path ran on demo_build_test_1 with Z Layout + Dynamic selected: both dashboards were created, 16/16 checks passed, and the org was left with exactly those 2 dashboards and 10 vizzes. All Web UI pages render with the new sidebar (Flask test client).
+
+### Added
+- **Dynamic Dashboard tile** in the Tableau Next template picker. It runs the story-driven composer (`compose_dashboard_runner`) inside the build, after a layout template or on its own. The window and direction come from the story. A rebuild replaces only the composed assets it tracked. `compose_dashboard_runner.main()` now takes an argument list for in-process calls.
+- **Skills** section in the sidebar with Update Rev Intel (moved from Manage) and Deploy Sales Insights.
+- `/deploy-sales-insights` page: what the skill deploys, the demo story, and the commands to run it. **Sales Insights is still CLI-only.** The page explains how to run it from Claude Code or a terminal. The home page card links to it.
+
+### Fixed
+- The template picker says "Select one or more", but the build only used the first checked template. It now receives every checked tile (`dashboard_templates`), so Dynamic can be combined with a layout. Picking several layout templates still builds only the first.
+
+---
+
 ## 2026-11-09 — Story-driven dashboard composer follows the signal plan
 
 > Ran `compose_dashboard_runner.py` on demo_build_test_1: 5 vizzes plus a dashboard, all 16 widgets `Ok`. Each chart's claim was checked against the data, which found the two title and level problems fixed below. The level fix was checked across 12 generated builds (story's region and segment lowest in 12 of 12). The demo's own data predates it.

@@ -2550,6 +2550,28 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         cp["sdm_enhanced"] = True
         _save_cp(cp, slug, demo_dir)
 
+    # Dashboard templates picked in the UI. "dynamic" is the story-driven composer
+    # (compose_dashboard_runner) — built after (or instead of) a layout template.
+    dash_templates = (build_config or {}).get("dashboard_templates") or \
+        [(build_config or {}).get("dashboard_template", "z_layout")]
+    want_dynamic = "dynamic" in dash_templates
+    layout_template = next((t for t in dash_templates if t != "dynamic"), None)
+
+    if want_dynamic and not layout_template and not cp.get("viz_done"):
+        # Dynamic only: clear tracked prior assets, then skip the template phase
+        sf_token, sf_instance = get_sf_token(config)
+        h = sf_headers(sf_token)
+        if cp.get("all_dash_apis"):
+            _cleanup_assets(cp["all_dash_apis"],
+                f"{sf_instance}/services/data/v66.0/tableau/dashboards", h, "dashboard", q)
+        if cp.get("all_viz_apis"):
+            _cleanup_assets(cp["all_viz_apis"],
+                f"{sf_instance}/services/data/v66.0/tableau/visualizations", h, "viz", q)
+        for k in ("viz_apis", "dash_api", "composed_done", "composed_viz_apis", "composed_dash_api"):
+            cp.pop(k, None)
+        cp["viz_done"] = cp["dash_done"] = True
+        _save_cp(cp, slug, demo_dir)
+
     # --- Phase 6: Visualizations + Dashboard ---
     if not cp.get("viz_done"):
         progress(q, "viz", "Creating visualizations...", 70)
@@ -2563,7 +2585,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         if cp.get("all_viz_apis"):
             _cleanup_assets(cp["all_viz_apis"],
                 f"{sf_instance}/services/data/v66.0/tableau/visualizations", h, "viz", q)
-        for k in ("viz_apis", "dash_api", "dash_done"):
+        for k in ("viz_apis", "dash_api", "dash_done", "composed_done", "composed_viz_apis", "composed_dash_api"):
             cp.pop(k, None)
         _save_cp(cp, slug, demo_dir)
 
@@ -2571,7 +2593,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         template_deployed = False
         try:
             from template_deployer import deploy_template, AVAILABLE_TEMPLATES
-            template_name = build_config.get("dashboard_template", "z_layout") if build_config else "z_layout"
+            template_name = layout_template or "z_layout"
             if template_name in AVAILABLE_TEMPLATES:
                 progress(q, "viz", f"Deploying {template_name.replace('_', ' ').title()} template...", 72)
 
@@ -3100,6 +3122,35 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
             progress(q, "warn", f"Dashboard creation skipped: {e}", -1)
 
         cp["dash_done"] = True
+        _save_cp(cp, slug, demo_dir)
+
+    # --- Phase 6b: Dynamic (story-driven) dashboard ---
+    if want_dynamic and not cp.get("composed_done"):
+        progress(q, "dash", "Building the dynamic story-driven dashboard...", 88)
+        _save_cp(cp, slug, demo_dir)  # the composer reads and writes the checkpoint file
+        lead = metric_config[0] if metric_config else {}
+        argv = ["--slug", slug, "--demo-dir", demo_dir, "--cleanup-first",
+                "--signal-months", str(trend_window_months(story_config)),
+                "--signal-direction", "up" if lead.get("sentiment") in ("up_is_bad", "down_is_good") else "down"]
+        brand = (build_config or {}).get("brand") or {}
+        if brand.get("primary"):
+            argv += ["--brand-primary", brand["primary"]] + (["--brand-secondary", brand["secondary"]] if brand.get("secondary") else [])
+        try:
+            from compose_dashboard_runner import main as compose_main
+            compose_main(argv)
+        except SystemExit as e:  # the runner exits on missing checkpoint data
+            progress(q, "warn", f"Dynamic dashboard stopped (exit {e.code}) — see the server log", -1)
+        except Exception as e:
+            progress(q, "warn", f"Dynamic dashboard failed (non-blocking): {str(e)[:200]}", -1)
+        with open(os.path.join(demo_dir, f"{slug}_checkpoint.json")) as f:
+            cp.update(json.load(f))
+        if cp.get("composed_viz_apis"):
+            cp["composed_done"] = True
+            progress(q, "dash", f"Dynamic dashboard deployed: {cp.get('composed_dash_api')} ({len(cp['composed_viz_apis'])} vizzes)", 89)
+            if not layout_template:
+                # Dynamic only — it's the demo's dashboard for validation and asset linking
+                cp["viz_apis"] = list(cp["composed_viz_apis"])
+                cp["dash_api"] = cp.get("composed_dash_api")
         _save_cp(cp, slug, demo_dir)
 
     # --- Phase 7: Link assets to workspace ---

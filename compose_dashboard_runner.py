@@ -323,7 +323,9 @@ def create_dashboard(sf_token: str, sf_instance: str, payload: dict) -> str | No
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
-def main():
+def main(argv=None):
+    """CLI entry point. `argv` lets the Web UI build call it in-process
+    (builder.next_build, "Dynamic Dashboard" template) with the same flags."""
     parser = argparse.ArgumentParser(description="Dashboard Composer Runner")
     parser.add_argument("--slug", required=True, help="Demo slug (e.g. 'meridian')")
     parser.add_argument("--demo-dir", default=None,
@@ -346,7 +348,7 @@ def main():
                         help="Primary brand color hex (e.g. '#00796B')")
     parser.add_argument("--brand-secondary", default=None,
                         help="Secondary/dark brand color hex (e.g. '#004D40')")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     demo_dir = args.demo_dir or os.path.join(ROOT, "demos", args.slug)
     if not os.path.isdir(demo_dir):

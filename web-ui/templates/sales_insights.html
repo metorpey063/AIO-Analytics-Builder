@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% set active = "sales_insights" %}
+
+{% block title %}Deploy Sales Insights{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Deploy Sales Insights</h1>
+    <p class="subtitle">Deploy a standalone copy of Tableau Next Sales Insights to any org with Data Cloud: six dashboards, 68 vizzes and the semantic model behind them, on synthetic data dated relative to today. The org doesn't need the managed Sales Insights app or any CRM data.</p>
+</div>
+
+<div class="card story-section" style="padding:16px; margin-bottom:16px">
+    <h3>Runs from Claude Code for now</h3>
+    <p class="form-hint" style="margin-bottom:12px">This skill doesn't have a web UI yet. In Claude Code, type <code>/deploy-sales-insights</code>: it asks which org, confirms what it will create, and runs the deploy (about 10–15 minutes). Or run the steps yourself in a terminal from the AIO folder:</p>
+    {% for cmd, what in [
+        ("python3 -m salesinsights deploy --profile <key>", "Full deploy. Checkpointed: rerun it to resume where it stopped."),
+        ("python3 -m salesinsights status --profile <key>", "What's deployed and what failed."),
+        ("python3 -m salesinsights reset --profile <key>", "Delete only what the deploy created."),
+    ] %}
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px">
+        <code style="flex:1; padding:8px 10px; border-radius:6px; background:var(--glass-bg); border:1px solid var(--border); font-size:12px">{{ cmd }}</code>
+        <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText({{ cmd|tojson }}); this.textContent='Copied'; setTimeout(() => this.textContent='Copy', 1500)">Copy</button>
+    </div>
+    <p class="form-hint" style="margin:-4px 0 12px">{{ what }}</p>
+    {% endfor %}
+    <p class="form-hint"><code>&lt;key&gt;</code> is the Salesforce connection's profile key (see <a href="/connections">Connections</a>). Never target the Tableau Next &amp; Slack org: it's the source, and the deploy refuses it.</p>
+</div>
+
+<div class="card story-section" style="padding:16px; margin-bottom:16px">
+    <h3>What it creates</h3>
+    <ul class="form-hint" style="margin:0; padding-left:18px; line-height:1.7">
+        <li>One workspace, "Sales Insights", with six dashboards: Sales Performance, Team Performance, Leaderboard, Sales Stage Progression, Sales Stage Conversion, Lead Analysis</li>
+        <li>One semantic model (136 calculations, 9 parameters, 7 metrics, 17 joins) and 68 vizzes</li>
+        <li>15 <code>si_*</code> data streams on the connection's ingest connector</li>
+    </ul>
+    <p class="form-hint" style="margin-top:10px">Afterwards, share the workspace in the UI: Share → All Internal Users → View (the API can't share it).</p>
+</div>
+
+<div class="card story-section" style="padding:16px">
+    <h3>The demo story</h3>
+    <ul class="form-hint" style="margin:0; padding-left:18px; line-height:1.7">
+        <li><strong>Team Harbor is behind:</strong> Rachel Kim's team wins ~29% of closed deals vs ~42–44% for Summit and Ridge, with smaller deals.</li>
+        <li><strong>Pushes and stalls cluster on two Harbor reps,</strong> Lucas Moreau and Mateo Silva (Sales Stage Progression, Leaderboard).</li>
+        <li><strong>Lead conversion</strong> runs from ~60% (Referral) to under 10% (Trade Show) (Lead Analysis).</li>
+        <li><strong>Open deals with no activity</strong> fill the Leaderboard "No Activity" tab.</li>
+    </ul>
+    <p class="form-hint" style="margin-top:10px">The data is anchored to the day it's generated. If the deploy is more than a couple of weeks old, refresh it before a meeting (<code>reset</code>, then <code>deploy</code>).</p>
+</div>
+{% endblock %}

@@ -1139,6 +1139,7 @@ def build_start():
         "advanced": data.get("advanced", {}),
         "outputs": data.get("outputs", {"csv": True}),
         "dashboard_template": data.get("dashboard_template", "z_layout"),
+        "dashboard_templates": data.get("dashboard_templates") or [],
         "brand": data.get("brand", {}),
     }
 
@@ -1166,6 +1167,12 @@ def _revintel_dir(slug):
     if not _re.fullmatch(r"[a-z0-9_]{2,60}", slug or ""):
         raise ValueError("Demo folder name must be lowercase letters, numbers and underscores")
     return PROJECT_ROOT / "demos" / slug
+
+
+@app.route("/deploy-sales-insights")
+def deploy_sales_insights_page():
+    """Info page for /deploy-sales-insights — the deploy itself runs from Claude Code / the CLI."""
+    return render_template("sales_insights.html")
 
 
 @app.route("/update-rev-intel")
