@@ -399,7 +399,7 @@ def main():
             print(f"  Loaded {len(dim_field_map)} dimensions, {len(measurement_map)} measurements")
 
     # ── Step 4: Extract story config ──────────────────────────────────────────
-    story = cp.get("story", {})
+    story = cp.get("story_config") or cp.get("story", {})  # full story (signal_plan) when saved
     metric_configs = story.get("metric_config", [])
     dimensions = story.get("dimensions", [])
     dimension_values = story.get("dimension_values", {})
@@ -412,7 +412,8 @@ def main():
     if not dimensions:
         print(f"  WARNING: No dimensions in story config — dashboard composition may be limited.")
 
-    use_case_label = story.get("headline", "Analytics Dashboard")
+    # Short title — the headline is the whole story paragraph
+    use_case_label = story.get("use_case") or f'{story.get("primary_metric") or metric_configs[0]["label"]} Analysis' if metric_configs else "Analytics Dashboard"
 
     # Build the metric field bridge (maps short config field names to DC schema names)
     metric_bridge = _build_metric_field_bridge(metric_configs, measurement_map)
@@ -721,7 +722,7 @@ def main():
             viz_idx += 1
 
     dash_name = f"{args.slug}_composed_{datetime.now().strftime('%Y%m%d_%H%M')}"
-    dash_label = f"{company} — Analytics Dashboard"
+    dash_label = plan.title or f"{company} — Analytics Dashboard"
     if len(dash_label) > 80:
         dash_label = f"{company} Dashboard"[:80]
     page_name = str(uuid.uuid4())

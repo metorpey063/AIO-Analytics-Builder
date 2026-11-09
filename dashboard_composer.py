@@ -176,11 +176,16 @@ def _trend_title(metric_label: str, direction: str, months: int = 6) -> str:
 
 def _change_title(worst_segment: Optional[str], dim_name: str,
                   metric_label: str, direction: str) -> str:
-    """Generate title like 'The Southeast drove last month's decline'."""
+    """Generate a title like 'West has the lowest Win Rate'.
+
+    The chart shows each segment's level, not its change (show_change isn't
+    implemented in viz_builder), so the title states the level — "drove last
+    month's decline" was false whenever another segment fell more that month.
+    """
     if worst_segment:
-        action = "decline" if direction == "down" else "increase"
-        return f"{worst_segment} drove last month's {metric_label} {action}"
-    return f"{metric_label} change by {dim_name}"
+        extreme = "lowest" if direction == "down" else "highest"
+        return f"{worst_segment} has the {extreme} {metric_label}"
+    return f"{metric_label} by {dim_name}"
 
 
 def _breakdown_title(metric_label: str, dim_name: str,
@@ -448,9 +453,17 @@ def compose_dashboard(
     supporting = _pick_supporting_metrics(metric_configs, primary)
     direction = signal_direction
 
-    worst_segment = story.get("worst_segment")
-    where_dim = story.get("where_dimension") or _pick_where_dimension(dimensions, dimension_values, worst_segment)
-    why_dim = story.get("why_dimension") or _pick_why_dimension(dimensions, where_dim)
+    # The story's signal_plan names the culprit, the drill-down and the counter-trend —
+    # the data is generated from it, so the charts should follow it too
+    plan = story.get("signal_plan") or {}
+    culprit = plan.get("culprit") or {}
+    detail = plan.get("culprit_detail") or {}
+    worst_segment = story.get("worst_segment") or culprit.get("value")
+    where_dim = (story.get("where_dimension") or (culprit.get("dimension") if culprit.get("dimension") in dimensions else None)
+                 or _pick_where_dimension(dimensions, dimension_values, worst_segment))
+    why_dim = (story.get("why_dimension") or (detail.get("dimension") if detail.get("dimension") in dimensions else None)
+               or _pick_why_dimension(dimensions, where_dim))
+    counter = next((m for m in metric_configs if m["label"] == plan.get("counter_trend_metric")), None)
     who_dim = story.get("who_dimension") or _pick_who_dimension(dimensions, where_dim, why_dim)
 
     if not worst_segment and where_dim and where_dim in dimension_values:
@@ -500,18 +513,22 @@ def compose_dashboard(
     viz_count = 2  # hero + where already
 
     if why_dim and viz_count < max_vizzes:
+        # Stacking adds segments together — fine for a Sum, but stacked averages
+        # (rates) read as nonsense totals (~85% "win rate"). Rates get a heatmap.
+        if primary.get("agg", "Average") == "Average":
+            why_template = "heatmap"
+            why_fields = {"row_dim": where_dim or dimensions[0], "col_dim": why_dim, "measure": primary["field"]}
+        else:
+            why_template = "stacked_bar"
+            why_fields = {"category": where_dim or dimensions[0], "amount": primary["field"], "stack_dim": why_dim}
         row2.append(DashboardComponent(
             "breakdown_bar",
             title=_breakdown_title(primary["label"], where_dim or dimensions[0], why_dim),
             subtitle=f'{primary["label"]} last month',
             width="half",
             story_role="why",
-            viz_template="stacked_bar",
-            field_map={
-                "category": where_dim or dimensions[0],
-                "amount": primary["field"],
-                "stack_dim": why_dim,
-            },
+            viz_template=why_template,
+            field_map=why_fields,
         ))
         viz_count += 1
 
@@ -559,8 +576,19 @@ def compose_dashboard(
     if row2:
         rows.append(row2)
 
-    # ── Row 3 (optional): Dual-axis leading indicator ────────────────────
-    if len(supporting) >= 1 and viz_count < max_vizzes:
+    # ── Row 3 (optional): Dual-axis — counter-trend, else leading indicator ──
+    if counter and counter is not primary and viz_count < max_vizzes:
+        rows.append([DashboardComponent(
+            "dual_axis",
+            title=f'{primary["label"]} fell while {counter["label"]} rose',
+            subtitle="Counter-trend: more effort, fewer wins",
+            width="full",
+            story_role="supporting",
+            viz_template="dual_axis",
+            field_map={"date": "date", "bar_measure": counter["field"], "line_measure": primary["field"]},
+        )])
+        viz_count += 1
+    elif len(supporting) >= 1 and viz_count < max_vizzes:
         lead = supporting[0]
         if lead.get("is_rate") or "rate" in lead.get("field", "").lower():
             rows.append([DashboardComponent(

@@ -109,10 +109,14 @@ class Realism:
     All of it is multiplicative and centered on 1.0, and applied to the base
     BEFORE the signal, so the designed story (who declines, by how much,
     starting when) is unchanged. `strength` scales everything (0 = off).
+    `neutral` is a set of (dimension, value) pairs that start exactly at the
+    average level — the story's named culprit and drill-down segments, so the
+    decline leaves them clearly lowest instead of a segment that merely
+    started lower (Mid-Market at 15.7% vs the declining Enterprise at 17.3%).
     """
 
     def __init__(self, metrics, dimensions, dimension_values, dates, *,
-                 seed: int = 42, strength: float = 1.0):
+                 seed: int = 42, strength: float = 1.0, neutral=()):
         rng = np.random.RandomState(seed)
         self.strength = strength
         self.dims = list(dimensions)
@@ -138,7 +142,7 @@ class Realism:
                                     for r in ranks])
                 raw = raw / raw.mean()  # keep the overall average on base_range
                 for v, lv in zip(vals, raw):
-                    self.levels[(f, dim, v)] = float(lv)
+                    self.levels[(f, dim, v)] = 1.0 if (dim, v) in neutral else float(lv)
             # Seasonality: yearly sine, random phase per metric
             amp = rng.uniform(0.02, 0.04) * strength
             phase = rng.uniform(0, 12)

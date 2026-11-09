@@ -677,10 +677,18 @@ def generate_data(story_config, q=None, advanced=None):
     # Scale from the segment multipliers, not the 2D drill cells: one extreme
     # cell (up to 2.8x) would shrink the whole story into the noise. The few
     # deepest cells above the line are held by cap_signal.
-    signal_magnitude *= signal_scale(signal_magnitude, segment_mults[dimensions[0]].values())
+    # The story's drill-down cell (culprit x detail, 1.45x) is included so the cap
+    # doesn't flatten it back to the rest of the culprit segment.
+    _scale_mults = list(segment_mults[dimensions[0]].values()) + [
+        v for (v1, v2), v in compound_2d.items() if detail_value and v2 == detail_value and v1 == culprit_dim1]
+    signal_magnitude *= signal_scale(signal_magnitude, _scale_mults)
+    _plan = story_config.get("signal_plan") or {}
+    _neutral = {((_plan.get(k) or {}).get("dimension"), (_plan.get(k) or {}).get("value"))
+                for k in ("culprit", "culprit_detail") if _plan.get(k)}
     realism = Realism(metric_config, dimensions, dim_values, dates,
                       seed=random.randrange(1 << 30),
-                      strength=float(advanced.get("variability", 1.0)))
+                      strength=float(advanced.get("variability", 1.0)),
+                      neutral=_neutral)
 
     n_entities = 2
     from itertools import product as cartprod
@@ -1734,6 +1742,11 @@ def _validate_next_build(config, cp, metric_config, q):
             r = req.get(
                 f"{sf_instance}/services/data/v66.0/tableau/visualizations/{viz_api}?minorVersion=12",
                 headers=h, timeout=15)
+            if r.status_code == 422:
+                # Table-layout vizzes (fit-to-width tables) can only be read on v67.0
+                r = req.get(
+                    f"{sf_instance}/services/data/v67.0/tableau/visualizations/{viz_api}?minorVersion=14",
+                    headers=h, timeout=15)
             if r.ok:
                 viz_data = r.json()
                 label = viz_data.get("label", viz_api)

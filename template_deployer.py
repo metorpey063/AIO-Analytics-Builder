@@ -741,7 +741,11 @@ def deploy_template(
         )
 
         print(f"  Creating dashboard: {dash_label}...")
-        r = requests.post(dash_base, headers=headers, json=dash_payload)
+        # A dashboard holding a Table-layout viz must be posted on v67.0 too —
+        # v66.0 fails with "Can't display visualization because it uses features…"
+        has_table_layout = any(p.get("visualSpecification", {}).get("layout") == "Table" for p in viz_payloads.values())
+        dash_url = f"{sf_instance}/services/data/v67.0/tableau/dashboards?minorVersion=14" if has_table_layout else dash_base
+        r = requests.post(dash_url, headers=headers, json=dash_payload)
         if r.status_code == 201:
             resp = r.json()
             results["dashboard"] = {

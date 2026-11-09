@@ -4,6 +4,22 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-09 — Story-driven dashboard composer follows the signal plan
+
+> Ran `compose_dashboard_runner.py` on demo_build_test_1: 5 vizzes plus a dashboard, all 16 widgets `Ok`. Each chart's claim was checked against the data, which found the two title and level problems fixed below. The level fix was checked across 12 generated builds (story's region and segment lowest in 12 of 12). The demo's own data predates it.
+
+### Changed
+- **Composer reads `signal_plan`.** The culprit sets the "where" dimension and segment, the drill-down sets the "why" dimension, and the counter-trend metric gets a full-width dual-axis row ("Win Rate fell while In-Person Activities rose"). The runner uses the full saved story and a short dashboard title (it used the whole story paragraph).
+- **"Why" breakdown of an average is a heatmap**, not a stacked bar. Stacked win rates add up to nonsense totals (~85%). Sum metrics keep the stacked bar.
+
+### Fixed
+- The "where" chart said "{segment} drove last month's decline", but it shows levels (`show_change` was never implemented). That was false whenever another segment fell more that month. It now says "{segment} has the lowest {metric}".
+- **The story's segments weren't always the lowest.** Segment-level variety could start the named culprit or drill-down above average, so after the decline another segment was still lower (Mid-Market 15.7% vs the declining Enterprise 17.3%). Those segments now start at the average level (`Realism(neutral=…)`). The drill-down cell is also included in the signal scaling, so the 45% cap no longer flattens it back to the rest of the culprit.
+
+- **Dashboards with the fit-to-width table failed to create** (500 "Can't display visualization because it uses features…"). The builder then fell back to a plain dashboard. A dashboard holding a Table-layout viz is now posted on v67.0 too. The post-build check, which read that table on v66.0 (422), retries on v67.0.
+
+---
+
 ## 2026-11-09 — The data follows the story; readable trend axis; metrics in the details table
 
 > Rebuilt demo_build_test_1 on its org through `run_build` (16/16 checks passed). Concierge now walks the story's own path: win rate 30.5% → 26.2% over 6 months → West worst → Enterprise worst within West (31.6% → 26.1%) → West deal size down ~45% → in-person activities up (~4,550 → 5,564 a month). The vizzes read back from the org with the new settings. The dashboard hasn't had a visual check in the browser yet.
