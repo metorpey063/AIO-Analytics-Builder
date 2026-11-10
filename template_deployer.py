@@ -800,6 +800,24 @@ def _place_title(dash: Dict[str, Any], spec: Dict[str, Any], title: str) -> None
                                "rowspan": spec["rowspan"], "colspan": spec["colspan"]})
 
 
+MAX_ROW_GAP = 2   # rows between visual sections (CLAUDE.md dashboard spacing)
+
+
+def _close_row_gaps(dash: Dict[str, Any]) -> None:
+    """Pull widgets up so no band of empty rows is taller than MAX_ROW_GAP. Captured layouts can
+    leave holes where the source had widgets this template drops."""
+    for layout in dash.get("layouts", []):
+        for page in layout.get("pages", []):
+            shift, bottom = 0, None
+            for w in sorted(page.get("widgets", []), key=lambda w: w.get("row", 0)):
+                w["row"] -= shift
+                if bottom is not None and w["row"] > bottom + MAX_ROW_GAP:
+                    gap = w["row"] - (bottom + MAX_ROW_GAP)
+                    w["row"] -= gap
+                    shift += gap
+                bottom = max(bottom or 0, w["row"] + w.get("rowspan", 1))
+
+
 def prepare_role_dashboard_payload(package: Dict[str, Any], roles: Dict[str, Any], target: Dict[str, Any], *,
                                    sdm_api: str, sdm_id: str, ws_api: str, do_api: str, slug: str, dash_label: str,
                                    viz_name_map: Dict[str, str], viz_titles: Dict[str, str]) -> Dict[str, Any]:
@@ -834,6 +852,7 @@ def prepare_role_dashboard_payload(package: Dict[str, Any], roles: Dict[str, Any
                                                           "layout": copy.deepcopy(_KPI_LAYOUT)}}}
     if roles.get("title"):
         _place_title(dash, roles["title"], target["title"])
+    _close_row_gaps(dash)
     # Section headers repeat the title of the viz below them
     for text_w, viz_w in roles.get("viz_headers", {}).items():
         src = (widgets.get(viz_w, {}).get("source") or {}).get("name")

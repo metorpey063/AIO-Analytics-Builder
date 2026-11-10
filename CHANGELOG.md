@@ -4,6 +4,13 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-10 — Trend & Breakdown: no empty band above the last chart (v2.13.1)
+
+### Fixed
+- Trend & Breakdown had a 15-row empty band before its full-width breakdown (the captured layout's hole where the source had a widget). Role-based templates now close any vertical gap larger than 2 rows.
+
+---
+
 ## 2026-11-10 — Revenue Intelligence demos keep moving: `roll` and `add` (v2.13.0)
 
 > Previews for Nov 10, 17 and 30 and Feb 20 behave as designed. Applied live on the Tab Next & Slack org on 2026-11-10: `roll` updated 23 opportunities and 12 line items and logged 65 activities; `add` created 8 deals with line items; the org then showed 51 new OpportunityHistory rows. Backups are in the demo's `out/`.
