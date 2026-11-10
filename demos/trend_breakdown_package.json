@@ -1,0 +1,2102 @@
+{
+ "templateId": "trend_breakdown",
+ "apiVersion": "67.14",
+ "components": {
+  "visualizations": {
+   "trend": {
+    "dataSource": {
+     "label": "{{SDM_LABEL}}",
+     "name": "{{SDM_API_NAME}}",
+     "type": "SemanticModel"
+    },
+    "fields": {
+     "F2": {
+      "displayCategory": "Discrete",
+      "fieldName": "date_1",
+      "function": "DatePartMonth",
+      "objectName": "Source_Fact",
+      "role": "Dimension",
+      "type": "Field"
+     },
+     "F3": {
+      "displayCategory": "Continuous",
+      "fieldName": "measure_1",
+      "function": "Sum",
+      "objectName": "Source_Fact",
+      "role": "Measure",
+      "type": "Field"
+     },
+     "F4": {
+      "displayCategory": "Discrete",
+      "fieldName": "date_1",
+      "function": "DatePartYear",
+      "objectName": "Source_Fact",
+      "role": "Dimension",
+      "type": "Field"
+     }
+    },
+    "interactions": [],
+    "label": "Trend",
+    "name": "trend",
+    "view": {
+     "label": "default",
+     "name": "trend_default",
+     "viewSpecification": {
+      "filter": {
+       "filters": []
+      },
+      "sortOrders": {
+       "columns": [],
+       "fields": {},
+       "rows": []
+      },
+      "style": {
+       "headers": {
+        "columns": {
+         "sizing": {
+          "fieldHeight": {}
+         }
+        },
+        "rows": {
+         "sizing": {
+          "fieldWidth": {}
+         }
+        }
+       }
+      }
+     }
+    },
+    "visualSpecification": {
+     "columns": [
+      "F2"
+     ],
+     "forecasts": {},
+     "layout": "Vizql",
+     "legends": {
+      "F4": {
+       "isVisible": true,
+       "position": "Right",
+       "title": {
+        "isVisible": true
+       }
+      }
+     },
+     "marks": {
+      "fields": {},
+      "headers": {
+       "encodings": [],
+       "isAutomatic": true,
+       "stack": {
+        "isAutomatic": true,
+        "isStacked": false
+       },
+       "type": "Text"
+      },
+      "panes": {
+       "encodings": [
+        {
+         "fieldKey": "F4",
+         "type": "Color"
+        }
+       ],
+       "isAutomatic": false,
+       "stack": {
+        "isAutomatic": true,
+        "isStacked": true
+       },
+       "type": "Bar"
+      }
+     },
+     "measureValues": [],
+     "referenceLines": {},
+     "rows": [
+      "F3"
+     ],
+     "style": {
+      "axis": {
+       "fields": {
+        "F3": {
+         "isVisible": true,
+         "isZeroLineVisible": true,
+         "range": {
+          "includeZero": false,
+          "type": "Auto"
+         },
+         "scale": {
+          "format": {
+           "numberFormatInfo": {
+            "decimalPlaces": 0,
+            "displayUnits": "Auto",
+            "includeThousandSeparator": true,
+            "negativeValuesFormat": "Auto",
+            "prefix": "",
+            "suffix": "",
+            "type": "Number"
+           }
+          }
+         },
+         "ticks": {
+          "majorTicks": {
+           "type": "Auto"
+          },
+          "minorTicks": {
+           "type": "Auto"
+          }
+         }
+        }
+       }
+      },
+      "encodings": {
+       "fields": {
+        "F3": {
+         "defaults": {
+          "format": {
+           "numberFormatInfo": {
+            "decimalPlaces": 0,
+            "displayUnits": "Auto",
+            "includeThousandSeparator": true,
+            "negativeValuesFormat": "Auto",
+            "prefix": "",
+            "suffix": "",
+            "type": "Number"
+           }
+          }
+         }
+        },
+        "F4": {
+         "colors": {
+          "customColors": [
+           {
+            "color": "--slds-g-color-palette-teal-95",
+            "value": 2026.0
+           }
+          ],
+          "palette": {
+           "colors": [
+            "#E5973D",
+            "#3B769A",
+            "#3F8CCF",
+            "--slds-g-color-palette-teal-95",
+            "#fe5c4c",
+            "#024d4c",
+            "#3ba755",
+            "#8a033e",
+            "#e3066a",
+            "#002775"
+           ],
+           "type": "Custom"
+          },
+          "type": "Discrete"
+         },
+         "defaults": {
+          "format": {}
+         }
+        }
+       }
+      },
+      "fieldLabels": {
+       "columns": {
+        "showDividerLine": false,
+        "showLabels": true
+       },
+       "rows": {
+        "showDividerLine": false,
+        "showLabels": true
+       }
+      },
+      "fit": "Entire",
+      "fonts": {
+       "actionableHeaders": {
+        "color": "#0250D9",
+        "size": 13
+       },
+       "axisTickLabels": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "fieldLabels": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "headers": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "legendLabels": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "markLabels": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "marks": {
+        "color": "#2E2E2E",
+        "size": 13
+       }
+      },
+      "headers": {
+       "columns": {
+        "mergeRepeatedCells": true,
+        "showIndex": false,
+        "sizing": {
+         "fieldHeight": {}
+        }
+       },
+       "fields": {
+        "F2": {
+         "hiddenValues": [],
+         "isVisible": true,
+         "showMissingValues": false,
+         "textDirection": "Horizontal"
+        }
+       },
+       "rows": {
+        "mergeRepeatedCells": true,
+        "showIndex": false,
+        "sizing": {
+         "fieldWidth": {}
+        }
+       }
+      },
+      "lines": {
+       "axisLine": {
+        "color": "#C9C9C9"
+       },
+       "fieldLabelDividerLine": {
+        "color": "#C9C9C9"
+       },
+       "separatorLine": {
+        "color": "#C9C9C9"
+       },
+       "zeroLine": {
+        "color": "#C9C9C9"
+       }
+      },
+      "marks": {
+       "fields": {},
+       "headers": {
+        "color": {
+         "color": ""
+        },
+        "isAutomaticOpacity": true,
+        "isAutomaticSize": true,
+        "label": {
+         "canOverlapLabels": false,
+         "marksToLabel": {
+          "type": "All"
+         },
+         "showMarkLabels": false,
+         "textDirection": "Horizontal"
+        },
+        "opacity": 100,
+        "range": {
+         "reverse": false
+        },
+        "size": {
+         "isAutomatic": true,
+         "type": "Pixel",
+         "value": 13
+        }
+       },
+       "panes": {
+        "color": {
+         "color": ""
+        },
+        "isAutomaticOpacity": true,
+        "isAutomaticSize": true,
+        "isStackingAxisCentered": false,
+        "label": {
+         "canOverlapLabels": false,
+         "marksToLabel": {
+          "type": "All"
+         },
+         "showMarkLabels": false,
+         "textDirection": "Horizontal"
+        },
+        "opacity": 100,
+        "range": {
+         "reverse": false
+        },
+        "size": {
+         "isAutomatic": true,
+         "type": "Percentage",
+         "value": 75
+        }
+       }
+      },
+      "referenceLines": {},
+      "shading": {
+       "backgroundColor": "#FFFFFF",
+       "banding": {
+        "rows": {
+         "color": "--slds-g-color-palette-neutral-90"
+        }
+       }
+      },
+      "showDataPlaceholder": false,
+      "title": {
+       "isVisible": true
+      }
+     },
+     "stylesheet": {
+      "rules": [
+       {
+        "selector": "AxisTickLabel",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Normal"
+         }
+        }
+       },
+       {
+        "selector": "FieldLabel",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Bold"
+         }
+        }
+       },
+       {
+        "selector": "AxisTitle",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Bold"
+         }
+        }
+       },
+       {
+        "selector": "LegendTitle",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Bold"
+         }
+        }
+       },
+       {
+        "selector": "HeaderLabel",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Normal"
+         }
+        }
+       },
+       {
+        "selector": "LegendLabel",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Normal"
+         }
+        }
+       },
+       {
+        "selector": "MarkLabel",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Normal"
+         }
+        }
+       },
+       {
+        "selector": "Scene",
+        "style": {
+         "backgroundColor": "#FFFFFF"
+        }
+       },
+       {
+        "selector": "SeparatorLine",
+        "style": {
+         "color": "#C9C9C9"
+        }
+       },
+       {
+        "selector": "AxisLine",
+        "style": {
+         "color": "#C9C9C9"
+        }
+       },
+       {
+        "selector": "AxisTick",
+        "style": {
+         "color": "#C9C9C9"
+        }
+       },
+       {
+        "selector": "ZeroLine",
+        "style": {
+         "color": "#C9C9C9"
+        }
+       }
+      ]
+     }
+    },
+    "workspace": {
+     "label": "{{WORKSPACE_LABEL}}",
+     "name": "{{WORKSPACE_API_NAME}}"
+    }
+   },
+   "breakdown_2": {
+    "dataSource": {
+     "label": "{{SDM_LABEL}}",
+     "name": "{{SDM_API_NAME}}",
+     "type": "SemanticModel"
+    },
+    "fields": {
+     "F1": {
+      "displayCategory": "Discrete",
+      "fieldName": "dim_2",
+      "objectName": "Source_Fact",
+      "role": "Dimension",
+      "type": "Field"
+     },
+     "F2": {
+      "displayCategory": "Continuous",
+      "fieldName": "measure_1",
+      "function": "Sum",
+      "objectName": "Source_Fact",
+      "role": "Measure",
+      "type": "Field"
+     },
+     "F3": {
+      "displayCategory": "Continuous",
+      "fieldName": "measure_1",
+      "function": "Sum",
+      "objectName": "Source_Fact",
+      "role": "Measure",
+      "type": "Field"
+     }
+    },
+    "interactions": [],
+    "label": "Breakdown 2",
+    "name": "breakdown_2",
+    "view": {
+     "label": "default",
+     "name": "breakdown_2_default",
+     "viewSpecification": {
+      "sortOrders": {
+       "columns": [],
+       "fields": {
+        "F1": {
+         "byField": "F2",
+         "order": "Descending",
+         "type": "Nested"
+        }
+       },
+       "rows": []
+      }
+     }
+    },
+    "visualSpecification": {
+     "columns": [
+      "F2"
+     ],
+     "forecasts": {},
+     "layout": "Vizql",
+     "legends": {},
+     "marks": {
+      "fields": {},
+      "headers": {
+       "encodings": [],
+       "isAutomatic": true,
+       "stack": {
+        "isAutomatic": true,
+        "isStacked": false
+       },
+       "type": "Text"
+      },
+      "panes": {
+       "encodings": [
+        {
+         "fieldKey": "F3",
+         "type": "Label"
+        }
+       ],
+       "isAutomatic": false,
+       "stack": {
+        "isAutomatic": true,
+        "isStacked": true
+       },
+       "type": "Bar"
+      }
+     },
+     "measureValues": [],
+     "referenceLines": {},
+     "rows": [
+      "F1"
+     ],
+     "style": {
+      "axis": {
+       "fields": {
+        "F2": {
+         "isVisible": true,
+         "isZeroLineVisible": true,
+         "range": {
+          "includeZero": false,
+          "type": "Auto"
+         },
+         "scale": {
+          "format": {
+           "numberFormatInfo": {
+            "decimalPlaces": 0,
+            "displayUnits": "Auto",
+            "includeThousandSeparator": true,
+            "negativeValuesFormat": "Auto",
+            "prefix": "",
+            "suffix": "",
+            "type": "Number"
+           }
+          }
+         },
+         "ticks": {
+          "majorTicks": {
+           "type": "Auto"
+          },
+          "minorTicks": {
+           "type": "Auto"
+          }
+         }
+        }
+       }
+      },
+      "encodings": {
+       "fields": {
+        "F2": {
+         "defaults": {
+          "format": {
+           "numberFormatInfo": {
+            "decimalPlaces": 0,
+            "displayUnits": "Auto",
+            "includeThousandSeparator": true,
+            "negativeValuesFormat": "Auto",
+            "prefix": "",
+            "suffix": "",
+            "type": "Number"
+           }
+          }
+         }
+        },
+        "F3": {
+         "defaults": {
+          "format": {
+           "numberFormatInfo": {
+            "decimalPlaces": 0,
+            "displayUnits": "Auto",
+            "includeThousandSeparator": true,
+            "negativeValuesFormat": "Auto",
+            "prefix": "",
+            "suffix": "",
+            "type": "Number"
+           }
+          }
+         }
+        }
+       }
+      },
+      "fieldLabels": {
+       "columns": {
+        "showDividerLine": false,
+        "showLabels": true
+       },
+       "rows": {
+        "showDividerLine": false,
+        "showLabels": true
+       }
+      },
+      "fit": "Entire",
+      "fonts": {
+       "actionableHeaders": {
+        "color": "#0250D9",
+        "size": 13
+       },
+       "axisTickLabels": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "fieldLabels": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "headers": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "legendLabels": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "markLabels": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "marks": {
+        "color": "#2E2E2E",
+        "size": 13
+       }
+      },
+      "headers": {
+       "columns": {
+        "mergeRepeatedCells": true,
+        "showIndex": false
+       },
+       "fields": {
+        "F1": {
+         "hiddenValues": [],
+         "isVisible": true,
+         "showMissingValues": false
+        }
+       },
+       "rows": {
+        "mergeRepeatedCells": true,
+        "showIndex": false
+       }
+      },
+      "lines": {
+       "axisLine": {
+        "color": "#C9C9C9"
+       },
+       "fieldLabelDividerLine": {
+        "color": "#C9C9C9"
+       },
+       "separatorLine": {
+        "color": "#C9C9C9"
+       },
+       "zeroLine": {
+        "color": "#C9C9C9"
+       }
+      },
+      "marks": {
+       "fields": {},
+       "headers": {
+        "color": {
+         "color": ""
+        },
+        "isAutomaticSize": true,
+        "label": {
+         "canOverlapLabels": false,
+         "marksToLabel": {
+          "type": "All"
+         },
+         "showMarkLabels": false
+        },
+        "range": {
+         "reverse": true
+        },
+        "size": {
+         "isAutomatic": true,
+         "type": "Pixel",
+         "value": 13
+        }
+       },
+       "panes": {
+        "color": {
+         "color": ""
+        },
+        "isAutomaticSize": true,
+        "isStackingAxisCentered": false,
+        "label": {
+         "canOverlapLabels": false,
+         "marksToLabel": {
+          "type": "All"
+         },
+         "showMarkLabels": false
+        },
+        "range": {
+         "reverse": true
+        },
+        "size": {
+         "isAutomatic": true,
+         "type": "Percentage",
+         "value": 75
+        }
+       }
+      },
+      "referenceLines": {},
+      "shading": {
+       "backgroundColor": "#FFFFFF",
+       "banding": {
+        "rows": {
+         "color": "#E5E5E5"
+        }
+       }
+      },
+      "showDataPlaceholder": false,
+      "title": {
+       "isVisible": true
+      }
+     },
+     "stylesheet": {
+      "rules": [
+       {
+        "selector": "AxisTickLabel",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Normal"
+         }
+        }
+       },
+       {
+        "selector": "FieldLabel",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Bold"
+         }
+        }
+       },
+       {
+        "selector": "AxisTitle",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Bold"
+         }
+        }
+       },
+       {
+        "selector": "LegendTitle",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Bold"
+         }
+        }
+       },
+       {
+        "selector": "HeaderLabel",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Normal"
+         }
+        }
+       },
+       {
+        "selector": "LegendLabel",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Normal"
+         }
+        }
+       },
+       {
+        "selector": "MarkLabel",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Normal"
+         }
+        }
+       },
+       {
+        "selector": "Scene",
+        "style": {
+         "backgroundColor": "#FFFFFF"
+        }
+       },
+       {
+        "selector": "SeparatorLine",
+        "style": {
+         "color": "#C9C9C9"
+        }
+       },
+       {
+        "selector": "AxisLine",
+        "style": {
+         "color": "#C9C9C9"
+        }
+       },
+       {
+        "selector": "AxisTick",
+        "style": {
+         "color": "#C9C9C9"
+        }
+       },
+       {
+        "selector": "ZeroLine",
+        "style": {
+         "color": "#C9C9C9"
+        }
+       }
+      ]
+     }
+    },
+    "workspace": {
+     "label": "{{WORKSPACE_LABEL}}",
+     "name": "{{WORKSPACE_API_NAME}}"
+    }
+   },
+   "breakdown_1": {
+    "dataSource": {
+     "label": "{{SDM_LABEL}}",
+     "name": "{{SDM_API_NAME}}",
+     "type": "SemanticModel"
+    },
+    "fields": {
+     "F1": {
+      "displayCategory": "Discrete",
+      "fieldName": "dim_1",
+      "objectName": "Source_Fact",
+      "role": "Dimension",
+      "type": "Field"
+     },
+     "F2": {
+      "displayCategory": "Continuous",
+      "fieldName": "measure_1",
+      "function": "Sum",
+      "objectName": "Source_Fact",
+      "role": "Measure",
+      "type": "Field"
+     },
+     "F3": {
+      "displayCategory": "Continuous",
+      "fieldName": "measure_1",
+      "function": "Sum",
+      "objectName": "Source_Fact",
+      "role": "Measure",
+      "type": "Field"
+     }
+    },
+    "interactions": [],
+    "label": "Breakdown 1",
+    "name": "breakdown_1",
+    "view": {
+     "label": "default",
+     "name": "breakdown_1_default",
+     "viewSpecification": {
+      "filter": {
+       "filters": []
+      },
+      "sortOrders": {
+       "columns": [],
+       "fields": {},
+       "rows": []
+      },
+      "style": {
+       "headers": {
+        "columns": {
+         "sizing": {
+          "fieldHeight": {}
+         }
+        },
+        "rows": {
+         "sizing": {
+          "fieldWidth": {}
+         }
+        }
+       }
+      }
+     }
+    },
+    "visualSpecification": {
+     "ban": [
+      "F3"
+     ],
+     "layout": "Radial",
+     "legends": {},
+     "marks": {
+      "panes": {
+       "encodings": [],
+       "isAutomatic": false,
+       "stack": {
+        "isAutomatic": true,
+        "isStacked": true
+       },
+       "type": "Donut"
+      }
+     },
+     "rings": [],
+     "slices": [
+      "F1",
+      "F2"
+     ],
+     "style": {
+      "ban": {
+       "fields": {
+        "F3": {
+         "fieldLabel": {
+          "showDividerLine": false,
+          "showLabels": true
+         },
+         "format": {
+          "numberFormatInfo": {
+           "decimalPlaces": 2,
+           "displayUnits": "Auto",
+           "includeThousandSeparator": true,
+           "negativeValuesFormat": "Auto",
+           "prefix": "",
+           "suffix": "",
+           "type": "NumberShort"
+          }
+         }
+        }
+       }
+      },
+      "encodings": {
+       "fields": {
+        "F2": {
+         "defaults": {
+          "format": {
+           "numberFormatInfo": {
+            "decimalPlaces": 0,
+            "displayUnits": "Auto",
+            "includeThousandSeparator": true,
+            "negativeValuesFormat": "Auto",
+            "prefix": "",
+            "suffix": "",
+            "type": "Number"
+           }
+          }
+         }
+        }
+       }
+      },
+      "fieldLabels": {
+       "columns": {
+        "showDividerLine": false,
+        "showLabels": false
+       },
+       "rows": {
+        "showDividerLine": false,
+        "showLabels": false
+       }
+      },
+      "fonts": {
+       "actionableHeaders": {
+        "color": "#0250D9",
+        "size": 13
+       },
+       "axisTickLabels": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "fieldLabels": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "headers": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "legendLabels": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "markLabels": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "marks": {
+        "color": "#2E2E2E",
+        "size": 13
+       }
+      },
+      "lines": {
+       "axisLine": {
+        "color": "#C9C9C9"
+       },
+       "fieldLabelDividerLine": {
+        "color": "#C9C9C9"
+       },
+       "separatorLine": {
+        "color": "#C9C9C9"
+       },
+       "zeroLine": {
+        "color": "#C9C9C9"
+       }
+      },
+      "marks": {
+       "panes": {
+        "color": {
+         "color": ""
+        },
+        "isAutomaticOpacity": true,
+        "isAutomaticSize": true,
+        "isStackingAxisCentered": false,
+        "label": {
+         "canOverlapLabels": false,
+         "marksToLabel": {
+          "type": "All"
+         },
+         "showMarkLabels": false,
+         "textDirection": "Horizontal"
+        },
+        "opacity": 100,
+        "range": {
+         "reverse": true
+        },
+        "size": {
+         "isAutomatic": true,
+         "type": "Percentage",
+         "value": 80
+        }
+       }
+      },
+      "shading": {
+       "backgroundColor": "#FFFFFF",
+       "banding": {
+        "rows": {
+         "color": "#E5E5E5"
+        }
+       }
+      },
+      "title": {
+       "isVisible": true
+      }
+     },
+     "stylesheet": {
+      "rules": [
+       {
+        "selector": "Mark",
+        "style": {
+         "color": "#E5973D"
+        }
+       }
+      ]
+     }
+    },
+    "workspace": {
+     "label": "{{WORKSPACE_LABEL}}",
+     "name": "{{WORKSPACE_API_NAME}}"
+    }
+   },
+   "breakdown_3": {
+    "dataSource": {
+     "label": "{{SDM_LABEL}}",
+     "name": "{{SDM_API_NAME}}",
+     "type": "SemanticModel"
+    },
+    "fields": {
+     "F1": {
+      "displayCategory": "Discrete",
+      "fieldName": "dim_3",
+      "objectName": "Source_Fact",
+      "role": "Dimension",
+      "type": "Field"
+     },
+     "F2": {
+      "displayCategory": "Continuous",
+      "fieldName": "measure_1",
+      "function": "Sum",
+      "objectName": "Source_Fact",
+      "role": "Measure",
+      "type": "Field"
+     },
+     "F3": {
+      "displayCategory": "Continuous",
+      "fieldName": "measure_1",
+      "function": "Sum",
+      "objectName": "Source_Fact",
+      "role": "Measure",
+      "type": "Field"
+     }
+    },
+    "interactions": [],
+    "label": "Breakdown 3",
+    "name": "breakdown_3",
+    "view": {
+     "label": "default",
+     "name": "breakdown_3_default",
+     "viewSpecification": {
+      "sortOrders": {
+       "columns": [],
+       "fields": {
+        "F1": {
+         "byField": "F2",
+         "order": "Descending",
+         "type": "Nested"
+        }
+       },
+       "rows": []
+      }
+     }
+    },
+    "visualSpecification": {
+     "columns": [
+      "F2"
+     ],
+     "forecasts": {},
+     "layout": "Vizql",
+     "legends": {},
+     "marks": {
+      "fields": {},
+      "headers": {
+       "encodings": [],
+       "isAutomatic": true,
+       "stack": {
+        "isAutomatic": true,
+        "isStacked": false
+       },
+       "type": "Text"
+      },
+      "panes": {
+       "encodings": [
+        {
+         "fieldKey": "F3",
+         "type": "Label"
+        }
+       ],
+       "isAutomatic": false,
+       "stack": {
+        "isAutomatic": true,
+        "isStacked": true
+       },
+       "type": "Bar"
+      }
+     },
+     "measureValues": [],
+     "referenceLines": {},
+     "rows": [
+      "F1"
+     ],
+     "style": {
+      "axis": {
+       "fields": {
+        "F2": {
+         "isVisible": true,
+         "isZeroLineVisible": true,
+         "range": {
+          "includeZero": false,
+          "type": "Auto"
+         },
+         "scale": {
+          "format": {
+           "numberFormatInfo": {
+            "decimalPlaces": 0,
+            "displayUnits": "Auto",
+            "includeThousandSeparator": true,
+            "negativeValuesFormat": "Auto",
+            "prefix": "",
+            "suffix": "",
+            "type": "Number"
+           }
+          }
+         },
+         "ticks": {
+          "majorTicks": {
+           "type": "Auto"
+          },
+          "minorTicks": {
+           "type": "Auto"
+          }
+         }
+        }
+       }
+      },
+      "encodings": {
+       "fields": {
+        "F2": {
+         "defaults": {
+          "format": {
+           "numberFormatInfo": {
+            "decimalPlaces": 0,
+            "displayUnits": "Auto",
+            "includeThousandSeparator": true,
+            "negativeValuesFormat": "Auto",
+            "prefix": "",
+            "suffix": "",
+            "type": "Number"
+           }
+          }
+         }
+        },
+        "F3": {
+         "defaults": {
+          "format": {
+           "numberFormatInfo": {
+            "decimalPlaces": 0,
+            "displayUnits": "Auto",
+            "includeThousandSeparator": true,
+            "negativeValuesFormat": "Auto",
+            "prefix": "",
+            "suffix": "",
+            "type": "Number"
+           }
+          }
+         }
+        }
+       }
+      },
+      "fieldLabels": {
+       "columns": {
+        "showDividerLine": false,
+        "showLabels": true
+       },
+       "rows": {
+        "showDividerLine": false,
+        "showLabels": true
+       }
+      },
+      "fit": "Entire",
+      "fonts": {
+       "actionableHeaders": {
+        "color": "#0250D9",
+        "size": 13
+       },
+       "axisTickLabels": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "fieldLabels": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "headers": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "legendLabels": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "markLabels": {
+        "color": "#2E2E2E",
+        "size": 13
+       },
+       "marks": {
+        "color": "#2E2E2E",
+        "size": 13
+       }
+      },
+      "headers": {
+       "columns": {
+        "mergeRepeatedCells": true,
+        "showIndex": false
+       },
+       "fields": {
+        "F1": {
+         "hiddenValues": [],
+         "isVisible": true,
+         "showMissingValues": false
+        }
+       },
+       "rows": {
+        "mergeRepeatedCells": true,
+        "showIndex": false
+       }
+      },
+      "lines": {
+       "axisLine": {
+        "color": "#C9C9C9"
+       },
+       "fieldLabelDividerLine": {
+        "color": "#C9C9C9"
+       },
+       "separatorLine": {
+        "color": "#C9C9C9"
+       },
+       "zeroLine": {
+        "color": "#C9C9C9"
+       }
+      },
+      "marks": {
+       "fields": {},
+       "headers": {
+        "color": {
+         "color": ""
+        },
+        "isAutomaticSize": true,
+        "label": {
+         "canOverlapLabels": false,
+         "marksToLabel": {
+          "type": "All"
+         },
+         "showMarkLabels": false
+        },
+        "range": {
+         "reverse": true
+        },
+        "size": {
+         "isAutomatic": true,
+         "type": "Pixel",
+         "value": 13
+        }
+       },
+       "panes": {
+        "color": {
+         "color": ""
+        },
+        "isAutomaticSize": true,
+        "isStackingAxisCentered": false,
+        "label": {
+         "canOverlapLabels": false,
+         "marksToLabel": {
+          "type": "All"
+         },
+         "showMarkLabels": false
+        },
+        "range": {
+         "reverse": true
+        },
+        "size": {
+         "isAutomatic": true,
+         "type": "Percentage",
+         "value": 75
+        }
+       }
+      },
+      "referenceLines": {},
+      "shading": {
+       "backgroundColor": "#FFFFFF",
+       "banding": {
+        "rows": {
+         "color": "#E5E5E5"
+        }
+       }
+      },
+      "showDataPlaceholder": false,
+      "title": {
+       "isVisible": true
+      }
+     },
+     "stylesheet": {
+      "rules": [
+       {
+        "selector": "AxisTickLabel",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Normal"
+         }
+        }
+       },
+       {
+        "selector": "FieldLabel",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Bold"
+         }
+        }
+       },
+       {
+        "selector": "AxisTitle",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Bold"
+         }
+        }
+       },
+       {
+        "selector": "LegendTitle",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Bold"
+         }
+        }
+       },
+       {
+        "selector": "HeaderLabel",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Normal"
+         }
+        }
+       },
+       {
+        "selector": "LegendLabel",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Normal"
+         }
+        }
+       },
+       {
+        "selector": "MarkLabel",
+        "style": {
+         "color": "#2E2E2E",
+         "font": {
+          "size": 13,
+          "weight": "Normal"
+         }
+        }
+       },
+       {
+        "selector": "Scene",
+        "style": {
+         "backgroundColor": "#FFFFFF"
+        }
+       },
+       {
+        "selector": "SeparatorLine",
+        "style": {
+         "color": "#C9C9C9"
+        }
+       },
+       {
+        "selector": "AxisLine",
+        "style": {
+         "color": "#C9C9C9"
+        }
+       },
+       {
+        "selector": "AxisTick",
+        "style": {
+         "color": "#C9C9C9"
+        }
+       },
+       {
+        "selector": "ZeroLine",
+        "style": {
+         "color": "#C9C9C9"
+        }
+       }
+      ]
+     }
+    },
+    "workspace": {
+     "label": "{{WORKSPACE_LABEL}}",
+     "name": "{{WORKSPACE_API_NAME}}"
+    }
+   }
+  },
+  "dashboard": {
+   "label": "Trend & Breakdown",
+   "layouts": [
+    {
+     "columnCount": 72,
+     "maxWidth": 1200,
+     "name": "default",
+     "pages": [
+      {
+       "label": "Trend & Breakdown",
+       "name": "030fd131-4a3b-4dbf-8f1f-9b166d565418",
+       "widgets": [
+        {
+         "colspan": 72,
+         "column": 0,
+         "name": "viz_hero",
+         "row": 11,
+         "rowspan": 22
+        },
+        {
+         "colspan": 36,
+         "column": 0,
+         "name": "viz_breakdown_1",
+         "row": 35,
+         "rowspan": 20
+        },
+        {
+         "colspan": 36,
+         "column": 36,
+         "name": "viz_breakdown_2",
+         "row": 35,
+         "rowspan": 20
+        },
+        {
+         "colspan": 72,
+         "column": 0,
+         "name": "viz_breakdown_3",
+         "row": 70,
+         "rowspan": 20
+        },
+        {
+         "colspan": 19,
+         "column": 0,
+         "name": "image_1",
+         "row": 0,
+         "rowspan": 4
+        },
+        {
+         "colspan": 18,
+         "column": 0,
+         "name": "text_1",
+         "row": 5,
+         "rowspan": 5
+        },
+        {
+         "colspan": 18,
+         "column": 18,
+         "name": "text_2",
+         "row": 5,
+         "rowspan": 5
+        },
+        {
+         "colspan": 18,
+         "column": 36,
+         "name": "text_3",
+         "row": 5,
+         "rowspan": 5
+        },
+        {
+         "colspan": 18,
+         "column": 54,
+         "name": "text_4",
+         "row": 5,
+         "rowspan": 5
+        },
+        {
+         "colspan": 28,
+         "column": 35,
+         "name": "text_5",
+         "row": 1,
+         "rowspan": 3
+        }
+       ]
+      }
+     ],
+     "rowHeight": 10,
+     "style": {
+      "backgroundColor": "#F0F3F8",
+      "cellSpacingX": 8,
+      "cellSpacingY": 8,
+      "gutterColor": "#F0F3F8"
+     }
+    }
+   ],
+   "name": "trend_breakdown",
+   "style": {
+    "widgetStyle": {
+     "borderEdges": []
+    }
+   },
+   "widgets": {
+    "viz_hero": {
+     "actions": [],
+     "name": "viz_hero",
+     "parameters": {
+      "legendPosition": "Bottom",
+      "receiveFilterSource": {
+       "filterMode": "all",
+       "publishers": [],
+       "widgetIds": []
+      },
+      "receiveParameterSource": {
+       "parameterMode": "all",
+       "publishers": []
+      }
+     },
+     "source": {
+      "name": "{{VIZ_NAME_trend}}"
+     },
+     "type": "visualization"
+    },
+    "viz_breakdown_2": {
+     "actions": [],
+     "name": "viz_breakdown_2",
+     "parameters": {
+      "receiveFilterSource": {
+       "filterMode": "all",
+       "publishers": [],
+       "widgetIds": []
+      },
+      "receiveParameterSource": {
+       "parameterMode": "all",
+       "publishers": []
+      }
+     },
+     "source": {
+      "name": "{{VIZ_NAME_breakdown_2}}"
+     },
+     "type": "visualization"
+    },
+    "text_1": {
+     "actions": [],
+     "name": "text_1",
+     "parameters": {
+      "conditionalFormattingRules": [],
+      "content": [
+       {
+        "attributes": {
+         "bold": true,
+         "color": "#3B769A",
+         "size": "16px"
+        },
+        "insert": "KPI",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "align": "center"
+        },
+        "insert": "\n",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "size": "32px"
+        },
+        "insert": "KPI",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "align": "center"
+        },
+        "insert": "\n",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "bold": true,
+         "color": "--slds-g-color-palette-green-60",
+         "size": "16px"
+        },
+        "insert": "KPI",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "bold": true,
+         "color": "--slds-g-color-palette-red-60",
+         "size": "16px"
+        },
+        "insert": " ",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "color": "--slds-g-color-palette-neutral-30",
+         "size": "12px"
+        },
+        "insert": "KPI",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "align": "center"
+        },
+        "insert": "\n",
+        "rules": []
+       }
+      ],
+      "receiveFilterSource": {
+       "filterMode": "all",
+       "publishers": [],
+       "widgetIds": []
+      },
+      "receiveParameterSource": {
+       "parameterMode": "all",
+       "publishers": []
+      },
+      "verticalAlignment": "top",
+      "widgetStyle": {
+       "backgroundColor": "--slds-g-color-palette-neutral-100",
+       "borderColor": "#3B769A",
+       "borderEdges": [
+        "all"
+       ],
+       "borderRadius": 8,
+       "borderWidth": 2
+      }
+     },
+     "type": "text"
+    },
+    "viz_breakdown_3": {
+     "actions": [],
+     "name": "viz_breakdown_3",
+     "parameters": {
+      "receiveFilterSource": {
+       "filterMode": "all",
+       "publishers": [],
+       "widgetIds": []
+      },
+      "receiveParameterSource": {
+       "parameterMode": "all",
+       "publishers": []
+      }
+     },
+     "source": {
+      "name": "{{VIZ_NAME_breakdown_3}}"
+     },
+     "type": "visualization"
+    },
+    "image_1": {
+     "actions": [],
+     "name": "image_1",
+     "parameters": {
+      "alignmentX": "center",
+      "alignmentY": "center",
+      "altText": "",
+      "imageScale": "fitToWidth",
+      "opacity": 100,
+      "widgetStyle": {
+       "backgroundColor": "--slds-g-color-palette-neutral-100",
+       "borderColor": "--slds-g-color-palette-neutral-80",
+       "borderEdges": [],
+       "borderRadius": 0,
+       "borderWidth": 1
+      }
+     },
+     "source": {
+      "name": "logo"
+     },
+     "type": "image"
+    },
+    "text_3": {
+     "actions": [],
+     "name": "text_3",
+     "parameters": {
+      "conditionalFormattingRules": [],
+      "content": [
+       {
+        "attributes": {
+         "color": "#3B769A",
+         "size": "16px"
+        },
+        "insert": "KPI",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "align": "center"
+        },
+        "insert": "\n",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "size": "32px"
+        },
+        "insert": "KPI",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "align": "center"
+        },
+        "insert": "\n",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "bold": true,
+         "color": "--slds-g-color-palette-green-60",
+         "size": "16px"
+        },
+        "insert": "KPI",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "bold": true,
+         "color": "--slds-g-color-palette-red-60",
+         "size": "16px"
+        },
+        "insert": " ",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "color": "--slds-g-color-palette-neutral-30",
+         "size": "12px"
+        },
+        "insert": "KPI",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "align": "center"
+        },
+        "insert": "\n",
+        "rules": []
+       }
+      ],
+      "receiveFilterSource": {
+       "filterMode": "all",
+       "publishers": [],
+       "widgetIds": []
+      },
+      "receiveParameterSource": {
+       "parameterMode": "all",
+       "publishers": []
+      },
+      "verticalAlignment": "top",
+      "widgetStyle": {
+       "backgroundColor": "--slds-g-color-palette-neutral-100",
+       "borderColor": "#3B769A",
+       "borderEdges": [
+        "all"
+       ],
+       "borderRadius": 8,
+       "borderWidth": 2
+      }
+     },
+     "type": "text"
+    },
+    "text_2": {
+     "actions": [],
+     "name": "text_2",
+     "parameters": {
+      "conditionalFormattingRules": [],
+      "content": [
+       {
+        "attributes": {
+         "bold": true,
+         "color": "#3B769A",
+         "size": "16px"
+        },
+        "insert": "KPI",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "align": "center"
+        },
+        "insert": "\n",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "size": "32px"
+        },
+        "insert": "KPI",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "align": "center"
+        },
+        "insert": "\n",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "bold": true,
+         "color": "--slds-g-color-palette-red-50",
+         "size": "16px"
+        },
+        "insert": "KPI",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "bold": true,
+         "color": "--slds-g-color-palette-red-60",
+         "size": "16px"
+        },
+        "insert": " ",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "color": "--slds-g-color-palette-neutral-30",
+         "size": "12px"
+        },
+        "insert": "KPI",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "align": "center"
+        },
+        "insert": "\n",
+        "rules": []
+       }
+      ],
+      "receiveFilterSource": {
+       "filterMode": "all",
+       "publishers": [],
+       "widgetIds": []
+      },
+      "receiveParameterSource": {
+       "parameterMode": "all",
+       "publishers": []
+      },
+      "verticalAlignment": "top",
+      "widgetStyle": {
+       "backgroundColor": "--slds-g-color-palette-neutral-100",
+       "borderColor": "#3B769A",
+       "borderEdges": [
+        "all"
+       ],
+       "borderRadius": 8,
+       "borderWidth": 2
+      }
+     },
+     "type": "text"
+    },
+    "text_5": {
+     "actions": [],
+     "name": "text_5",
+     "parameters": {
+      "conditionalFormattingRules": [],
+      "content": [
+       {
+        "attributes": {
+         "bold": true,
+         "color": "#3B769A",
+         "size": "14px"
+        },
+        "insert": "Title",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "align": "center"
+        },
+        "insert": "\n",
+        "rules": []
+       }
+      ],
+      "lineSpacing": 2.0,
+      "receiveFilterSource": {
+       "filterMode": "all",
+       "publishers": [],
+       "widgetIds": []
+      },
+      "receiveParameterSource": {
+       "parameterMode": "all",
+       "publishers": []
+      },
+      "verticalAlignment": "bottom",
+      "widgetStyle": {
+       "backgroundColor": "--slds-g-color-palette-neutral-100",
+       "borderColor": "#3B769A",
+       "borderEdges": [
+        "bottom"
+       ],
+       "borderRadius": 0,
+       "borderWidth": 2
+      }
+     },
+     "type": "text"
+    },
+    "text_4": {
+     "actions": [],
+     "name": "text_4",
+     "parameters": {
+      "conditionalFormattingRules": [],
+      "content": [
+       {
+        "attributes": {
+         "bold": true,
+         "color": "#3B769A",
+         "size": "16px"
+        },
+        "insert": "KPI",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "align": "center"
+        },
+        "insert": "\n",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "size": "32px"
+        },
+        "insert": "KPI",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "align": "center"
+        },
+        "insert": "\n",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "bold": true,
+         "color": "--slds-g-color-palette-green-60",
+         "size": "16px"
+        },
+        "insert": "KPI",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "bold": true,
+         "color": "--slds-g-color-palette-red-60",
+         "size": "16px"
+        },
+        "insert": " ",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "color": "--slds-g-color-palette-neutral-30",
+         "size": "12px"
+        },
+        "insert": "KPI",
+        "rules": []
+       },
+       {
+        "attributes": {
+         "align": "center"
+        },
+        "insert": "\n",
+        "rules": []
+       }
+      ],
+      "receiveFilterSource": {
+       "filterMode": "all",
+       "publishers": [],
+       "widgetIds": []
+      },
+      "receiveParameterSource": {
+       "parameterMode": "all",
+       "publishers": []
+      },
+      "verticalAlignment": "top",
+      "widgetStyle": {
+       "backgroundColor": "--slds-g-color-palette-neutral-100",
+       "borderColor": "#3B769A",
+       "borderEdges": [
+        "all"
+       ],
+       "borderRadius": 8,
+       "borderWidth": 2
+      }
+     },
+     "type": "text"
+    },
+    "viz_breakdown_1": {
+     "actions": [],
+     "name": "viz_breakdown_1",
+     "parameters": {
+      "receiveFilterSource": {
+       "filterMode": "all",
+       "publishers": [],
+       "widgetIds": []
+      },
+      "receiveParameterSource": {
+       "parameterMode": "all",
+       "publishers": []
+      }
+     },
+     "source": {
+      "name": "{{VIZ_NAME_breakdown_1}}"
+     },
+     "type": "visualization"
+    }
+   },
+   "workspaceIdOrApiName": "{{WORKSPACE_API_NAME}}"
+  }
+ }
+}

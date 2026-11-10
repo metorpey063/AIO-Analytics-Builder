@@ -323,7 +323,7 @@ TEMPLATE_REQUIREMENTS = {
     "z_layout":         {"min_metrics": 6, "min_dimensions": 4, "description": "Z Layout needs 6 metrics and 4 dimensions for BAN tiles, filters, and breakdowns"},
     "f_layout":         {"min_metrics": 6, "min_dimensions": 4, "description": "F Layout needs 6 metrics and 4 dimensions"},
     "exec_summary":     {"min_metrics": 6, "min_dimensions": 4, "description": "Executive Summary needs 6 metrics and 4 dimensions"},
-    "pharma_analytics": {"min_metrics": 6, "min_dimensions": 4, "description": "Pharma Analytics needs 6 metrics and 4 dimensions"},
+    "trend_breakdown":  {"min_metrics": 6, "min_dimensions": 4, "description": "Trend & Breakdown needs 6 metrics and 4 dimensions"},
     "standard":         {"min_metrics": 6, "min_dimensions": 4, "description": "Standard layout needs 6 metrics and 4 dimensions"},
 }
 

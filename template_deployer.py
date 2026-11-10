@@ -45,28 +45,29 @@ AVAILABLE_TEMPLATES = {
         "viz_slots": ["trend_stacked_bar", "entity_bar_1", "entity_bar_2", "entity_bar_3"],
         # Captured from one customer's demo: remapped by role (see prepare_role_viz_payloads)
         "roles": {
-            "measures": ["Bookings_Dollar", "Realized_Margin_Pct"],
-            "dims": ["Operating_Brand", "Vertical3"],
-            "dates": ["Date25"],
+            "measures": ["measure_1", "measure_2"],
+            "dims": ["dim_1", "dim_2"],
+            "dates": ["date_1"],
             "remove": ["image_1"],
+            "title": {"row": 1, "column": 1, "rowspan": 7, "colspan": 70},   # the band above the KPIs
             "bar_for_donut": None,
         },
     },
-    "pharma_analytics": {
-        "file": "pharma_analytics_package.json",
-        "label": "Pharma Analytics",
-        "description": "4 KPIs → stacked bar trend (YoY) → donut breakdown + horizontal bar ranking",
+    "trend_breakdown": {
+        "file": "trend_breakdown_package.json",
+        "label": "Trend & Breakdown",
+        "description": "Title → 4 KPIs → year-over-year trend → three breakdowns",
         "max_metrics": 4,
         "max_filters": 0,
         "viz_slots": ["trend_stacked_bar", "donut_breakdown", "entity_bar", "brand_bar"],
         "roles": {
-            "measures": ["New_Rx_Volume"],
-            "dims": ["Prescriber_Specialty", "State11", "Brand_Name"],
-            "dates": ["Date24"],
+            "measures": ["measure_1"],
+            "dims": ["dim_1", "dim_2", "dim_3"],
+            "dates": ["date_1"],
             "remove": ["image_1"],
             "kpi_text": ["text_1", "text_2", "text_3", "text_4"],   # static numbers in the capture -> metric tiles
-            "title_text": "text_5",
-            "bar_for_donut": "ss_v_rx_state_155751",
+            "title": {"widget": "text_5", "row": 0, "column": 1, "rowspan": 4, "colspan": 70},
+            "bar_for_donut": "breakdown_2",
         },
     },
 }
@@ -641,7 +642,7 @@ def prepare_dashboard_payload(
 
 # ---- captured templates: remap by role ----------------------------------------------------------
 #
-# Executive Summary and Pharma Analytics were captured from customer demos, so
+# Executive Summary and Trend & Breakdown were captured from customer demos, so
 # their vizzes reference that demo's own object and fields. They're remapped by role: each source
 # field is a date, measure N or dimension N (AVAILABLE_TEMPLATES[...]["roles"]), and becomes the
 # target demo's Display_Date, Nth metric calc or Nth dimension. A template that asks for more
@@ -785,6 +786,20 @@ def _set_text(widget: Dict[str, Any], text: str) -> None:
             b["insert"] = ""
 
 
+def _place_title(dash: Dict[str, Any], spec: Dict[str, Any], title: str) -> None:
+    """Large, left-aligned dashboard title in the band above the KPIs (where the source logo sat)."""
+    name = spec.get("widget", "title_1")
+    dash["widgets"][name] = {
+        "name": name, "type": "text", "actions": [],
+        "parameters": {"content": [{"attributes": {"bold": True, "size": "24px", "color": "#2E2E2E"}, "insert": title},
+                                   {"attributes": {"align": "left"}, "insert": "\n"}],
+                       "widgetStyle": {"borderColor": "#C9C9C9", "borderEdges": []}}}
+    page = dash["layouts"][0]["pages"][0]
+    page["widgets"] = [w for w in page["widgets"] if w.get("name") != name]
+    page["widgets"].insert(0, {"name": name, "row": spec["row"], "column": spec["column"],
+                               "rowspan": spec["rowspan"], "colspan": spec["colspan"]})
+
+
 def prepare_role_dashboard_payload(package: Dict[str, Any], roles: Dict[str, Any], target: Dict[str, Any], *,
                                    sdm_api: str, sdm_id: str, ws_api: str, do_api: str, slug: str, dash_label: str,
                                    viz_name_map: Dict[str, str], viz_titles: Dict[str, str]) -> Dict[str, Any]:
@@ -817,8 +832,8 @@ def prepare_role_dashboard_payload(package: Dict[str, Any], roles: Dict[str, Any
             widgets[n] = {"name": n, "type": "metric", "actions": [], "source": {"name": _pick(target["metrics"], i)},
                           "parameters": {"metricOption": {"sdmApiName": sdm_api, "sdmId": sdm_id,
                                                           "layout": copy.deepcopy(_KPI_LAYOUT)}}}
-    if roles.get("title_text") in widgets:
-        _set_text(widgets[roles["title_text"]], target["title"])
+    if roles.get("title"):
+        _place_title(dash, roles["title"], target["title"])
     # Section headers repeat the title of the viz below them
     for text_w, viz_w in roles.get("viz_headers", {}).items():
         src = (widgets.get(viz_w, {}).get("source") or {}).get("name")
