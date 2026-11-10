@@ -15,6 +15,7 @@ All notable changes to AIO Analytics Builder are documented here.
   - **behind** (the normal case): unchanged
   
   `/update` follows the same rule.
+- **The sidebar restart button didn't restart anything.** `/api/restart` touched a file to trigger Flask's auto-reloader, but the server runs with the reloader off. It now re-executes the server in place, the same way the Update button does (shared `_schedule_restart()`), so code changes on disk load. Tested on a second instance: same port, back up within seconds.
 
 ---
 

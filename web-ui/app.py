@@ -566,13 +566,21 @@ def test_salesforce():
         return jsonify({"ok": False, "error": str(e)})
 
 
+def _schedule_restart(delay=1.5):
+    """Re-exec the server after the response is sent. It runs without the reloader, so this is the
+    only way to load new code. The page waits for /api/version to answer again."""
+    def _restart():
+        os.environ["AIO_RESTARTED"] = "1"   # don't open another browser tab
+        os.closerange(3, 4096)   # werkzeug's listening socket is inheritable and would keep the port busy
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+    threading.Timer(delay, _restart).start()
+
+
 @app.route("/api/restart", methods=["POST"])
 def restart_server():
-    """Trigger Flask reloader by touching a .py file."""
-    import pathlib
-    trigger = pathlib.Path(__file__).resolve()
-    trigger.touch()
-    return jsonify({"ok": True, "message": "Restart triggered"})
+    """Restart the server (sidebar restart button) so code changes on disk are loaded."""
+    _schedule_restart()
+    return jsonify({"ok": True, "message": "Restarting"})
 
 
 @app.route("/api/test-mcp", methods=["POST"])
@@ -707,11 +715,7 @@ def update():
             log = run(["git", "log", "--oneline", f"{rev_before[:8]}..HEAD"])
             output += "\n" + log.stdout.strip() + ("\n" + deps_note if deps_note else "") + backup_note
 
-            def _restart():   # no reloader, so re-exec to load the new code (the page waits for /api/version)
-                os.environ["AIO_RESTARTED"] = "1"
-                os.closerange(3, 4096)   # werkzeug's listening socket is inheritable and would keep the port busy
-                os.execv(sys.executable, [sys.executable] + sys.argv)
-            threading.Timer(1.5, _restart).start()
+            _schedule_restart()
         return jsonify({"ok": True, "updated": updated, "output": output})
     except Exception as e:
         return jsonify({"ok": False, "updated": False, "output": str(e)})
