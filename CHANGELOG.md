@@ -4,6 +4,13 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-10 — No false "update available" for unpushed work (v2.11.1)
+
+### Fixed
+- The Web UI offered an "update" whenever the local `VERSION` differed from GitHub's, so a copy with unpushed commits was told to update to GitHub's *older* version (e.g. "you have 2.11, update available: 2.10"). It now offers an update only when GitHub has commits this copy doesn't. Tested ahead / behind / same against a stand-in GitHub. (Clicking Update in that state was already harmless: the updater skips copies that are only ahead.)
+
+---
+
 ## 2026-11-10 — The Web UI assistant can read AIO's docs and your demo logs (v2.11.0)
 
 > Tested end to end through `/api/chat` with real Claude calls on the Salesforce gateway: a "Cyclic relationship detected" question was answered from CLAUDE.md Known Pitfalls and the deploy log, with file:line citations, in about 9 seconds; a deploy-status question was answered from the checkpoint and logs. Path escapes, `config.json` and credential files are refused; secret-looking JSON values are redacted.

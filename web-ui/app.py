@@ -673,7 +673,9 @@ def version_check():
         "local": local_version,
         "remote": remote_version,
         "behind": behind,
-        "update_available": local_version != remote_version or behind,
+        # only when GitHub has commits this copy doesn't: a copy that's ahead (unpushed work) has a
+        # different VERSION too, and offering it GitHub's older version as an "update" would be wrong
+        "update_available": behind,
     })
 
 
