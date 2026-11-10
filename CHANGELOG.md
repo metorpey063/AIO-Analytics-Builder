@@ -4,6 +4,13 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-10 — README: correct Web UI port
+
+### Fixed
+- The README and the installer's header comment said the Web UI opens at `localhost:5050`; it's `localhost:5100` (what the installer and launcher actually use).
+
+---
+
 ## 2026-11-10 — No false "update available" for unpushed work (v2.11.1)
 
 ### Fixed

@@ -56,7 +56,7 @@ Open **Terminal** (Spotlight → type "Terminal") and paste:
 curl -sL https://raw.githubusercontent.com/metorpey063/AIO-Analytics-Builder/main/install_remote.sh | bash
 ```
 
-That's it — it downloads everything, installs dependencies, and opens the Web UI at `http://localhost:5050`. No zip to download, no Gatekeeper popups, no manual steps.
+That's it — it downloads everything, installs dependencies, and opens the Web UI at `http://localhost:5100`. No zip to download, no Gatekeeper popups, no manual steps.
 
 ### Option B — Install from zip
 

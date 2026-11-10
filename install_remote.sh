@@ -9,7 +9,7 @@
 #   2. Strips macOS quarantine flags (no Gatekeeper popups)
 #   3. Creates a Python virtual environment
 #   4. Installs all dependencies
-#   5. Launches the Web UI at http://localhost:5050
+#   5. Launches the Web UI at http://localhost:5100
 # ──────────────────────────────────────────────────────────
 
 set -e
