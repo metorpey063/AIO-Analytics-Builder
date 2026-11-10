@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% set active = "transfer_assets" %}
+
+{% block title %}Transfer Assets{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Transfer Assets</h1>
+    <p class="subtitle">Copy Tableau Next dashboards from one org to another: the dashboards, their vizzes, the semantic model, calculations and metrics. When the target org doesn't have the data yet, the transfer creates the data stream and copies the rows over. The source org is only read, never changed.</p>
+</div>
+
+<!-- 1. Orgs -->
+<div class="card story-section" style="padding:16px; margin-bottom:16px">
+    <h3><span class="step-num">1</span> Orgs</h3>
+    <div class="form-group"><label>Source (where the dashboards are today) *</label>
+        <select id="xf-source" onchange="onSource()"><option value="">Loading connections…</option></select></div>
+    <div class="form-group"><label>Target (where to copy them) *</label>
+        <select id="xf-target" onchange="resetPlan()"><option value="">Loading connections…</option></select>
+        <div class="form-hint">Pick by org URL, not name. The target needs Data Cloud and an ingest connector (set up on <a href="/connections">Connections</a>).</div></div>
+</div>
+
+<!-- 2. Dashboards -->
+<div class="card story-section" style="padding:16px; margin-bottom:16px">
+    <h3><span class="step-num">2</span> Dashboards</h3>
+    <div id="xf-dash" class="form-hint">Pick a source org to list its dashboards.</div>
+    <div class="form-group" style="margin-top:12px"><label>Target workspace name *</label>
+        <input type="text" id="xf-label" placeholder="e.g. Acme Retention Demo" oninput="resetPlan()">
+        <div class="form-hint">Every selected dashboard goes into this one new workspace and shares one semantic model. Run the same transfer again with the same name to resume it.</div></div>
+    <div class="wizard-actions">
+        <button class="btn btn-secondary" id="xf-plan" onclick="run('plan')">Check transfer</button>
+        <span class="form-hint">Read-only: packages the dashboards from the source and checks what the target needs for the data. 1–2 minutes.</span>
+    </div>
+    <div id="xf-plan-out" class="form-hint" style="margin-top:10px"></div>
+</div>
+
+<!-- 3. Transfer -->
+<div class="card story-section" style="padding:16px; margin-bottom:16px">
+    <h3><span class="step-num">3</span> Transfer</h3>
+    <div class="wizard-actions" style="flex-wrap:wrap; gap:8px">
+        <button class="btn btn-primary" id="xf-run" onclick="run('run')" disabled>Transfer</button>
+        <span class="form-hint">Run "Check transfer" first. 5–15 minutes, mostly Data Cloud creating the stream and loading rows. If it stops, press Transfer again: finished steps are skipped.</span>
+    </div>
+    <pre id="xf-log" class="progress-log hidden" style="max-height:360px; overflow:auto; margin-top:12px; font-size:12px; white-space:pre-wrap"></pre>
+    <div id="xf-result" class="form-hint hidden" style="margin-top:12px"></div>
+</div>
+
+<!-- Remove -->
+<div class="card story-section" style="padding:16px">
+    <h3>Remove</h3>
+    <div class="wizard-actions" style="flex-wrap:wrap; gap:8px">
+        <button class="btn btn-ghost btn-sm" id="xf-remove" onclick="run('remove')">Remove this transfer</button>
+        <span class="form-hint">Uses the target and workspace name above. Deletes only the dashboards, vizzes, workspace and semantic model this transfer created. The copied data stream stays, and nothing else in either org is touched.</span>
+    </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+let profiles = [], dashboards = [], job = null, planned = null;
+
+async function loadProfiles() {
+    const r = await (await fetch('/api/sales-insights/profiles')).json();
+    profiles = r.profiles || [];
+    const opts = profiles.map(p => `<option value="${p.key}">${esc(p.label)} — ${esc(p.instance || 'not signed in')}</option>`).join('');
+    $('xf-source').innerHTML = '<option value="">— pick the source —</option>' + opts;
+    $('xf-target').innerHTML = '<option value="">— pick the target —</option>' + opts;
+    $('xf-source').value = localStorage.getItem('xf-source') || '';
+    $('xf-target').value = localStorage.getItem('xf-target') || '';
+    if ($('xf-source').value) onSource();
+}
+
+async function onSource() {
+    resetPlan();
+    const key = $('xf-source').value;
+    localStorage.setItem('xf-source', key);
+    if (!key) { $('xf-dash').textContent = 'Pick a source org to list its dashboards.'; return; }
+    $('xf-dash').textContent = 'Loading dashboards…';
+    const r = await (await fetch(`/api/transfer/dashboards?profile=${encodeURIComponent(key)}`)).json();
+    if (!r.ok) { $('xf-dash').innerHTML = `<span style="color:var(--red)">${esc(r.error)}</span>`; return; }
+    dashboards = r.dashboards;
+    if (!dashboards.length) { $('xf-dash').textContent = 'No Tableau Next dashboards in this org.'; return; }
+    const byWs = {};
+    dashboards.forEach(d => (byWs[d.workspace] = byWs[d.workspace] || []).push(d));
+    $('xf-dash').innerHTML = Object.entries(byWs).map(([ws, ds]) =>
+        `<div style="margin-bottom:8px"><strong>${esc(ws)}</strong>` + ds.map(d =>
+            `<label style="display:block; margin-left:12px; font-weight:normal"><input type="checkbox" class="xf-pick" value="${esc(d.name)}" data-ws="${esc(ws)}" onchange="onPickDash(this)"> ${esc(d.label)} <code>${esc(d.name)}</code>${d.template ? ' <span class="badge badge-neutral">managed app</span>' : ''}</label>`).join('') + '</div>').join('')
+        + '<div class="form-hint">Pick dashboards from one workspace: they need to share one semantic model.</div>';
+}
+
+function onPickDash(box) {
+    resetPlan();
+    // Keep the selection inside one workspace (one SDM per transfer)
+    if (box.checked) document.querySelectorAll('.xf-pick').forEach(b => { if (b.dataset.ws !== box.dataset.ws) b.checked = false; });
+    if (box.checked && !$('xf-label').value) $('xf-label').value = box.dataset.ws.replace(/_/g, ' ') + ' Transfer';
+}
+
+function selected() { return [...document.querySelectorAll('.xf-pick:checked')].map(b => b.value); }
+
+function resetPlan() {
+    planned = null;
+    $('xf-run').disabled = true;
+    $('xf-plan-out').innerHTML = '';
+    localStorage.setItem('xf-target', $('xf-target').value);
+}
+
+function setBusy(busy) {
+    ['xf-source', 'xf-target', 'xf-plan', 'xf-label', 'xf-remove'].forEach(id => $(id).disabled = busy);
+    $('xf-run').disabled = busy || !planned;
+}
+
+function orgName(key) { const p = profiles.find(x => x.key === key); return p ? `${p.label} (${p.instance || key})` : key; }
+
+async function run(action) {
+    const body = { action, source: $('xf-source').value, target: $('xf-target').value,
+                   dashboards: selected(), workspace_label: $('xf-label').value.trim() };
+    if (action === 'run') {
+        if (!confirm(`Transfer ${body.dashboards.length} dashboard(s) to ${orgName(body.target)}?\n\nCreates the workspace "${body.workspace_label}", a semantic model, the vizzes and dashboards`
+            + ((planned && planned.data.some(d => d.action.startsWith('create'))) ? ', and a data stream with the copied rows.' : '.')
+            + '\n\nThe source org is not changed.')) return;
+        body.confirmed = true;
+    } else if (action === 'remove') {
+        if (!confirm(`Remove the transfer "${body.workspace_label}" from ${orgName(body.target)}?\n\nDeletes the dashboards, vizzes, workspace and semantic model it created. This can't be undone.`)) return;
+        body.confirmed = true;
+    }
+    const r = await (await fetch('/api/transfer/run', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body) })).json();
+    if (!r.ok) { alert(r.error); return; }
+    job = { id: r.job_id, next: 0, action };
+    $('xf-log').classList.remove('hidden');
+    $('xf-log').textContent = r.already_running ? '(reconnected to the running job)\n' : '';
+    $('xf-result').classList.add('hidden');
+    setBusy(true);
+    poll();
+}
+
+function showPlan(p) {
+    planned = p;
+    const dash = p.dashboards.map(d => `<li>${esc(d.label)}: ${d.vizzes} vizzes, ${d.metrics} metrics</li>`).join('');
+    const data = p.data.map(d => `<li><code>${esc(d.schema || d.source_dlo)}</code>: ${esc(d.action)}${d.target_dlo ? ` (<code>${esc(d.target_dlo)}</code>)` : ''}</li>`).join('');
+    $('xf-plan-out').innerHTML = `<div style="color:var(--green)">✓ Ready to transfer from ${esc(p.source)} to ${esc(p.target)}</div>`
+        + `<ul style="margin:6px 0; padding-left:18px">${dash}</ul><strong>Data</strong><ul style="margin:6px 0; padding-left:18px">${data}</ul>`
+        + (p.single_sdm ? '' : '<div style="color:var(--orange)">⚠ These dashboards use different semantic models. Transfer them one workspace at a time.</div>');
+    $('xf-run').disabled = !p.single_sdm;
+}
+
+function showResult(res) {
+    const deployed = Object.entries(res.deployed || {});
+    const v = (res.verify || {}).metrics || {};
+    const bad = Object.keys(v).filter(k => !v[k]);
+    $('xf-result').innerHTML = `<div style="color:var(--green)">✓ Transferred ${deployed.length} dashboard(s): workspace <code>${esc(res.workspace)}</code>${res.sdm ? `, semantic model <code>${esc(res.sdm)}</code>` : ''}.</div>`
+        + `<ul style="margin:6px 0; padding-left:18px">` + deployed.map(([n, d]) => `<li>${esc(n)}${d.url ? ` — <a href="${esc(d.url)}" target="_blank">open</a>` : ''}</li>`).join('') + '</ul>'
+        + (Object.keys(v).length ? (bad.length ? `<div style="color:var(--orange)">⚠ ${bad.length} metric(s) don't match the source yet: ${esc(bad.join(', '))}. Data Cloud may still be loading rows; check again in a few minutes.</div>`
+                                   : `<div>✓ All ${Object.keys(v).length} metrics return the same values as the source.</div>`) : '')
+        + '<div><strong>Share the workspace</strong> in Tableau Next: Share → All Internal Users → View. The API can\'t share it.</div>';
+    $('xf-result').classList.remove('hidden');
+}
+
+async function poll() {
+    if (!job) return;
+    let r;
+    try { r = await (await fetch(`/api/transfer/job/${job.id}?since=${job.next}`)).json(); }
+    catch (e) { setTimeout(poll, 4000); return; }
+    if (!r.ok) { $('xf-log').textContent += r.error + '\n'; job = null; setBusy(false); return; }
+    const log = $('xf-log');
+    for (const line of r.lines) {
+        if (line.startsWith('PLAN_JSON ')) { showPlan(JSON.parse(line.slice(10))); continue; }
+        if (line.startsWith('RESULT_JSON ')) { showResult(JSON.parse(line.slice(12))); continue; }
+        log.textContent += line + '\n';
+    }
+    job.next = r.next;
+    log.scrollTop = log.scrollHeight;
+    if (r.state === 'running') { setTimeout(poll, 2000); return; }
+    log.textContent += r.state === 'done' ? `\n✓ ${({plan: 'Check', run: 'Transfer', remove: 'Remove'})[r.action]} finished\n`
+        : `\n✕ Stopped — see the log above. Fix the cause and run it again.\n`;
+    log.scrollTop = log.scrollHeight;
+    job = null; setBusy(false);
+}
+
+loadProfiles();
+</script>
+{% endblock %}

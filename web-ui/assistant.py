@@ -40,6 +40,7 @@ PAGE_HINTS = {
     "/connections": "Connections (Salesforce and Tableau Cloud connections, testing auth, the active connection)",
     "/update-rev-intel": "Update Rev Intel Data (tailoring a demo org's Revenue Intelligence data to a customer)",
     "/deploy-sales-insights": "Deploy Sales Insights (deploying the six Sales Insights dashboards to an org with Data Cloud)",
+    "/transfer-assets": "Transfer Assets (copying Tableau Next dashboards, their SDM and data from one org to another via transfer_assets.py)",
 }
 
 TOOLS = [

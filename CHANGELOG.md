@@ -4,6 +4,22 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-10 — Transfer Assets: tested engine + Web UI page (v2.14.0)
+
+> Tested end to end on 2026-11-10: AIO Test Org → AIO Dev, 5 dashboards (Z, F, dynamic composed, Exec Summary, Trend & Breakdown) into one workspace and one SDM, 18,000 rows copied, every widget `Ok`, all 6 metrics returning the source's values, layouts identical to the source.
+
+### Added
+- **`transfer_assets.py`**, the engine behind `/transfer-assets`: `list`, `plan` (read-only), `run`, `verify` and `remove`. `run` packages the dashboards, creates the target's data stream and copies the rows when it's missing, deploys the first dashboard with a new workspace + SDM and the rest into it, then checks every metric against the source. Checkpointed and resumable; `remove` deletes only what the transfer created.
+- **Web UI → Skills → Transfer Assets:** pick source and target orgs and the dashboards, Check transfer (read-only), Transfer, Remove.
+
+### Fixed (the skill's inline code)
+- Target data was matched by DLO prefix, which embeds the connector name, so it never matched across orgs with different connectors. Now matched by schema name.
+- The schema fields were read from a stream GET key that doesn't exist (`dataLakeFieldInputRepresentations`), and the Query API columns from `metadata.columns` (the metadata is a dict keyed by column). Both came back empty.
+- Multi-dashboard transfers created a workspace + SDM per dashboard, because the deploy status doesn't name the SDM.
+- `/ssot/data-streams?limit=500` returns 400. It now pages at 200.
+
+---
+
 ## 2026-11-10 — Trend & Breakdown: no empty band above the last chart (v2.13.1)
 
 ### Fixed

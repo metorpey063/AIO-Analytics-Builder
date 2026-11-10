@@ -1302,6 +1302,105 @@ def sales_insights_job(job_id):
                     "deploy": _si_checkpoint(job["profile"]) if job["state"] != "running" else None})
 
 
+@app.route("/transfer-assets")
+def transfer_assets_page():
+    """Transfer Assets (/transfer-assets skill): copies Tableau Next dashboards between orgs."""
+    return render_template("transfer_assets.html")
+
+
+# Transfer jobs: polled like Sales Insights, so a reload during a long transfer reconnects.
+XFER_JOBS = {}      # job id -> {action, slug, lines, state, rc}
+XFER_RUNNING = {}   # slug -> job id currently running
+
+
+def _xfer_slug(target, workspace_label):
+    import re as _re
+    return "transfer_" + _re.sub(r"[^a-z0-9]+", "_", f"{target}_{workspace_label}".lower()).strip("_")[:60]
+
+
+@app.route("/api/transfer/dashboards")
+def transfer_dashboards():
+    """Read-only: the Tableau Next dashboards in one org."""
+    import transfer_assets as xfer
+    key = request.args.get("profile", "")
+    try:
+        return jsonify({"ok": True, "dashboards": xfer.list_dashboards(xfer.Org(key))})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Couldn't list dashboards: {e}"}), 400
+
+
+@app.route("/api/transfer/run", methods=["POST"])
+def transfer_run():
+    """plan (read-only: packages the dashboards, checks the target's data), run (writes to the target)
+    or remove (deletes only what this transfer created in the target)."""
+    import subprocess
+    import uuid as _uuid
+    from connections import load_full_config
+    data = request.get_json() or {}
+    action, src, tgt = data.get("action"), data.get("source"), data.get("target")
+    names = [n for n in data.get("dashboards", []) if n]
+    label = (data.get("workspace_label") or "").strip()
+    profiles = load_full_config().get("profiles", {})
+    if action not in ("plan", "run", "remove"):
+        return jsonify({"ok": False, "error": f"Unknown action {action!r}"}), 400
+    if src not in profiles or tgt not in profiles:
+        return jsonify({"ok": False, "error": "Pick a source and a target connection."}), 400
+    if src == tgt:
+        return jsonify({"ok": False, "error": "The source and target must be different orgs."}), 400
+    if not names or not label:
+        return jsonify({"ok": False, "error": "Pick at least one dashboard and name the workspace."}), 400
+    if action in ("run", "remove") and not data.get("confirmed"):
+        return jsonify({"ok": False, "error": "This writes to the target org — confirm first."}), 400
+    slug = _xfer_slug(tgt, label)
+    if XFER_RUNNING.get(slug):
+        return jsonify({"ok": True, "job_id": XFER_RUNNING[slug], "slug": slug, "already_running": True})
+    job_id = f"xf_{_uuid.uuid4().hex[:8]}"
+    job = XFER_JOBS[job_id] = {"action": action, "slug": slug, "lines": [], "state": "running", "rc": None}
+    XFER_RUNNING[slug] = job_id
+    cmd = ["python3", "-u", "transfer_assets.py", action, "--source", src, "--target", tgt,
+           "--dashboards", ",".join(names), "--slug", slug]
+    if action == "plan":
+        cmd.append("--fresh")
+    elif action == "run":
+        cmd += ["--workspace-label", label]
+
+    def _run():
+        job["lines"].append("$ python3 " + " ".join(cmd[2:]))
+        try:
+            log_path = PROJECT_ROOT / "demos" / slug / f"transfer_{action}.log"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(log_path, "a") as log:
+                p = subprocess.Popen(cmd, cwd=str(PROJECT_ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                     text=True, bufsize=1)
+                for line in p.stdout:
+                    job["lines"].append(line.rstrip()); log.write(line); log.flush()
+                p.wait()
+            job["rc"] = p.returncode
+            job["state"] = "done" if p.returncode == 0 else "error"
+        except Exception as e:
+            job["lines"].append(f"error: {e}"); job["state"] = "error"
+        finally:
+            XFER_RUNNING.pop(slug, None)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"ok": True, "job_id": job_id, "slug": slug})
+
+
+@app.route("/api/transfer/job/<job_id>")
+def transfer_job(job_id):
+    """New log lines since ?since=N, the job state, and the transfer checkpoint once finished."""
+    job = XFER_JOBS.get(job_id)
+    if not job:
+        return jsonify({"ok": False, "error": "Unknown job (the server may have restarted)."}), 404
+    since = int(request.args.get("since", 0))
+    cp = None
+    if job["state"] != "running":
+        p = PROJECT_ROOT / "demos" / job["slug"] / f"{job['slug']}_transfer_checkpoint.json"
+        cp = json.loads(p.read_text()) if p.exists() else None
+    return jsonify({"ok": True, "lines": job["lines"][since:], "next": len(job["lines"]), "state": job["state"],
+                    "action": job["action"], "slug": job["slug"], "checkpoint": cp})
+
+
 @app.route("/update-rev-intel")
 def update_rev_intel_page():
     return render_template("rev_intel.html", slug=request.args.get("slug", ""))
