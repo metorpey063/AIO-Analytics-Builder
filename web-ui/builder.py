@@ -324,7 +324,6 @@ TEMPLATE_REQUIREMENTS = {
     "f_layout":         {"min_metrics": 6, "min_dimensions": 4, "description": "F Layout needs 6 metrics and 4 dimensions"},
     "exec_summary":     {"min_metrics": 6, "min_dimensions": 4, "description": "Executive Summary needs 6 metrics and 4 dimensions"},
     "pharma_analytics": {"min_metrics": 6, "min_dimensions": 4, "description": "Pharma Analytics needs 6 metrics and 4 dimensions"},
-    "multi_page_kpi":   {"min_metrics": 11, "min_dimensions": 4, "description": "Multi-Page KPI needs 11+ metrics and 4+ dimensions across 4 dashboard pages"},
     "standard":         {"min_metrics": 6, "min_dimensions": 4, "description": "Standard layout needs 6 metrics and 4 dimensions"},
 }
 
@@ -992,6 +991,16 @@ def recapture_concierge(slug, demo_dir, q=None):
     return {"captured": captured, "total": total, "error": failed if not captured else None}
 
 
+def _template_failed(cp, template_name, errors, q):
+    """A picked template couldn't be deployed: say so plainly (build log, final message, walkthrough).
+    The build still finishes with the standard dashboard so the demo isn't empty."""
+    from template_deployer import AVAILABLE_TEMPLATES
+    label = AVAILABLE_TEMPLATES.get(template_name, {}).get("label", template_name)
+    cp["template_warning"] = (f"The {label} template couldn't be deployed, so this demo has a standard dashboard "
+                              f"instead. Reason: {str(errors[0])[:300]}")
+    progress(q, "warn", "⚠ " + cp["template_warning"], -1)
+
+
 def generate_walkthrough(slug, company, story_config, metric_config, build_type, checkpoint, demo_dir):
     """Generate an HTML walkthrough following the CLAUDE.md standard format.
 
@@ -1032,6 +1041,8 @@ ul{{padding-left:1.5em}}li{{margin:4px 0}}
 @media print{{body{{max-width:100%;padding:12px}}h1{{break-before:page}}.step{{break-inside:avoid}}}}
 </style></head><body>""")
 
+    if checkpoint.get("template_warning"):
+        h.append(f'<div class="step"><b>Note:</b> {e(checkpoint["template_warning"])}</div>')
     # ── Section 1: Demo Scenario ─────────────────────────────────────────────
     h.append(f"<h1>Demo Scenario</h1>")
     h.append(f"<h2>About {e(company)}</h2>")
@@ -2585,7 +2596,8 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         if cp.get("all_viz_apis"):
             _cleanup_assets(cp["all_viz_apis"],
                 f"{sf_instance}/services/data/v66.0/tableau/visualizations", h, "viz", q)
-        for k in ("viz_apis", "dash_api", "dash_done", "composed_done", "composed_viz_apis", "composed_dash_api"):
+        for k in ("viz_apis", "dash_api", "dash_done", "composed_done", "composed_viz_apis", "composed_dash_api",
+                  "template_warning"):
             cp.pop(k, None)
         _save_cp(cp, slug, demo_dir)
 
@@ -2721,6 +2733,16 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                     # Details table: the first metrics as columns (it shipped dimensions only)
                     table_measures=[{"fieldName": f"{clean_field_name(mc['field'])}_clc", "label": mc["label"],
                                      "percent": is_percent_metric(mc)} for mc in created_mcs[:3]],
+                    # Templates captured from customer demos are remapped by role (template_deployer)
+                    role_target={
+                        "measures": [{"field": f"{clean_field_name(mc['field'])}_clc", "label": mc["label"],
+                                      "percent": is_percent_metric(mc), "sum": mc.get("agg") == "Sum"}
+                                     for mc in created_mcs],
+                        "dims": [{"field": api, "label": dim_labels[i]} for i, (_, api) in enumerate(user_dims)],
+                        "date": display_date_api or "Display_Date",
+                        "metrics": list(cp.get("metric_apis", [])),
+                        "title": demo_label,
+                    },
                 )
 
                 if results.get("dashboard") and not results.get("errors"):
@@ -2739,11 +2761,11 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                     cp["all_viz_apis"].extend(cp["viz_apis"])
                     cp["viz_done"] = True
                     _save_cp(cp, slug, demo_dir)
-                    progress(q, "warn", f"Template vizzes created but dashboard failed: {results['errors']}", -1)
+                    _template_failed(cp, template_name, results["errors"], q)
                 else:
-                    progress(q, "warn", f"Template deploy failed: {results.get('errors', ['unknown'])}", -1)
+                    _template_failed(cp, template_name, results.get("errors") or ["unknown error"], q)
         except Exception as e:
-            progress(q, "info", f"Template deployer not available ({e}) — falling back", -1)
+            _template_failed(cp, layout_template or "z_layout", [str(e)], q)
 
         # --- Fallback: MCP path (only if template deploy didn't succeed) ---
         mcp_available = False
@@ -3524,7 +3546,8 @@ def run_build(build_id, build_config, progress_queue):
             progress(q, "crma", "Starting CRM Analytics build...", 10)
             crma_build(build_id, df, slug, company, crma_config, metric_config, story_config, demo_dir, q, cp)
 
-        progress(q, "done", f"Build complete! Demo saved to demos/{slug}/", 100)
+        note = f" ⚠ {cp['template_warning']}" if cp.get("template_warning") else ""
+        progress(q, "done", f"Build complete! Demo saved to demos/{slug}/{note}", 100)
 
     except Exception as e:
         progress(q, "error", f"Build failed: {str(e)[:500]}", -1)

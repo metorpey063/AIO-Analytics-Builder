@@ -43,6 +43,14 @@ AVAILABLE_TEMPLATES = {
         "max_metrics": 5,
         "max_filters": 0,
         "viz_slots": ["trend_stacked_bar", "entity_bar_1", "entity_bar_2", "entity_bar_3"],
+        # Captured from one customer's demo: remapped by role (see prepare_role_viz_payloads)
+        "roles": {
+            "measures": ["Bookings_Dollar", "Realized_Margin_Pct"],
+            "dims": ["Operating_Brand", "Vertical3"],
+            "dates": ["Date25"],
+            "remove": ["image_1"],
+            "bar_for_donut": None,
+        },
     },
     "pharma_analytics": {
         "file": "pharma_analytics_package.json",
@@ -51,14 +59,15 @@ AVAILABLE_TEMPLATES = {
         "max_metrics": 4,
         "max_filters": 0,
         "viz_slots": ["trend_stacked_bar", "donut_breakdown", "entity_bar", "brand_bar"],
-    },
-    "multi_page_kpi": {
-        "file": "multi_page_kpi_package.json",
-        "label": "Multi-Page KPI",
-        "description": "4-page tabbed dashboard: Executive KPIs, Sales, Customer & Product, Health & Coaching. 15 metrics, 8 vizzes, navigation.",
-        "max_metrics": 15,
-        "max_filters": 3,
-        "viz_slots": ["8 vizzes across 4 pages"],
+        "roles": {
+            "measures": ["New_Rx_Volume"],
+            "dims": ["Prescriber_Specialty", "State11", "Brand_Name"],
+            "dates": ["Date24"],
+            "remove": ["image_1"],
+            "kpi_text": ["text_1", "text_2", "text_3", "text_4"],   # static numbers in the capture -> metric tiles
+            "title_text": "text_5",
+            "bar_for_donut": "ss_v_rx_state_155751",
+        },
     },
 }
 
@@ -117,7 +126,13 @@ def _strip_readonly(obj: Any) -> Any:
 # substitution is blanked so it never shows on a live dashboard.
 TEXT_PLACEHOLDERS = {"Section Subheader", "Title/ Time + Name"}
 
-BAR_VIZZES = {"Horizontal_Bar", "Horizontal_Bar1", "Detail_Bar_2"}
+BAR_VIZZES = {"Horizontal_Bar", "Detail_Bar_2"}
+
+
+def _role(viz_name: str) -> str:
+    """A Z/F viz's role from its template name. F Layout's copies carry a number
+    (`Donut_Chart1`, `Details_Table1`), so match on the name without it."""
+    return re.sub(r"(?<![_\d])\d+$", "", viz_name)   # Donut_Chart1 -> Donut_Chart; Detail_Bar_2 stays
 
 
 def _first_dimension_key(payload: Dict[str, Any]) -> Optional[str]:
@@ -351,8 +366,9 @@ def prepare_viz_payloads(
         vizzes["Detail_Bar_2"] = bar2
 
     # Swap the donut for a bar on the donut's own dimension (keeps its slot and label)
-    if donut_as_bar and "Donut_Chart" in vizzes and horiz_key:
-        donut = vizzes["Donut_Chart"]
+    donut_key = next((k for k in vizzes if _role(k) == "Donut_Chart"), None)
+    if donut_as_bar and donut_key and horiz_key:
+        donut = vizzes[donut_key]
         donut_dim = next((fv["fieldName"] for fv in donut.get("fields", {}).values()
                           if fv.get("role") == "Dimension"), None)
         if donut_dim:
@@ -362,8 +378,8 @@ def prepare_viz_payloads(
                     fv["fieldName"] = donut_dim
                     break
             bar["label"] = donut.get("label", "Donut Chart")
-            bar["name"] = donut.get("name", "Donut_Chart")
-            vizzes["Donut_Chart"] = bar
+            bar["name"] = donut.get("name", donut_key)
+            vizzes[donut_key] = bar
 
     payloads = {}
 
@@ -398,22 +414,23 @@ def prepare_viz_payloads(
         if label_map:
             payload = _substitute(payload, label_map)
 
+        role = _role(viz_name)
         if percent_fields:
             _set_percent_format(payload, set(percent_fields))
-        if viz_name == "Trend_Line":
+        if role == "Trend_Line":
             _month_grain_dates(payload)
-        if viz_name == "Details_Table":
+        if role == "Details_Table":
             if table_measures:
                 _add_table_measures(payload, table_measures)
             # Fit to width: needs the Table layout (a Vizql table only takes
             # "Standard" or "Entire"); deploy_template posts it on v67.0
             _to_table_layout(payload)
-        if viz_name == "Trend_Line" and not trend_include_zero:
+        if role == "Trend_Line" and not trend_include_zero:
             axis_fields = payload.get("visualSpecification", {}).get("style", {}).get("axis", {}).get("fields", {})
             for ax in axis_fields.values():
                 if "range" in ax:
                     ax["range"]["includeZero"] = False
-        if color_bars and (viz_name in BAR_VIZZES or (donut_as_bar and viz_name == "Donut_Chart")):
+        if color_bars and (role in BAR_VIZZES or (donut_as_bar and role == "Donut_Chart")):
             _color_by_dimension(payload)
 
         payloads[viz_name] = payload
@@ -622,6 +639,211 @@ def prepare_dashboard_payload(
     return dash_def
 
 
+# ---- captured templates: remap by role ----------------------------------------------------------
+#
+# Executive Summary and Pharma Analytics were captured from customer demos, so
+# their vizzes reference that demo's own object and fields. They're remapped by role: each source
+# field is a date, measure N or dimension N (AVAILABLE_TEMPLATES[...]["roles"]), and becomes the
+# target demo's Display_Date, Nth metric calc or Nth dimension. A template that asks for more
+# measures or dimensions than the demo has reuses them in order (source field k -> target k mod n),
+# so a source metric always maps to the same demo metric.
+#
+# role_target (built by the caller):
+#   {"measures": [{"field": "<x>_clc", "label": str, "percent": bool, "sum": bool}],
+#    "dims": [{"field": dim_api, "label": str}], "date": display_date_api,
+#    "metrics": [mtc_api, ...], "title": str}
+
+_KPI_LAYOUT = {"componentVisibility": {"comparison": True, "insights": False, "details": False,
+                                       "title": True, "value": True, "chart": False, "goals": False}}
+
+
+def _pick(items: List[Any], i: int) -> Any:
+    return items[i % len(items)]
+
+
+def _map_role_field(fv: Dict[str, Any], roles: Dict[str, Any], target: Dict[str, Any], do_api: str) -> Dict[str, Any]:
+    src = fv.get("fieldName")
+    if src in roles["measures"]:
+        m = _pick(target["measures"], roles["measures"].index(src))
+        return {"displayCategory": fv.get("displayCategory", "Continuous"), "fieldName": m["field"],
+                "function": "UserAgg", "role": "Measure", "type": "Field"}
+    if src in roles["dims"]:
+        d = _pick(target["dims"], roles["dims"].index(src))
+        out = {k: v for k, v in fv.items() if k != "function"}
+        out.update(fieldName=d["field"], objectName=do_api)
+        return out
+    if src in roles["dates"]:
+        out = {k: v for k, v in fv.items() if k != "objectName"}
+        out["fieldName"] = target["date"]
+        return out
+    raise ValueError(f"template field {src!r} has no role; add it to the template's roles")
+
+
+def _role_title(payload: Dict[str, Any], labels: Dict[str, str]) -> str:
+    """Title from what the viz shows: '<M> by Month, Year over Year', '<M> vs <M2> by <D>', '<M> by <D>'."""
+    spec = payload.get("visualSpecification", {})
+    shown = list(dict.fromkeys((spec.get("columns") or []) + (spec.get("rows") or [])
+                               + [e["fieldKey"] for e in spec.get("marks", {}).get("panes", {}).get("encodings", [])
+                                  if e.get("type") in ("Color", "Detail", "Angle")]))
+    fields = payload.get("fields", {})
+    measures, dims, dated = [], [], False
+    for fk in shown or list(fields):
+        fv = fields.get(fk, {})
+        name = labels.get(fv.get("fieldName"), fv.get("fieldName"))
+        if fv.get("role") == "Measure" and name not in measures:
+            measures.append(name)
+        elif fv.get("role") == "Dimension":
+            if fv.get("fieldName") == labels.get("__date__"):
+                dated = True
+            elif name not in dims:
+                dims.append(name)
+    if not measures:
+        return payload.get("label", "")
+    head = measures[0] if len(measures) == 1 else f"{measures[0]} vs {measures[1]}"
+    if dated:
+        return f"{head} by Month, Year over Year"
+    return f"{head} by {dims[0]}" if dims else head
+
+
+def _reset_number_formats(payload: Dict[str, Any], percent_fields: set) -> None:
+    """Drop the source's currency/units formatting; numbers (or percentages for rate metrics)."""
+    style = payload.get("visualSpecification", {}).get("style", {})
+    for fk, fv in payload.get("fields", {}).items():
+        if fv.get("role") != "Measure":
+            continue
+        for path in (("encodings", "fields", fk, "defaults", "format", "numberFormatInfo"),
+                     ("axis", "fields", fk, "scale", "format", "numberFormatInfo")):
+            node = style
+            for p in path[:-1]:
+                node = node.get(p) if isinstance(node, dict) else None
+                if node is None:
+                    break
+            if isinstance(node, dict) and isinstance(node.get(path[-1]), dict):
+                node[path[-1]].update(prefix="", suffix="", displayUnits="Auto",
+                                      type="Number" if fv.get("fieldName") not in percent_fields else node[path[-1]].get("type", "Number"))
+    if percent_fields:
+        _set_percent_format(payload, percent_fields)
+
+
+def prepare_role_viz_payloads(package: Dict[str, Any], roles: Dict[str, Any], target: Dict[str, Any], *,
+                              sdm_api: str, sdm_label: str, ws_api: str, ws_label: str, do_api: str,
+                              slug: str, color_bars: bool = True) -> Dict[str, Dict[str, Any]]:
+    vizzes = copy.deepcopy(package["components"]["visualizations"])
+    # A donut is share of a whole: rebuild donuts on non-summed metrics from the template's own bar chart
+    bar_src = roles.get("bar_for_donut")
+    for name, v in list(vizzes.items()):
+        if v["visualSpecification"].get("marks", {}).get("panes", {}).get("type") != "Donut" or not bar_src:
+            continue
+        m_src = next((f["fieldName"] for f in v["fields"].values() if f.get("role") == "Measure"), None)
+        d_src = next((f["fieldName"] for f in v["fields"].values() if f.get("role") == "Dimension"), None)
+        m_tgt = _pick(target["measures"], roles["measures"].index(m_src)) if m_src in roles["measures"] else None
+        if m_tgt and m_tgt.get("sum"):
+            continue
+        bar = copy.deepcopy(package["components"]["visualizations"][bar_src])
+        for f in bar["fields"].values():
+            if f.get("role") == "Measure":
+                f["fieldName"] = m_src
+            elif f.get("role") == "Dimension":
+                f["fieldName"] = d_src
+        bar["label"], bar["name"] = v.get("label"), v.get("name", name)
+        vizzes[name] = bar
+
+    labels = {m["field"]: m["label"] for m in target["measures"]}
+    labels.update({d["field"]: d["label"] for d in target["dims"]})
+    labels["__date__"] = target["date"]
+    percent = {m["field"] for m in target["measures"] if m.get("percent")}
+    replacements = {"{{SDM_API_NAME}}": sdm_api, "{{SDM_LABEL}}": sdm_label,
+                    "{{WORKSPACE_API_NAME}}": ws_api, "{{WORKSPACE_LABEL}}": ws_label}
+    payloads = {}
+    for name, v in vizzes.items():
+        p = _strip_readonly(_substitute(copy.deepcopy(v), replacements))
+        p["fields"] = {fk: _map_role_field(fv, roles, target, do_api) if fv.get("type") == "Field" else fv
+                       for fk, fv in p.get("fields", {}).items()}
+        p["name"] = f"{slug}_{name.lower()}"[:80]
+        p["label"] = _role_title(p, labels)
+        p["workspace"] = {"name": ws_api, "label": ws_label}
+        # axis/field titles captured from the source would name its fields; let the engine use field labels
+        for ax in p.get("visualSpecification", {}).get("style", {}).get("axis", {}).get("fields", {}).values():
+            ax.pop("titleText", None)
+        _reset_number_formats(p, percent)
+        if color_bars and p["visualSpecification"].get("marks", {}).get("panes", {}).get("type") == "Bar" \
+                and not any(f.get("function", "").startswith("DatePart") for f in p["fields"].values()):
+            _color_by_dimension(p)
+        payloads[name] = p
+    return payloads
+
+
+def _set_text(widget: Dict[str, Any], text: str) -> None:
+    content = widget.get("parameters", {}).get("content") or []
+    first = next((b for b in content if isinstance(b, dict) and str(b.get("insert", "")).strip()), None)
+    if first is None:
+        widget.setdefault("parameters", {})["content"] = [{"attributes": {"bold": True, "size": "16px"}, "insert": text}]
+        return
+    first["insert"] = text
+    for b in content:   # blank any further captured text in the same widget
+        if b is not first and isinstance(b, dict) and str(b.get("insert", "")).strip():
+            b["insert"] = ""
+
+
+def prepare_role_dashboard_payload(package: Dict[str, Any], roles: Dict[str, Any], target: Dict[str, Any], *,
+                                   sdm_api: str, sdm_id: str, ws_api: str, do_api: str, slug: str, dash_label: str,
+                                   viz_name_map: Dict[str, str], viz_titles: Dict[str, str]) -> Dict[str, Any]:
+    dash = copy.deepcopy(package["components"]["dashboard"])
+    repl = {"{{SDM_API_NAME}}": sdm_api, "{{SDM_ID}}": sdm_id}
+    repl.update({f"{{{{VIZ_NAME_{k}}}}}": v for k, v in viz_name_map.items()})
+    dash = _strip_readonly(_substitute(dash, repl))
+    dash.update(name=f"{slug}_dashboard", label=dash_label, workspaceIdOrApiName=ws_api)
+    for w in roles.get("remove", []):
+        remove_widget(dash, w)
+    widgets = dash["widgets"]
+    order = [w["name"] for l in dash.get("layouts", []) for p in l.get("pages", []) for w in p.get("widgets", [])]
+    order += [n for n in widgets if n not in order]
+
+    # Metric tiles: each source metric -> the demo's metric in order of first appearance
+    seen = []
+    for n in order:
+        w = widgets.get(n)
+        if not w or w.get("type") != "metric":
+            continue
+        src = (w.get("source") or {}).get("name")
+        if src not in seen:
+            seen.append(src)
+        w["source"] = {"name": _pick(target["metrics"], seen.index(src))}
+        mo = w.setdefault("parameters", {}).setdefault("metricOption", {})
+        mo.update(sdmApiName=sdm_api, sdmId=sdm_id)
+    # Static KPI text (the capture's own numbers) -> metric tiles in the same positions
+    for i, n in enumerate(roles.get("kpi_text", [])):
+        if n in widgets:
+            widgets[n] = {"name": n, "type": "metric", "actions": [], "source": {"name": _pick(target["metrics"], i)},
+                          "parameters": {"metricOption": {"sdmApiName": sdm_api, "sdmId": sdm_id,
+                                                          "layout": copy.deepcopy(_KPI_LAYOUT)}}}
+    if roles.get("title_text") in widgets:
+        _set_text(widgets[roles["title_text"]], target["title"])
+    # Section headers repeat the title of the viz below them
+    for text_w, viz_w in roles.get("viz_headers", {}).items():
+        src = (widgets.get(viz_w, {}).get("source") or {}).get("name")
+        if text_w in widgets and src in viz_titles:
+            _set_text(widgets[text_w], viz_titles[src])
+    # Filters: same role mapping as the vizzes
+    for w in widgets.values():
+        fo = (w.get("parameters") or {}).get("filterOption")
+        if w.get("type") != "filter" or not fo:
+            continue
+        mapped = _map_role_field({"fieldName": fo.get("fieldName"), "objectName": fo.get("objectName")}, roles, target, do_api)
+        fo["fieldName"] = mapped["fieldName"]
+        if mapped.get("objectName"):
+            fo["objectName"] = mapped["objectName"]
+        else:
+            fo.pop("objectName", None)
+        w["label"] = next((d["label"] for d in target["dims"] if d["field"] == mapped["fieldName"]), "Date")
+        w["source"] = {"name": sdm_api}
+    for l in dash.get("layouts", []):
+        for p in l.get("pages", []):
+            p["label"] = roles.get("pages", {}).get(p.get("label"), p.get("label"))
+    dash["widgets"] = {n: _clean_widget_for_post(w) for n, w in widgets.items()}
+    return dash
+
+
 def deploy_template(
     *,
     template_name: str,
@@ -649,6 +871,7 @@ def deploy_template(
     trend_include_zero: bool = False,
     color_bars: bool = True,
     table_measures: Optional[List[Dict[str, Any]]] = None,
+    role_target: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Deploy a complete template dashboard to an org via REST API.
 
@@ -675,6 +898,14 @@ def deploy_template(
             story-driven styling, see prepare_viz_payloads()
     """
     package = load_template(template_name)
+    roles = AVAILABLE_TEMPLATES[template_name].get("roles")
+    if roles:
+        if not role_target:
+            raise ValueError(f"{template_name} is remapped by role and needs role_target")
+        return _deploy_role_template(package, roles, role_target, template_name=template_name, sf_token=sf_token,
+                                     sf_instance=sf_instance, sdm_api=sdm_api, sdm_label=sdm_label, sdm_id=sdm_id,
+                                     ws_api=ws_api, ws_label=ws_label, do_api=do_api, slug=slug, dash_label=dash_label,
+                                     color_bars=color_bars)
     headers = {
         "Authorization": f"Bearer {sf_token}",
         "Content-Type": "application/json",
@@ -759,4 +990,39 @@ def deploy_template(
             results["errors"].append(err)
             print(f"    ERROR: {err}")
 
+    return results
+
+
+def _deploy_role_template(package, roles, target, *, template_name, sf_token, sf_instance, sdm_api, sdm_label, sdm_id,
+                          ws_api, ws_label, do_api, slug, dash_label, color_bars=True):
+    """Deploy a captured template remapped by role. Posted on v67.0 / minorVersion 14: the captures
+    carry newer keys (e.g. textDirection) that v66.0 rejects."""
+    headers = {"Authorization": f"Bearer {sf_token}", "Content-Type": "application/json"}
+    base = f"{sf_instance}/services/data/v67.0/tableau"
+    results = {"template": template_name, "vizzes_created": {}, "dashboard": None, "errors": []}
+    payloads = prepare_role_viz_payloads(package, roles, target, sdm_api=sdm_api, sdm_label=sdm_label, ws_api=ws_api,
+                                         ws_label=ws_label, do_api=do_api, slug=slug, color_bars=color_bars)
+    viz_name_map, viz_titles = {}, {}
+    for name, p in payloads.items():
+        print(f"  Creating viz: {p['label']} ({p['name']})...")
+        r = requests.post(f"{base}/visualizations?minorVersion=14", headers=headers, json=p)
+        if r.status_code == 201:
+            created = r.json().get("name", p["name"])
+            viz_name_map[name] = created
+            viz_titles[created] = p["label"]
+            results["vizzes_created"][name] = {"name": created, "id": r.json().get("id", ""), "label": p["label"]}
+        else:
+            results["errors"].append(f"Failed to create viz {name}: {r.status_code} {r.text[:200]}")
+            print(f"    ERROR: {results['errors'][-1]}")
+    if len(viz_name_map) == len(payloads):
+        dash = prepare_role_dashboard_payload(package, roles, target, sdm_api=sdm_api, sdm_id=sdm_id, ws_api=ws_api,
+                                              do_api=do_api, slug=slug, dash_label=dash_label,
+                                              viz_name_map=viz_name_map, viz_titles=viz_titles)
+        print(f"  Creating dashboard: {dash_label}...")
+        r = requests.post(f"{base}/dashboards?minorVersion=14", headers=headers, json=dash)
+        if r.status_code == 201:
+            results["dashboard"] = {"name": r.json().get("name", dash["name"]), "id": r.json().get("id", ""), "label": dash_label}
+        else:
+            results["errors"].append(f"Failed to create dashboard: {r.status_code} {r.text[:300]}")
+            print(f"    ERROR: {results['errors'][-1]}")
     return results

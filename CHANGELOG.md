@@ -4,6 +4,20 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-10 — Every dashboard template works on any demo (v2.12.0)
+
+> Tested on a 6-metric, 4-dimension Tableau Next demo in a fresh test org: each template built through the Web UI's own `run_build`, then every dashboard read back (all widgets `Ok`), every viz queried for data, and the stored assets scanned for leftover customer text. Z Layout's payloads are byte-identical to before.
+
+### Fixed
+- **Executive Summary and Pharma Analytics never deployed.** They were captured from customer demos (Diverzify, Surescripts), so their vizzes pointed at fields no other demo has; the build silently fell back to a generic dashboard and reported success. They're now remapped by role: dates, measures and dimensions map to the demo's own; Pharma's static KPI numbers become real metric tiles; customer logos and wording are gone; titles come from the demo's metrics ("Net Revenue Retention by Month, Year over Year").
+- **F Layout skipped its story styling:** its vizzes are named `Donut_Chart1`, `Details_Table1`…, so the rules that add metric columns to the details table and turn a donut on an average metric into a bar didn't apply. They now match by role.
+- **A template that fails says so.** The build warns in the log and the final message, and the walkthrough opens with a note naming the template and the reason. The fallback dashboard is still built so the demo isn't empty.
+
+### Removed
+- **Multi-Page KPI template** (captured from one customer's demo; too large for a demo build).
+
+---
+
 ## 2026-11-10 — README: correct Web UI port
 
 ### Fixed
