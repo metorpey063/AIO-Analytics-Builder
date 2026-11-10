@@ -99,7 +99,11 @@ async function sendChat() {
                 if (!line.startsWith('data: ')) continue;
                 try {
                     const msg = JSON.parse(line.slice(6));
-                    if (msg.type === 'text') {
+                    if (msg.type === 'status') {
+                        // the assistant is reading docs or logs; show what it's doing until the answer arrives
+                        if (!fullText) { textEl.innerHTML = '<span class="chat-typing"></span>'; textEl.firstChild.textContent = msg.text; }
+                        scrollChat();
+                    } else if (msg.type === 'text') {
                         fullText += msg.text;
                         textEl.innerHTML = renderMarkdown(fullText);
                         scrollChat();

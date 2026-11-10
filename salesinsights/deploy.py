@@ -371,7 +371,10 @@ def _verify(org, cp, pkg):
                                                                "submetric_definition": {"metric_api_name": m["apiName"]}}})
         vals = [v for r in (rows or []) for v in r["values"][1:] if isinstance(v, (int, float))]
         ok = bool(vals) and any(vals)
-        print(f"  metric {m['apiName']}: {'ok ' + str(vals[-1]) if ok else 'NO DATA ' + str(err or rows)[:120]}")
+        # show this year's value: the last bucket is next year, where only open deals close (often 0)
+        this_year = [r["values"][1] for r in rows or [] if str(r["values"][0]).startswith(time.strftime("%Y"))]
+        shown = this_year[0] if this_year and this_year[0] is not None else next((v for v in reversed(vals) if v), None)
+        print(f"  metric {m['apiName']}: {'ok, this year ' + str(round(shown, 3) if isinstance(shown, float) else shown) if ok else 'NO DATA ' + str(err or rows)[:120]}")
         if not ok:
             problems.append(f"metric {m['apiName']} returned no data")
     for name, api in cp["dashboards"].items():

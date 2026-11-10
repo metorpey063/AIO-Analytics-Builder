@@ -4,6 +4,20 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-10 — The Web UI assistant can read AIO's docs and your demo logs (v2.11.0)
+
+> Tested end to end through `/api/chat` with real Claude calls on the Salesforce gateway: a "Cyclic relationship detected" question was answered from CLAUDE.md Known Pitfalls and the deploy log, with file:line citations, in about 9 seconds; a deploy-status question was answered from the checkpoint and logs. Path escapes, `config.json` and credential files are refused; secret-looking JSON values are redacted.
+
+### Changed
+- **"Ask Claude" troubleshoots instead of guessing.** It now runs on Claude Sonnet 5.5 (was Haiku 4.5, 1,024-token answers) with read-only tools: search and read AIO's docs (CLAUDE.md Known Pitfalls, guides, every skill's instructions), list demos and read their checkpoints and logs, see recent Build Demo / Update Rev Intel / Deploy Sales Insights job logs from the server, and list connections. It shows what it's doing ("Searching the docs for…", "Reading demos/…") and cites file:line. It can't change anything: it tells you what to click or which command to run.
+- Its skills list and page hints are current: all ten skills are read from `.claude/commands/`, and Update Rev Intel and Deploy Sales Insights pages have hints.
+- `web-ui/assistant.py` holds the tools and the tool loop. The Build Demo story generator and the credentials Test button keep their model.
+
+### Fixed
+- Sales Insights verify printed the last year's metric value (next year, usually 0). It now prints this year's.
+
+---
+
 ## 2026-11-10 — v2.10.0
 
 Release marker for everything since v2.9.0 (entries below, back to 2026-10-30). Highlights:

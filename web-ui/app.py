@@ -8,6 +8,7 @@ import os
 import sys
 import queue
 import threading
+import time
 import webbrowser
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, Response
@@ -53,11 +54,21 @@ def inject_connection_status():
 progress_queues: dict[str, queue.Queue] = {}
 
 
+JOB_LOG = {}   # build id -> recent progress lines, kept for the assistant (the SSE queue is consumed as it streams)
+
+
 def send_progress(build_id: str, stage: str, message: str, pct: int = -1):
     """Push a progress event to the SSE stream for a given build."""
     q = progress_queues.get(build_id)
     if q:
         q.put({"stage": stage, "message": message, "pct": pct})
+    if stage != "heartbeat":
+        log = JOB_LOG.setdefault(build_id, {"started": time.strftime("%H:%M:%S"), "lines": [], "state": "running"})
+        log["lines"] = (log["lines"] + [f"[{stage}] {message}"])[-300:]
+        if stage in ("done", "error"):
+            log["state"] = stage
+        while len(JOB_LOG) > 20:
+            JOB_LOG.pop(next(iter(JOB_LOG)))
 
 
 # ---------------------------------------------------------------------------
@@ -1487,63 +1498,7 @@ def build_progress(build_id):
 # Chat bot (Claude API)
 # ---------------------------------------------------------------------------
 
-def _build_chat_system_prompt(page_context=None) -> str:
-    """Build a system prompt with live context about the user's AIO environment."""
-    parts = ["You are the AIO Analytics Builder assistant. You help Tableau and Salesforce "
-             "Solutions Engineers build compelling demo assets. Be concise and helpful. "
-             "Answer questions about AIO features, Tableau Pulse, Tableau Next, Data Cloud, "
-             "Salesforce, demo building, and anything related to the user's connected environment.\n"]
-
-    if page_context:
-        page_url = page_context.get("url", "")
-        page_title = page_context.get("page", "")
-        page_hints = {
-            "/": "The user is on the Home page — overview of AIO, quick stats, getting started.",
-            "/build": "The user is on the Build Demo page — walking through the demo creation wizard (company, story, metrics, output, build).",
-            "/setup": "The user is on the Setup page — configuring connections to Tableau Cloud and Salesforce.",
-            "/demos": "The user is on the My Demos page — viewing existing demo builds, walkthroughs, and assets.",
-            "/connections": "The user is on the Connections page — managing Salesforce and Tableau Cloud connections, testing auth, setting active connections.",
-        }
-        if page_url.startswith("/close-loop/"):
-            slug = page_url.replace("/close-loop/", "")
-            hint = f"The user is on the Close the Loop page for demo '{slug}' — setting up golden record, action type, trigger, and deploying follow-up Flows."
-        else:
-            hint = page_hints.get(page_url, f"The user is on: {page_title} ({page_url})")
-        parts.append(f"Current page context: {hint}\n"
-                     f"Tailor your answers to what the user is currently doing on this page.")
-
-    config = _load_config()
-    tc = config.get("tableau", {})
-    sf = config.get("salesforce", {})
-
-    if tc.get("pat_secret"):
-        parts.append(f"Tableau Cloud: connected to {tc.get('server_url', '?')} "
-                     f"(site: {tc.get('site_name', '?')})")
-    else:
-        parts.append("Tableau Cloud: not configured")
-
-    if sf.get("refresh_token"):
-        parts.append(f"Salesforce: connected (DC domain: {sf.get('data_cloud_domain', 'unknown')}, "
-                     f"connector: {sf.get('ingestion_connector_name', 'unknown')})")
-    else:
-        parts.append("Salesforce: not configured")
-
-    demos_dir = PROJECT_ROOT / "demos"
-    if demos_dir.exists():
-        demo_names = [d.name for d in demos_dir.iterdir()
-                      if d.is_dir() and not d.name.startswith(".")]
-        if demo_names:
-            parts.append(f"Existing demos: {', '.join(sorted(demo_names))}")
-
-    parts.append("\nAvailable build targets: Tableau Pulse (.hyper + metrics), "
-                 "Tableau Next (Data Cloud + SDM + vizzes + dashboard), CSV export.")
-    parts.append("Available skills: /setup (configure connections), /build-demo (generate demos), "
-                 "/refresh-dates (update Pulse dates), /transfer-assets (clone between orgs).")
-
-    return "\n".join(parts)
-
-
-CHAT_MODEL = "claude-haiku-4-5-20251001"
+CHAT_MODEL = "claude-haiku-4-5-20251001"   # story generation (builder.py) and the credentials Test button
 
 
 def _get_chat_config():
@@ -1553,116 +1508,73 @@ def _get_chat_config():
     return resolve()
 
 
+def _assistant_jobs(job_id=None):
+    """Recent jobs for the assistant: Build Demo / Rev Intel progress and Sales Insights runs."""
+    jobs = {k: {"kind": "build" if k.startswith("build") else k.split("_")[0], **v} for k, v in JOB_LOG.items()}
+    for k, j in SI_JOBS.items():
+        jobs[k] = {"kind": f"sales insights {j['action']} ({j['profile']})", "state": j["state"], "lines": j["lines"],
+                   "started": ""}
+    if not jobs:
+        return "No jobs have run since the Web UI server started."
+    if job_id:
+        j = jobs.get(job_id)
+        if not j:
+            return f"No job {job_id}. Known: {', '.join(jobs)}"
+        return f"{job_id} ({j['kind']}, {j['state']})\n" + "\n".join(j["lines"][-200:])
+    return "\n".join(f"{k}: {j['kind']}, {j['state']}, {len(j['lines'])} lines; last: {(j['lines'] or [''])[-1][:200]}"
+                     for k, j in reversed(list(jobs.items())))
+
+
+def _assistant_connections():
+    from connections import load_full_config
+    full = load_full_config()
+    rows = []
+    for key, p in full.get("profiles", {}).items():
+        sf, tc = p.get("salesforce", {}), p.get("tableau", {})
+        org = (p.get("_token_cache") or {}).get("instance_url") or sf.get("sf_login_url", "")
+        rows.append(f"{key} ({p.get('label', key)}): "
+                    + (f"Salesforce {org}{' [active]' if key == full.get('active_salesforce') else ''}"
+                       f"{', Data Cloud connector ' + sf['ingestion_connector_name'] if sf.get('ingestion_connector_name') else ''}"
+                       if sf.get("refresh_token") else "no Salesforce")
+                    + " | " + (f"Tableau Cloud {tc.get('server_url', '')} site {tc.get('site_name', '')}"
+                               f"{' [active]' if key == full.get('active_tableau_cloud') else ''}"
+                               if tc.get("pat_secret") else "no Tableau Cloud"))
+    return "\n".join(rows) or "No connections saved yet."
+
+
+def _assistant_summary():
+    try:
+        from connections import load_full_config
+        full = load_full_config()
+        prof = full.get("profiles", {})
+        sf = prof.get(full.get("active_salesforce") or "", {})
+        tc = prof.get(full.get("active_tableau_cloud") or "", {})
+        sf_org = (sf.get("_token_cache") or {}).get("instance_url") or (sf.get("salesforce") or {}).get("sf_login_url")
+        return (f"Active Salesforce connection: {sf.get('label', 'none')}{' (' + sf_org + ')' if sf_org else ''}. "
+                f"Active Tableau Cloud connection: {tc.get('label', 'none')}. "
+                f"{len(prof)} saved connections; use list_connections for details.")
+    except Exception:
+        return "Connections: use list_connections."
+
+
 @app.route("/api/chat", methods=["POST"])
 def chat():
-    """Stream a Claude response for the chat widget."""
+    """Stream the assistant's answer (status lines while it reads docs and logs, then the text)."""
+    import assistant
     cfg = _get_chat_config()
     if not cfg:
         return jsonify({"ok": False, "error": "Claude isn't connected yet. "
                         "Open Setup → AI Configuration to connect it."}), 400
-
     data = request.get_json(silent=True) or {}
     messages = data.get("messages", [])
     if not messages:
         return jsonify({"ok": False, "error": "No messages provided"}), 400
-
-    page_context = data.get("page_context", {})
-    system_prompt = _build_chat_system_prompt(page_context)
-
-    if cfg["mode"] == "bedrock_gateway":
-        return _chat_via_bedrock_gateway(cfg, messages, system_prompt)
-    elif cfg.get("api_key", "").startswith("sk-ant-oat"):
-        return _chat_via_bearer_token(cfg, messages, system_prompt)
-    else:
-        return _chat_via_anthropic_sdk(cfg, messages, system_prompt)
-
-
-def _chat_via_bedrock_gateway(cfg, messages, system_prompt):
-    """Chat via Bedrock gateway using /invoke (non-streaming — gateway uses
-    binary event stream format that requires AWS SDK to parse)."""
-    import requests as req
-
-    url = f"{cfg['base_url']}/model/{CHAT_MODEL}/invoke"
-    headers = {"x-api-key": cfg["token"], "Content-Type": "application/json"}
-    body = {
-        "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 1024,
-        "system": system_prompt,
-        "messages": messages,
-    }
+    providers = {"jobs": _assistant_jobs, "connections": _assistant_connections, "summary": _assistant_summary}
 
     def stream():
         try:
-            r = req.post(url, headers=headers, json=body,
-                         verify=cfg["ca_bundle"], timeout=60)
-            if r.status_code == 200:
-                resp = r.json()
-                text = ""
-                for block in resp.get("content", []):
-                    if block.get("type") == "text":
-                        text += block["text"]
-                yield f"data: {json.dumps({'type': 'text', 'text': text})}\n\n"
-                yield f"data: {json.dumps({'type': 'done'})}\n\n"
-            else:
-                yield f"data: {json.dumps({'type': 'error', 'text': r.text[:300]})}\n\n"
-        except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'text': str(e)[:300]})}\n\n"
-
-    return Response(stream(), mimetype="text/event-stream")
-
-
-def _chat_via_bearer_token(cfg, messages, system_prompt):
-    """Chat via raw HTTP with Bearer auth (for OAuth tokens from claude setup-token)."""
-    import requests as req
-
-    url = "https://api.anthropic.com/v1/messages"
-    headers = {
-        "Authorization": f"Bearer {cfg['api_key']}",
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-    }
-    body = {
-        "model": CHAT_MODEL,
-        "max_tokens": 1024,
-        "system": system_prompt,
-        "messages": messages,
-    }
-
-    def stream():
-        try:
-            r = req.post(url, headers=headers, json=body, timeout=60)
-            if r.status_code == 200:
-                resp = r.json()
-                text = ""
-                for block in resp.get("content", []):
-                    if block.get("type") == "text":
-                        text += block["text"]
-                yield f"data: {json.dumps({'type': 'text', 'text': text})}\n\n"
-                yield f"data: {json.dumps({'type': 'done'})}\n\n"
-            else:
-                yield f"data: {json.dumps({'type': 'error', 'text': f'Error code: {r.status_code} - {r.text[:300]}'})}\n\n"
-        except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'text': str(e)[:300]})}\n\n"
-
-    return Response(stream(), mimetype="text/event-stream")
-
-
-def _chat_via_anthropic_sdk(cfg, messages, system_prompt):
-    """Stream chat via standard Anthropic SDK."""
-    import anthropic
-    client = anthropic.Anthropic(api_key=cfg["api_key"])
-
-    def stream():
-        try:
-            with client.messages.stream(
-                model=CHAT_MODEL,
-                max_tokens=1024,
-                system=system_prompt,
-                messages=messages,
-            ) as resp:
-                for text in resp.text_stream:
-                    yield f"data: {json.dumps({'type': 'text', 'text': text})}\n\n"
-            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            for event in assistant.chat(cfg, messages, data.get("page_context", {}), providers):
+                yield f"data: {json.dumps(event)}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'text': str(e)[:300]})}\n\n"
 
