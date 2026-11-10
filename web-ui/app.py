@@ -665,10 +665,23 @@ def update():
     the server so the new code and packages are loaded."""
     import subprocess
     import tempfile
+    import time
     run = lambda cmd: subprocess.run(cmd, cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=30)
     try:
         run(["git", "fetch", "origin", "main", "--quiet"])
         rev_before = run(["git", "rev-parse", "HEAD"]).stdout.strip()
+        rev_remote = run(["git", "rev-parse", "origin/main"]).stdout.strip()
+        backup_note = ""
+        if rev_before != rev_remote:
+            if run(["git", "merge-base", "--is-ancestor", rev_remote, rev_before]).returncode == 0:
+                # Only ahead: unpushed local commits and nothing new upstream. A reset would delete them.
+                return jsonify({"ok": True, "updated": False,
+                                "output": "Already up to date. This copy also has commits that aren't on GitHub yet."})
+            if run(["git", "merge-base", "--is-ancestor", rev_before, rev_remote]).returncode != 0:
+                # Diverged: keep the local commits on a branch before matching GitHub
+                branch = "backup/pre-update-" + time.strftime("%Y%m%d-%H%M%S")
+                if run(["git", "branch", branch, rev_before]).returncode == 0:
+                    backup_note = f"\nYour local commits were saved to branch {branch}."
         deps_note = ""
         incoming = run(["git", "show", "origin/main:requirements.txt"])
         if incoming.returncode == 0 and rev_before != run(["git", "rev-parse", "origin/main"]).stdout.strip():
@@ -692,7 +705,7 @@ def update():
         output = result.stdout.strip() or result.stderr.strip()
         if updated:
             log = run(["git", "log", "--oneline", f"{rev_before[:8]}..HEAD"])
-            output += "\n" + log.stdout.strip() + ("\n" + deps_note if deps_note else "")
+            output += "\n" + log.stdout.strip() + ("\n" + deps_note if deps_note else "") + backup_note
 
             def _restart():   # no reloader, so re-exec to load the new code (the page waits for /api/version)
                 os.environ["AIO_RESTARTED"] = "1"

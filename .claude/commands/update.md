@@ -71,6 +71,16 @@ Format the output clearly:
 - `.claude/settings.local.json` — user's local settings
 - `CLAUDE.local.md` — user's private instructions
 
+**Never delete local commits.** Check first:
+
+```bash
+git merge-base --is-ancestor origin/main HEAD && echo AHEAD_ONLY
+git merge-base --is-ancestor HEAD origin/main || echo DIVERGED
+```
+
+- `AHEAD_ONLY` (and HEAD ≠ origin/main): there's nothing new upstream and HEAD has unpushed commits. **Don't reset.** Tell the user they're up to date and have local commits not on GitHub yet.
+- `DIVERGED`: save the local commits first with `git branch backup/pre-update-$(date +%Y%m%d-%H%M%S) HEAD`, then reset as below, and tell the user the branch name.
+
 **Steps:**
 
 ```bash

@@ -4,6 +4,20 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-10 — Updates never delete unpushed commits
+
+> Tested in throwaway clones (ahead / behind / diverged from a stand-in GitHub) for both the launcher and the Web UI Update button.
+
+### Fixed
+- **Auto-update deleted local commits.** The AIO Builder launcher and the Web UI Update button ran `git reset --hard origin/main` whenever local `HEAD` differed from GitHub, including when the local copy was only *ahead*. On launch that wiped two committed-but-unpushed commits (recovered from the reflog). Now:
+  - **only ahead** (nothing new upstream): no reset; "Already up to date. This copy also has commits that aren't on GitHub yet."
+  - **diverged**: the local commits are saved to a `backup/pre-update-<timestamp>` branch first, then the reset runs as before
+  - **behind** (the normal case): unchanged
+  
+  `/update` follows the same rule.
+
+---
+
 ## 2026-11-09 — Deploy Sales Insights in the Web UI
 
 > Tested with the Flask test client and on a second server instance (port 5199): page renders, profiles list with org URLs and deploy state, unconfirmed writes rejected, `check` and a no-op `deploy` on aio-dev run through the job/poll endpoints, deployed state renders (headless Chrome). A full fresh deploy hasn't been run from the page yet.

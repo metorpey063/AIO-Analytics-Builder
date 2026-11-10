@@ -78,7 +78,15 @@ git fetch origin main --quiet 2>/dev/null
 LOCAL=$(git rev-parse HEAD 2>/dev/null)
 REMOTE=$(git rev-parse origin/main 2>/dev/null)
 
-if [ "$LOCAL" != "$REMOTE" ]; then
+if [ "$LOCAL" != "$REMOTE" ] && git merge-base --is-ancestor "$REMOTE" "$LOCAL" 2>/dev/null; then
+    # Only ahead: local commits not pushed yet and nothing new upstream. A reset would delete them.
+    log "Local commits not on GitHub yet; nothing new to pull, skipping update"
+elif [ "$LOCAL" != "$REMOTE" ]; then
+    if ! git merge-base --is-ancestor "$LOCAL" "$REMOTE" 2>/dev/null; then
+        # Diverged: keep the local commits on a branch before matching GitHub
+        BACKUP="backup/pre-update-$(date +%Y%m%d-%H%M%S)"
+        git branch "$BACKUP" "$LOCAL" 2>/dev/null && log "Saved local commits to branch $BACKUP"
+    fi
     log "Updating..."
     git reset --hard origin/main 2>/dev/null
 
