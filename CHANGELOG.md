@@ -4,6 +4,27 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-10 — Revenue Intelligence demos keep moving: `roll` (v2.13.0)
+
+> Dry-run tested against the Tab Next & Slack org (read-only): previews for Nov 10, 17 and 30 and Feb 20 behave as designed. `--apply` has **not** been run yet on any org.
+
+### Added
+- **`python3 -m revintel demos/{slug} roll [--apply] [--refresh]`** — a built Revenue Intelligence demo otherwise stands still: nothing closes after the load date, and Revenue Insights' "last 7 days" tiles, Closed Won line and Changes tabs go flat (a fresh load shows one huge jump, then nothing). Only *edits* create the OpportunityHistory those read, and a reset + reload can't back-date, so `roll` plays the days since the last roll through the open deals:
+  - deals reach their close date and close (won / lost) or slip; a slipped commit drops back to best case
+  - stages advance as close nears; healthy renewals turn At Risk and counter-trend ones recover
+  - amounts (via the line items) and close dates drift
+  - culprit segments slip, lose the churn product (with loss reasons) and drift down more; counter-trend segments less
+  - activity is logged against the opportunities, leaving at-risk and quiet culprit deals bare, so RI's "No Activity" list shows the deals worth coaching on
+- Dry run by default: prints counts, per-segment results and the effect on this month's Closed Won and Commit, and writes `out/roll_plan.json`. `--apply` backs up the before-values first and refuses future dates; a second run on the same day needs `--force`. Only touches opportunities with the demo's external-ID prefix.
+- **Update Rev Intel page:** "Keep the data moving" — Preview roll, Roll forward + refresh, Roll forward only.
+- `ROLL = {...}` in the config tunes the rates (see `roll.DEFAULTS`).
+
+### Docs
+- `/update-rev-intel`: `roll` is the default way to keep dates fresh; `--dates` (reset + re-anchor) is for re-dating the story itself.
+- CLAUDE.md: `roll.py` in the project structure; new Revenue Intelligence pitfall (no week-over-week movement after a load; Amount is read-only with products; RI "No Activity" reads opportunity activity).
+
+---
+
 ## 2026-11-10 — Every dashboard template works on any demo (v2.12.0)
 
 > Tested on a 6-metric, 4-dimension Tableau Next demo in a fresh test org: each template built through the Web UI's own `run_build`, then every dashboard read back (all widgets `Ok`), every viz queried for data, and the stored assets scanned for leftover customer text. Z Layout's payloads are byte-identical to before.

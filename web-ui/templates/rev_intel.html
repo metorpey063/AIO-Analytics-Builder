@@ -157,6 +157,15 @@
         <button class="btn btn-secondary btn-sm" onclick="runStep('refresh-plan')" title="Show the recipe chain">Refresh chain</button>
         <button class="btn btn-secondary btn-sm" onclick="runStep('refresh', true)">5 · Refresh CRM Analytics</button>
     </div>
+    <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border, #444)">
+        <strong>Keep the data moving</strong>
+        <p class="form-hint">After the demo is built, the data stands still: nothing closes, so Revenue Insights' "last 7 days" changes, Closed Won and the Changes tabs go flat. <strong>Roll forward</strong> plays the days since the last roll through the open deals (closes and slips, stage moves, deals turning at risk, amount and close-date drift, logged activity), with the same story bias: the culprit segments slip and lose products more, the counter-trend segment less. Run it before a demo; it takes about a minute, then CRM Analytics needs its 45–60 minute refresh.</p>
+        <div class="wizard-actions" style="flex-wrap:wrap; gap:8px">
+            <button class="btn btn-secondary btn-sm" onclick="runStep('roll-plan')" title="Shows what would change; writes nothing">Preview roll</button>
+            <button class="btn btn-primary btn-sm" onclick="runStep('roll-all', true)">Roll forward + refresh</button>
+            <button class="btn btn-ghost btn-sm" onclick="runStep('roll', true)" title="Without the CRM Analytics refresh">Roll forward only</button>
+        </div>
+    </div>
     <div id="ri-eam" class="hidden" style="margin-top:12px"></div>
     <div id="ri-stats" class="hidden" style="margin-top:12px"></div>
     <pre id="ri-log" class="progress-log hidden" style="max-height:360px; overflow:auto; margin-top:12px; font-size:12px; white-space:pre-wrap"></pre>
@@ -229,7 +238,8 @@ async function saveAnswers(showHandoff = false) {
 function runStep(action, writes = false, extra = {}) {
     const slug = $('ri-slug').value.trim();
     if (!slug) { alert('Set the demo folder first.'); return; }
-    const what = action === 'build-all' ? 'Build everything (users, data, quotas, refresh)' : `"${action}"`;
+    const what = action === 'build-all' ? 'Build everything (users, data, quotas, refresh)'
+        : action === 'roll-all' ? 'Roll forward (edits open deals, logs activity) and refresh CRM Analytics' : `"${action}"`;
     if (writes && !confirm(`${what} writes to the org ${$('ri-org').value}. Backups are written first. Continue?`)) return;
     fetch('/api/rev-intel/run', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                                  body: JSON.stringify({ slug, action, confirmed: writes, ...extra }) })

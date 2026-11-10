@@ -73,5 +73,7 @@ If Claude Code's auto mode blocks a write, ask the user to add an allow rule suc
 ### 8. Walkthrough summary
 Write a short "what was generated" note for the AE: renewal counts per owner and territory, close-date months, stages, ATR vs Amount, product details, supporting history and the team hierarchy. Offer to save a session summary.
 
-### Date refresh (`--dates`)
-`reset` (deletes the pool's demo opportunities, contacts and activities), then `apply --today`, `team quotas` and `refresh`. The same story, re-anchored to today.
+### Keeping dates fresh: `roll` (default) and `--dates` (full re-anchor)
+**`roll`** is the normal way to keep a built demo looking alive. `python3 -m revintel demos/{slug} roll` previews (dry run); `roll --apply` writes; add `--refresh` to chain the CRM Analytics refresh. It plays the days since the last roll through the open deals with small edits: deals reach their close date and close or slip, stages advance, deals turn at risk or recover, amounts and close dates drift, and activity is logged against the opportunities. The bias follows the story (culprit segments slip and drop the churn product more, counter-trend segments less). Only edits create the OpportunityHistory that Revenue Insights' "last 7 days" tiles and Changes tabs read, which a fresh load can't produce. Run it before a demo, then `refresh`. Always show the dry-run summary first and ask before `--apply`.
+
+**`--dates`** (a full re-anchor): `reset` (deletes the pool's demo opportunities, contacts and activities), then `apply --today`, `team quotas` and `refresh`. Use only when the story itself needs re-dating (for example the forecast window has been used up): it throws the history away, so Revenue Insights shows one big jump and then goes flat.
