@@ -1187,11 +1187,11 @@ def build_start():
 # Update Rev Intel (/update-rev-intel skill) — Q&A capture + revintel engine runner
 # ---------------------------------------------------------------------------
 REVINTEL_SAFE = {"inspect": [], "plan": [], "refresh-plan": ["refresh", "--plan"], "draft": ["draft"],
-                 "roll-plan": ["roll"]}
+                 "roll-plan": ["roll"], "add-plan": ["add"]}
 REVINTEL_BUILD_ALL = [["team", "people"], ["apply"], ["team", "reassign"], ["team", "quotas"], ["refresh"]]
-REVINTEL_ROLL_ALL = [["roll", "--apply"], ["refresh"]]
+REVINTEL_MOVE_ALL = [["roll", "--apply"], ["add", "--apply"], ["refresh"]]
 REVINTEL_WRITES = {"team-people": ["team", "people"], "apply": ["apply"], "team-reassign": ["team", "reassign"],
-                   "team-quotas": ["team", "quotas"], "refresh": ["refresh"], "roll": ["roll", "--apply"]}
+                   "team-quotas": ["team", "quotas"], "refresh": ["refresh"], "roll": ["roll", "--apply"], "add": ["add", "--apply"]}
 
 
 def _revintel_dir(slug):
@@ -1402,9 +1402,9 @@ def rev_intel_run():
     action = data.get("action")
     if action in REVINTEL_WRITES and not data.get("confirmed"):
         return jsonify({"ok": False, "error": "This step writes to the org — confirm first."}), 400
-    if action in ("build-all", "roll-all") and not data.get("confirmed"):
+    if action in ("build-all", "move-all") and not data.get("confirmed"):
         return jsonify({"ok": False, "error": "This writes to the org — confirm first."}), 400
-    if action not in REVINTEL_SAFE and action not in REVINTEL_WRITES and action not in ("build-all", "roll-all", "draft-feedback"):
+    if action not in REVINTEL_SAFE and action not in REVINTEL_WRITES and action not in ("build-all", "move-all", "draft-feedback"):
         return jsonify({"ok": False, "error": f"Unknown action {action!r}"}), 400
     try:
         d = _revintel_dir(data.get("slug"))
@@ -1412,8 +1412,8 @@ def rev_intel_run():
         return jsonify({"ok": False, "error": str(e)}), 400
     if action == "build-all":
         steps = REVINTEL_BUILD_ALL
-    elif action == "roll-all":
-        steps = REVINTEL_ROLL_ALL
+    elif action == "move-all":
+        steps = REVINTEL_MOVE_ALL
     elif action == "draft-feedback":
         fb = (data.get("feedback") or "").strip()
         if not fb:

@@ -6,6 +6,7 @@
     python3 -m revintel <demo_folder> apply              # write CRM data (checkpointed, insert-only, backups)
     python3 -m revintel <demo_folder> team <phase>       # people (users + lead roles) | quotas | reassign
     python3 -m revintel <demo_folder> roll [--apply] [--refresh]   # play the days since the last roll forward (dry run unless --apply)
+    python3 -m revintel <demo_folder> add [--apply] [--count N]    # add new expansion deals (dry run unless --apply)
     python3 -m revintel <demo_folder> refresh [--plan] [--skip-sync]   # Data Sync + CRMA recipes in order
     python3 -m revintel <demo_folder> reset              # delete pool opps/contacts/activities (date refresh)
 
@@ -43,6 +44,11 @@ def main(argv):
         from revintel import roll
         roll.run(apply="--apply" in argv, refresh="--refresh" in argv, force="--force" in argv,
                  on=argv[argv.index("--date") + 1] if "--date" in argv else None)
+    elif cmd == "add":
+        from revintel import adddeals
+        adddeals.run(apply="--apply" in argv, force="--force" in argv,
+                    count=int(argv[argv.index("--count") + 1]) if "--count" in argv else None,
+                    on=argv[argv.index("--date") + 1] if "--date" in argv else None)
     elif cmd == "refresh":
         import crma_refresh
         from revintel.config import C
