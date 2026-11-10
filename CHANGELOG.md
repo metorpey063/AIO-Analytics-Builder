@@ -6,7 +6,7 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ## 2026-11-10 — Revenue Intelligence demos keep moving: `roll` and `add` (v2.13.0)
 
-> Dry-run tested against the Tab Next & Slack org (read-only): previews for Nov 10, 17 and 30 and Feb 20 behave as designed. `--apply` has **not** been run yet on any org (for `roll` or `add`).
+> Previews for Nov 10, 17 and 30 and Feb 20 behave as designed. Applied live on the Tab Next & Slack org on 2026-11-10: `roll` updated 23 opportunities and 12 line items and logged 65 activities; `add` created 8 deals with line items; the org then showed 51 new OpportunityHistory rows. Backups are in the demo's `out/`.
 
 ### Added
 - **`python3 -m revintel demos/{slug} roll [--apply] [--refresh]`** — a built Revenue Intelligence demo otherwise stands still: nothing closes after the load date, and Revenue Insights' "last 7 days" tiles, Closed Won line and Changes tabs go flat (a fresh load shows one huge jump, then nothing). Only *edits* create the OpportunityHistory those read, and a reset + reload can't back-date, so `roll` plays the days since the last roll through the open deals:
@@ -21,6 +21,7 @@ All notable changes to AIO Analytics Builder are documented here.
 - `ROLL = {...}` in the config tunes the rates (see `roll.DEFAULTS`).
 
 ### Docs
+- `/update-rev-intel` pre-approves `roll`, `add` and `refresh` (any demo folder) in its `allowed-tools` header, so SEs aren't blocked by auto mode's write check on a shared org and need no settings of their own. `reset`, `apply` and `team` are not pre-approved.
 - `/update-rev-intel`: `roll` and `add` are the default way to keep dates fresh; `--dates` (reset + re-anchor) is for re-dating the story itself.
 - CLAUDE.md: `roll.py` in the project structure; new Revenue Intelligence pitfall (no week-over-week movement after a load; Amount is read-only with products; RI "No Activity" reads opportunity activity).
 

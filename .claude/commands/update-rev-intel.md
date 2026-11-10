@@ -1,3 +1,8 @@
+---
+description: Tailor a demo org's Revenue Intelligence data to a customer
+allowed-tools: Bash(python3 -m revintel demos/* roll*), Bash(python3 -m revintel demos/* add*), Bash(python3 -m revintel demos/* refresh*)
+---
+
 # /update-rev-intel — Tailor a demo org's Revenue Intelligence data to a customer
 
 Re-skins a shared demo org's CRM data so **Revenue Intelligence** (Revenue Insights + Einstein Account Management) tells a story built for one customer and use case: their products, segments, team, renewal motion and the problem they want to solve. It then refreshes CRM Analytics in the right order and verifies the dashboards' data.
@@ -72,6 +77,9 @@ If Claude Code's auto mode blocks a write, ask the user to add an allow rule suc
 
 ### 8. Walkthrough summary
 Write a short "what was generated" note for the AE: renewal counts per owner and territory, close-date months, stages, ATR vs Amount, product details, supporting history and the team hierarchy. Offer to save a session summary.
+
+### Permissions
+Claude Code's auto mode blocks commands that write to a shared org unless a permission rule allows them. This command's header pre-approves `roll`, `add` and `refresh` (any demo folder) while it runs, so the skill's own "show the dry run, then ask" step is the gate. `reset`, `apply` and `team` are not pre-approved; if one is blocked, ask the user to approve it or to add a rule to `.claude/settings.local.json` (Bash allow rules, one entry per command). The web UI isn't affected: its server runs the same commands itself.
 
 ### Keeping dates fresh: `roll` (default) and `--dates` (full re-anchor)
 **`roll`** is the normal way to keep a built demo looking alive. `python3 -m revintel demos/{slug} roll` previews (dry run); `roll --apply` writes; add `--refresh` to chain the CRM Analytics refresh. It plays the days since the last roll through the open deals with small edits: deals reach their close date and close or slip, stages advance, deals turn at risk or recover, amounts and close dates drift, and activity is logged against the opportunities. The bias follows the story (culprit segments slip and drop the churn product more, counter-trend segments less). Only edits create the OpportunityHistory that Revenue Insights' "last 7 days" tiles and Changes tabs read, which a fresh load can't produce. Run it before a demo, then `refresh`. **`add`** is the companion: `python3 -m revintel demos/{slug} add [--apply] [--count N]` creates new expansion deals on existing accounts for products they don't own, so the New tab fills and pipeline coverage moves (counter-trend segments get more). Run `roll`, then `add`, then `refresh`. Always show the dry-run summary first and ask before `--apply`.
