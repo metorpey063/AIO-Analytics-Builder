@@ -4,6 +4,17 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-10 — v2.10.0
+
+Release marker for everything since v2.9.0 (entries below, back to 2026-10-30). Highlights:
+- **New skills:** `/update-rev-intel` (tailor a demo org's Revenue Intelligence data, with Research customer and Upload documents in the Web UI) and `/deploy-sales-insights` (standalone Sales Insights on any Data Cloud org, now with its own Web UI page)
+- **Setup:** zero-click Salesforce org setup that also activates the Tableau Next MCP servers; Claude credentials detected from Claude Code automatically
+- **Tableau Next builds:** dashboards and data follow the story out of the box (story-driven composer, realistic segment differences and seasonality), Dynamic Dashboard template, Concierge retry
+- **CRM Analytics:** rebuilds update dashboards in place; SE playbook captured
+- **Updates:** install new dependencies, restart the server, and never delete unpushed commits
+
+---
+
 ## 2026-11-10 — Updates never delete unpushed commits
 
 > Tested in throwaway clones (ahead / behind / diverged from a stand-in GitHub) for both the launcher and the Web UI Update button.
