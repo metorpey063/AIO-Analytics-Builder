@@ -30,18 +30,35 @@ echo ""
 
 INSTALL_DIR="$HOME/AIO-Analytics-Builder"
 
-# Check Python 3.10+
-if ! command -v python3 &>/dev/null; then
-    echo "  ✗ Python 3 not found. Install from https://www.python.org/downloads/"
-    exit 1
-fi
+# Finder launches with a minimal PATH; include where python.org and Homebrew install
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
-PY_OK=$(python3 -c "import sys; print(1 if sys.version_info >= (3, 10) else 0)")
-if [ "$PY_OK" != "1" ]; then
-    echo "  ✗ Python 3.10+ required. Install from https://www.python.org/downloads/"
+# Check Python 3.10+ (macOS's own python3 is 3.9, so look for a newer one first)
+PY=""
+for c in python3.13 python3.12 python3.11 python3.10 python3; do
+    if command -v "$c" &>/dev/null && "$c" -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" 2>/dev/null; then
+        PY="$(command -v "$c")"; break
+    fi
+done
+if [ -z "$PY" ]; then
+    echo ""
+    echo "  ✗ Python 3.10 or newer is required (macOS comes with 3.9)."
+    echo "    Download the macOS installer from https://www.python.org/downloads/macos/"
+    echo "    (\"Latest Python 3 Release\" → macOS 64-bit universal2 installer), open it, then run this again."
+    echo ""
     exit 1
 fi
-log "Python 3 found"
+log "Python found ($("$PY" --version 2>&1))"
+
+# git comes with Apple's Command Line Tools; macOS offers to install them on first use
+if ! xcode-select -p &>/dev/null; then
+    echo ""
+    echo "  ✗ Apple's Command Line Tools (which include git) aren't installed."
+    echo "    Opening the installer now: click Install, wait for it to finish, then run this again."
+    echo ""
+    xcode-select --install 2>/dev/null
+    exit 1
+fi
 
 # Clone or update
 if [ -d "$INSTALL_DIR/.git" ]; then
@@ -69,7 +86,7 @@ if [ "$(uname)" = "Darwin" ]; then
 fi
 
 # Look for existing config.json in common locations and copy it over
-if [ ! -f "config.json" ] || [ "$(python3 -c "import json; print(len(json.loads(open('config.json').read()).get('profiles',{})))" 2>/dev/null)" = "0" ]; then
+if [ ! -f "config.json" ] || [ "$("$PY" -c "import json; print(len(json.loads(open('config.json').read()).get('profiles',{})))" 2>/dev/null)" = "0" ]; then
     SEARCH_PATHS=(
         "$HOME/Desktop/AIO Analytics Builder/config.json"
         "$HOME/Desktop/AIO-Analytics-Builder/config.json"
@@ -78,7 +95,7 @@ if [ ! -f "config.json" ] || [ "$(python3 -c "import json; print(len(json.loads(
     )
     for sp in "${SEARCH_PATHS[@]}"; do
         if [ -f "$sp" ] && [ "$sp" != "$INSTALL_DIR/config.json" ]; then
-            PROFILE_COUNT=$(python3 -c "import json; print(len(json.loads(open('$sp').read()).get('profiles',{})))" 2>/dev/null)
+            PROFILE_COUNT=$("$PY" -c "import json; print(len(json.loads(open('$sp').read()).get('profiles',{})))" 2>/dev/null)
             if [ "$PROFILE_COUNT" -gt 0 ] 2>/dev/null; then
                 log "Found existing config with $PROFILE_COUNT profiles at: $sp"
                 cp "$sp" "$INSTALL_DIR/config.json"
@@ -92,7 +109,7 @@ fi
 # Create venv + install deps
 if [ ! -d ".venv" ]; then
     log "Creating virtual environment..."
-    python3 -m venv .venv
+    "$PY" -m venv .venv
 fi
 
 log "Installing dependencies..."

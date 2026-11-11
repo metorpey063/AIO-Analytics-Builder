@@ -5,14 +5,21 @@
 
   BEFORE YOU START (Mac)
   ──────────────────────
+  • A Mac          Apple Silicon or Intel
   • Python 3.10+   check: python3 --version
-                   install: https://www.python.org/downloads/
+                   macOS comes with 3.9, so install the latest from
+                   https://www.python.org/downloads/macos/
+  • git            comes with Apple's Command Line Tools. check:
+                   xcode-select -p   (the installer offers them
+                   if missing; or run: xcode-select --install)
   • Salesforce CLI check: sf --version
                    The installer adds it with Homebrew if missing.
                    No Homebrew? Download and open the installer:
                    https://developer.salesforce.com/tools/salesforcecli
                    Needed for Salesforce Automatic Setup; manual
                    setup works without it.
+  • Claude         a Claude Code sign-in (or an API key saved in
+                   the Web UI) for Ask Claude and story generation
   • Homebrew       optional. check: brew --version
                    install: https://brew.sh (type the command; Slack
                    turns pasted quotes curly and breaks it)

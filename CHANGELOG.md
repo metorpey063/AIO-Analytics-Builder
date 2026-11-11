@@ -4,6 +4,19 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-11 — Installer works on Intel Macs and fresh Macs (v2.14.4)
+
+### Fixed
+- **Intel Macs:** the AIO Builder launcher ran Python through `arch -arm64`, which fails on Intel ("Bad CPU type"), so it rebuilt the venv on every launch and the server never started. It now uses `arch -arm64` only on Apple Silicon (`hw.optional.arm64`).
+- **Python on fresh Macs:** macOS ships Python 3.9, and `AIO Installer.app` (launched from Finder with a minimal PATH) found only that one even when a newer Python was installed. Both installers now add `/opt/homebrew/bin` and `/usr/local/bin` to PATH, use the newest `python3.13`…`python3.10` they find, and link straight to the python.org macOS installer when there's none. The launcher's venv rebuild uses the same lookup.
+- **git:** both installers check for Apple's Command Line Tools before cloning and open Apple's installer if they're missing, instead of failing partway.
+- `.mcp.json` (personal MCP config that can hold tokens) is now gitignored.
+
+### Docs
+- README Prerequisites and QUICK_START list a Mac (Apple Silicon or Intel), Python 3.10+ (macOS has 3.9), git / Command Line Tools, and Claude Code or saved Claude credentials.
+
+---
+
 ## 2026-11-11 — Salesforce CLI installs without Homebrew (v2.14.3)
 
 ### Fixed

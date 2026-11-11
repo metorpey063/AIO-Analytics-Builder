@@ -24,3 +24,5 @@ venv/
 # macOS
 .DS_Store
 .sf_pkg_offered
+# Personal MCP config (may hold tokens)
+.mcp.json

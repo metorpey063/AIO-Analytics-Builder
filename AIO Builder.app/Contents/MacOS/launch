@@ -32,6 +32,14 @@ fi
 # with a minimal PATH that may exclude /opt/homebrew/bin, etc.)
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 
+# Run Python natively: on Apple Silicon force arm64 (a Rosetta Terminal would load x86 wheels);
+# Intel Macs have no arm64 slice, so run it directly
+if [ "$(/usr/sbin/sysctl -n hw.optional.arm64 2>/dev/null)" = "1" ]; then
+    RUN_NATIVE="/usr/bin/arch -arm64"
+else
+    RUN_NATIVE=""
+fi
+
 # Auto-detect install dir: 3 levels up from this script (.app/Contents/MacOS/launch)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTALL_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
@@ -97,10 +105,12 @@ else
 fi
 
 # Verify venv works (check all critical packages)
-if ! /usr/bin/arch -arm64 .venv/bin/python -c "import flask, anthropic, pandas, numpy, requests, PyPDF2, docx" 2>/dev/null; then
+if ! $RUN_NATIVE .venv/bin/python -c "import flask, anthropic, pandas, numpy, requests, PyPDF2, docx" 2>/dev/null; then
     warn "Virtual environment broken — rebuilding..."
     rm -rf .venv
-    python3 -m venv .venv
+    PY=python3
+    for c in python3.13 python3.12 python3.11 python3.10; do command -v "$c" &>/dev/null && PY="$c" && break; done
+    "$PY" -m venv .venv
     .venv/bin/pip install --upgrade pip -q
     .venv/bin/pip install -r requirements.txt -q
     log "Rebuilt virtual environment"
@@ -109,7 +119,7 @@ fi
 # Install any dependencies the current code needs that the venv lacks (covers updates made from
 # the web UI's Update button or /update too). Quick when nothing is missing.
 if [ -f deps.py ]; then
-    /usr/bin/arch -arm64 .venv/bin/python deps.py || warn "Dependency install failed — try: .venv/bin/pip install -r requirements.txt"
+    $RUN_NATIVE .venv/bin/python deps.py || warn "Dependency install failed — try: .venv/bin/pip install -r requirements.txt"
 fi
 
 # Salesforce CLI (needed by Salesforce Automatic Setup); quick no-op once installed
@@ -134,4 +144,4 @@ echo "  ────────────────────────
 echo ""
 
 open "http://localhost:5100"
-exec /usr/bin/arch -arm64 .venv/bin/python web-ui/app.py
+exec $RUN_NATIVE .venv/bin/python web-ui/app.py

@@ -274,8 +274,8 @@ def check_python():
     v = sys.version_info
     log(f"Python {v.major}.{v.minor}.{v.micro}")
     if v < (3, 10):
-        error("Python 3.10+ is required. Please upgrade.")
-        error("Download from https://www.python.org/downloads/")
+        error("Python 3.10 or newer is required (macOS comes with 3.9).")
+        error("Download the installer from https://www.python.org/downloads/ , then run it with python3.12 install.py (or whichever version you installed)")
         sys.exit(1)
 
 
