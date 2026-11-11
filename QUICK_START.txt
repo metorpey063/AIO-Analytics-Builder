@@ -7,12 +7,15 @@
   ──────────────────────
   • Python 3.10+   check: python3 --version
                    install: https://www.python.org/downloads/
-  • Homebrew       check: brew --version
-                   install: paste the command from https://brew.sh
-                   into Terminal (asks for your Mac password)
-  • Salesforce CLI the installer adds it with Homebrew if missing
-                   (or run: brew install sf). Needed for Salesforce
-                   Automatic Setup; manual setup works without it.
+  • Salesforce CLI check: sf --version
+                   The installer adds it with Homebrew if missing.
+                   No Homebrew? Download and open the installer:
+                   https://developer.salesforce.com/tools/salesforcecli
+                   Needed for Salesforce Automatic Setup; manual
+                   setup works without it.
+  • Homebrew       optional. check: brew --version
+                   install: https://brew.sh (type the command; Slack
+                   turns pasted quotes curly and breaks it)
 
 
   OPTION 1: Download from GitHub (recommended)

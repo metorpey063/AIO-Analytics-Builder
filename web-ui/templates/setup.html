@@ -189,7 +189,7 @@
         {% set sf_manual_open = sfc.get('client_id') and not sfc.get('sf_cli_alias') %}
         <section class="card" style="margin-bottom:16px">
             <h2>Salesforce: Automatic Setup <span class="optional">(recommended)</span></h2>
-            <p class="subtitle" style="margin-bottom:12px">AIO creates its own External Client Apps and Ingest connector in your org. You just log in through the browser. Needs the Salesforce CLI (<code>brew install sf</code>; no Homebrew? install it from <a href="https://brew.sh" target="_blank">brew.sh</a> first).</p>
+            <p class="subtitle" style="margin-bottom:12px">AIO creates its own External Client Apps and Ingest connector in your org. You just log in through the browser. Needs the Salesforce CLI: <code>brew install sf</code>, or without Homebrew the Mac installer (<a href="https://developer.salesforce.com/media/salesforce-cli/sf/channels/stable/sf-arm64.pkg" target="_blank">Apple Silicon</a> · <a href="https://developer.salesforce.com/media/salesforce-cli/sf/channels/stable/sf-x64.pkg" target="_blank">Intel</a>).</p>
             <div class="form-group">
                 <label>Environment</label>
                 <div class="env-toggle">

@@ -28,6 +28,7 @@ tests the Data Cloud exchange, and saves everything to profiles.{KEY}.salesforce
 import argparse
 import json
 import re
+import platform
 import shutil
 import subprocess
 import sys
@@ -88,13 +89,18 @@ def _project_dir():
     return d
 
 
+# Official Salesforce CLI Mac installer (no Homebrew needed); installs to /usr/local/bin/sf
+SF_PKG_URL = ("https://developer.salesforce.com/media/salesforce-cli/sf/channels/stable/sf-"
+              + ("arm64" if platform.machine() == "arm64" else "x64") + ".pkg")
+
+
 def preflight():
     """Check the Salesforce CLI is installed. Returns (ok, message)."""
     if not shutil.which("sf"):
-        how = ("`brew install sf`" if shutil.which("brew") else
-               "Homebrew (https://brew.sh), then `brew install sf`")
-        return False, (f"Salesforce CLI not found. Install it with {how}, quit and relaunch "
-                       "AIO Builder, then re-run setup. (Or use manual setup below.)")
+        how = ("run `brew install sf`" if shutil.which("brew") else
+               f"download and open {SF_PKG_URL}")
+        return False, (f"Salesforce CLI not found. To install it, {how}. Then quit and relaunch "
+                       "AIO Builder and re-run setup.")
     r = subprocess.run(["sf", "--version"], capture_output=True, text=True)
     return True, r.stdout.strip()
 

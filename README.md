@@ -38,8 +38,8 @@ A Claude Code tool for Salesforce/Tableau Solutions Engineers to rapidly build c
 ## Prerequisites
 
 - **Python 3.10+** — check with `python3 --version` in a terminal
-- **Homebrew** (Mac) — check with `brew --version`. If it's missing, install it from [brew.sh](https://brew.sh) (paste the one-line command into Terminal; it asks for your Mac password)
-- **Salesforce CLI** (`sf`) — needed for Salesforce Automatic Setup. The installer and the AIO Builder launcher install it with Homebrew if it's missing; to do it yourself: `brew install sf`. Check with `sf --version`. (Manual setup works without it)
+- **Homebrew** (Mac, optional) — check with `brew --version`. Install it from [brew.sh](https://brew.sh); type the command into Terminal rather than pasting it from Slack, which turns its quotes into curly ones that break it
+- **Salesforce CLI** (`sf`) — needed for Salesforce Automatic Setup. The installer and the AIO Builder launcher install it with Homebrew if it's missing; to do it yourself: `brew install sf`, or without Homebrew the Mac installer ([Apple Silicon](https://developer.salesforce.com/media/salesforce-cli/sf/channels/stable/sf-arm64.pkg) · [Intel](https://developer.salesforce.com/media/salesforce-cli/sf/channels/stable/sf-x64.pkg)). Check with `sf --version`. (Manual setup works without it)
 - **VS Code** with the **Claude Code extension** installed
 - A **Tableau Cloud** site with a Personal Access Token (for Pulse builds)
 - A **Salesforce CDO or SDO** with Data Cloud and Tableau Next enabled (for Next builds)

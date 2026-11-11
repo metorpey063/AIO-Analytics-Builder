@@ -40,12 +40,26 @@ fi
 
 warn "Salesforce CLI not installed. Salesforce Automatic Setup needs it."
 if ! command -v brew &>/dev/null; then
-    echo "    Homebrew isn't installed. Install it first (asks for your Mac password):"
-    echo '      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
-    echo "    then relaunch AIO Builder (it installs the CLI), or run: brew install sf"
+    [ "$(uname -m)" = "arm64" ] && ARCH=arm64 || ARCH=x64
+    PKG_URL="https://developer.salesforce.com/media/salesforce-cli/sf/channels/stable/sf-$ARCH.pkg"
+    # Open the official installer once (it asks for the Mac password itself); after that just print the link
+    MARKER="$(cd "$(dirname "$0")" && pwd)/.sf_pkg_offered"
+    PKG="${TMPDIR:-/tmp}/sf-$ARCH.pkg"
+    if [ "$(uname)" = "Darwin" ] && [ ! -f "$MARKER" ]; then
+        log "Downloading the Salesforce CLI installer..."
+        if curl -fsSL -o "$PKG" "$PKG_URL"; then
+            touch "$MARKER"
+            open "$PKG"
+            log "Opened the Salesforce CLI installer. Click through it, then quit and relaunch AIO Builder."
+            exit 0
+        fi
+        warn "Download failed."
+    fi
+    echo "    Download and open the installer (no Homebrew needed):"
+    echo "      $PKG_URL"
+    echo "    then relaunch AIO Builder."
 else
     echo "    Install it with:  brew install sf"
 fi
-echo "    or the installer: https://developer.salesforce.com/tools/salesforcecli"
 echo "    (Manual setup in the Web UI works without it.)"
 exit 0

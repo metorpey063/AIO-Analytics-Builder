@@ -4,6 +4,17 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-11 — Salesforce CLI installs without Homebrew (v2.14.3)
+
+### Fixed
+- With no Homebrew, `install_sf_cli.sh` only printed instructions, and the suggested Homebrew command breaks when shared through Slack (it turns the quotes curly). It now downloads the official Salesforce CLI installer (`sf-arm64.pkg` / `sf-x64.pkg`, signed and notarized) and opens it in the macOS Installer, which asks for the Mac password itself. It opens once (`.sf_pkg_offered`); later launches print the link.
+- The setup error and Setup page hint point to that installer when Homebrew is missing, and the error no longer says "use manual setup below" twice.
+
+### Docs
+- README / QUICK_START: Homebrew is optional; the Salesforce CLI installer is listed for Macs without it.
+
+---
+
 ## 2026-11-11 — Installer adds the Salesforce CLI; Homebrew in the prerequisites (v2.14.2)
 
 ### Fixed
