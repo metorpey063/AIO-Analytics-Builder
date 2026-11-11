@@ -99,6 +99,9 @@ log "Installing dependencies..."
 .venv/bin/pip install --upgrade pip -q
 .venv/bin/pip install -r requirements.txt -q
 
+# Salesforce CLI (needed by Salesforce Automatic Setup)
+[ -f install_sf_cli.sh ] && bash install_sf_cli.sh || true
+
 # Create config if needed
 if [ ! -f "config.json" ] && [ -f "config.json.template" ]; then
     cp config.json.template config.json

@@ -91,8 +91,10 @@ def _project_dir():
 def preflight():
     """Check the Salesforce CLI is installed. Returns (ok, message)."""
     if not shutil.which("sf"):
-        return False, ("Salesforce CLI not found. Install it with `brew install sf` or "
-                       "`npm install -g @salesforce/cli`, then re-run setup.")
+        how = ("`brew install sf`" if shutil.which("brew") else
+               "Homebrew (https://brew.sh), then `brew install sf`")
+        return False, (f"Salesforce CLI not found. Install it with {how}, quit and relaunch "
+                       "AIO Builder, then re-run setup. (Or use manual setup below.)")
     r = subprocess.run(["sf", "--version"], capture_output=True, text=True)
     return True, r.stdout.strip()
 

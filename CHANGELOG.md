@@ -4,6 +4,17 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-11 — Installer adds the Salesforce CLI; Homebrew in the prerequisites (v2.14.2)
+
+### Fixed
+- New SEs without the Salesforce CLI hit "Salesforce CLI not found" on Salesforce Automatic Setup, because no installer set it up. New **`install_sf_cli.sh`** installs `sf` with Homebrew (or npm) when it's missing and otherwise prints how to install it, including the Homebrew command when Homebrew is missing too. It always exits 0, so an install or launch never stops on it. It runs from `install_remote.sh`, `AIO Installer.app`, `install.py`, and the **AIO Builder launcher**, so existing installs pick it up on their next launch.
+- The setup error (`org_bootstrap.preflight`) and the Setup page hint now say to install Homebrew first when it's missing, and to relaunch AIO Builder after installing the CLI.
+
+### Docs
+- README **Prerequisites** and QUICK_START gain a "Before you start" checklist: Python 3.10+, Homebrew, Salesforce CLI.
+
+---
+
 ## 2026-11-11 — Transfer Assets: login check, Reconnect, step badges (v2.14.1)
 
 ### Fixed

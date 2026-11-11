@@ -112,6 +112,9 @@ if [ -f deps.py ]; then
     /usr/bin/arch -arm64 .venv/bin/python deps.py || warn "Dependency install failed — try: .venv/bin/pip install -r requirements.txt"
 fi
 
+# Salesforce CLI (needed by Salesforce Automatic Setup); quick no-op once installed
+[ -f install_sf_cli.sh ] && bash install_sf_cli.sh
+
 # Clear stale Python cache
 rm -rf web-ui/__pycache__ 2>/dev/null
 

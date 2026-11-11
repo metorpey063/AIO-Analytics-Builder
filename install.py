@@ -328,6 +328,19 @@ def install_deps(project_root, venv_dir):
     log(f"Installed {count} packages")
 
 
+def ensure_sf_cli(project_root):
+    """Install the Salesforce CLI if missing (Salesforce Automatic Setup needs it). Never fails the install."""
+    if shutil.which("sf"):
+        log("Salesforce CLI found")
+        return
+    script = project_root / "install_sf_cli.sh"
+    if platform.system() != "Windows" and script.exists():
+        subprocess.run(["bash", str(script)])
+    else:
+        warn("Salesforce CLI not found. Salesforce Automatic Setup needs it:")
+        warn("  npm install -g @salesforce/cli  (or https://developer.salesforce.com/tools/salesforcecli)")
+
+
 def create_config(project_root):
     config_path = project_root / "config.json"
     template_path = project_root / "config.json.template"
@@ -411,6 +424,7 @@ def main():
 
     venv_dir = create_venv(project_root)
     install_deps(project_root, venv_dir)
+    ensure_sf_cli(project_root)
     create_config(project_root)
     create_launcher(project_root)
     launch_server(project_root, venv_dir)

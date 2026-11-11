@@ -39,6 +39,7 @@ if [ -d "$INSTALL_DIR/.venv" ] && [ -f "$INSTALL_DIR/web-ui/app.py" ]; then
         log "Update available — pulling latest..."
         git reset --hard origin/main 2>/dev/null
         .venv/bin/pip install -r requirements.txt -q 2>/dev/null
+        [ -f install_sf_cli.sh ] && bash install_sf_cli.sh
         log "Updated!"
     else
         log "Already up to date"
@@ -122,6 +123,9 @@ fi
 log "Installing dependencies..."
 .venv/bin/pip install --upgrade pip -q
 .venv/bin/pip install -r requirements.txt -q
+
+# Salesforce CLI (needed by Salesforce Automatic Setup)
+[ -f install_sf_cli.sh ] && bash install_sf_cli.sh
 
 # Create config if needed
 if [ ! -f "config.json" ] && [ -f "config.json.template" ]; then
