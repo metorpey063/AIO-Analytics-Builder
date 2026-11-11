@@ -37,7 +37,10 @@ DEFAULTS = {"nudge_p": 0.05,        # per open deal per day: an amount or close-
             "drop_p_per_mult": 0.16,  # chance a won culprit renewal drops its churn product
             "activity_p": 0.08,     # per deal per day inside 45 days of close: a logged activity
             "seed_days": 14,        # first roll only: backfill activity over this many days
-            "max_days": 45}         # longest gap simulated day by day
+            "max_days": 45,         # longest gap simulated day by day
+            "early_window_days": 21,
+            "close_size_scale": 250000,
+            "close_max_amount": 400000}  # forced closes skip deals above this, keeping the headline deals open  # forced closes: a deal this size is half as likely as a tiny one  # --close may close a deal up to this many days before its close date
 R = {**DEFAULTS, **opt("ROLL", {})}
 
 RISK = {"contraction": RENEWAL_STAGES.get("risk_contraction"), "timing": RENEWAL_STAGES.get("risk_timing"),
@@ -90,7 +93,18 @@ def load_open():
                        "next_step": o.get("NextStep"), "seg": seg, "mult": mult,
                        "renewal": o["Type"] == OPP_TYPES["renewal"], "category": o["ForecastCategoryName"],
                        "result": None, "scale": 1.0, "drop": False, "slips": 0, "events": [], "tasks": []})
+    scores = load_scores()
+    for st in states:
+        st["score"] = scores.get(st["id"])
     return states
+
+
+def load_scores():
+    """Einstein opportunity scores (0-1) by opportunity Id; empty if the org doesn't have scoring."""
+    try:
+        return {r["BaseId"]: r["Score"] / 100 for r in A.query("SELECT BaseId, Score FROM OpportunityScore")}
+    except Exception:
+        return {}
 
 
 def load_lines(ids):
@@ -116,6 +130,8 @@ def slip(s, d, lo, hi, why):
 
 
 def day_step(s, d):
+    if s.get("frozen"):
+        return
     m, k, rid = s["mult"], risk_kind(s["stage"]), s["id"]
     seg = C.SEGMENTS.get(s["seg"], {})
     if s["close"] <= d:                                   # due: close, or slip
@@ -143,7 +159,8 @@ def day_step(s, d):
                 s["result"] = "won"
             else:
                 slip(s, d, 14, 30, "seat true-down negotiation")
-        elif r < clamp(R["slip_base"] + R["slip_per_mult"] * m, 0.02, 0.5):
+        elif r < clamp(R["slip_base"] + R["slip_per_mult"] * m
+                       + (0.6 * (0.5 - s["score"]) if s.get("score") is not None else 0), 0.02, 0.5):
             slip(s, d, 7, 21, "renewal slipped")
         else:
             s["result"] = "won"
@@ -180,6 +197,46 @@ def day_step(s, d):
             s["events"].append((d, "close-date", f"{'later' if down else 'earlier'} {n}d"))
     if days_left <= 45 and not is_quiet(s) and rnd(rid, "act", d) < R["activity_p"]:
         s["tasks"].append(d)
+
+
+def parse_close(spec, today):
+    """'today=3,2026-11-04=1' -> [(date, count), ...] sorted by date. Future dates are refused."""
+    out = []
+    for part in (spec or "").split(","):
+        if not part.strip():
+            continue
+        when, _, n = part.partition("=")
+        when = when.strip().lower()
+        d = today if when == "today" else today - timedelta(days=1) if when == "yesterday" else date.fromisoformat(when)
+        if d > today:
+            raise SystemExit(f"--close can't use a future date ({d}).")
+        out.append((d, int(n or 1)))
+    return sorted(out)
+
+
+def force_close(states, specs):
+    """Close deals as won on given dates (back-dating is fine: the Closed Won line reads CloseDate).
+    Picks Commit / Best Case deals due within early_window_days, weighting Commit, higher Einstein
+    scores and healthier segments, so the story holds. Returns the chosen states."""
+    def weight(s):
+        sc = 0.5 if s.get("score") is None else clamp(s["score"], 0.1, 1.0)
+        # smaller deals close more often than the few huge ones, so a month doesn't drain its commit in one go
+        return ((1.5 if s["category"] == "Commit" else 1.0) * sc * clamp(1.3 - 0.4 * s["mult"], 0.3, 1.5)
+                / (1 + (s["amount"] or 0) / R["close_size_scale"]))
+    picked = []
+    for d, n in specs:
+        pool = [s for s in states if not s["result"] and risk_kind(s["stage"]) != "churn"
+                and s["category"] in ("Commit", "Best Case") and not s.get("frozen")
+                and (s["amount"] or 0) <= R["close_max_amount"]
+                and s["close"] <= d + timedelta(days=R["early_window_days"])]
+        pool.sort(key=lambda s: -(rnd(s["id"], "force", d) ** (1 / max(weight(s), 0.01))))
+        for s in pool[:n]:
+            s["result"], s["close"], s["forced"] = "won", d, True
+            if s["renewal"] and CHURN_PRODUCT and s["mult"] >= 1.5 and rnd(s["id"], "drop") < clamp(R["drop_p_per_mult"] * s["mult"], 0, 0.6):
+                s["drop"] = True
+            s["events"].append((d, "won", "closed early" if d < s["orig_close"] else "closed"))
+            picked.append(s)
+    return picked
 
 
 def seed_tasks(states, today):
@@ -270,22 +327,32 @@ def month_effect(states, lines, today, cats):
 
 
 # ── command ─────────────────────────────────────────────────────────────────
-def run(apply=False, refresh=False, on=None, force=False):
+def run(apply=False, refresh=False, on=None, force=False, close=None, close_only=False, keep=None, max_deal=None):
     today = date.fromisoformat(on) if on else date.today()
+    specs = parse_close(close, today)
+    if max_deal:
+        R["close_max_amount"] = max_deal
     if apply and today > date.today():
         raise SystemExit("--apply won't write future-dated changes. Use --date with a past or current date.")
     cp = A.load_cp()
     last = date.fromisoformat(cp.get("last_roll") or cp.get("build_date") or (today - timedelta(days=1)).isoformat())
-    if apply and cp.get("last_roll") == today.isoformat() and not force:
+    if apply and cp.get("last_roll") == today.isoformat() and not force and not close_only:
         raise SystemExit(f"Already rolled today ({today}). Use --force to run again.")
     first = max(last + timedelta(days=1), today - timedelta(days=R["max_days"] - 1))
     states = load_open()
     if not states:
         raise SystemExit(f"No open opportunities with Demo_External_ID__c '{C.EXT_PREFIX}-%' in {C.ORG_ALIAS}. "
                          "Load the demo data first (apply).")
+    names = [k.strip().lower() for k in (keep or "").split(",") if k.strip()]
+    for st in states:   # --keep: deals whose name contains one of these are left exactly as they are this run
+        st["frozen"] = any(k in st["name"].lower() for k in names)
+    if names:
+        print(f"Keeping as-is this run: {[st['name'] for st in states if st['frozen']]}")
     cats = {s["orig_stage"]: s["category"] for s in states}
     cats.update({"Closed Won": "Closed", "Closed Lost": "Omitted"})
-    simulate(states, first, today, bool(cp.get("roll_seeded")))
+    forced = force_close(states, specs) if specs else []   # reserve these first; the day simulation skips closed deals
+    if not close_only:
+        simulate(states, first, today, bool(cp.get("roll_seeded")))
     touched = [s for s in states if s["result"] or s["scale"] != 1.0 or s["drop"]]
     lines = load_lines([s["id"] for s in touched]) if touched else {}
     opp_rows, oli_rows, task_rows, backup = build_edits(states, lines, today)
@@ -312,6 +379,12 @@ def run(apply=False, refresh=False, on=None, force=False):
         k = [e[1] for s in ss for e in s["events"]]
         print(f"    {seg:<9} mult {C.SEGMENTS.get(seg, {}).get('mult', '-'):<5} won {k.count('won'):>2}  lost {k.count('lost'):>2}  "
               f"slip {k.count('slip'):>2}  at-risk {k.count('at-risk'):>2}  amount {k.count('amount'):>2}  drops {k.count('product-drop'):>2}")
+    if forced:
+        print(f"  forced closes ({len(forced)}, {money(sum(s['amount'] for s in forced))}):")
+        for s in sorted(forced, key=lambda x: (x["close"], x["name"])):
+            sc = "" if s.get("score") is None else f" score {s['score'] * 100:.0f}"
+            print(f"    {s['close']}  {s['name'][:50]:<50} {s['seg'] or '?':<9} {money(s['amount']):>11}{sc}"
+                  f"{'  (drops ' + product_name(CHURN_PRODUCT) + ')' if s['drop'] else ''}")
     print("  examples:")
     for s, e in sorted(ev, key=lambda x: (x[1][0], x[0]["name"]))[-12:]:
         print(f"    {e[0]}  {s['name'][:48]:<48} {e[1]} {e[2]}")
@@ -327,7 +400,8 @@ def run(apply=False, refresh=False, on=None, force=False):
     if opp_rows:
         A.bulk("update", "Opportunity", opp_rows)
     A.bulk("import", "Task", task_rows, cols=["WhatId", "OwnerId", "Subject", "ActivityDate", "Status", "Priority"])
-    cp["last_roll"], cp["roll_seeded"] = today.isoformat(), True
+    if not close_only:
+        cp["last_roll"], cp["roll_seeded"] = today.isoformat(), True
     A.save_cp(cp)
     print("Rolled. CRM Analytics only sees this after Data Sync + the recipes: run `refresh` (about 45–60 minutes).")
     if refresh:

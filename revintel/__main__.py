@@ -5,7 +5,7 @@
     python3 -m revintel <demo_folder> plan [--json]      # generate + story stats + CSVs, no org writes
     python3 -m revintel <demo_folder> apply              # write CRM data (checkpointed, insert-only, backups)
     python3 -m revintel <demo_folder> team <phase>       # people (users + lead roles) | quotas | reassign
-    python3 -m revintel <demo_folder> roll [--apply] [--refresh]   # play the days since the last roll forward (dry run unless --apply)
+    python3 -m revintel <demo_folder> roll [--apply] [--close today=3,2026-11-04=1] [--close-only] [--keep "name,name"] [--refresh]   # play the days since the last roll forward, optionally closing deals on given dates (dry run unless --apply)
     python3 -m revintel <demo_folder> add [--apply] [--count N]    # add new expansion deals (dry run unless --apply)
     python3 -m revintel <demo_folder> refresh [--plan] [--skip-sync]   # Data Sync + CRMA recipes in order
     python3 -m revintel <demo_folder> reset              # delete pool opps/contacts/activities (date refresh)
@@ -43,7 +43,11 @@ def main(argv):
     elif cmd == "roll":
         from revintel import roll
         roll.run(apply="--apply" in argv, refresh="--refresh" in argv, force="--force" in argv,
-                 on=argv[argv.index("--date") + 1] if "--date" in argv else None)
+                 on=argv[argv.index("--date") + 1] if "--date" in argv else None,
+                 close=argv[argv.index("--close") + 1] if "--close" in argv else None,
+                 close_only="--close-only" in argv,
+                 keep=argv[argv.index("--keep") + 1] if "--keep" in argv else None,
+                 max_deal=int(argv[argv.index("--max-deal") + 1]) if "--max-deal" in argv else None)
     elif cmd == "add":
         from revintel import adddeals
         adddeals.run(apply="--apply" in argv, force="--force" in argv,
