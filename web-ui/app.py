@@ -1318,13 +1318,22 @@ def _xfer_slug(target, workspace_label):
     return "transfer_" + _re.sub(r"[^a-z0-9]+", "_", f"{target}_{workspace_label}".lower()).strip("_")[:60]
 
 
+@app.route("/api/transfer/login")
+def transfer_login():
+    """Can this connection log in without a browser? Expired logins get a Reconnect button."""
+    import transfer_assets as xfer
+    return jsonify(xfer.login_status(request.args.get("profile", "")))
+
+
 @app.route("/api/transfer/dashboards")
 def transfer_dashboards():
     """Read-only: the Tableau Next dashboards in one org."""
     import transfer_assets as xfer
     key = request.args.get("profile", "")
     try:
-        return jsonify({"ok": True, "dashboards": xfer.list_dashboards(xfer.Org(key))})
+        return jsonify({"ok": True, "dashboards": xfer.list_dashboards(xfer.Org(key, allow_browser=False))})
+    except xfer.AuthError as e:
+        return jsonify({"ok": False, "error": str(e), "reconnect": e.reconnect}), 400
     except Exception as e:
         return jsonify({"ok": False, "error": f"Couldn't list dashboards: {e}"}), 400
 
@@ -1370,8 +1379,10 @@ def transfer_run():
             log_path = PROJECT_ROOT / "demos" / slug / f"transfer_{action}.log"
             log_path.parent.mkdir(parents=True, exist_ok=True)
             with open(log_path, "a") as log:
+                # No hidden browser logins from a background job: an expired token prints AUTH_ERROR instead
+                env = dict(os.environ, AIO_NO_BROWSER_REAUTH="1")
                 p = subprocess.Popen(cmd, cwd=str(PROJECT_ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                     text=True, bufsize=1)
+                                     text=True, bufsize=1, env=env)
                 for line in p.stdout:
                     job["lines"].append(line.rstrip()); log.write(line); log.flush()
                 p.wait()

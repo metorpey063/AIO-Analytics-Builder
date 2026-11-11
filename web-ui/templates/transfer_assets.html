@@ -13,9 +13,11 @@
 <div class="card story-section" style="padding:16px; margin-bottom:16px">
     <h3><span class="step-num">1</span> Orgs</h3>
     <div class="form-group"><label>Source (where the dashboards are today) *</label>
-        <select id="xf-source" onchange="onSource()"><option value="">Loading connections…</option></select></div>
+        <select id="xf-source" onchange="onSource()"><option value="">Loading connections…</option></select>
+        <div id="xf-source-login" class="form-hint"></div></div>
     <div class="form-group"><label>Target (where to copy them) *</label>
-        <select id="xf-target" onchange="resetPlan()"><option value="">Loading connections…</option></select>
+        <select id="xf-target" onchange="onTarget()"><option value="">Loading connections…</option></select>
+        <div id="xf-target-login" class="form-hint"></div>
         <div class="form-hint">Pick by org URL, not name. The target needs Data Cloud and an ingest connector (set up on <a href="/connections">Connections</a>).</div></div>
 </div>
 
@@ -30,6 +32,7 @@
         <button class="btn btn-secondary" id="xf-plan" onclick="run('plan')">Check transfer</button>
         <span class="form-hint">Read-only: packages the dashboards from the source and checks what the target needs for the data. 1–2 minutes.</span>
     </div>
+    <div id="xf-plan-steps" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:12px"></div>
     <div id="xf-plan-out" class="form-hint" style="margin-top:10px"></div>
 </div>
 
@@ -40,6 +43,7 @@
         <button class="btn btn-primary" id="xf-run" onclick="run('run')" disabled>Transfer</button>
         <span class="form-hint">Run "Check transfer" first. 5–15 minutes, mostly Data Cloud creating the stream and loading rows. If it stops, press Transfer again: finished steps are skipped.</span>
     </div>
+    <div id="xf-run-steps" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:12px"></div>
     <pre id="xf-log" class="progress-log hidden" style="max-height:360px; overflow:auto; margin-top:12px; font-size:12px; white-space:pre-wrap"></pre>
     <div id="xf-result" class="form-hint hidden" style="margin-top:12px"></div>
 </div>
@@ -57,6 +61,48 @@
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 let profiles = [], dashboards = [], job = null, planned = null;
+const logins = {};   // profile key -> {ok, label, error, reconnect}
+// Step badges: transfer_assets.py prints `[step] detail` while a step runs and `[step] done` after it
+const STEPS = {plan: [['package', 'Package'], ['source', 'Source data'], ['target', 'Target data']],
+               run: [['package', 'Package'], ['data', 'Data'], ['deploy', 'Deploy'], ['verify', 'Verify']]};
+
+function renderSteps(action, done, current, detail, failed) {
+    const box = $(action === 'plan' ? 'xf-plan-steps' : 'xf-run-steps');
+    box.innerHTML = (STEPS[action] || []).map(([k, label]) => {
+        if (done.includes(k)) return `<span class="badge badge-ok">✓ ${label}</span>`;
+        if (k === failed) return `<span class="badge" style="background:var(--red-light); color:var(--red)">✕ ${label}</span>`;
+        if (k === current) return `<span class="badge badge-neutral">… ${label}${detail ? ': ' + esc(detail) : ''}</span>`;
+        return `<span class="badge badge-pending">${label}</span>`;
+    }).join('');
+}
+
+async function checkLogin(which) {
+    const key = $('xf-' + which).value, box = $(`xf-${which}-login`);
+    if (!key) { box.innerHTML = ''; return false; }
+    box.textContent = 'Checking login…';
+    const r = await (await fetch(`/api/transfer/login?profile=${encodeURIComponent(key)}`)).json();
+    logins[key] = r;
+    showLogin(which, r);
+    return r.ok;
+}
+
+function showLogin(which, r) {
+    const key = $('xf-' + which).value, box = $(`xf-${which}-login`);
+    if (r.ok) { box.innerHTML = `<span style="color:var(--green)">✓ Signed in</span> <code>${esc(r.instance)}</code>`; return; }
+    box.innerHTML = `<span style="color:var(--orange)">⚠ ${esc(r.error || r.message)}</span> ` + (r.reconnect
+        ? `<button class="btn btn-secondary btn-sm" onclick="reconnect('${which}')">Reconnect</button>`
+        : `<a href="/connections">Fix it on Connections</a>`);
+}
+
+async function reconnect(which) {
+    const key = $('xf-' + which).value;
+    if (!confirm(`Log in to ${orgName(key)} in the browser window that opens.\n\nMake sure your browser isn't signed into a different Salesforce org, or the wrong login is saved.`)) return;
+    $(`xf-${which}-login`).textContent = 'Waiting for the browser login…';
+    const r = await (await fetch('/api/oauth/start', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile_key: key }) })).json();
+    if (!r.ok) { $(`xf-${which}-login`).innerHTML = `<span style="color:var(--red)">Login failed: ${esc(r.error)}</span>`; return; }
+    if (await checkLogin(which) && which === 'source') onSource();
+}
 
 async function loadProfiles() {
     const r = await (await fetch('/api/sales-insights/profiles')).json();
@@ -67,13 +113,18 @@ async function loadProfiles() {
     $('xf-source').value = localStorage.getItem('xf-source') || '';
     $('xf-target').value = localStorage.getItem('xf-target') || '';
     if ($('xf-source').value) onSource();
+    if ($('xf-target').value) checkLogin('target');
 }
+
+function onTarget() { resetPlan(); checkLogin('target'); }
 
 async function onSource() {
     resetPlan();
     const key = $('xf-source').value;
     localStorage.setItem('xf-source', key);
-    if (!key) { $('xf-dash').textContent = 'Pick a source org to list its dashboards.'; return; }
+    if (!key) { $('xf-dash').textContent = 'Pick a source org to list its dashboards.'; $('xf-source-login').innerHTML = ''; return; }
+    $('xf-dash').textContent = 'Checking login…';
+    if (!await checkLogin('source')) { $('xf-dash').textContent = 'Reconnect the source org to list its dashboards.'; return; }
     $('xf-dash').textContent = 'Loading dashboards…';
     const r = await (await fetch(`/api/transfer/dashboards?profile=${encodeURIComponent(key)}`)).json();
     if (!r.ok) { $('xf-dash').innerHTML = `<span style="color:var(--red)">${esc(r.error)}</span>`; return; }
@@ -100,6 +151,7 @@ function resetPlan() {
     planned = null;
     $('xf-run').disabled = true;
     $('xf-plan-out').innerHTML = '';
+    $('xf-plan-steps').innerHTML = '';
     localStorage.setItem('xf-target', $('xf-target').value);
 }
 
@@ -113,6 +165,10 @@ function orgName(key) { const p = profiles.find(x => x.key === key); return p ? 
 async function run(action) {
     const body = { action, source: $('xf-source').value, target: $('xf-target').value,
                    dashboards: selected(), workspace_label: $('xf-label').value.trim() };
+    for (const which of action === 'remove' ? ['target'] : ['source', 'target']) {
+        const l = logins[body[which]];
+        if (body[which] && l && !l.ok) { alert(`Reconnect the ${which} org first (see step 1).`); return; }
+    }
     if (action === 'run') {
         if (!confirm(`Transfer ${body.dashboards.length} dashboard(s) to ${orgName(body.target)}?\n\nCreates the workspace "${body.workspace_label}", a semantic model, the vizzes and dashboards`
             + ((planned && planned.data.some(d => d.action.startsWith('create'))) ? ', and a data stream with the copied rows.' : '.')
@@ -125,7 +181,8 @@ async function run(action) {
     const r = await (await fetch('/api/transfer/run', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body) })).json();
     if (!r.ok) { alert(r.error); return; }
-    job = { id: r.job_id, next: 0, action };
+    job = { id: r.job_id, next: 0, action, done: [], current: null, detail: '' };
+    renderSteps(action, [], null, '', null);
     $('xf-log').classList.remove('hidden');
     $('xf-log').textContent = r.already_running ? '(reconnected to the running job)\n' : '';
     $('xf-result').classList.add('hidden');
@@ -165,11 +222,28 @@ async function poll() {
     for (const line of r.lines) {
         if (line.startsWith('PLAN_JSON ')) { showPlan(JSON.parse(line.slice(10))); continue; }
         if (line.startsWith('RESULT_JSON ')) { showResult(JSON.parse(line.slice(12))); continue; }
+        if (line.startsWith('AUTH_ERROR ')) {
+            const e = JSON.parse(line.slice(11));
+            ['source', 'target'].forEach(w => { if ($('xf-' + w).value === e.profile) { logins[e.profile] = e; showLogin(w, e); } });
+            log.textContent += e.message + ' Reconnect it in step 1, then run this again.\n';
+            continue;
+        }
         log.textContent += line + '\n';
+        const m = line.match(/^\[(\w+)\](?: (.*))?$/);
+        if (m && (STEPS[job.action] || []).some(([k]) => k === m[1])) {
+            if (job.current && job.current !== m[1] && !job.done.includes(job.current)) job.done.push(job.current);
+            if (m[2] === 'done') { if (!job.done.includes(m[1])) job.done.push(m[1]); job.current = null; }
+            else { job.current = m[1]; job.detail = m[2] || ''; }
+            renderSteps(job.action, job.done, job.current, job.detail, null);
+        }
     }
     job.next = r.next;
     log.scrollTop = log.scrollHeight;
     if (r.state === 'running') { setTimeout(poll, 2000); return; }
+    if (r.state !== 'done' && STEPS[job.action]) {
+        const failed = job.current || (STEPS[job.action].find(([k]) => !job.done.includes(k)) || [])[0];
+        renderSteps(job.action, job.done, null, '', failed);
+    }
     log.textContent += r.state === 'done' ? `\n✓ ${({plan: 'Check', run: 'Transfer', remove: 'Remove'})[r.action]} finished\n`
         : `\n✕ Stopped — see the log above. Fix the cause and run it again.\n`;
     log.scrollTop = log.scrollHeight;

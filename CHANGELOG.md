@@ -4,6 +4,16 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-11 — Transfer Assets: login check, Reconnect, step badges (v2.14.1)
+
+### Fixed
+- A transfer from the Web UI crashed when an org's Salesforce login had expired: the background job tried to open a browser login and failed with `Address already in use` on the OAuth callback port. Background jobs now set `AIO_NO_BROWSER_REAUTH`, so `connections.get_sf_token` raises `ReauthRequired` instead (`allow_browser=False` does the same in-process). The transfer prints one `AUTH_ERROR` line and the page offers Reconnect.
+
+### Added
+- **Transfer Assets page:** picking an org checks its login right away (✓ Signed in, or ⚠ expired with a **Reconnect** button that runs the same OAuth login as Connections). Check transfer and Transfer show step badges (Package → Source data → Target data; Package → Data → Deploy n/N → Verify) with the current step's detail, so the 30-second stream listings and the row copy don't look hung.
+
+---
+
 ## 2026-11-10 — Transfer Assets: tested engine + Web UI page (v2.14.0)
 
 > Tested end to end on 2026-11-10: AIO Test Org → AIO Dev, 5 dashboards (Z, F, dynamic composed, Exec Summary, Trend & Breakdown) into one workspace and one SDM, 18,000 rows copied, every widget `Ok`, all 6 metrics returning the source's values, layouts identical to the source.

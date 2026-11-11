@@ -301,8 +301,20 @@ def _is_expired_refresh_token(response):
     )
 
 
-def _reauth_via_browser(sf, profile_key=None):
-    """Run the OAuth browser flow to get a fresh refresh token."""
+class ReauthRequired(RuntimeError):
+    """The refresh token expired and this process can't open a browser login (AIO_NO_BROWSER_REAUTH)."""
+
+    def __init__(self, profile_key):
+        self.profile_key = profile_key
+        super().__init__(f"The Salesforce login for '{profile_key}' expired. Reconnect it (Connections → OAuth), then retry.")
+
+
+def _reauth_via_browser(sf, profile_key=None, allow_browser=True):
+    """Run the OAuth browser flow to get a fresh refresh token.
+    Background jobs (Web UI subprocesses) set AIO_NO_BROWSER_REAUTH: a hidden login there can't be
+    completed and fights over the callback port, so they get ReauthRequired instead."""
+    if not allow_browser or os.environ.get("AIO_NO_BROWSER_REAUTH"):
+        raise ReauthRequired(profile_key)
     from oauth_flow import get_refresh_token
 
     print("\n⚠  Refresh token expired (Salesforce enforces a 30-day idle TTL).")
@@ -332,8 +344,9 @@ def _reauth_via_browser(sf, profile_key=None):
     return tokens["access_token"], tokens["instance_url"]
 
 
-def get_sf_token(config=None, profile_key=None):
-    """Returns (sf_token, sf_instance) via refresh_token grant."""
+def get_sf_token(config=None, profile_key=None, allow_browser=True):
+    """Returns (sf_token, sf_instance) via refresh_token grant.
+    allow_browser=False raises ReauthRequired instead of opening a login when the refresh token expired."""
     if config is None:
         config = load_config(profile_key, connection_type="salesforce")
     sf = config["salesforce"]
@@ -368,7 +381,7 @@ def get_sf_token(config=None, profile_key=None):
     r = requests.post(f"{sf['sf_login_url']}/services/oauth2/token", data=data)
 
     if _is_expired_refresh_token(r):
-        return _reauth_via_browser(sf, profile_key)
+        return _reauth_via_browser(sf, profile_key, allow_browser)
 
     if r.status_code == 400 and sf.get("code_verifier"):
         err_text = r.text.lower()
@@ -376,13 +389,13 @@ def get_sf_token(config=None, profile_key=None):
             data["code_verifier"] = sf["code_verifier"]
             r = requests.post(f"{sf['sf_login_url']}/services/oauth2/token", data=data)
             if _is_expired_refresh_token(r):
-                return _reauth_via_browser(sf, profile_key)
+                return _reauth_via_browser(sf, profile_key, allow_browser)
             pkce_mode = "required"
         elif "unexpected code verifier" in err_text:
             data.pop("code_verifier", None)
             r = requests.post(f"{sf['sf_login_url']}/services/oauth2/token", data=data)
             if _is_expired_refresh_token(r):
-                return _reauth_via_browser(sf, profile_key)
+                return _reauth_via_browser(sf, profile_key, allow_browser)
             pkce_mode = "rejected"
 
     r.raise_for_status()

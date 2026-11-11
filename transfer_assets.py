@@ -51,20 +51,47 @@ def _log(on_progress, msg, pct=-1):
         print(msg, flush=True)
 
 
+def _step(on_progress, name, detail="", done=False):
+    """Step marker the Web UI turns into badges: `[name] detail` while running, `[name] done` at the end."""
+    _log(on_progress, f"[{name}] done" if done else f"[{name}] {detail}".rstrip())
+
+
+class AuthError(RuntimeError):
+    """A profile can't log in. `reconnect` means a fresh OAuth login fixes it."""
+
+    def __init__(self, key, label, message, reconnect):
+        self.key, self.label, self.reconnect = key, label, reconnect
+        super().__init__(message)
+
+
 # ── Orgs ──────────────────────────────────────────────────────────────────────
 
 class Org:
     """One Salesforce profile from config.json, with fresh tokens on demand."""
 
-    def __init__(self, profile_key):
+    def __init__(self, profile_key, allow_browser=True):
         self.key = profile_key
+        self.allow_browser = allow_browser
         self.config = conn.load_config(profile_key, connection_type="salesforce")
         self.sf = self.config["salesforce"]
         self.label = self.config.get("label") or profile_key
-        self.token()  # sets self.instance
+        try:
+            self.token()  # sets self.instance
+        except conn.ReauthRequired:
+            raise AuthError(profile_key, self.label, f"The Salesforce login for {self.label} expired.", True)
+        except requests.HTTPError as e:
+            try:
+                desc = e.response.json().get("error_description") or e.response.text[:200]
+            except ValueError:
+                desc = e.response.text[:200]
+            if "client identifier invalid" in desc or "invalid_client" in desc:
+                raise AuthError(profile_key, self.label,
+                                f"{self.label}: Salesforce doesn't recognize AIO's app ID for this org ({desc}). "
+                                "Re-run setup for this connection.", False)
+            raise AuthError(profile_key, self.label, f"{self.label} login failed: {desc}", True)
 
     def token(self):
-        tok, inst = conn.get_sf_token(self.config, profile_key=self.key)[:2]
+        tok, inst = conn.get_sf_token(self.config, profile_key=self.key, allow_browser=self.allow_browser)[:2]
         self.instance = inst
         return tok
 
@@ -113,6 +140,15 @@ class Org:
             out.extend(j.get("dataStreams", []))
             if not j.get("nextPageUrl") or not j.get("dataStreams"):
                 return out
+
+
+def login_status(profile_key):
+    """Can this profile log in without a browser? For the Web UI's pre-check."""
+    try:
+        org = Org(profile_key, allow_browser=False)
+        return {"ok": True, "label": org.label, "instance": org.instance}
+    except AuthError as e:
+        return {"ok": False, "label": e.label, "error": str(e), "reconnect": e.reconnect}
 
 
 # ── Checkpoint ────────────────────────────────────────────────────────────────
@@ -165,7 +201,7 @@ def package_dashboards(org, names, slug, on_progress=None):
             raise RuntimeError(f"Packaging {n} failed: {s.get('error') or s.get('status')}")
         out[n] = s["package_data"]
         json.dump(out[n], open(os.path.join(demo_dir(slug), f"{n}_package.json"), "w"), indent=1)
-        _log(on_progress, f"Packaged {n}")
+        _step(on_progress, "package", f"Packaged {len(out)}/{len(jobs)}: {n}")
     return out
 
 
@@ -216,7 +252,7 @@ def create_target_stream(tgt, ds, on_progress=None):
     cid, cuuid, _ = tgt.ingest_connector()
     h = tgt.headers()
     if not any(s["name"] == ds["schema"] for s in tgt.schemas(cid)):
-        _log(on_progress, f"Registering schema {ds['schema']}...")
+        _log(on_progress, f"[data] Registering schema {ds['schema']}...")
         new = {"name": ds["schema"], "label": ds["schema"], "schemaType": "IngestApi",
                "fields": ds["fields"]}
         r = requests.put(f"{tgt.instance}/services/data/{API}/ssot/connections/{cid}/schema",
@@ -224,7 +260,7 @@ def create_target_stream(tgt, ds, on_progress=None):
         if not r.ok:
             raise RuntimeError(f"Schema registration failed: {r.status_code} {r.text[:300]}")
         time.sleep(10)
-    _log(on_progress, f"Creating data stream for {ds['schema']}...")
+    _log(on_progress, f"[data] Creating data stream for {ds['schema']}...")
     payload = {
         "name": ds["schema"], "label": ds["schema"], "datasource": cuuid[:10],
         "datastreamType": "INGESTAPI",
@@ -259,7 +295,7 @@ def create_target_stream(tgt, ds, on_progress=None):
         st = tgt.get(f"ssot/data-streams/{stream_name}").json()
         if (st.get("dataLakeObjectInfo") or {}).get("status") == "ACTIVE":
             break
-        _log(on_progress, f"Waiting for {dlo_name} to go ACTIVE... ({(i + 1) * 10}s)")
+        _log(on_progress, f"[data] Waiting for {dlo_name} to go ACTIVE... ({(i + 1) * 10}s)")
         time.sleep(10)
     time.sleep(30)  # Bulk API lags ACTIVE by 15-30s
     return stream_name, dlo_name
@@ -288,7 +324,7 @@ def copy_rows(src, tgt, ds, slug, on_progress=None):
     cols = ", ".join(f"{f['name']}__c" for f in ds["fields"])
     df = query_rows(src, f"SELECT {cols} FROM {ds['dlo']}")
     df.columns = [c[:-3] if c.endswith("__c") else c for c in df.columns]
-    _log(on_progress, f"Downloaded {len(df):,} rows from {src.label}")
+    _log(on_progress, f"[data] Downloaded {len(df):,} rows from {src.label}")
     df.to_csv(os.path.join(demo_dir(slug), f"{ds['schema']}_transferred.csv"), index=False)
 
     _, _, short = tgt.ingest_connector()
@@ -299,7 +335,7 @@ def copy_rows(src, tgt, ds, slug, on_progress=None):
                           json={"object": ds["schema"], "sourceName": short, "operation": "upsert"})
         if r.status_code != 404:
             break
-        _log(on_progress, f"Schema not ready for ingest yet, retrying... ({attempt + 1}/8)")
+        _log(on_progress, f"[data] Schema not ready for ingest yet, retrying... ({attempt + 1}/8)")
         time.sleep(15)
     if not r.ok:
         raise RuntimeError(f"Ingest job failed: {r.status_code} {r.text[:300]}")
@@ -319,7 +355,7 @@ def copy_rows(src, tgt, ds, slug, on_progress=None):
             break
         if state.get("state") in ("Failed", "Aborted"):
             raise RuntimeError(f"Ingest failed: {state}")
-        _log(on_progress, f"Ingesting... {state.get('state')} ({(i + 1) * 10}s)")
+        _log(on_progress, f"[data] Data Cloud is loading the rows: {state.get('state')} ({(i + 1) * 10}s)")
         time.sleep(10)
     return len(df)
 
@@ -332,12 +368,12 @@ def ensure_target_data(src, tgt, dlos, slug, cp, on_progress=None):
             continue
         ds = source_dataset(src, dlo)
         if ds is None:
-            _log(on_progress, f"{dlo} isn't an Ingest API object; using the same name in the target")
+            _log(on_progress, f"[data] {dlo} isn't an Ingest API object; using the same name in the target")
             dlo_map[dlo] = dlo
             continue
         found = find_target_stream(tgt, ds["schema"])
         if found:
-            _log(on_progress, f"Target already has {ds['schema']} ({found[1]}); refreshing its rows")
+            _log(on_progress, f"[data] Target already has {ds['schema']} ({found[1]}); refreshing its rows")
             stream_name, tgt_dlo = found
         else:
             stream_name, tgt_dlo = create_target_stream(tgt, ds, on_progress)
@@ -358,7 +394,7 @@ def wait_for_rows(tgt, dlo, expected, on_progress=None, timeout=600):
             n = 0
         if n >= expected:
             return n
-        _log(on_progress, f"{dlo}: {n:,}/{expected:,} rows queryable...")
+        _log(on_progress, f"[data] {dlo}: {n:,}/{expected:,} rows queryable...")
         time.sleep(15)
     return n
 
@@ -421,14 +457,22 @@ def load_packages(src, dashboards, slug, on_progress=None):
 def plan(source, target, dashboards, slug, on_progress=None):
     """Read-only preview: what each dashboard brings and what the target needs for its data."""
     src, tgt = Org(source), Org(target)
+    _step(on_progress, "package", f"Packaging {len(dashboards)} dashboard(s) from {src.label}")
     packages = load_packages(src, dashboards, slug, on_progress)
+    _step(on_progress, "package", done=True)
     sdms = {p["components"]["semanticModel"].get("label") for p in packages.values()}
+    dlos = sorted({x for p in packages.values() for x in package_dlos(p)})
+    _step(on_progress, "source", f"Finding the data behind {len(dlos)} object(s) in {src.label} (listing streams takes ~30s)")
+    sources = {dlo: source_dataset(src, dlo) for dlo in dlos}
+    _step(on_progress, "source", done=True)
+    _step(on_progress, "target", f"Checking {tgt.label} for the same data (~30s)")
     data = []
-    for dlo in sorted({x for p in packages.values() for x in package_dlos(p)}):
-        ds = source_dataset(src, dlo)
+    for dlo in dlos:
+        ds = sources[dlo]
         found = find_target_stream(tgt, ds["schema"]) if ds else (None, dlo)
         data.append({"source_dlo": dlo, "schema": ds and ds["schema"], "target_dlo": found and found[1],
                      "action": "reuse + refresh rows" if (ds and found) else ("same object" if not ds else "create + copy rows")})
+    _step(on_progress, "target", done=True)
     return {"source": src.label, "target": tgt.label,
             "dashboards": [{"name": n, "label": p["components"]["dashboard"].get("label", n),
                             "vizzes": len(p["components"].get("visualizations", {})),
@@ -444,15 +488,17 @@ def run(source, target, dashboards, slug, workspace_label=None, sdm_name=None, o
     cp.update({"source": source, "target": target, "dashboards": dashboards})
     save_cp(slug, cp)
 
-    _log(on_progress, f"Packaging {len(dashboards)} dashboard(s) from {src.label}...", 5)
+    _step(on_progress, "package", f"Packaging {len(dashboards)} dashboard(s) from {src.label}")
     packages = load_packages(src, dashboards, slug, on_progress)
+    _step(on_progress, "package", done=True)
 
-    _log(on_progress, f"Checking data in {tgt.label}...", 20)
+    _step(on_progress, "data", f"Checking data in {tgt.label}")
     dlos = sorted({x for p in packages.values() for x in package_dlos(p)})
     dlo_map = ensure_target_data(src, tgt, dlos, slug, cp, on_progress)
     for tdlo, info in cp.get("streams", {}).items():
         n = wait_for_rows(tgt, tdlo, info["rows"], on_progress)
-        _log(on_progress, f"{tdlo}: {n:,} rows ready", 50)
+        _step(on_progress, "data", f"{n:,} rows ready in {tdlo}")
+    _step(on_progress, "data", done=True)
 
     first = packages[dashboards[0]]
     workspace_label = workspace_label or first["components"]["dashboard"].get("label", slug)
@@ -461,7 +507,7 @@ def run(source, target, dashboards, slug, workspace_label=None, sdm_name=None, o
     for i, d in enumerate(dashboards):
         if d in done:
             continue
-        _log(on_progress, f"Deploying {d} to {tgt.label}...", 55 + int(40 * i / len(dashboards)))
+        _step(on_progress, "deploy", f"{i + 1}/{len(dashboards)}: {d}")
         pkg = patch_package(packages[d], dlo_map)
         s = deploy(tgt, pkg, cp.get("workspace"), cp.get("sdm"), workspace_label, sdm_name, on_progress)
         created = cp.setdefault("created", {"workspaces": [], "sdms": []})
@@ -473,9 +519,10 @@ def run(source, target, dashboards, slug, workspace_label=None, sdm_name=None, o
         cp["sdm"] = cp.get("sdm") or _created_sdm(s)
         done[d] = {"url": s.get("workspace_url"), "status": s}
         save_cp(slug, cp)
-    _log(on_progress, "Checking every metric against the source...", 97)
+    _step(on_progress, "deploy", done=True)
+    _step(on_progress, "verify", "Checking every metric against the source")
     verify(source, target, slug, on_progress)
-    _log(on_progress, "Transfer complete", 100)
+    _step(on_progress, "verify", done=True)
     return load_cp(slug)
 
 
@@ -598,4 +645,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except AuthError as e:
+        print("AUTH_ERROR " + json.dumps({"profile": e.key, "label": e.label, "message": str(e),
+                                          "reconnect": e.reconnect}), flush=True)
+        sys.exit(3)
