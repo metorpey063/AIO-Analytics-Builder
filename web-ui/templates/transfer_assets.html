@@ -222,6 +222,11 @@ async function poll() {
     for (const line of r.lines) {
         if (line.startsWith('PLAN_JSON ')) { showPlan(JSON.parse(line.slice(10))); continue; }
         if (line.startsWith('RESULT_JSON ')) { showResult(JSON.parse(line.slice(12))); continue; }
+        if (line.startsWith('ERROR ')) {
+            const box = $(job.action === 'plan' ? 'xf-plan-out' : 'xf-result');
+            box.innerHTML = `<div style="color:var(--red)">✕ ${esc(line.slice(6))}</div>`;
+            box.classList.remove('hidden');
+        }
         if (line.startsWith('AUTH_ERROR ')) {
             const e = JSON.parse(line.slice(11));
             ['source', 'target'].forEach(w => { if ($('xf-' + w).value === e.profile) { logins[e.profile] = e; showLogin(w, e); } });

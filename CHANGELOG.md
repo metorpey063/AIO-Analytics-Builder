@@ -4,6 +4,13 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-12 — Transfer Assets: readable service errors (v2.14.5)
+
+### Fixed
+- A failed package or deploy printed the Package & Deploy service's whole server traceback. The engine now prints one `ERROR` line with the service's own message, and the page shows it in red under the button. `SDM_NOT_FOUND` explains itself: the dashboard's semantic model was deleted in the source org (the dashboard is broken there too), so pick another dashboard.
+
+---
+
 ## 2026-11-11 — Installer works on Intel Macs and fresh Macs (v2.14.4)
 
 ### Fixed

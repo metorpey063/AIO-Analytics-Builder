@@ -64,6 +64,22 @@ class AuthError(RuntimeError):
         super().__init__(message)
 
 
+class TransferError(RuntimeError):
+    """A failure with a plain-language message; the CLI prints it without a traceback."""
+
+
+def _service_error(err):
+    """The Package & Deploy service returns its whole Python traceback (or a JSON string) as the
+    error. Pull out its own message and say what the common codes mean."""
+    text = str(err or "")
+    m = re.search(r"""['"]message['"]:\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')""", text)
+    msg = (m.group(1) or m.group(2)) if m else text.strip().splitlines()[-1] if text.strip() else "unknown error"
+    if "SDM_NOT_FOUND" in text:
+        msg += (". The dashboard points at a semantic model that no longer exists in the source org, so it's"
+                " broken there too and can't be packaged. Pick a dashboard whose semantic model still exists.")
+    return msg
+
+
 # ── Orgs ──────────────────────────────────────────────────────────────────────
 
 class Org:
@@ -198,7 +214,7 @@ def package_dashboards(org, names, slug, on_progress=None):
                 break
             time.sleep(5)
         if s.get("status") != "completed" or not s.get("package_data"):
-            raise RuntimeError(f"Packaging {n} failed: {s.get('error') or s.get('status')}")
+            raise TransferError(f"Packaging {n} failed: {_service_error(s.get('error') or s.get('status'))}")
         out[n] = s["package_data"]
         json.dump(out[n], open(os.path.join(demo_dir(slug), f"{n}_package.json"), "w"), indent=1)
         _step(on_progress, "package", f"Packaged {len(out)}/{len(jobs)}: {n}")
@@ -441,7 +457,7 @@ def deploy(tgt, package_data, workspace=None, sdm=None, workspace_label=None, sd
         if s.get("status") in ("completed", "done", "success"):
             return s
         if s.get("status") in ("failed", "error"):
-            raise RuntimeError(f"Deploy failed: {s.get('error')}")
+            raise TransferError(f"Deploy failed: {_service_error(s.get('error'))}")
     raise RuntimeError("Deploy timed out after 15 minutes")
 
 
@@ -647,6 +663,9 @@ def main():
 if __name__ == "__main__":
     try:
         main()
+    except TransferError as e:
+        print(f"ERROR {e}", flush=True)
+        sys.exit(1)
     except AuthError as e:
         print("AUTH_ERROR " + json.dumps({"profile": e.key, "label": e.label, "message": str(e),
                                           "reconnect": e.reconnect}), flush=True)
