@@ -563,53 +563,87 @@ def apply_signal_plan(story_config):
 MAX_SIGNAL_DRAWS = 4
 
 
+def _designed_effect(story_config, adv):
+    """What the build's settings should give the culprit (signal_verifier
+    expected_effect), with this generator's multipliers: a 1.8-2.5x culprit,
+    a 1.45x drill-down cell scaled into the signal, and the 100% ceiling on rates."""
+    from signal_verifier import expected_effect
+    mcs = story_config["metric_config"]
+    primary = next((m for m in mcs if m.get("is_primary")), mcs[0])
+    up_good = primary.get("sentiment", "up_is_good") == "up_is_good"
+    dims = story_config.get("dimensions", [])
+    plan = story_config.get("signal_plan") or {}
+    culprit_mult = worst = 2.15                     # mean of the culprit's uniform(1.8, 2.5)
+    n2 = len((story_config.get("dimension_values") or {}).get(dims[1], [])) if len(dims) > 1 else 0
+    if n2 > 1:
+        has_detail = bool((plan.get("culprit_detail") or {}).get("value"))
+        cells = [1.45] + [1.05] * (n2 - 1) if has_detail else [1.05] * n2
+        culprit_mult *= sum(cells) / len(cells)
+        worst *= 1.45 if has_detail else 1.0
+    max_effect = None
+    br = primary.get("base_range") or [0.55, 0.85]
+    base = (br[0] + br[1]) / 2
+    if not up_good and is_percent_metric(primary) and base > 0:
+        max_effect = 1.0 / base - 1.0
+    return expected_effect(
+        adv.get("signal_magnitude", 0.40), abs(int(adv.get("signal_onset", -3))),
+        shape=adv.get("signal_shape", "accelerating"), culprit_mult=culprit_mult,
+        worst_mult=worst, up_is_good=up_good, max_effect=max_effect)
+
+
 def generate_data(story_config, q=None, advanced=None):
     """Generate synthetic data from story config. Returns DataFrame.
 
     Each draw is checked against the story's signal_plan (signal_verifier): the
     named culprit must be the worst segment, visible above the noise, with the
     drill-down cell steeper and the counter-trend metric improving. A draw that
-    misses is redrawn (up to MAX_SIGNAL_DRAWS); the best one is kept. Stories
-    without a signal_plan are generated once.
+    misses is redrawn (up to MAX_SIGNAL_DRAWS); the best one is kept. A plan the
+    data can't meet (a value that isn't in the data, a culprit off the signal
+    dimension) isn't redrawn. Stories without a signal_plan are generated once.
     """
-    from signal_verifier import verify_signal, format_report, expected_effect
+    from signal_verifier import verify_signal, format_report
     plan = story_config.get("signal_plan") or {}
     if not plan.get("culprit"):
         return _generate_data_once(story_config, q, advanced)
 
-    onset = abs(int((advanced or {}).get("signal_onset", story_config.get("signal_onset", -3))))
-    # Cutoffs follow the build's settings: a gentler magnitude or noisier
-    # background is checked against what it should produce, not the defaults
     adv = advanced or {}
-    primary = next((m for m in story_config["metric_config"] if m.get("is_primary")),
-                   story_config["metric_config"][0])
-    expected = expected_effect(
-        adv.get("signal_magnitude", 0.40), onset, shape=adv.get("signal_shape", "accelerating"),
-        up_is_good=primary.get("sentiment", "up_is_good") == "up_is_good")
-    variability = float(adv.get("variability", 1.0))
+    # Same fallback as _generate_data_once, so the check measures the onset the data has
+    onset = abs(int(adv.get("signal_onset", -3)))
+    expected = _designed_effect(story_config, adv)
+    dims = story_config.get("dimensions", [])
 
     best = None
     for draw in range(1, MAX_SIGNAL_DRAWS + 1):
         df = _generate_data_once(story_config, q, advanced)
-        report = verify_signal(df, story_config["metric_config"], story_config.get("dimensions", []),
-                               plan, onset_months=onset, today=TODAY,
-                               expected=expected, variability=variability)
+        report = verify_signal(df, story_config["metric_config"], dims, plan,
+                               onset_months=onset, today=TODAY, expected=expected,
+                               signal_dims=dims[:1])
         score = (len(report["failures"]), -(report["stats"].get("culprit_z") or 0))
         if best is None or score < best[0]:
             best = (score, df, report)
         if report["ok"]:
             break
+        miss = "; ".join(c["message"] for c in report["failures"])
+        if not report["fixable_by_redraw"]:
+            if q:
+                progress(q, "warn", f"The signal plan can't be met ({miss}) — not redrawing", -1)
+            break
         if q:
-            miss = "; ".join(c["message"] for c in report["failures"])
             progress(q, "warn", f"Draw {draw}: the data missed the story ({miss}) — redrawing"
                      if draw < MAX_SIGNAL_DRAWS else f"Draw {draw}: still missed the story ({miss})", -1)
     _, df, report = best
     story_config["signal_check"] = {"ok": report["ok"], "draws": draw, "stats": report["stats"],
                                     "report": format_report(report)}
     if q:
-        progress(q, "data" if report["ok"] else "warn",
-                 f"Signal check {'passed' if report['ok'] else 'FAILED'} after {draw} draw(s): "
-                 f"{report['stats'].get('culprit', ('', ''))[1]} {report['stats'].get('culprit_effect', 0):+.0%}", -1)
+        st = report["stats"]
+        if report["ok"]:
+            msg = (f"Signal check passed after {draw} draw(s): "
+                   f"{st['culprit'][1]} {st['culprit_effect']:+.0%}")
+        else:
+            # A plan problem explains the rest, so it leads
+            first = next((c for c in report["failures"] if not c["redraw"]), report["failures"][0])
+            msg = f"Signal check FAILED after {draw} draw(s): {first['message']}"
+        progress(q, "data" if report["ok"] else "warn", msg, -1)
     return df
 
 

@@ -332,10 +332,13 @@ def _generate_once(
 
     # ── Date range ───────────────────────────────────────────────────────
     freq = {"daily": "D", "weekly": "W", "monthly": "MS"}.get(grain, "MS")
-    periods = {"daily": history_months * 30, "weekly": history_months * 4,
-               "monthly": history_months}.get(grain, history_months)
     start = today.replace(day=1) - timedelta(days=history_months * 30)
-    dates = pd.date_range(start, periods=periods, freq=freq).date
+    if freq == "MS":
+        dates = pd.date_range(start, periods=history_months, freq=freq).date
+    else:
+        # Daily and weekly run through today (a fixed count of 4 weeks per month
+        # ended weekly data two months early, before the signal's recent months)
+        dates = pd.date_range(start, today, freq=freq).date
     realism = Realism(metrics, dimensions, dimension_values, list(dates),
                       seed=seed, strength=variability)
 
@@ -441,52 +444,90 @@ def _generate_once(
     return df
 
 
-def generate_demo_data(*, verify: bool = True, max_draws: int = 3, **kwargs) -> pd.DataFrame:
+def generate_demo_data(*, verify: bool = True, max_draws: int = 3,
+                       signal_plan: dict | None = None, **kwargs) -> pd.DataFrame:
     """Generate synthetic demo data with engineered signals, then check it.
 
     Takes the arguments of `_generate_once` (metrics, dimensions, dimension_values,
     signal_config, multipliers, compound_multipliers, ... see its docstring).
 
     With `verify` (default) the finished data is read back by signal_verifier:
-    the culprit segment (the highest multiplier) must be the worst, visible above
-    the noise, with the drill-down cell steeper. A draw that misses is redrawn with
-    the next seed, up to `max_draws`; the best draw is returned. A miss never
-    raises: the report is printed and kept on `df.attrs["signal_report"]`.
+    the culprit segment must be the worst, visible above the noise, with the
+    drill-down cell steeper. The culprit and drill-down come from `signal_plan`
+    ({culprit: {dimension, value}, culprit_detail: {...}}, the Web UI shape) when
+    given, else from the multipliers (see culprit_from_multipliers). Its
+    counter_trend_metric isn't checked: this generator has no counter-trend
+    metric (a counter-trend here is a segment with a negative multiplier).
+
+    A draw that misses is redrawn with the next seed, up to `max_draws`, and the
+    best draw is returned, so a config whose seed-42 draw misses returns seed 43
+    or 44 data. The global random / np.random state is left as that draw left
+    it. A plan the data can't meet isn't redrawn. A miss never raises: the
+    report is printed and kept on `df.attrs["signal_report"]` (its seed on
+    `df.attrs["signal_seed"]`).
     """
     seed = kwargs.get("seed", 42)
-    if not verify or not kwargs.get("multipliers"):
+    multipliers = kwargs.get("multipliers") or {}
+    if not verify or not multipliers:
         return _generate_once(**kwargs)
 
     from signal_verifier import verify_signal, format_report, culprit_from_multipliers, expected_effect
-    culprit, detail = culprit_from_multipliers(
-        kwargs["multipliers"], kwargs["dimensions"],
-        kwargs.get("compound_multipliers"), kwargs.get("compound_dims"))
+    compound, cdims = kwargs.get("compound_multipliers"), kwargs.get("compound_dims")
+    culprit, detail = culprit_from_multipliers(multipliers, kwargs["dimensions"], compound, cdims)
+    plan = signal_plan or {}
+    if plan.get("culprit"):
+        culprit = (plan["culprit"].get("dimension"), plan["culprit"].get("value"))
+        d = plan.get("culprit_detail") or {}
+        detail = (d.get("dimension"), d.get("value")) if d.get("value") else None
     sc = kwargs.get("signal_config") or {}
     onset = abs(sc.get("onset", -6))
     today = kwargs.get("today") or date.today()
     primary = next((m for m in kwargs["metrics"] if m.get("is_primary")), kwargs["metrics"][0])
-    culprit_mult = (kwargs["multipliers"].get(culprit[0], {}).get(culprit[1], 2.0)
-                    if culprit else 2.0)
+    up_good = primary.get("sentiment", "up_is_good") == "up_is_good"
+
+    # The culprit's multiplier as the generator applies it: averaged with the
+    # other dimensions' multipliers, or the compound cells when they override it
+    culprit_mult = 2.0
+    if culprit:
+        cells = [m for (v1, _v2), m in (compound or {}).items()
+                 if cdims and cdims[0] == culprit[0] and v1 == culprit[1]]
+        own = multipliers.get(culprit[0], {}).get(culprit[1])
+        if cells:
+            culprit_mult = sum(cells) / len(cells)
+        elif own is not None:
+            others = [sum(mm.values()) / len(mm) for dim, mm in multipliers.items()
+                      if dim != culprit[0] and mm]
+            culprit_mult = (own + sum(others)) / (1 + len(others))
+    all_mults = [m for mm in multipliers.values() for m in mm.values()]
+    lo, hi = (primary.get("base_range") or [0.55, 0.85])[:2]
+    max_effect = 1.0 / ((lo + hi) / 2) - 1.0 if not up_good and hi <= 1.5 and lo + hi > 0 else None
     expected = expected_effect(
         sc.get("magnitude", 0.37), onset, shape=sc.get("shape", "accelerating"),
         duration=sc.get("duration", 6), culprit_mult=culprit_mult,
-        up_is_good=primary.get("sentiment", "up_is_good") == "up_is_good", bad_boost=2.0)
-    variability = float(kwargs.get("variability", 1.0))
+        worst_mult=max([m for m in all_mults if m > 0] or [1.0]),
+        up_is_good=up_good, bad_boost=2.0, max_effect=max_effect)
+    signal_dims = list(multipliers) + ([cdims[0]] if compound and cdims else [])
 
     best = None
     for draw in range(max_draws):
         df = _generate_once(**{**kwargs, "seed": seed + draw})
         report = verify_signal(df, kwargs["metrics"], kwargs["dimensions"],
                                culprit=culprit, detail=detail, onset_months=onset, today=today,
-                               expected=expected, variability=variability)
+                               expected=expected, signal_dims=signal_dims)
         score = (len(report["failures"]), -(report["stats"].get("culprit_z") or 0))
         if best is None or score < best[0]:
-            best = (score, df, report, seed + draw)
+            best = (score, df, report, seed + draw, (random.getstate(), np.random.get_state()))
         if report["ok"]:
             break
         print(f"  signal check (seed {seed + draw}) missed: "
               + "; ".join(c["message"] for c in report["failures"]))
-    _, df, report, used = best
+        if not report["fixable_by_redraw"]:
+            print("  the signal plan can't be met by this data — not redrawing")
+            break
+    _, df, report, used, rng_state = best
+    random.setstate(rng_state[0])
+    np.random.set_state(rng_state[1])
     print(format_report(report) + f"\n  (seed {used}, {draw + 1} draw(s))")
     df.attrs["signal_report"] = report
+    df.attrs["signal_seed"] = used
     return df

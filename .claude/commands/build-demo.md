@@ -549,8 +549,14 @@ df = generate_demo_data(
     grain=GRAIN,
     clients_per_cell=2,
     goal_columns={"Target Rate": 0.85} if goals else None,
+    # The segments the walkthrough names. Without it the verifier takes the
+    # largest multiplier (or the compound table's dimension) as the culprit
+    signal_plan={"culprit": {"dimension": "Client Segment", "value": "Mid-Market"},
+                 "culprit_detail": {"dimension": "Region", "value": "West Coast"}},
 )
 ```
+
+The generator checks the data against the story (`signal_verifier`) and redraws with the next seed if it misses, so the data may come from seed 43 or 44 (`df.attrs["signal_seed"]`). If it still misses it prints the report and returns the best draw — read the ✗ lines and fix the multipliers rather than ignoring them.
 
 The generator handles: entity roster construction, signal ramp (accelerating/linear/step), per-segment multipliers, noise scaling by size, Record ID + Day_Offset columns, base value variation per entity, and both pre/post validation.
 
