@@ -196,6 +196,53 @@ def list_dashboards(org):
             for d in r.json().get("dashboards", [])]
 
 
+def dashboard_health(org, names):
+    """{name: {state, sdms, missing, widgets, failing}} for the dashboard list's badges.
+    state: "ok", "partial" (some widgets erroring in the source) or "orphan" (its semantic model
+    was deleted, so the service can't package it). One dashboard GET each, in parallel."""
+    from concurrent.futures import ThreadPoolExecutor
+    h = org.headers()
+    sdms, off = set(), 0
+    while True:
+        r = requests.get(f"{org.instance}/services/data/v65.0/ssot/semantic/models", headers=h,
+                         params={"limit": 200, "offset": off}, timeout=120)
+        items = r.json().get("items", []) if r.ok else []
+        sdms |= {m["apiName"] for m in items}
+        if len(items) < 200:
+            break
+        off += 200
+
+    def one(name):
+        r = requests.get(f"{org.instance}/services/data/v67.0/tableau/dashboards/{name}?minorVersion=14",
+                         headers=h, timeout=120)
+        if not r.ok:
+            return name, {"state": "unknown", "error": r.status_code}
+        widgets = r.json().get("widgets", {}).values()
+        refs = {((w.get("parameters") or {}).get("metricOption") or {}).get("sdmApiName") for w in widgets} - {None}
+        if not refs:  # no metric tiles: read the semantic model off the first viz
+            viz = next(((w.get("source") or {}).get("name") for w in widgets if w.get("type") == "visualization"), None)
+            if viz:
+                v = requests.get(f"{org.instance}/services/data/v67.0/tableau/visualizations/{viz}?minorVersion=14",
+                                 headers=h, timeout=120)
+                if v.ok and (v.json().get("dataSource") or {}).get("name"):
+                    refs = {v.json()["dataSource"]["name"]}
+        data = [w for w in widgets if w.get("type") in ("visualization", "metric")]
+        failing = sum(1 for w in data if w.get("status") not in (None, "Ok"))
+        missing = sorted(refs - sdms)
+        state = "orphan" if missing else ("partial" if failing else "ok")
+        return name, {"state": state, "sdms": sorted(refs), "missing": missing,
+                      "widgets": len(data), "failing": failing}
+
+    def safe(name):  # one dashboard's network error shouldn't sink the whole list
+        try:
+            return one(name)
+        except requests.RequestException as e:
+            return name, {"state": "unknown", "error": type(e).__name__}
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        return dict(pool.map(safe, names))
+
+
 def package_dashboards(org, names, slug, on_progress=None):
     """Package each dashboard; returns {name: package_data}. Saves each package JSON."""
     h = org.svc_headers()

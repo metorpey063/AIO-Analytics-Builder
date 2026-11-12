@@ -4,7 +4,10 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
-## 2026-11-12 — Transfer Assets: readable service errors (v2.14.5)
+## 2026-11-12 — Transfer Assets: dashboard health badges, readable service errors (v2.14.5)
+
+### Added
+- **Dashboard list health badges:** after the list loads, each dashboard gets ✓ healthy, ⚠ N of M widgets erroring (they already error in the source and transfer the same way), or ✕ semantic model deleted (can't be packaged, so its checkbox is disabled). One dashboard GET each, 8 in parallel: 45 dashboards in ~13s. `transfer_assets.dashboard_health()`, `POST /api/transfer/health`.
 
 ### Fixed
 - A failed package or deploy printed the Package & Deploy service's whole server traceback. The engine now prints one `ERROR` line with the service's own message, and the page shows it in red under the button. `SDM_NOT_FOUND` explains itself: the dashboard's semantic model was deleted in the source org (the dashboard is broken there too), so pick another dashboard.

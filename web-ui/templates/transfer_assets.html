@@ -134,8 +134,32 @@ async function onSource() {
     dashboards.forEach(d => (byWs[d.workspace] = byWs[d.workspace] || []).push(d));
     $('xf-dash').innerHTML = Object.entries(byWs).map(([ws, ds]) =>
         `<div style="margin-bottom:8px"><strong>${esc(ws)}</strong>` + ds.map(d =>
-            `<label style="display:block; margin-left:12px; font-weight:normal"><input type="checkbox" class="xf-pick" value="${esc(d.name)}" data-ws="${esc(ws)}" onchange="onPickDash(this)"> ${esc(d.label)} <code>${esc(d.name)}</code>${d.template ? ' <span class="badge badge-neutral">managed app</span>' : ''}</label>`).join('') + '</div>').join('')
+            `<label style="display:block; margin-left:12px; font-weight:normal"><input type="checkbox" class="xf-pick" value="${esc(d.name)}" data-ws="${esc(ws)}" onchange="onPickDash(this)"> ${esc(d.label)} <code>${esc(d.name)}</code>${d.template ? ' <span class="badge badge-neutral">managed app</span>' : ''} <span class="xf-health" data-name="${esc(d.name)}"><span class="badge badge-pending">checking…</span></span></label>`).join('') + '</div>').join('')
         + '<div class="form-hint">Pick dashboards from one workspace: they need to share one semantic model.</div>';
+    loadHealth(key);
+}
+
+// Badge each dashboard: healthy, some widgets erroring in the source, or its semantic model deleted
+async function loadHealth(key) {
+    let r;
+    try {
+        r = await (await fetch('/api/transfer/health', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profile: key, dashboards: dashboards.map(d => d.name) }) })).json();
+    } catch (e) { r = { ok: false }; }
+    if ($('xf-source').value !== key) return;   // the source changed while this was loading
+    document.querySelectorAll('.xf-health').forEach(el => {
+        const h = r.ok ? r.health[el.dataset.name] : null;
+        const box = el.closest('label').querySelector('input');
+        if (!h || h.state === 'unknown') { el.innerHTML = '<span class="badge badge-pending" title="Couldn\'t check this one">?</span>'; return; }
+        if (h.state === 'ok') { el.innerHTML = '<span class="badge badge-ok">✓ healthy</span>'; return; }
+        if (h.state === 'partial') {
+            el.innerHTML = `<span class="badge" style="background:var(--orange-light, #fff4e5); color:var(--orange)" title="These widgets already error in the source org and will transfer the same way">⚠ ${h.failing} of ${h.widgets} widgets erroring</span>`;
+            return;
+        }
+        el.innerHTML = `<span class="badge" style="background:var(--red-light); color:var(--red)" title="Semantic model ${esc(h.missing.join(', '))} was deleted in the source org">✕ semantic model deleted</span>`;
+        box.checked = false; box.disabled = true;
+        el.closest('label').style.opacity = 0.55;
+    });
 }
 
 function onPickDash(box) {

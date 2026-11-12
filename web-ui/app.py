@@ -1338,6 +1338,18 @@ def transfer_dashboards():
         return jsonify({"ok": False, "error": f"Couldn't list dashboards: {e}"}), 400
 
 
+@app.route("/api/transfer/health", methods=["POST"])
+def transfer_health():
+    """Read-only: per-dashboard badge state (ok / partial / orphan) for the dashboard list."""
+    import transfer_assets as xfer
+    data = request.get_json() or {}
+    try:
+        org = xfer.Org(data.get("profile", ""), allow_browser=False)
+        return jsonify({"ok": True, "health": xfer.dashboard_health(org, data.get("dashboards", []))})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+
+
 @app.route("/api/transfer/run", methods=["POST"])
 def transfer_run():
     """plan (read-only: packages the dashboards, checks the target's data), run (writes to the target)
