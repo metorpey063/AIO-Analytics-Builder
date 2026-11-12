@@ -82,7 +82,7 @@ def index():
     has_salesforce = bool(config.get("salesforce", {}).get("refresh_token"))
     changelog = _parse_changelog(limit=5)
     return render_template("index.html", has_tableau=has_tableau, has_salesforce=has_salesforce,
-                           changelog=changelog)
+                           changelog=changelog, roadmap=_roadmap_fallback())
 
 
 @app.route("/setup")
@@ -344,6 +344,46 @@ def open_demo_folder(slug):
             subprocess.Popen(["xdg-open", str(demos_dir)])
         return jsonify({"ok": True})
     except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+def _roadmap_fallback() -> list:
+    """ROADMAP.md Top Priorities, shown until the vote counts load (or if the org is unreachable)."""
+    try:
+        from roadmap_votes import parse_priorities
+        return parse_priorities()
+    except Exception:
+        return []
+
+
+@app.route("/api/roadmap")
+def roadmap_items():
+    from roadmap_votes import list_items, RoadmapError
+    try:
+        return jsonify({"ok": True, "items": list_items()})
+    except RoadmapError as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/api/roadmap/picks", methods=["POST"])
+def roadmap_picks():
+    from roadmap_votes import set_picks, RoadmapError
+    item_ids = (request.get_json(silent=True) or {}).get("itemIds", [])
+    if not isinstance(item_ids, list):
+        return jsonify({"ok": False, "error": "itemIds must be a list"})
+    try:
+        return jsonify({"ok": True, "items": set_picks(item_ids)})
+    except RoadmapError as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/api/roadmap/suggest", methods=["POST"])
+def roadmap_suggest():
+    from roadmap_votes import suggest, RoadmapError
+    data = request.get_json(silent=True) or {}
+    try:
+        return jsonify({"ok": True, **suggest(data.get("title", ""), data.get("summary", ""))})
+    except RoadmapError as e:
         return jsonify({"ok": False, "error": str(e)})
 
 

@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <label>Roadmap Vote</label>
+    <pluralLabel>Roadmap Votes</pluralLabel>
+    <description>One row per anonymous AIO install per roadmap item: the voter's ranked pick (1-3). Removing a pick sets Active to false (kept for history).</description>
+    <deploymentStatus>Deployed</deploymentStatus>
+    <sharingModel>ControlledByParent</sharingModel>
+    <enableReports>true</enableReports>
+    <nameField>
+        <label>Vote Number</label>
+        <type>AutoNumber</type>
+        <displayFormat>V-{000000}</displayFormat>
+    </nameField>
+    <fields>
+        <fullName>Item__c</fullName>
+        <label>Roadmap Item</label>
+        <type>MasterDetail</type>
+        <referenceTo>Roadmap_Item__c</referenceTo>
+        <relationshipName>Votes</relationshipName>
+        <relationshipLabel>Votes</relationshipLabel>
+        <relationshipOrder>0</relationshipOrder>
+        <reparentableMasterDetail>false</reparentableMasterDetail>
+        <writeRequiresMasterRead>false</writeRequiresMasterRead>
+    </fields>
+    <fields>
+        <fullName>Voter_Id__c</fullName>
+        <label>Voter ID (anonymous)</label>
+        <type>Text</type>
+        <length>64</length>
+        <required>true</required>
+    </fields>
+    <fields>
+        <fullName>Vote_Key__c</fullName>
+        <label>Vote Key</label>
+        <description>Item ID + voter ID, so one install has at most one vote per item.</description>
+        <type>Text</type>
+        <length>100</length>
+        <externalId>true</externalId>
+        <unique>true</unique>
+        <caseSensitive>false</caseSensitive>
+        <required>false</required>
+    </fields>
+    <fields>
+        <fullName>Active__c</fullName>
+        <label>Active</label>
+        <type>Checkbox</type>
+        <defaultValue>true</defaultValue>
+    </fields>
+    <fields>
+        <fullName>Item_Title__c</fullName>
+        <label>Item Title</label>
+        <description>Copied from the roadmap item so the Tableau Next model needs only the vote table.</description>
+        <type>Text</type>
+        <formula>Item__r.Name</formula>
+        <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    </fields>
+    <fields>
+        <fullName>Item_Status__c</fullName>
+        <label>Item Status</label>
+        <description>Copied from the roadmap item so the Tableau Next model needs only the vote table.</description>
+        <type>Text</type>
+        <formula>TEXT(Item__r.Status__c)</formula>
+        <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    </fields>
+    <fields>
+        <fullName>Item_Source__c</fullName>
+        <label>Item Source</label>
+        <description>Copied from the roadmap item so the Tableau Next model needs only the vote table.</description>
+        <type>Text</type>
+        <formula>TEXT(Item__r.Source__c)</formula>
+        <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    </fields>
+    <fields>
+        <fullName>Item_Priority_Rank__c</fullName>
+        <label>Item Priority Rank</label>
+        <description>Copied from the roadmap item so the Tableau Next model needs only the vote table.</description>
+        <type>Number</type>
+        <formula>Item__r.Priority_Rank__c</formula>
+        <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+        <precision>3</precision>
+        <scale>0</scale>
+    </fields>
+    <fields>
+        <fullName>Active_Vote__c</fullName>
+        <label>Active Vote</label>
+        <description>Copied from the roadmap item so the Tableau Next model needs only the vote table.</description>
+        <type>Number</type>
+        <formula>IF(Active__c, 1, 0)</formula>
+        <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+        <precision>3</precision>
+        <scale>0</scale>
+    </fields>
+    <fields>
+        <fullName>Pick_Rank__c</fullName>
+        <label>Pick Rank</label>
+        <description>The voter's ranking of this item: 1 = first choice, 2 = second, 3 = third.</description>
+        <type>Number</type>
+        <precision>1</precision>
+        <scale>0</scale>
+        <required>false</required>
+    </fields>
+    <fields>
+        <fullName>Points__c</fullName>
+        <label>Points</label>
+        <description>3 for a first choice, 2 for second, 1 for third; 0 when the pick was removed.</description>
+        <type>Number</type>
+        <formula>IF(Active__c, CASE(Pick_Rank__c, 1, 3, 2, 2, 3, 1, 0), 0)</formula>
+        <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+        <precision>2</precision>
+        <scale>0</scale>
+    </fields>
+    <fields>
+        <fullName>First_Choice__c</fullName>
+        <label>First Choice</label>
+        <description>1 when this is the voter's active first choice, else 0.</description>
+        <type>Number</type>
+        <formula>IF(AND(Active__c, Pick_Rank__c = 1), 1, 0)</formula>
+        <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+        <precision>1</precision>
+        <scale>0</scale>
+    </fields>
+</CustomObject>

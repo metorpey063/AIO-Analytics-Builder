@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <label>Roadmap Item</label>
+    <pluralLabel>Roadmap Items</pluralLabel>
+    <description>AIO Analytics Builder roadmap items (curated from ROADMAP.md) and SE suggestions from the Web UI.</description>
+    <deploymentStatus>Deployed</deploymentStatus>
+    <sharingModel>ReadWrite</sharingModel>
+    <enableReports>true</enableReports>
+    <enableSearch>true</enableSearch>
+    <nameField>
+        <label>Title</label>
+        <type>Text</type>
+    </nameField>
+    <fields>
+        <fullName>Item_Key__c</fullName>
+        <label>Item Key</label>
+        <description>Stable key: a slug of the title for ROADMAP.md items, a generated key for suggestions.</description>
+        <type>Text</type>
+        <length>100</length>
+        <externalId>true</externalId>
+        <unique>true</unique>
+        <caseSensitive>false</caseSensitive>
+        <required>false</required>
+    </fields>
+    <fields>
+        <fullName>Summary__c</fullName>
+        <label>Summary</label>
+        <type>TextArea</type>
+        <required>false</required>
+    </fields>
+    <fields>
+        <fullName>Status__c</fullName>
+        <label>Status</label>
+        <type>Picklist</type>
+        <required>false</required>
+        <valueSet>
+            <restricted>true</restricted>
+            <valueSetDefinition>
+                <sorted>false</sorted>
+                <value><fullName>In progress</fullName><default>false</default><label>In progress</label></value>
+                <value><fullName>Next</fullName><default>false</default><label>Next</label></value>
+                <value><fullName>Planned</fullName><default>false</default><label>Planned</label></value>
+                <value><fullName>Suggested</fullName><default>true</default><label>Suggested</label></value>
+                <value><fullName>Completed</fullName><default>false</default><label>Completed</label></value>
+                <value><fullName>Declined</fullName><default>false</default><label>Declined</label></value>
+            </valueSetDefinition>
+        </valueSet>
+    </fields>
+    <fields>
+        <fullName>Source__c</fullName>
+        <label>Source</label>
+        <type>Picklist</type>
+        <required>false</required>
+        <valueSet>
+            <restricted>true</restricted>
+            <valueSetDefinition>
+                <sorted>false</sorted>
+                <value><fullName>Roadmap</fullName><default>false</default><label>Roadmap</label></value>
+                <value><fullName>SE suggestion</fullName><default>true</default><label>SE suggestion</label></value>
+            </valueSetDefinition>
+        </valueSet>
+    </fields>
+    <fields>
+        <fullName>Priority_Rank__c</fullName>
+        <label>Priority Rank</label>
+        <description>Position in ROADMAP.md Top Priorities (1-5). Blank for items outside the top list.</description>
+        <type>Number</type>
+        <precision>3</precision>
+        <scale>0</scale>
+        <required>false</required>
+    </fields>
+    <fields>
+        <fullName>Suggested_By__c</fullName>
+        <label>Suggested By (anonymous)</label>
+        <description>Anonymous AIO install ID of the SE who suggested the item.</description>
+        <type>Text</type>
+        <length>64</length>
+        <required>false</required>
+    </fields>
+    <fields>
+        <fullName>Vote_Count__c</fullName>
+        <label>Vote Count</label>
+        <description>Number of voters with this item in their top 3.</description>
+        <type>Summary</type>
+        <summaryForeignKey>Roadmap_Vote__c.Item__c</summaryForeignKey>
+        <summaryOperation>count</summaryOperation>
+        <summaryFilterItems>
+            <field>Roadmap_Vote__c.Active__c</field>
+            <operation>equals</operation>
+            <value>True</value>
+        </summaryFilterItems>
+    </fields>
+    <fields>
+        <fullName>Points__c</fullName>
+        <label>Points</label>
+        <description>Sum of ranked-pick points (3 / 2 / 1) across voters.</description>
+        <type>Summary</type>
+        <summaryForeignKey>Roadmap_Vote__c.Item__c</summaryForeignKey>
+        <summaryOperation>sum</summaryOperation>
+        <summarizedField>Roadmap_Vote__c.Points__c</summarizedField>
+    </fields>
+</CustomObject>

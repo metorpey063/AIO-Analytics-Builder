@@ -4,6 +4,24 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-12 — Roadmap voting on the home page (v2.17.0)
+
+### Added
+- **Roadmap panel** on the Web UI home page, between Getting Started and What's New, styled to stand out (gold title and edge, shaded container). Each SE ranks a **top 3** in order: 1st = 3 points, 2nd = 2, 3rd = 1. A "Your top 3" strip reorders or removes picks, the leading item is tagged "Most wanted", and every item shows its points and voters. SEs can suggest ideas, which go live right away for everyone to pick (and take the suggester's next free pick). Voting is anonymous (one random ID per install).
+- **Roadmap org**: `Roadmap_Item__c` (points and voters roll up) and `Roadmap_Vote__c` (one ranked pick per voter per item) in the Tableau Next & Slack org, behind a public Apex REST endpoint (`AIORoadmapApi`) on the AIO Roadmap Site. Caps per install per day: 3 suggestions, 100 pick changes. All of it is in `roadmap/metadata*`.
+- `roadmap_votes.py`: the Web UI's client (`/api/roadmap`, `/picks`, `/suggest`) and `sync`, which pushes ROADMAP.md's Top Priorities to the org.
+- **AIO Roadmap Votes dashboard** (Tableau Next): points by item, first choices by item, roadmap vs SE ideas, plus Points / First Choices / Voters metrics, from a CRM data stream. `roadmap/build_dashboard.py` builds the stream and the dashboard (`--rebuild-stream` after adding vote fields).
+
+### Changed
+- ROADMAP.md: new Top Priorities list (Sales Insights customizations, Service Insights deployment, Data Apps for Tableau Next and Tableau Cloud, Studio in the Web UI); CRM actionability + close-loop in the Web UI moved to Completed.
+
+### Docs
+- CLAUDE.md Known Pitfalls: creating CRM data streams for custom objects over REST (and that fields can't be added to one afterwards); public Apex REST through a Salesforce Site.
+
+> Tested 2026-11-12: Apex tests pass (ranked picks, reorder, removal, caps), public GET, picks through the Web UI, dashboard widgets all `Ok`.
+
+---
+
 ## 2026-11-12 — CRM Analytics MCP server in setup (v2.16.0)
 
 ### Added

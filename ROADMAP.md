@@ -2,26 +2,34 @@
 
 Planned enhancements, fixes, and integration work. Updated as items are completed or re-prioritized.
 
-## In Progress
+## Top Priorities
 
-### CRM Actionability + Close the Loop (Tableau Next)
-- Integrate `/close-loop` Flow deployment into the Tableau Next CRM Actionability build path
-- Single question during Next builds: "Make this demo CRM-actionable?" gates both record creation and Flow deployment
-- Slack-or-Chatter choice happens during the CRM Actionability flow, not in `/setup`
-- Standalone `/close-loop` command remains available for Pulse/CSV demos or post-build use
+The Web UI home page shows this list (title, status, summary) with live vote counts. Keep it to 5 items, one line each, in the form `1. **Title** | Status | Summary`. After editing, run `python3 roadmap_votes.py sync` to push it to the roadmap org (items that drop off keep their votes).
+
+1. **Sales Insights customizations** | Next | Tailor the deployed Sales Insights data and dashboards to a customer through a config file
+2. **Service Insights deployment** | Planned | Deploy the Service Insights dashboard package to any org with Data Cloud, like Sales Insights
+3. **Data Apps for Tableau Next** | Planned | Build data apps on top of AIO's Tableau Next demos
+4. **Data Apps for Tableau Cloud** | Planned | Build data apps on top of AIO's Tableau Cloud and Pulse demos
+5. **Tableau Studio skills in the Web UI** | Planned | Generate and install a demo's Studio skills from the Web UI and at the end of a build
 
 ## Planned
 
-### Web UI integration for close-loop and studio
-- Wire `/close-loop` and `/studio` into the browser-based Web UI
-- Both commands currently work from CLI on Web UI demo folders
-- Web UI build pipeline should save `story_config` to checkpoint so story analysis works without `METRIC_CONFIG`
-- Natural hook: before the final `progress(q, "done", ...)` in `run_build`
+### Sales Insights customizations
+- `/deploy-sales-insights` deploys 6 dashboards with fixed, generic, seeded data (`salesinsights/DESIGN.md`). Next: a customer config (company, products, regions, team, story) that drives the generated data and dashboard labels
 
-### Tableau Studio skills (/studio) — build flow integration
-- Currently standalone only (`/studio {slug}`)
-- Future: offer as optional add-on in `/build-demo` after testing is complete
-- Could appear as a skill on the AIO UI home page
+### Service Insights deployment
+- The Service Insights counterpart of `/deploy-sales-insights`: capture the package from the source org, generate synthetic service data, deploy to any org with Data Cloud. Reuse `salesinsights/` (capture → generate → deploy)
+
+### Data Apps for Tableau Next
+- Data apps built on AIO's Tableau Next demos (SDM, metrics, Concierge). Scope to be defined
+
+### Data Apps for Tableau Cloud
+- Data apps built on AIO's Tableau Cloud demos (published datasources, Pulse metrics). Scope to be defined
+
+### Tableau Studio skills (/studio) — Web UI and build flow
+- Currently CLI only (`/studio {slug}`); the Web UI build already saves the story to the checkpoint
+- Add a Studio step after Close the Loop in the Web UI build, and a page to run it on any demo in My Demos
+- Offer it as an optional add-on at the end of `/build-demo`
 
 ### Agentforce action trigger for close-loop
 - P2: "create follow-ups for the at-risk accounts" as an Agentforce action
@@ -49,6 +57,14 @@ Planned enhancements, fixes, and integration work. Updated as items are complete
 - Enables close-loop on demos the SE already has without rebuilding
 
 ## Completed
+
+### Roadmap voting in the Web UI (2026-11-12)
+- Home page panel: each SE ranks a top 3 (3 / 2 / 1 points) across Top Priorities and Ideas from SEs (live immediately); Suggest an idea. Anonymous, capped per install per day
+- Stored in the Tableau Next & Slack org behind the public AIO Roadmap Site; synced to Data Cloud and shown in the AIO Roadmap Votes Tableau Next dashboard
+
+### CRM Actionability + Close the Loop in the Web UI
+- The Tableau Next build's actionability option creates the CRM records, then a Close the Loop step (`/close-loop/<slug>`) picks Slack or Chatter and deploys the Flows
+- Standalone `/close-loop` remains for Pulse/CSV demos and post-build use
 
 ### Zero-click Salesforce org setup (2026-11-04 → 2026-11-06)
 - `org_bootstrap.py`: AIO deploys its own External Client Apps, activates the Tableau Next MCP servers, and finds or creates the Ingest connector. Users only log in through the browser.

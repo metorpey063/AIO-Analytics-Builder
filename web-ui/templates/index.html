@@ -192,6 +192,52 @@
             </div>
         </div>
 
+        <!-- Roadmap (ROADMAP.md Top Priorities + ranked picks and SE ideas from the roadmap org) -->
+        {% if roadmap %}
+        <div class="changelog-panel collapsible-panel expanded" id="panel-roadmap" style="margin-top:12px">
+            <h3 class="changelog-title collapsible-header" onclick="togglePanel('panel-roadmap')">
+                <span>★ Roadmap — Vote Your Top 3</span>
+                <span class="collapsible-chevron"></span>
+            </h3>
+            <div class="collapsible-body">
+                <p class="roadmap-intro">Pick the 3 features you want most, in order. 1st = 3 points, 2nd = 2, 3rd = 1.</p>
+                <div id="roadmap-mypicks" class="roadmap-mypicks hidden"></div>
+                <div class="roadmap-subtitle">Top priorities</div>
+                <div id="roadmap-top">
+                    {% for item in roadmap %}
+                    <div class="changelog-entry roadmap-item">
+                        <span class="gs-num">{{ item.rank }}</span>
+                        <div class="roadmap-text">
+                            <div class="changelog-heading">{{ item.title }}
+                                <span class="roadmap-status status-{{ item.status|lower|replace(' ', '-') }}">{{ item.status }}</span>
+                            </div>
+                            <p class="roadmap-summary">{{ item.summary }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div id="roadmap-ideas-wrap" class="hidden">
+                    <div class="roadmap-subtitle" style="margin-top:14px">Ideas from SEs</div>
+                    <div id="roadmap-ideas"></div>
+                    <button type="button" class="roadmap-link hidden" id="roadmap-more" onclick="roadmapToggleMore()"></button>
+                </div>
+                <div id="roadmap-actions" class="hidden">
+                    <button type="button" class="roadmap-suggest-btn" id="roadmap-suggest-open" onclick="roadmapShowForm(true)">+ Suggest an idea</button>
+                    <form id="roadmap-form" class="roadmap-form hidden" onsubmit="roadmapSuggest(event)">
+                        <input id="roadmap-title" maxlength="80" placeholder="Idea (e.g. Data Apps for CRMA)" required>
+                        <textarea id="roadmap-summary" maxlength="255" rows="2" placeholder="Why it would help (optional)"></textarea>
+                        <div class="roadmap-form-row">
+                            <button type="submit" class="btn btn-primary btn-sm" id="roadmap-submit">Submit</button>
+                            <button type="button" class="roadmap-link" onclick="roadmapShowForm(false)">Cancel</button>
+                        </div>
+                    </form>
+                    <p class="roadmap-note">Anonymous. Ideas go live for everyone to pick.</p>
+                </div>
+                <p class="roadmap-note roadmap-error hidden" id="roadmap-error"></p>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Changelog -->
         <div class="changelog-panel collapsible-panel expanded" id="panel-whats-new" style="margin-top:12px">
             <h3 class="changelog-title collapsible-header" onclick="togglePanel('panel-whats-new')">
@@ -226,6 +272,177 @@
 function togglePanel(panelId) {
     const panel = document.getElementById(panelId);
     if (panel) panel.classList.toggle('expanded');
+}
+
+/* Roadmap ranked picks: /api/roadmap proxies the roadmap org. Ideas are user text, so build nodes with textContent only. */
+const ROADMAP_IDEAS_SHOWN = 5;
+const ROADMAP_MAX_PICKS = 3;
+const ROADMAP_ORDINALS = ['1st', '2nd', '3rd'];
+let roadmapItems = [];
+let roadmapShowAll = false;
+let roadmapBusy = false;
+
+function roadmapEl(tag, cls, text) {
+    const el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (text !== undefined && text !== null) el.textContent = text;
+    return el;
+}
+
+function roadmapPicks() {
+    return roadmapItems.filter(i => i.myRank).sort((a, b) => a.myRank - b.myRank).map(i => i.id);
+}
+
+function roadmapLeader() {
+    const best = roadmapItems.reduce((a, b) => (!a || (b.points || 0) > (a.points || 0)) ? b : a, null);
+    return best && best.points > 0 ? best.id : null;
+}
+
+function roadmapButton(cls, label, title, onclick) {
+    const b = roadmapEl('button', cls, label);
+    b.type = 'button';
+    b.title = title;
+    b.onclick = onclick;
+    return b;
+}
+
+function roadmapRow(item, badge, leaderId, picksFull) {
+    const row = roadmapEl('div', 'changelog-entry roadmap-item' + (item.myRank ? ' picked' : ''));
+    row.appendChild(roadmapEl('span', 'gs-num', badge));
+    const text = roadmapEl('div', 'roadmap-text');
+    const heading = roadmapEl('div', 'changelog-heading', item.title + ' ');
+    const status = item.status || 'Planned';
+    heading.appendChild(roadmapEl('span', 'roadmap-status status-' + status.toLowerCase().replace(/ /g, '-'), status));
+    if (item.id === leaderId) heading.appendChild(roadmapEl('span', 'roadmap-leader', '★ Most wanted'));
+    text.appendChild(heading);
+    if (item.summary) text.appendChild(roadmapEl('p', 'roadmap-summary', item.summary));
+    const pts = item.points || 0, voters = item.votes || 0;
+    text.appendChild(roadmapEl('p', 'roadmap-score', pts + ' pt' + (pts === 1 ? '' : 's') + ' · ' + voters + ' voter' + (voters === 1 ? '' : 's')));
+    row.appendChild(text);
+    const btn = item.myRank
+        ? roadmapButton('roadmap-pick picked', ROADMAP_ORDINALS[item.myRank - 1], 'Your ' + ROADMAP_ORDINALS[item.myRank - 1] + ' choice. Click to remove.', () => roadmapToggle(item.id))
+        : roadmapButton('roadmap-pick' + (picksFull ? ' full' : ''), 'Pick', picksFull ? 'You have 3 picks. Remove one first.' : 'Add to your top 3', () => roadmapToggle(item.id));
+    row.appendChild(btn);
+    return row;
+}
+
+function roadmapRenderMyPicks(picks) {
+    const box = document.getElementById('roadmap-mypicks');
+    box.replaceChildren(roadmapEl('div', 'roadmap-subtitle', 'Your top 3'));
+    for (let i = 0; i < ROADMAP_MAX_PICKS; i++) {
+        const slot = roadmapEl('div', 'roadmap-slot' + (picks[i] ? '' : ' empty'));
+        slot.appendChild(roadmapEl('span', 'roadmap-slot-num', ROADMAP_ORDINALS[i]));
+        const item = picks[i] && roadmapItems.find(it => it.id === picks[i]);
+        if (!item) {
+            slot.appendChild(roadmapEl('span', 'roadmap-slot-title', 'Pick an item below'));
+        } else {
+            slot.appendChild(roadmapEl('span', 'roadmap-slot-title', item.title));
+            const ctl = roadmapEl('span', 'roadmap-slot-ctl');
+            if (i > 0) ctl.appendChild(roadmapButton('roadmap-mini', '\u2191', 'Move up', () => roadmapMove(i, -1)));
+            if (i < picks.length - 1) ctl.appendChild(roadmapButton('roadmap-mini', '\u2193', 'Move down', () => roadmapMove(i, 1)));
+            ctl.appendChild(roadmapButton('roadmap-mini', '\u00D7', 'Remove', () => roadmapToggle(item.id)));
+            slot.appendChild(ctl);
+        }
+        box.appendChild(slot);
+    }
+    box.classList.remove('hidden');
+}
+
+function roadmapRender() {
+    const picks = roadmapPicks();
+    const full = picks.length >= ROADMAP_MAX_PICKS;
+    const leader = roadmapLeader();
+    roadmapRenderMyPicks(picks);
+    const top = roadmapItems.filter(i => i.rank).sort((a, b) => a.rank - b.rank);
+    const ideas = roadmapItems.filter(i => !i.rank)
+        .sort((a, b) => ((b.points || 0) - (a.points || 0)) || ((b.votes || 0) - (a.votes || 0)) || (b.created > a.created ? 1 : -1));
+    document.getElementById('roadmap-top').replaceChildren(...top.map(i => roadmapRow(i, String(i.rank), leader, full)));
+    const shown = roadmapShowAll ? ideas : ideas.slice(0, ROADMAP_IDEAS_SHOWN);
+    document.getElementById('roadmap-ideas').replaceChildren(...shown.map(i => roadmapRow(i, '\u2022', leader, full)));
+    document.getElementById('roadmap-ideas-wrap').classList.toggle('hidden', ideas.length === 0);
+    const more = document.getElementById('roadmap-more');
+    more.classList.toggle('hidden', ideas.length <= ROADMAP_IDEAS_SHOWN);
+    more.textContent = roadmapShowAll ? 'Show fewer' : 'Show all ' + ideas.length + ' ideas';
+    document.getElementById('roadmap-actions').classList.remove('hidden');
+}
+
+function roadmapError(msg) {
+    const el = document.getElementById('roadmap-error');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.classList.toggle('hidden', !msg);
+}
+
+function roadmapToggleMore() { roadmapShowAll = !roadmapShowAll; roadmapRender(); }
+
+function roadmapShowForm(show) {
+    document.getElementById('roadmap-form').classList.toggle('hidden', !show);
+    document.getElementById('roadmap-suggest-open').classList.toggle('hidden', show);
+    if (show) document.getElementById('roadmap-title').focus();
+}
+
+function roadmapToggle(itemId) {
+    const picks = roadmapPicks();
+    const at = picks.indexOf(itemId);
+    if (at >= 0) picks.splice(at, 1);
+    else if (picks.length >= ROADMAP_MAX_PICKS) { roadmapError('You have 3 picks. Remove one first.'); return; }
+    else picks.push(itemId);
+    roadmapSave(picks);
+}
+
+function roadmapMove(index, dir) {
+    const picks = roadmapPicks();
+    const j = index + dir;
+    if (j < 0 || j >= picks.length) return;
+    [picks[index], picks[j]] = [picks[j], picks[index]];
+    roadmapSave(picks);
+}
+
+async function roadmapSave(picks) {
+    if (roadmapBusy) return;
+    roadmapBusy = true;
+    document.getElementById('panel-roadmap').classList.add('busy');
+    try {
+        const r = await fetch('/api/roadmap/picks', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                      body: JSON.stringify({itemIds: picks})}).then(r => r.json());
+        if (!r.ok) { roadmapError(r.error); return; }
+        roadmapItems = r.items;
+        roadmapError('');
+        roadmapRender();
+    } catch (e) {
+        roadmapError('Could not reach the roadmap service.');
+    } finally {
+        roadmapBusy = false;
+        document.getElementById('panel-roadmap').classList.remove('busy');
+    }
+}
+
+async function roadmapSuggest(ev) {
+    ev.preventDefault();
+    const submit = document.getElementById('roadmap-submit');
+    submit.disabled = true;
+    try {
+        const r = await fetch('/api/roadmap/suggest', {method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({title: document.getElementById('roadmap-title').value,
+                                  summary: document.getElementById('roadmap-summary').value})}).then(r => r.json());
+        if (!r.ok) { roadmapError(r.error); return; }
+        roadmapItems.push(r.item);
+        document.getElementById('roadmap-form').reset();
+        roadmapShowForm(false);
+        roadmapError('');
+        roadmapRender();
+    } catch (e) {
+        roadmapError('Could not reach the roadmap service.');
+    } finally {
+        submit.disabled = false;
+    }
+}
+
+if (document.getElementById('panel-roadmap')) {
+    fetch('/api/roadmap').then(r => r.json()).then(r => {
+        if (r.ok && r.items.length) { roadmapItems = r.items; roadmapRender(); }
+        else if (!r.ok) roadmapError('Voting is offline right now (' + r.error + ').');
+    }).catch(() => roadmapError('Voting is offline right now.'));
 }
 
 /* Populate live stats */

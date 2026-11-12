@@ -26,3 +26,6 @@ venv/
 .sf_pkg_offered
 # Personal MCP config (may hold tokens)
 .mcp.json
+
+# Roadmap dashboard build state (owner only)
+roadmap/roadmap_dashboard_checkpoint.json
