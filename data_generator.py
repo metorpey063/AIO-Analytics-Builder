@@ -197,7 +197,7 @@ def _noise_for_entity(entity: dict, noise_dim: str | None, noise_map: dict) -> f
 
 # ── Core generator ───────────────────────────────────────────────────────────
 
-def generate_demo_data(
+def _generate_once(
     *,
     metrics: list[dict],
     dimensions: list[str],
@@ -438,4 +438,55 @@ def generate_demo_data(
         msg += "\n".join(f"  - {e}" for e in errors)
         raise ValueError(msg)
 
+    return df
+
+
+def generate_demo_data(*, verify: bool = True, max_draws: int = 3, **kwargs) -> pd.DataFrame:
+    """Generate synthetic demo data with engineered signals, then check it.
+
+    Takes the arguments of `_generate_once` (metrics, dimensions, dimension_values,
+    signal_config, multipliers, compound_multipliers, ... see its docstring).
+
+    With `verify` (default) the finished data is read back by signal_verifier:
+    the culprit segment (the highest multiplier) must be the worst, visible above
+    the noise, with the drill-down cell steeper. A draw that misses is redrawn with
+    the next seed, up to `max_draws`; the best draw is returned. A miss never
+    raises: the report is printed and kept on `df.attrs["signal_report"]`.
+    """
+    seed = kwargs.get("seed", 42)
+    if not verify or not kwargs.get("multipliers"):
+        return _generate_once(**kwargs)
+
+    from signal_verifier import verify_signal, format_report, culprit_from_multipliers, expected_effect
+    culprit, detail = culprit_from_multipliers(
+        kwargs["multipliers"], kwargs["dimensions"],
+        kwargs.get("compound_multipliers"), kwargs.get("compound_dims"))
+    sc = kwargs.get("signal_config") or {}
+    onset = abs(sc.get("onset", -6))
+    today = kwargs.get("today") or date.today()
+    primary = next((m for m in kwargs["metrics"] if m.get("is_primary")), kwargs["metrics"][0])
+    culprit_mult = (kwargs["multipliers"].get(culprit[0], {}).get(culprit[1], 2.0)
+                    if culprit else 2.0)
+    expected = expected_effect(
+        sc.get("magnitude", 0.37), onset, shape=sc.get("shape", "accelerating"),
+        duration=sc.get("duration", 6), culprit_mult=culprit_mult,
+        up_is_good=primary.get("sentiment", "up_is_good") == "up_is_good", bad_boost=2.0)
+    variability = float(kwargs.get("variability", 1.0))
+
+    best = None
+    for draw in range(max_draws):
+        df = _generate_once(**{**kwargs, "seed": seed + draw})
+        report = verify_signal(df, kwargs["metrics"], kwargs["dimensions"],
+                               culprit=culprit, detail=detail, onset_months=onset, today=today,
+                               expected=expected, variability=variability)
+        score = (len(report["failures"]), -(report["stats"].get("culprit_z") or 0))
+        if best is None or score < best[0]:
+            best = (score, df, report, seed + draw)
+        if report["ok"]:
+            break
+        print(f"  signal check (seed {seed + draw}) missed: "
+              + "; ".join(c["message"] for c in report["failures"]))
+    _, df, report, used = best
+    print(format_report(report) + f"\n  (seed {used}, {draw + 1} draw(s))")
+    df.attrs["signal_report"] = report
     return df

@@ -4,6 +4,19 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-12 — Signal verifier: check that the data tells the story (v2.15.0)
+
+### Added
+- **`signal_verifier.py`:** reads the generated DataFrame back and checks the story landed — the named culprit is the worst segment, at least a minimum effect and well above the noise (z), the other segments move less, the drill-down cell is steeper, the counter-trend metric improves. Warns (never fails) when no segment is flat, supporting metrics don't follow, or the decline is implausibly deep. Idea adapted from the SE Data App Kit's `verify.py`.
+- **Cutoffs follow the build's settings:** `expected_effect()` works out the decline the chosen magnitude / onset / shape should produce, and the strength, z, drill-down and counter-trend cutoffs scale from it; higher `variability` loosens the sibling check. A deliberately gentle story is no longer failed against default-strength limits (magnitude 0.05: 90% of stories rejected on fixed cutoffs, 0% on adaptive). The cutoffs used are in `story_config["signal_check"]["stats"]["thresholds"]`.
+- `tests/test_signal_verifier.py`: 14 tests (good story passes; wrong segment, weak signal, uniform decline, flat drill-down, missing counter-trend each fail; adaptive cutoffs).
+
+### Changed
+- **Web UI `generate_data` redraws a missed draw** (up to 4, best kept) against the story's `signal_plan`. About 1 in 8 draws used to leave a neighbouring segment looking worse than the named culprit, so the walkthrough named the wrong segment; 0 of 60 miss now. The report is saved as `story_config["signal_check"]`.
+- **`data_generator.generate_demo_data` verifies and redraws too** (up to 3 seeds), deriving the culprit and drill-down cell from the multipliers. It warns instead of raising and keeps the report on `df.attrs["signal_report"]`. Pass `verify=False` to skip. The original body is now `_generate_once`.
+
+---
+
 ## 2026-11-12 — Transfer Assets: dashboard health badges, readable service errors (v2.14.5)
 
 ### Added

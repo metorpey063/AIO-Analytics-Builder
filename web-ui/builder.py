@@ -560,8 +560,61 @@ def apply_signal_plan(story_config):
     return story_config
 
 
+MAX_SIGNAL_DRAWS = 4
+
+
 def generate_data(story_config, q=None, advanced=None):
-    """Generate synthetic data from story config. Returns DataFrame."""
+    """Generate synthetic data from story config. Returns DataFrame.
+
+    Each draw is checked against the story's signal_plan (signal_verifier): the
+    named culprit must be the worst segment, visible above the noise, with the
+    drill-down cell steeper and the counter-trend metric improving. A draw that
+    misses is redrawn (up to MAX_SIGNAL_DRAWS); the best one is kept. Stories
+    without a signal_plan are generated once.
+    """
+    from signal_verifier import verify_signal, format_report, expected_effect
+    plan = story_config.get("signal_plan") or {}
+    if not plan.get("culprit"):
+        return _generate_data_once(story_config, q, advanced)
+
+    onset = abs(int((advanced or {}).get("signal_onset", story_config.get("signal_onset", -3))))
+    # Cutoffs follow the build's settings: a gentler magnitude or noisier
+    # background is checked against what it should produce, not the defaults
+    adv = advanced or {}
+    primary = next((m for m in story_config["metric_config"] if m.get("is_primary")),
+                   story_config["metric_config"][0])
+    expected = expected_effect(
+        adv.get("signal_magnitude", 0.40), onset, shape=adv.get("signal_shape", "accelerating"),
+        up_is_good=primary.get("sentiment", "up_is_good") == "up_is_good")
+    variability = float(adv.get("variability", 1.0))
+
+    best = None
+    for draw in range(1, MAX_SIGNAL_DRAWS + 1):
+        df = _generate_data_once(story_config, q, advanced)
+        report = verify_signal(df, story_config["metric_config"], story_config.get("dimensions", []),
+                               plan, onset_months=onset, today=TODAY,
+                               expected=expected, variability=variability)
+        score = (len(report["failures"]), -(report["stats"].get("culprit_z") or 0))
+        if best is None or score < best[0]:
+            best = (score, df, report)
+        if report["ok"]:
+            break
+        if q:
+            miss = "; ".join(c["message"] for c in report["failures"])
+            progress(q, "warn", f"Draw {draw}: the data missed the story ({miss}) — redrawing"
+                     if draw < MAX_SIGNAL_DRAWS else f"Draw {draw}: still missed the story ({miss})", -1)
+    _, df, report = best
+    story_config["signal_check"] = {"ok": report["ok"], "draws": draw, "stats": report["stats"],
+                                    "report": format_report(report)}
+    if q:
+        progress(q, "data" if report["ok"] else "warn",
+                 f"Signal check {'passed' if report['ok'] else 'FAILED'} after {draw} draw(s): "
+                 f"{report['stats'].get('culprit', ('', ''))[1]} {report['stats'].get('culprit_effect', 0):+.0%}", -1)
+    return df
+
+
+def _generate_data_once(story_config, q=None, advanced=None):
+    """One draw of the synthetic data (see generate_data)."""
     metric_config = story_config["metric_config"]
     # Normalize legacy "down_is_good" sentiment to "up_is_bad"
     for mc in metric_config:

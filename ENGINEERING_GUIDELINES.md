@@ -10,6 +10,7 @@ Every build should produce the same quality output regardless of which session g
 |------|----------------|----------|
 | Data generation | `data_generator.generate_demo_data()` | Inline `generate_data()` function in the demo script |
 | Dimension validation | `data_validator.validate_dimension_values()` | Manual checks or hoping the script includes them |
+| Signal check (did the story land?) | `signal_verifier.verify_signal()` (automatic in `generate_demo_data` and the Web UI `generate_data`) | Eyeballing charts, or trusting the multipliers |
 | Viz creation | `viz_builder.build_viz_payload()` or `template_deployer.deploy_template()` | Hand-building VizQL JSON payloads from scratch |
 | Dashboard assembly | `dashboard_builder.build_dashboard_payload()` or `template_deployer` | Raw REST dashboard payloads |
 | CRM record upsert | `crm_upserter.upsert_crm_records()` | Inline Composite API calls |
