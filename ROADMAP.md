@@ -38,6 +38,12 @@ Planned enhancements, fixes, and integration work. Updated as items are complete
 - Later: multi-dashboard nav (needs update-in-place PATCH, done), record links in a new tab via an `analytics__Dashboard` LWC, segmented filter LWC with live counts
 - Needs render checks in the browser each round — a successful POST doesn't mean it renders (playbook §0 rule 5)
 
+### CRM Analytics answers in the AIO assistant (crma-beta MCP)
+- The CRM Analytics MCP server (`crma-beta`) is activated by setup and works with AIO's MCP login (tested 2026-11-11). Next: let the Web UI's Ask Claude assistant answer analytics questions from a demo org's CRMA data ("what's our win rate by region in Revenue Insights?") by calling `list_datasets` → `get_dataset` → `get_xmd` → `execute_query`
+- Design decisions first: the assistant is read-only and can't call an org today (by design). This would be its first org access, so pick which connection it uses, show the SAQL it ran, and cap calls per question (each one costs Flex Credits)
+- Keep `get_dashboard` out of the assistant (hundreds of KB per dashboard); summarize from `list_dashboards` + the datasets instead
+- Reuse `web-ui/mcp_client.py` (make the endpoint a parameter, use `org_bootstrap.crma_mcp_url()`)
+
 ### Existing Next SDM loader for close-loop
 - P3: load an existing Tableau Next SDM (not built by AIO) so close-loop can analyze its data
 - Enables close-loop on demos the SE already has without rebuilding

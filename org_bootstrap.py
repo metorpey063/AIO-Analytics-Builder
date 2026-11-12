@@ -18,7 +18,7 @@ CLI:
   python org_bootstrap.py apps      --alias aio-dev [--no-mcp] [--update-existing]
   python org_bootstrap.py wait      --alias aio-dev [--no-mcp]
   python org_bootstrap.py authorize --alias aio-dev --profile KEY [--label "My Org"]
-  python org_bootstrap.py mcp       --alias aio-dev   # activate the MCP servers + register in Claude Code
+  python org_bootstrap.py mcp       --alias aio-dev   # activate the MCP servers (Tableau Next + CRM Analytics) + register in Claude Code
   python org_bootstrap.py all       --alias aio-dev --profile KEY [--label ...] [--sandbox] [--no-mcp]
 
 `authorize` runs the AIO browser login, finds/creates the Ingest connector,
@@ -44,6 +44,12 @@ DEFAULT_CONNECTOR = "analytics_builder_demo"
 REST_SCOPES = "api sfap_api cdp_query_api cdp_ingest_api refresh_token"
 MCP_SCOPES = "mcp_api refresh_token"
 MCP_URL = "https://api.salesforce.com/platform/mcp/v1/analytics/tableau-next-pilot"
+
+
+def crma_mcp_url(instance_url):
+    """CRM Analytics MCP URL. Unlike Tableau Next's it names the org: /d/{My Domain}/ (Setup shows it)."""
+    host = re.sub(r"^https?://", "", instance_url).split("/")[0]
+    return f"https://api.salesforce.com/platform/mcp/v1/d/{host.replace('.my.salesforce.com', '')}/analytics/crma-beta"
 
 APPS = {
     "rest": {
@@ -349,7 +355,10 @@ def ensure_ingest_connector(sf_token, sf_instance, name=DEFAULT_CONNECTOR):
 MCP_SERVERS = {
     "analytics_tableau_next_pilot": "tableau-next-pilot",   # "Tableau Next Beta" in Setup — the one AIO uses
     "analytics_tableau_next": "tableau-next",               # "Tableau Next"
+    "analytics_crma_beta": "crma-beta",                     # CRM Analytics (beta, read-only SAQL + asset lookup)
 }
+# Activated when the org has them; an org without CRM Analytics or the beta reports "not_available", not a failure
+OPTIONAL_MCP_SERVERS = {"crma-beta"}
 MCP_PILOT_HINT = ("Tableau Next Beta needs the TableauPilotMCPServerEnabled org permission. Request it through "
                   "BlackTab or #q-branch-xdo-license-extension-requests, then run setup again.")
 
@@ -409,13 +418,19 @@ def ensure_mcp_servers(alias):
         else:
             st, body = _sf_rest(alias, "POST", "/services/data/v66.0/tooling/sobjects/McpServerAccess",
                                 {"DeveloperName": dev, "MasterLabel": label, "Active": True})
-        out[label] = {"status": "activated"} if st in (200, 201, 204) else {"status": "failed", "error": _api_error(body)}
+        if st in (200, 201, 204):
+            out[label] = {"status": "activated"}
+        elif label in OPTIONAL_MCP_SERVERS:
+            out[label] = {"status": "not_available", "error": _api_error(body)}
+        else:
+            out[label] = {"status": "failed", "error": _api_error(body)}
     # Trust the org, not the response code
     try:
         after = _mcp_access(alias)
         for dev, label in MCP_SERVERS.items():
             if out[label]["status"] == "activated" and not (after.get(dev) or {}).get("Active"):
-                out[label] = {"status": "failed", "error": "The org accepted the change but the server still shows inactive."}
+                out[label] = {"status": "not_available" if label in OPTIONAL_MCP_SERVERS else "failed",
+                              "error": "The org accepted the change but the server still shows inactive."}
     except RuntimeError:
         pass
     pilot = out["tableau-next-pilot"]
@@ -478,15 +493,25 @@ def authorize_and_save(profile_key, my_domain, rest_key, mcp_key="", label=None,
             "client_id": rest_key, "mcp_client_id": mcp_key}
 
 
-def register_claude_mcp(mcp_key):
-    """Point Claude Code's tableau-next-pilot MCP server at the MCP app (user still runs /mcp to log in)."""
+def register_claude_mcp(mcp_key, crma_instance_url=None):
+    """
+    Point Claude Code's MCP servers at the MCP app (user still runs /mcp to log in): tableau-next-pilot,
+    plus crma-beta when crma_instance_url is given (its URL is per org, so it follows the latest setup).
+    """
     if not shutil.which("claude"):
         return False, "Claude Code CLI not found — skipping MCP registration."
-    subprocess.run(["claude", "mcp", "remove", "tableau-next-pilot"], capture_output=True)
-    r = subprocess.run(["claude", "mcp", "add", "tableau-next-pilot", "--transport", "http",
-                        "--callback-port", "8080", "--scope", "user", "--client-id", mcp_key, MCP_URL],
-                       capture_output=True, text=True)
-    return r.returncode == 0, (r.stdout or r.stderr).strip()
+    servers = [("tableau-next-pilot", MCP_URL)]
+    if crma_instance_url:
+        servers.append(("crma-beta", crma_mcp_url(crma_instance_url)))
+    msgs, ok = [], True
+    for name, url in servers:
+        subprocess.run(["claude", "mcp", "remove", name, "--scope", "user"], capture_output=True)
+        r = subprocess.run(["claude", "mcp", "add", name, "--transport", "http",
+                            "--callback-port", "8080", "--scope", "user", "--client-id", mcp_key, url],
+                           capture_output=True, text=True)
+        ok = ok and r.returncode == 0
+        msgs.append((r.stdout or r.stderr).strip())
+    return ok, "\n".join(msgs)
 
 
 # ── CLI ─────────────────────────────────────────────────────────────────────
@@ -550,10 +575,13 @@ def main():
         _print({"step": "authorize", **saved})
 
     if a.command in ("mcp", "all") and "mcp" in apps:
-        _print({"step": "mcp_servers", "servers": ensure_mcp_servers(a.alias)})
-        ok, msg = register_claude_mcp(apps["mcp"]["consumer_key"])
+        servers = ensure_mcp_servers(a.alias)
+        _print({"step": "mcp_servers", "servers": servers})
+        crma = servers.get("crma-beta", {}).get("status") in ("already_active", "activated")
+        ok, msg = register_claude_mcp(apps["mcp"]["consumer_key"], my_domain if crma else None)
         _print({"step": "mcp", "ok": ok, "message": msg,
-                "next": "Run /mcp in Claude Code, select tableau-next-pilot, and log in."})
+                "next": "Run /mcp in Claude Code, select tableau-next-pilot" + (" and crma-beta" if crma else "")
+                        + ", and log in."})
 
 
 if __name__ == "__main__":

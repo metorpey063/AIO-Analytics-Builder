@@ -264,7 +264,7 @@ The org permission (`TableauPilotMCPServerEnabled`) can't be automated: ask the 
 python3 org_bootstrap.py mcp --alias ALIAS_HERE
 ```
 
-This activates the Tableau Next MCP servers in the org (both "Tableau Next Beta" = `tableau-next-pilot` and "Tableau Next" = `tableau-next`, the same as clicking Activate in Setup → MCP Servers), then registers `tableau-next-pilot` in Claude Code using the deployed MCP app's key. If `tableau-next-pilot` comes back `failed` with a hint, the org permission is missing; relay the hint. Tell the user to run `/mcp`, select **tableau-next-pilot** and log in. Then verify with Step 4d.5.
+This activates the Tableau Next MCP servers in the org (both "Tableau Next Beta" = `tableau-next-pilot` and "Tableau Next" = `tableau-next`, the same as clicking Activate in Setup → MCP Servers), and the CRM Analytics MCP server (`crma-beta`) when the org has it, then registers `tableau-next-pilot` (and `crma-beta` if it's active) in Claude Code using the deployed MCP app's key. `crma-beta` coming back `not_available` is fine (the org has no CRM Analytics beta); don't treat it as an error. If `tableau-next-pilot` comes back `failed` with a hint, the org permission is missing; relay the hint. Tell the user to run `/mcp`, select **tableau-next-pilot** (and **crma-beta** if registered) and log in. Then verify with Step 4d.5.
 
 Skip to Step 5. Steps 4a–4d below are the manual fallback.
 

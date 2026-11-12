@@ -1224,7 +1224,7 @@ async function runAutoSetup(updateExisting) {
             // An MCP activation problem doesn't stop the Salesforce connection
             autoEnd('servers', !failed.length, failed.length
                 ? failed.map(([n, v]) => `${n}: ${v.error}`).join('; ') + (hint ? ' — ' + hint.hint : '')
-                : Object.keys(servers).join(', '));
+                : Object.entries(servers).map(([n, v]) => v.status === 'not_available' ? `${n} (not in this org)` : n).join(', '));
         }
         const keys = Object.values(a.apps).map(v => v.consumer_key);
         const w = await _autoCall('wait', '/api/setup/auto/wait', {keys});

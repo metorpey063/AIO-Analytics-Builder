@@ -4,6 +4,21 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-12 — CRM Analytics MCP server in setup (v2.16.0)
+
+### Added
+- **CRM Analytics MCP (`crma-beta`)**: Salesforce Automatic Setup (Web UI, `setup.py`, `org_bootstrap.py mcp`) now activates the CRM Analytics MCP server alongside the Tableau Next ones and, when it's active, registers it in Claude Code. It's read-only: 10 tools to list and get datasets, dashboards, lenses and apps, read field schemas (XMD), and run SAQL. It uses AIO's existing MCP app and login.
+- `org_bootstrap.crma_mcp_url()`: the server's URL is per org (`.../mcp/v1/d/{My Domain}/analytics/crma-beta`), unlike Tableau Next's.
+- Orgs without CRM Analytics or the beta show `crma-beta (not in this org)` instead of a failure (`OPTIONAL_MCP_SERVERS`).
+
+### Docs
+- CLAUDE.md Known Pitfalls: the `crma-beta` query flow and its quirks (fields only from `get_xmd`, `load "<id>/<version>"`, suffixed apiNames, very large `get_dashboard`, Flex Credits).
+- ROADMAP: CRM Analytics answers in the Web UI assistant.
+
+> Tested 2026-11-11 on the Tab Next & Slack org: all 10 tools, SAQL Amount by StageName on the Revenue Insights Opportunity dataset.
+
+---
+
 ## 2026-11-12 — Signal verifier: check that the data tells the story (v2.15.0)
 
 ### Added

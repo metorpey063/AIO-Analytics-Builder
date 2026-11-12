@@ -259,12 +259,15 @@ def setup_salesforce_auto(profile: dict, profile_key: str) -> dict | None:
         c = saved["connector"]
         print(f"  Ingest connector: {c['ingestion_connector_name']} ({'created' if c['created'] else 'existing'})")
         if with_mcp:
-            for name, res in ob.ensure_mcp_servers(alias).items():
-                note = {"already_active": "already active", "activated": "activated"}.get(res["status"], "FAILED: " + res.get("error", ""))
+            servers = ob.ensure_mcp_servers(alias)
+            for name, res in servers.items():
+                note = {"already_active": "already active", "activated": "activated",
+                        "not_available": "not available in this org (skipped)"}.get(res["status"], "FAILED: " + res.get("error", ""))
                 print(f"  MCP server {name}: {note}")
                 if res.get("hint"):
                     print(f"    {res['hint']}")
-            ok, msg = ob.register_claude_mcp(apps["mcp"]["consumer_key"])
+            crma = servers.get("crma-beta", {}).get("status") in ("already_active", "activated")
+            ok, msg = ob.register_claude_mcp(apps["mcp"]["consumer_key"], info["instance_url"] if crma else None)
             print(f"  MCP: {'registered — run /mcp in Claude Code to log in' if ok else msg}")
     except Exception as e:
         print(f"\n  Automatic setup failed: {e}")
