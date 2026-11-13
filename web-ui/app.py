@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import queue
+import subprocess
 import threading
 import time
 import webbrowser
@@ -617,19 +618,46 @@ def test_salesforce():
         return jsonify({"ok": False, "error": str(e)})
 
 
+JOB_THREAD_PREFIX = "aio-job:"
+
+
+def _start_job(label, target):
+    """Run a background job on a named thread, so a restart can tell the user what it would stop."""
+    t = threading.Thread(target=target, daemon=True, name=JOB_THREAD_PREFIX + label)
+    t.start()
+    return t
+
+
+def _running_jobs() -> list:
+    return [t.name[len(JOB_THREAD_PREFIX):] for t in threading.enumerate()
+            if t.name.startswith(JOB_THREAD_PREFIX) and t.is_alive()]
+
+
 def _schedule_restart(delay=1.5):
-    """Re-exec the server after the response is sent. It runs without the reloader, so this is the
-    only way to load new code. The page waits for /api/version to answer again."""
+    """Restart the server after the response is sent, so code changes on disk are loaded.
+
+    A separate helper (restart_helper.py) waits for this process to exit and the port to free up,
+    then starts a fresh server, writing everything to aio_launcher.log. Re-exec'ing in place
+    sometimes left nothing running and nothing in the log. The page waits for /api/version."""
     def _restart():
-        os.environ["AIO_RESTARTED"] = "1"   # don't open another browser tab
-        os.closerange(3, 4096)   # werkzeug's listening socket is inheritable and would keep the port busy
-        os.execv(sys.executable, [sys.executable] + sys.argv)
+        port = int(os.environ.get("AIO_PORT", 5100))
+        log = open(PROJECT_ROOT / "aio_launcher.log", "a")
+        env = dict(os.environ, AIO_RESTARTED="1", PYTHONUNBUFFERED="1")   # no new browser tab; log lines land now
+        subprocess.Popen([sys.executable, str(Path(__file__).parent / "restart_helper.py"),
+                          str(os.getpid()), str(port), sys.executable, *sys.argv],
+                         cwd=os.getcwd(), env=env, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+                         start_new_session=True, close_fds=True)
+        os._exit(0)
     threading.Timer(delay, _restart).start()
 
 
 @app.route("/api/restart", methods=["POST"])
 def restart_server():
-    """Restart the server (sidebar restart button) so code changes on disk are loaded."""
+    """Restart the server (sidebar restart button) so code changes on disk are loaded.
+    A restart stops running jobs, so it asks first unless the page sends force."""
+    jobs = _running_jobs()
+    if jobs and not (request.get_json(silent=True) or {}).get("force"):
+        return jsonify({"ok": False, "busy": jobs})
     _schedule_restart()
     return jsonify({"ok": True, "message": "Restarting"})
 
@@ -768,6 +796,10 @@ def update():
             log = run(["git", "log", "--oneline", f"{rev_before[:8]}..HEAD"])
             output += "\n" + log.stdout.strip() + ("\n" + deps_note if deps_note else "") + backup_note
 
+            jobs = _running_jobs()
+            if jobs:
+                # Restarting would stop them: the update is applied, the restart waits for the user
+                return jsonify({"ok": True, "updated": True, "output": output, "restart_deferred": jobs})
             _schedule_restart()
         return jsonify({"ok": True, "updated": updated, "output": output})
     except Exception as e:
@@ -1217,8 +1249,7 @@ def build_start():
         from builder import run_build
         run_build(build_id, build_config, progress_queues[build_id])
 
-    t = threading.Thread(target=_run, daemon=True)
-    t.start()
+    _start_job(f"build {company}", _run)
 
     return jsonify({"ok": True, "build_id": build_id})
 
@@ -1326,7 +1357,7 @@ def sales_insights_run():
         finally:
             SI_RUNNING.pop(key, None)
 
-    threading.Thread(target=_run, daemon=True).start()
+    _start_job("Sales Insights", _run)
     return jsonify({"ok": True, "job_id": job_id})
 
 
@@ -1445,7 +1476,7 @@ def transfer_run():
         finally:
             XFER_RUNNING.pop(slug, None)
 
-    threading.Thread(target=_run, daemon=True).start()
+    _start_job("Transfer Assets", _run)
     return jsonify({"ok": True, "job_id": job_id, "slug": slug})
 
 
@@ -1606,7 +1637,7 @@ def rev_intel_run():
                 return
         send_progress(job_id, "done", f"{action} finished", 100)
 
-    threading.Thread(target=_run, daemon=True).start()
+    _start_job("Update Rev Intel", _run)
     return jsonify({"ok": True, "build_id": job_id})
 
 
@@ -1632,7 +1663,7 @@ def rev_intel_research():
             return
         send_progress(job_id, "done", "Research finished — suggested answers filled in", 100)
 
-    threading.Thread(target=_run, daemon=True).start()
+    _start_job("Rev Intel research", _run)
     return jsonify({"ok": True, "build_id": job_id})
 
 

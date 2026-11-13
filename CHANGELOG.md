@@ -4,6 +4,16 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-13 — Restart that comes back, and doesn't stop builds (v2.17.1)
+
+### Fixed
+- **Restart button**: the server sometimes didn't come back after Restart (nothing running, nothing in the log). A detached helper (`web-ui/restart_helper.py`) now waits for the old server to exit and the port to free up, then starts a fresh one, writing every step and any startup error to `aio_launcher.log`. If the server isn't back after ~30 seconds, the page says so and points to the log instead of hanging.
+- **Restart during a build**: Restart now lists what's running (a demo build, Sales Insights, Transfer Assets, Update Rev Intel) and asks first, because restarting stops it. Update downloads the code but waits to restart until the jobs finish. Background jobs run on named threads (`_start_job`).
+
+> Tested 2026-11-13 with the launcher's setup (`arch -arm64` venv Python, output through `tee`): two restarts in a row came back; a running job returned `busy` instead of restarting.
+
+---
+
 ## 2026-11-12 — Roadmap voting on the home page (v2.17.0)
 
 ### Added

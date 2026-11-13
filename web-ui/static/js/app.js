@@ -71,22 +71,38 @@ async function checkVersion() {
     }
 }
 
-async function restartServer() {
-    const btn = document.querySelector('.restart-btn');
-    btn.disabled = true;
-    document.getElementById('brand-version').textContent = 'Restarting...';
-    try {
-        await fetch('/api/restart', {method: 'POST'});
-    } catch (e) { /* server is restarting */ }
-    await new Promise(r => setTimeout(r, 2000));
-    for (let i = 0; i < 10; i++) {
+async function waitForServer(label) {
+    // Wait up to ~30s for the restarted server; say so plainly if it doesn't come back
+    await new Promise(r => setTimeout(r, 2500));
+    for (let i = 0; i < 14; i++) {
         try {
             const ping = await fetch('/api/version', {signal: AbortSignal.timeout(2000)});
             if (ping.ok) { location.reload(); return; }
         } catch (e) { /* still restarting */ }
         await new Promise(r => setTimeout(r, 1000));
     }
-    location.reload();
+    label.textContent = 'Restart failed';
+    alert("AIO didn't come back after restarting. Relaunch AIO Builder. The reason is at the end of aio_launcher.log in the AIO folder.");
+}
+
+async function restartServer() {
+    const btn = document.querySelector('.restart-btn');
+    const label = document.getElementById('brand-version');
+    const before = label.textContent;
+    btn.disabled = true;
+    try {
+        let j = await fetch('/api/restart', {method: 'POST'}).then(r => r.json());
+        if (j.busy && j.busy.length) {
+            const ok = confirm('Restarting stops what is running: ' + j.busy.join(', ') +
+                               '.\n\nRestart anyway? (Cancel to wait until it finishes.)');
+            if (!ok) { btn.disabled = false; return; }
+            j = await fetch('/api/restart', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                             body: JSON.stringify({force: true})}).then(r => r.json());
+        }
+        if (!j.ok) { label.textContent = before; btn.disabled = false; return; }
+    } catch (e) { /* server is already restarting */ }
+    label.textContent = 'Restarting...';
+    await waitForServer(label);
 }
 
 async function runUpdate() {
@@ -98,7 +114,12 @@ async function runUpdate() {
         const r = await fetch('/api/update', {method: 'POST'});
         const j = await r.json();
 
-        if (j.ok && j.updated) {
+        if (j.ok && j.updated && j.restart_deferred) {
+            btn.className = 'update-btn update-success';
+            btn.title = 'Updated. Restart AIO when this finishes: ' + j.restart_deferred.join(', ');
+            alert('Update downloaded. Restart AIO (sidebar restart button) when this finishes: ' +
+                  j.restart_deferred.join(', ') + '.');
+        } else if (j.ok && j.updated) {
             btn.className = 'update-btn update-success';
             document.getElementById('brand-version').textContent = 'Restarting...';
             // Server auto-restarts via Flask reloader — wait for it, then reload
