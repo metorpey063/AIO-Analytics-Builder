@@ -52,6 +52,48 @@ def story_ordered(dim_keys, story_config):
     return sorted(dim_keys, key=lambda k: order.index(k) if k in order else len(order))
 
 
+def schema_field_names(story_config, metric_config):
+    """Sorted Data Cloud field names a build's fact schema has (order-independent)."""
+    names = ["Record ID", "Date", "Day_Offset", "Entity ID"]
+    names += list(story_config.get("dimensions", [])) + [mc["label"] for mc in metric_config]
+    return sorted({clean_field_name(n).lower() for n in names})
+
+
+def schema_signature(story_config, metric_config):
+    """Short hash of the fact schema's field list; changes when metrics or dimensions change."""
+    import hashlib
+    return hashlib.sha1("|".join(schema_field_names(story_config, metric_config)).encode()).hexdigest()[:6]
+
+
+_PLATFORM_FIELDS = ("datasourceid", "datasourceobjectid")   # injected by Data Cloud, never ours
+
+
+def _existing_field_names(schema):
+    return sorted({str(f.get("name", "")).lower() for f in schema.get("fields", [])
+                   if str(f.get("name", "")).lower() not in _PLATFORM_FIELDS
+                   and not str(f.get("name", "")).lower().startswith(("cdp_sys", "kq_"))})
+
+
+def pick_schema_name(base_name, field_names, existing_schemas):
+    """(schema name to use, whether it already exists on the connector).
+
+    A connector schema can't be edited safely (reserved-field rules), and one registered by an
+    earlier build of this demo may have other metrics and dimensions. Reusing it by name alone
+    left the SDM with the old fields and no rows. So: reuse `base_name` only when its fields are
+    exactly this build's; otherwise use `{base_name}_{hash of the field list}`, which is the same
+    name every time for the same fields.
+    """
+    by_name = {s.get("name"): s for s in existing_schemas if isinstance(s, dict)}
+    wanted = sorted(n.lower() for n in field_names)
+    if base_name not in by_name:
+        return base_name, False
+    if _existing_field_names(by_name[base_name]) == wanted:
+        return base_name, True
+    import hashlib
+    variant = f"{base_name}_{hashlib.sha1('|'.join(wanted).encode()).hexdigest()[:6]}"
+    return variant, variant in by_name   # its name carries the field hash, so same name = same fields
+
+
 def clean_field_name(name):
     """Sanitize a column/field name for Data Cloud: lowercase, alphanumeric + underscores,
     X-prefix for digit-leading names, strip reserved prefixes, max 40 chars.
@@ -359,9 +401,203 @@ def _find_existing_demo(company):
     return None
 
 
+def _claude_text(cfg, system, user_msg, max_tokens=4096):
+    """One Claude call over whichever credentials AIO has (gateway, OAuth token or API key). Returns the text."""
+    from app import CHAT_MODEL
+    if cfg["mode"] == "bedrock_gateway":
+        import requests as req
+        url = f"{cfg['base_url']}/model/{CHAT_MODEL}/invoke"
+        headers = {"x-api-key": cfg["token"], "Content-Type": "application/json"}
+        body = {
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": max_tokens,
+            "system": system,
+            "messages": [{"role": "user", "content": user_msg}],
+        }
+        r = req.post(url, headers=headers, json=body,
+                     verify=cfg.get("ca_bundle", True), timeout=90)
+        r.raise_for_status()
+        text = ""
+        for block in r.json().get("content", []):
+            if block.get("type") == "text":
+                text += block["text"]
+    elif cfg.get("api_key", "").startswith("sk-ant-oat"):
+        import requests as req
+        url = "https://api.anthropic.com/v1/messages"
+        headers = {
+            "Authorization": f"Bearer {cfg['api_key']}",
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+        body = {
+            "model": CHAT_MODEL,
+            "max_tokens": max_tokens,
+            "system": system,
+            "messages": [{"role": "user", "content": user_msg}],
+        }
+        r = req.post(url, headers=headers, json=body, timeout=90)
+        r.raise_for_status()
+        text = ""
+        for block in r.json().get("content", []):
+            if block.get("type") == "text":
+                text += block["text"]
+    else:
+        import anthropic
+        client = anthropic.Anthropic(api_key=cfg["api_key"])
+        resp = client.messages.create(
+            model=CHAT_MODEL,
+            max_tokens=max_tokens,
+            system=system,
+            messages=[{"role": "user", "content": user_msg}],
+        )
+        text = resp.content[0].text
+    return text
+
+
+# ---------------------------------------------------------------------------
+# Signal plan check — the plan must name things the story itself contains
+# ---------------------------------------------------------------------------
+
+def _same(a, b):
+    """Case- and spacing-insensitive match (for 'west ' vs 'West')."""
+    return re.sub(r"\s+", " ", str(a)).strip().lower() == re.sub(r"\s+", " ", str(b)).strip().lower()
+
+
+def _primary_label(story):
+    mcs = story.get("metric_config") or []
+    primary = [m for m in mcs if m.get("is_primary")]
+    return (primary[0] if primary else mcs[0]).get("label", "") if mcs else ""
+
+
+def normalize_signal_plan(story):
+    """Rewrite plan names that differ from the story's only by case or spacing (in place)."""
+    plan = story.get("signal_plan")
+    if not isinstance(plan, dict):
+        return story
+    dims, dv = story.get("dimensions") or [], story.get("dimension_values") or {}
+    for key in ("culprit", "culprit_detail"):
+        part = plan.get(key)
+        if not isinstance(part, dict):
+            continue
+        dim = next((d for d in dims if _same(d, part.get("dimension", ""))), None)
+        if dim:
+            part["dimension"] = dim
+            val = next((v for v in dv.get(dim, []) if _same(v, part.get("value", ""))), None)
+            if val is not None:
+                part["value"] = val
+    label = next((m.get("label") for m in story.get("metric_config") or []
+                  if _same(m.get("label", ""), plan.get("counter_trend_metric", ""))), None)
+    if label:
+        plan["counter_trend_metric"] = label
+    return story
+
+
+def signal_plan_problems(story):
+    """What in the story's signal_plan the data generator couldn't honour. [] means the plan is usable.
+
+    The verifier only finds these after the data is built, and can't fix them by redrawing
+    (a culprit value that isn't one of the dimension's values never appears in the data).
+    A dimension with no dimension_values listed can't be checked and is skipped.
+    """
+    plan = story.get("signal_plan")
+    if not isinstance(plan, dict) or not plan:
+        return ["signal_plan is missing"]
+    dims, dv = story.get("dimensions") or [], story.get("dimension_values") or {}
+    labels = [m.get("label", "") for m in story.get("metric_config") or []]
+    problems = []
+
+    def check(key, required):
+        part = plan.get(key)
+        if not isinstance(part, dict) or not part.get("dimension"):
+            if required:
+                problems.append(f'{key} is missing')
+            return None
+        dim, val = part.get("dimension"), part.get("value")
+        if dim not in dims:
+            problems.append(f'{key}.dimension "{dim}" is not one of the dimensions ({", ".join(dims)})')
+            return None
+        if dv.get(dim) and val not in dv[dim]:
+            problems.append(f'{key}.value "{val}" is not a value of {dim} ({", ".join(map(str, dv[dim]))})')
+        return dim
+
+    culprit_dim = check("culprit", required=True)
+    detail_dim = check("culprit_detail", required=False)
+    if culprit_dim and detail_dim and culprit_dim == detail_dim:
+        problems.append(f'culprit_detail must use a different dimension than culprit ("{culprit_dim}")')
+    counter = plan.get("counter_trend_metric")
+    if counter:
+        if counter not in labels:
+            problems.append(f'counter_trend_metric "{counter}" is not a metric label ({", ".join(labels)})')
+        elif counter == _primary_label(story):
+            problems.append(f'counter_trend_metric "{counter}" is the primary metric; it must be a different metric')
+    return problems
+
+
+PLAN_FIX_SYSTEM = ("You correct one JSON object so it is consistent with the lists you are given. "
+                   "Reply with JSON only, no prose and no code fences.")
+
+
+def _plan_fix_prompt(story, problems):
+    labels = [m.get("label", "") for m in story.get("metric_config") or []]
+    return f"""A demo story's signal_plan names things that are not in the story's own data.
+
+Problems:
+{chr(10).join("- " + p for p in problems)}
+
+Dimensions and their only allowed values:
+{json.dumps({d: (story.get("dimension_values") or {}).get(d, []) for d in story.get("dimensions") or []}, indent=1)}
+
+Metric labels (exact): {json.dumps(labels)}
+Primary metric: {json.dumps(_primary_label(story))}
+
+Story summary: {story.get("story_summary", "")}
+Signal description: {story.get("signal_description", "")}
+Current signal_plan: {json.dumps(story.get("signal_plan") or {})}
+
+Return this JSON:
+{{"signal_plan": {{"culprit": {{"dimension": "...", "value": "..."}}, "culprit_detail": {{"dimension": "...", "value": "..."}}, "counter_trend_metric": "...", "onset_months_ago": 6}},
+ "story_summary": "...", "signal_description": "..."}}
+
+Rules:
+- culprit.dimension and culprit_detail.dimension are two different dimensions from the list; each value is copied exactly from that dimension's allowed values. Pick the values closest to what the story describes (a story that says "West region (Oregon/Northern California)" with Region values Oregon, Northern California, Alaska means culprit value "Oregon").
+- counter_trend_metric is copied exactly from the metric labels and is not the primary metric.
+- Keep onset_months_ago as it is unless it is missing (then use 6).
+- story_summary and signal_description: the same text, changed only where needed so they name the culprit and drill-down values you chose."""
+
+
+def ensure_valid_signal_plan(story, ask):
+    """Make the story's signal_plan usable, or raise a clear error. `ask(prompt) -> text` calls Claude.
+
+    Order: fix case/spacing differences ourselves; if problems remain, ask Claude to correct
+    the plan once; if it is still wrong, stop here rather than build data with a random culprit.
+    """
+    normalize_signal_plan(story)
+    problems = signal_plan_problems(story)
+    if not problems:
+        return story
+    try:
+        text = re.sub(r"```(?:json)?", "", ask(_plan_fix_prompt(story, problems))).strip()
+        match = re.search(r"\{[\s\S]*\}", text)
+        fix = json.loads(match.group()) if match else {}
+    except Exception:
+        fix = {}
+    if isinstance(fix.get("signal_plan"), dict):
+        candidate = {**story, "signal_plan": fix["signal_plan"]}
+        normalize_signal_plan(candidate)
+        if not signal_plan_problems(candidate):
+            story["signal_plan"] = candidate["signal_plan"]
+            for key in ("story_summary", "signal_description"):
+                if isinstance(fix.get(key), str) and fix[key].strip():
+                    story[key] = fix[key].strip()
+            return story
+        problems = signal_plan_problems(candidate)
+    raise RuntimeError("The generated story names a segment that isn't in its own data ("
+                       + "; ".join(problems[:3]) + "). Click Generate again to get a new story.")
+
+
 def generate_story(company, industry, use_case, audience, notes="", research_depth="quick", dashboard_template=None):
     """Call Claude API to generate story + metrics with web research. Returns dict."""
-    from app import _get_chat_config, CHAT_MODEL
+    from app import _get_chat_config
 
     cfg = _get_chat_config()
     if not cfg:
@@ -428,53 +664,7 @@ Additional context: {notes or 'None'}
 {research_context}
 {prior_context}"""
 
-    if cfg["mode"] == "bedrock_gateway":
-        import requests as req
-        url = f"{cfg['base_url']}/model/{CHAT_MODEL}/invoke"
-        headers = {"x-api-key": cfg["token"], "Content-Type": "application/json"}
-        body = {
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 4096,
-            "system": STORY_SYSTEM_PROMPT,
-            "messages": [{"role": "user", "content": user_msg}],
-        }
-        r = req.post(url, headers=headers, json=body,
-                     verify=cfg.get("ca_bundle", True), timeout=90)
-        r.raise_for_status()
-        text = ""
-        for block in r.json().get("content", []):
-            if block.get("type") == "text":
-                text += block["text"]
-    elif cfg.get("api_key", "").startswith("sk-ant-oat"):
-        import requests as req
-        url = "https://api.anthropic.com/v1/messages"
-        headers = {
-            "Authorization": f"Bearer {cfg['api_key']}",
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json",
-        }
-        body = {
-            "model": CHAT_MODEL,
-            "max_tokens": 4096,
-            "system": STORY_SYSTEM_PROMPT,
-            "messages": [{"role": "user", "content": user_msg}],
-        }
-        r = req.post(url, headers=headers, json=body, timeout=90)
-        r.raise_for_status()
-        text = ""
-        for block in r.json().get("content", []):
-            if block.get("type") == "text":
-                text += block["text"]
-    else:
-        import anthropic
-        client = anthropic.Anthropic(api_key=cfg["api_key"])
-        resp = client.messages.create(
-            model=CHAT_MODEL,
-            max_tokens=4096,
-            system=STORY_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_msg}],
-        )
-        text = resp.content[0].text
+    text = _claude_text(cfg, STORY_SYSTEM_PROMPT, user_msg)
 
     # Strip markdown code fences if present
     text = re.sub(r'```json\s*', '', text)
@@ -512,6 +702,12 @@ Additional context: {notes or 'None'}
         if generic_count > len(vals) / 2:
             dv.pop(dim, None)
     result["dimension_values"] = dv
+
+    # The plan must name a culprit, drill-down and counter-trend that exist in this story.
+    # Otherwise the build can't honour it and the data's culprit is random (seen live: plan said
+    # Region "West" when the values were Oregon / Northern California / ...)
+    if result.get("metric_config"):
+        ensure_valid_signal_plan(result, lambda prompt: _claude_text(cfg, PLAN_FIX_SYSTEM, prompt, max_tokens=1024))
 
     # Attach brand colors from research (if found and not already in result)
     if brand_colors and not result.get("brand_colors"):
@@ -1285,10 +1481,19 @@ ul{{padding-left:1.5em}}li{{margin:4px 0}}
 # CSV build
 # ---------------------------------------------------------------------------
 
+_csv_written = {}   # csv path -> id() of the DataFrame last written there
+
+
 def csv_build(build_id, df, slug, demo_dir, q):
-    progress(q, "csv", "Exporting CSV...", 10)
+    """Write the demo CSV. The CSV step and each platform build all call this; the same
+    data is written (and logged) once per run."""
     csv_path = os.path.join(demo_dir, f"{slug}_{TODAY.strftime('%Y%m%d')}.csv")
+    if _csv_written.get(csv_path) == id(df) and os.path.exists(csv_path):
+        return csv_path
+    progress(q, "csv", "Exporting CSV...", 10)
     df.to_csv(csv_path, index=False)
+    _csv_written.clear()          # one entry: the run in flight (keeps no old frames' ids around)
+    _csv_written[csv_path] = id(df)
     progress(q, "csv", f"CSV exported: {len(df)} rows", 15)
     return csv_path
 
@@ -2026,7 +2231,14 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         r_schema = req.get(f"{sf_instance}/services/data/v62.0/ssot/connections/{connector_id}/schema", headers=h)
         existing = r_schema.json() if r_schema.ok else {"schemas": []}
         existing_schemas = existing.get("schemas", []) if isinstance(existing, dict) else []
-        schema_exists = any(s.get("name") == schema_name for s in existing_schemas)
+        base_schema_name = schema_name
+        schema_name, schema_exists = pick_schema_name(
+            base_schema_name, [f["name"] for f in schema_fields], existing_schemas)
+        if schema_name != base_schema_name:
+            progress(q, "info", f"Schema '{base_schema_name}' exists with different fields (an earlier build of "
+                                f"this demo) — using '{schema_name}' for this story", -1)
+        cp["schema_name"] = schema_name
+        cp["schema_fields_sig"] = schema_signature(story_config, metric_config)
 
         if not schema_exists:
             new_schema = {"name": schema_name, "label": schema_name,
@@ -2077,6 +2289,11 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
             found = False
             # Search by schema name OR DLO name (stream names have connector prefix + hash suffix)
             schema_lower = schema_name.lower().replace("_", "")
+            # Streams are named "{connector}_{schema}_{HASH8}". Look for exactly this schema's stream
+            # first, so '{slug}' never picks up the stream of '{slug}_{hash}' (or the reverse)
+            _exact = re.compile(r"(^|_)" + re.escape(schema_name.lower()) + r"_[0-9a-f]{8}$")
+            stream_list = sorted((s for s in stream_list if isinstance(s, dict)),
+                                 key=lambda s: 0 if _exact.search(s.get("name", "").lower()) else 1)
             for s in stream_list:
                 if not isinstance(s, dict):
                     continue
@@ -2111,6 +2328,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                     resp2 = r_stream2.json()
                     if isinstance(resp2, list): resp2 = resp2[0] if resp2 else {}
                     cp["stream_name"] = resp2.get("name", unique_schema)
+                    cp.setdefault("all_stream_names", []).append(cp["stream_name"])
                     cp["dlo_name"] = resp2.get("dataLakeObjectInfo", {}).get("name", "")
                     cp["schema_name"] = unique_schema
                     progress(q, "stream", f"Created stream with new schema: {cp['stream_name']}", -1)
@@ -2121,6 +2339,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
             if isinstance(resp, list):
                 resp = resp[0] if resp else {}
             cp["stream_name"] = resp.get("name", schema_name)
+            cp.setdefault("all_stream_names", []).append(cp["stream_name"])
             dlo_info = resp.get("dataLakeObjectInfo", {})
             if isinstance(dlo_info, list):
                 dlo_info = dlo_info[0] if dlo_info else {}
@@ -2217,7 +2436,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
     if outputs.get("crm_actionable") and not cp.get("crm_done"):
         progress(q, "crm", "Creating CRM Account records...", 36)
         try:
-            from crm_upserter import ensure_external_id_field, upsert_crm_records
+            from crm_upserter import ensure_external_id_field, upsert_crm_records, demo_external_id
             sf_token, sf_instance = get_sf_token(config)
 
             ensure_external_id_field(sf_token, sf_instance, "Account", "Demo_External_ID__c")
@@ -2229,7 +2448,9 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 eid = sample["Entity ID"]
                 rec = {
                     "Name": f"{company} — {eid}",
-                    "Demo_External_ID__c": eid,
+                    # Scoped to this demo: bare E-0001 IDs are the same in every build, so a
+                    # second demo in the org used to overwrite the first demo's Accounts
+                    "Demo_External_ID__c": demo_external_id(slug, eid),
                 }
                 for d in dims:
                     if d in sample:
@@ -2241,6 +2462,8 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
             result = upsert_crm_records(sf_token, sf_instance, "Account", "Demo_External_ID__c", records)
             cp["crm_account_ids"] = result
+            cp["crm_ids_scoped"] = True          # these Accounts belong to this demo only (safe to delete with it)
+            cp["crm_external_id_prefix"] = demo_external_id(slug, "")   # Account ext ID = prefix + Entity ID
             cp["crm_done"] = True   # only on success, so a resumed build retries a failed upsert
             _save_cp(cp, slug, demo_dir)
             progress(q, "crm", f"Created {len(records)} Account records", -1)
@@ -3588,14 +3811,26 @@ def run_build(build_id, build_config, progress_queue):
         if cp_profile and cp_profile != default_profile:
             progress(q, "init", f"Connection changed ({cp_profile} → {default_profile}) — resetting checkpoint", -1)
             progress(q, "init", "Connection changed — rebuilding from scratch...", 0)
+            # (streams and CRM records stay behind in the old org; they aren't tracked across a connection change)
             cp = {"all_ws_apis": cp.get("all_ws_apis", []), "all_sdm_apis": cp.get("all_sdm_apis", []),
                   "all_viz_apis": cp.get("all_viz_apis", []), "all_dash_apis": cp.get("all_dash_apis", [])}
+        elif cp.get("schema_fields_sig") and cp["schema_fields_sig"] != schema_signature(story_config, metric_config):
+            # Same demo, different metrics or dimensions: the stream, SDM and dashboard on the old
+            # fields can't be resumed. Rebuild, keeping the lists of what to clean up.
+            progress(q, "init", "Story changed (different metrics or dimensions) — rebuilding from scratch...", 0)
+            keep = {"all_ws_apis", "all_sdm_apis", "all_viz_apis", "all_dash_apis", "all_stream_names",
+                    "crm_account_ids", "crm_ids_scoped", "crm_external_id_prefix"}
+            cp = {k: v for k, v in cp.items() if k in keep}
         elif cp_outputs and cp_outputs != current_outputs:
             progress(q, "init", "Build outputs changed — resetting checkpoint", -1)
             progress(q, "init", "Build outputs changed — rebuilding...", 0)
-            keep = {"all_ws_apis", "all_sdm_apis", "all_viz_apis", "all_dash_apis", "story", "company"}
+            keep = {"all_ws_apis", "all_sdm_apis", "all_viz_apis", "all_dash_apis", "all_stream_names",
+                    "crm_account_ids", "crm_ids_scoped", "crm_external_id_prefix", "story", "company"}
             cp = {k: v for k, v in cp.items() if k in keep}
         cp["_profile_key"] = default_profile
+        # Per-output connections, so deleting the demo later cleans up the orgs it was built in
+        cp["_next_profile_key"] = next_profile if outputs.get("next") else cp.get("_next_profile_key")
+        cp["_pulse_profile_key"] = pulse_profile if outputs.get("pulse") else cp.get("_pulse_profile_key")
         cp["_outputs"] = current_outputs
         _save_cp(cp, slug, demo_dir)
 

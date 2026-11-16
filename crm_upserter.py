@@ -238,6 +238,46 @@ def upsert_crm_records(sf_token, sf_instance, sobject_type, external_id_field,
     return id_map
 
 
+def demo_external_id(slug, entity_id):
+    """External ID for one demo's CRM record: '{slug}-{entity_id}' (e.g. 'acme_churn-E-0001').
+
+    Entity IDs restart at E-0001 in every build, so on their own two demos in one org upsert
+    onto the same Accounts and the second build re-skins the first demo's records. The slug
+    makes the ID belong to one demo. Kept within the External ID field's 80 characters.
+    """
+    entity_id = str(entity_id)
+    return f"{str(slug)[:79 - len(entity_id)]}-{entity_id}"
+
+
+def delete_records_by_id(sf_token, sf_instance, record_ids, quiet=True):
+    """Delete records by Salesforce ID, 200 per call (Composite sObject Collections).
+
+    Only pass IDs this demo created (the values of the checkpoint's `crm_account_ids`).
+    Returns (deleted, failed). Records that are already gone count as deleted.
+    """
+    h = sf_headers(sf_token)
+    ids = [i for i in record_ids if i]
+    deleted = failed = 0
+    for start in range(0, len(ids), 200):
+        batch = ids[start:start + 200]
+        r = requests.delete(f"{sf_instance}/services/data/{API_VERSION}/composite/sobjects",
+                            headers=h, params={"ids": ",".join(batch), "allOrNone": "false"}, timeout=120)
+        if not r.ok:
+            failed += len(batch)
+            if not quiet:
+                print(f"  Warning: delete batch failed: {r.status_code} {r.text[:200]}")
+            continue
+        for res in r.json():
+            gone = res.get("success") or any(
+                e.get("statusCode") in ("ENTITY_IS_DELETED", "INVALID_CROSS_REFERENCE_KEY")
+                for e in res.get("errors", []))
+            if gone:
+                deleted += 1
+            else:
+                failed += 1
+    return deleted, failed
+
+
 def delete_demo_records(sf_token, sf_instance, sobject_type, external_id_field,
                          external_ids):
     """Delete specific demo records by their External ID values.

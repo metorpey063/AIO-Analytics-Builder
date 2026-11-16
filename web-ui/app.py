@@ -354,25 +354,53 @@ def delete_demo(slug):
         return jsonify({"ok": False, "error": str(e), "remote_results": remote_results})
 
 
+def _demo_connection(cp, output):
+    """(profile key, config, error) for the connection a demo's output was built in.
+
+    The checkpoint records the connection; deletes must go to that org or site, not to
+    whichever connection happens to be active now. Checkpoints from before this was recorded
+    have no key and fall back to the active connection, as they always did.
+    """
+    from connections import load_config, load_full_config
+    key = cp.get(f"_{output}_profile_key")
+    if not key and (output != "pulse" or cp.get("build_type") == "pulse"):
+        key = cp.get("_profile_key")   # older checkpoints: one key, the build's main connection
+    conn_type = "tableau_cloud" if output == "pulse" else "salesforce"
+    if key and key not in load_full_config().get("profiles", {}):
+        return key, None, (f"the connection this demo was built with ({key}) no longer exists — "
+                           "nothing was deleted there")
+    return key, load_config(key, connection_type=conn_type), None
+
+
 def _delete_remote_assets(cp):
-    """Delete remote assets from Tableau Cloud or Tableau Next based on checkpoint."""
+    """Delete what a build created in Tableau Cloud and/or the Salesforce org, from its checkpoint.
+
+    Only assets the checkpoint tracks are touched: Pulse definitions and project; dashboards,
+    vizzes, SDMs and workspaces; data streams this build created (with their DLOs); and CRM
+    Accounts whose external IDs are scoped to this demo.
+    """
     import requests as req
     results = []
     build_type = cp.get("build_type", "")
+    has_pulse = build_type == "pulse" or cp.get("pulse_def_ids") or cp.get("pulse_project_id")
+    has_next = build_type == "next" or any(cp.get(k) for k in (
+        "all_dash_apis", "all_viz_apis", "all_sdm_apis", "all_ws_apis", "all_stream_names"))
 
-    if build_type == "pulse":
+    if has_pulse:
         try:
-            from connections import get_tableau_token, tableau_headers, tableau_pulse_headers
-            server, auth_token, site_id = get_tableau_token()
+            from connections import get_tableau_token
+            key, config, err = _demo_connection(cp, "pulse")
+            if err:
+                raise RuntimeError(err)
+            server, auth_token, site_id = get_tableau_token(config)
             base = server.server_address.rstrip("/")
             h_pulse = {"x-tableau-auth": auth_token, "Accept": "application/json", "Content-Type": "application/json"}
 
             for def_id in cp.get("pulse_def_ids", []):
-                r = req.delete(f"{base}/api/-/pulse/definitions/{def_id}", headers=h_pulse)
+                r = req.delete(f"{base}/api/-/pulse/definitions/{def_id}", headers=h_pulse, timeout=60)
                 results.append(f"Pulse definition {def_id}: {'deleted' if r.ok else r.status_code}")
 
             if cp.get("pulse_project_id"):
-                import tableauserverclient as TSC
                 try:
                     server.projects.delete(cp["pulse_project_id"])
                     results.append(f"Project {cp.get('pulse_project_name', '')}: deleted")
@@ -383,27 +411,42 @@ def _delete_remote_assets(cp):
         except Exception as e:
             results.append(f"Pulse cleanup error: {e}")
 
-    elif build_type == "next":
+    if has_next:
         try:
             from connections import get_sf_token, sf_headers
-            sf_token, sf_instance = get_sf_token()
+            key, config, err = _demo_connection(cp, "next")
+            if err:
+                raise RuntimeError(err)
+            sf_token, sf_instance = get_sf_token(config, profile_key=key)
             h = sf_headers(sf_token)
 
+            def _delete(label, url):
+                r = req.delete(url, headers=h, timeout=60)
+                results.append(f"{label}: {'deleted' if r.ok else r.status_code}")
+
             for dash in cp.get("all_dash_apis", []):
-                r = req.delete(f"{sf_instance}/services/data/v66.0/tableau/dashboards/{dash}?minorVersion=12", headers=h)
-                results.append(f"Dashboard {dash}: {'deleted' if r.ok else r.status_code}")
-
+                _delete(f"Dashboard {dash}", f"{sf_instance}/services/data/v66.0/tableau/dashboards/{dash}?minorVersion=12")
             for viz in cp.get("all_viz_apis", []):
-                r = req.delete(f"{sf_instance}/services/data/v66.0/tableau/visualizations/{viz}?minorVersion=12", headers=h)
-                results.append(f"Viz {viz}: {'deleted' if r.ok else r.status_code}")
-
+                _delete(f"Viz {viz}", f"{sf_instance}/services/data/v66.0/tableau/visualizations/{viz}?minorVersion=12")
             for sdm in cp.get("all_sdm_apis", []):
-                r = req.delete(f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{sdm}", headers=h)
-                results.append(f"SDM {sdm}: {'deleted' if r.ok else r.status_code}")
-
+                _delete(f"SDM {sdm}", f"{sf_instance}/services/data/v65.0/ssot/semantic/models/{sdm}")
             for ws in cp.get("all_ws_apis", []):
-                r = req.delete(f"{sf_instance}/services/data/v65.0/tableau/workspaces/{ws}", headers=h)
-                results.append(f"Workspace {ws}: {'deleted' if r.ok else r.status_code}")
+                _delete(f"Workspace {ws}", f"{sf_instance}/services/data/v65.0/tableau/workspaces/{ws}")
+
+            # Streams this build created (never ones it only found), after the SDMs on them are gone
+            for stream in dict.fromkeys(cp.get("all_stream_names", [])):
+                _delete(f"Data stream {stream}",
+                        f"{sf_instance}/services/data/v62.0/ssot/data-streams/{stream}?shouldDeleteDataLakeObject=true")
+
+            account_ids = list((cp.get("crm_account_ids") or {}).values())
+            if account_ids and cp.get("crm_ids_scoped"):
+                from crm_upserter import delete_records_by_id
+                deleted, failed = delete_records_by_id(sf_token, sf_instance, account_ids)
+                results.append(f"CRM Accounts: {deleted} deleted" + (f", {failed} failed" if failed else ""))
+            elif account_ids:
+                # Built before Account IDs were scoped per demo: another demo may share these records
+                results.append(f"CRM Accounts: {len(account_ids)} left in place "
+                               "(this demo's Account IDs may be shared with other demos in the org)")
         except Exception as e:
             results.append(f"Next cleanup error: {e}")
 

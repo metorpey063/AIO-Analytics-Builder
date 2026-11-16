@@ -1341,7 +1341,10 @@ async function startBuild() {
 
     // Build the story config from current state (AI-generated + user edits)
     const editedMetrics = collectMetricsFromTable();
+    // Start from the whole generated story and override only what the page can edit. Rebuilding it
+    // field by field dropped signal_plan, so the data's culprit was random and never verified.
     const finalStoryConfig = {
+        ...(storyConfig || {}),
         story_summary: document.getElementById('story-summary') ? document.getElementById('story-summary').value : '',
         signal_description: document.getElementById('story-signal') ? document.getElementById('story-signal').value : '',
         dimensions: (storyConfig && storyConfig.dimensions) ? storyConfig.dimensions : ['Region', 'Category', 'Segment'],
