@@ -23,7 +23,7 @@ Found while testing v2.17.3 against AIO Dev. All were already on `main`. No chan
 - `tests/test_live_findings.py` (35 tests): `python3 -m unittest tests.test_live_findings -v`.
 - `crm_upserter.demo_external_id()` and `crm_upserter.delete_records_by_id()`.
 
-> Tested 2026-11-16. Live on AIO Dev (CRM actionability off): a page build logged the signal check, and delete with remote assets removed the dashboard, vizzes, SDM, workspace, stream and DLO and nothing else. Sandbox only, with mocked HTTP and a mocked model: the story plan check, the schema naming, and the Account delete.
+> Tested 2026-11-16, live on AIO Dev at `c601514` (CRM actionability off): a page build passed the signal check and the dashboard's worst segment matched the walkthrough; a rebuild with a different story got its own schema with all 6 metrics and rows; an unchanged rebuild reused that schema; delete with remote assets (twice) removed the dashboard, vizzes, SDM, workspace, stream and DLO and nothing else. Unit tests only (mocked): the plan-repair path (a bad plan sent back to Claude, and the Story-step error), because the live story's plan was valid first time, and the Account delete.
 ## 2026-11-16 — Each connection uses its own Salesforce login (v2.17.6)
 
 ### Fixed
