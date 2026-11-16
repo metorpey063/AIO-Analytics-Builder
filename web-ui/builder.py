@@ -10,6 +10,7 @@ import os
 import random
 import re
 import sys
+import threading
 import time
 import uuid
 from datetime import date, timedelta
@@ -269,14 +270,36 @@ def generate_business_preferences(company, story_config, metric_config, dim_valu
 # Progress helper
 # ---------------------------------------------------------------------------
 
-_build_log_file = None
+# Each build writes its own log file. The path travels with the build's progress channel
+# (`q.log_file`), with the build's thread as a fallback for callers that pass a plain queue.
+# It used to be one module global, so with two builds running, both wrote to the log of
+# whichever started last.
+_build_log = threading.local()
+
+
+def start_build_log(q, path, header):
+    """Create a build's log file and attach it to that build's progress channel and thread."""
+    with open(path, "w") as f:
+        f.write(header)
+    _build_log.path = path
+    try:
+        q.log_file = path
+    except AttributeError:      # a queue object that can't carry attributes: the thread still has the path
+        pass
+
+
+def _log_path_for(q):
+    path = getattr(q, "log_file", None)
+    return path if isinstance(path, str) else getattr(_build_log, "path", None)
+
 
 def progress(q, stage, message, pct=-1):
     if q:
         q.put({"stage": stage, "message": message, "pct": pct})
-    if _build_log_file:
+    path = _log_path_for(q)
+    if path:
         try:
-            with open(_build_log_file, "a") as f:
+            with open(path, "a") as f:
                 f.write(f"[{stage}] {message}\n")
         except Exception:
             pass
@@ -1546,7 +1569,7 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
                 pass
 
         # Clear checkpoint tracking for Pulse assets
-        for k in ("pulse_project_id", "pulse_project_name", "pulse_group_id",
+        for k in ("pulse_project_id", "pulse_project_name", "pulse_group_id", "pulse_group_name",
                    "pulse_def_ids", "pulse_metric_ids", "pulse_datasource_id",
                    "pulse_datasource_name", "pulse_insights_done", "pulse_discover_results"):
             cp.pop(k, None)
@@ -1676,6 +1699,7 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
             grp = root.find(".//group")
         group_id = grp.get("id") if grp is not None else None
         cp["pulse_group_id"] = group_id
+        cp["pulse_group_name"] = group_name
 
         if group_id:
             sub_h = {"x-tableau-auth": auth_token, "Accept": "application/json", "Content-Type": "application/json"}
@@ -3758,7 +3782,6 @@ def crma_build(build_id, df, slug, company, config, metric_config, story_config,
 
 def run_build(build_id, build_config, progress_queue):
     """Main entry point — called from background thread."""
-    global _build_log_file
     q = progress_queue
     try:
         company = build_config["company"]
@@ -3771,9 +3794,8 @@ def run_build(build_id, build_config, progress_queue):
         demo_dir = str(PROJECT_ROOT / "demos" / slug)
         os.makedirs(demo_dir, exist_ok=True)
 
-        _build_log_file = os.path.join(demo_dir, f"{slug}_build.log")
-        with open(_build_log_file, "w") as f:
-            f.write(f"=== AIO Build Log — {company} — {TODAY.isoformat()} ===\n")
+        start_build_log(q, os.path.join(demo_dir, f"{slug}_build.log"),
+                        f"=== AIO Build Log — {company} — {TODAY.isoformat()} ===\n")
 
         cp_path = os.path.join(demo_dir, f"{slug}_checkpoint.json")
         if os.path.exists(cp_path):

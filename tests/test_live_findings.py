@@ -196,8 +196,7 @@ class CsvWrittenOnce(unittest.TestCase):
             self.skipTest(f"builder dependencies not installed: {e}")
         tmp = tempfile.mkdtemp()
         df, q = pd.DataFrame({"a": [1, 2]}), mock.Mock()
-        with mock.patch.object(pd.DataFrame, "to_csv", autospec=True, side_effect=pd.DataFrame.to_csv) as to_csv, \
-                mock.patch.object(builder, "_build_log_file", None):
+        with mock.patch.object(pd.DataFrame, "to_csv", autospec=True, side_effect=pd.DataFrame.to_csv) as to_csv:
             first = builder.csv_build("b", df, "acme", tmp, q)      # the CSV step
             second = builder.csv_build("b", df, "acme", tmp, q)     # the Tableau Next step
             self.assertEqual(first, second)

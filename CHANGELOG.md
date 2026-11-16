@@ -4,6 +4,24 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-16 — Build logs no longer mix; Pulse delete removes the group (v2.17.10)
+
+Found in the live test of v2.17.9. Both were already on `main`. No change to pages or steps.
+
+### Fixed
+- **Each build writes its own log.** With two builds running at once, both wrote to the log of whichever started last, so one build's log stopped after a couple of lines and the rest showed up in the other's. The Build Log on My Demos now holds that build's lines only.
+- **Deleting a Pulse demo with "delete remote assets" also removes its group** (the "{Company} | {date}" group the build creates for subscriptions). It is deleted by the ID saved at build time, never by name.
+
+### Changed
+- **Dependencies have an upper limit.** `requirements.txt` kept its minimum versions and now also stops below the next major version of each package, so a breaking release can't arrive with a fresh install or an update. Nothing is reinstalled on existing installs. `requirements-known-good.txt` records the exact versions from a working install (Python 3.13, macOS, Apple silicon) for comparison if a package release ever breaks something.
+
+### Added
+- `tests/test_build_logs.py` (15 tests): `python3 -m unittest tests.test_build_logs -v`.
+
+> Tested 2026-11-16 in a sandbox, not against a live site or org: 124 unit tests, including two builds logging at the same time and the group delete against a mocked site.
+
+---
+
 ## 2026-11-16 — API calls can no longer hang forever (v2.17.9)
 
 Nothing changes on screen, and builds take the same time.
