@@ -173,6 +173,22 @@ def _resolve_key(full: dict, profile_key: str = None, connection_type: str = Non
     return full.get("active_salesforce") or full.get("active_tableau_cloud")
 
 
+def _sf_key_for(full: dict, sf: dict, profile_key: str = None) -> str | None:
+    """The connection a Salesforce config belongs to, for its token cache and saved tokens.
+    Callers often pass only a connection's config (get_sf_token(config)). Falling back to the
+    active connection there returned the active org's cached token for another connection, and
+    saved that connection's refreshed tokens over the active one's. Match the config's own
+    credentials instead; None (no cache, nothing saved) when no connection matches."""
+    profiles = full.get("profiles", {})
+    if profile_key:
+        return profile_key if profile_key in profiles else None
+    rt, cid = sf.get("refresh_token"), sf.get("client_id")
+    matches = [k for k, p in profiles.items()
+               if rt and p.get("salesforce", {}).get("refresh_token") == rt
+               and p.get("salesforce", {}).get("client_id") == cid]
+    return matches[0] if len(matches) == 1 else None
+
+
 def load_config(profile_key: str = None, connection_type: str = None) -> dict:
     """
     Returns a connection's {tableau, salesforce, ...} dict.
@@ -386,8 +402,8 @@ def _reauth_via_browser(sf, profile_key=None, allow_browser=True):
     )
 
     full = load_full_config()
-    key = profile_key or _resolve_key(full, connection_type="salesforce")
-    if key and key in full.get("profiles", {}):
+    key = _sf_key_for(full, sf, profile_key)
+    if key:
         full["profiles"][key]["salesforce"]["refresh_token"] = tokens["refresh_token"]
         if tokens.get("code_verifier"):
             full["profiles"][key]["salesforce"]["code_verifier"] = tokens["code_verifier"]
@@ -406,14 +422,16 @@ def _reauth_via_browser(sf, profile_key=None, allow_browser=True):
 def get_sf_token(config=None, profile_key=None, allow_browser=True):
     """Returns (sf_token, sf_instance) via refresh_token grant.
     allow_browser=False raises ReauthRequired instead of opening a login when the refresh token expired."""
+    full = load_full_config()
     if config is None:
         config = load_config(profile_key, connection_type="salesforce")
+        profile_key = profile_key or _resolve_key(full, connection_type="salesforce")
     sf = config["salesforce"]
+    key = _sf_key_for(full, sf, profile_key)
+    profile_key = key   # re-auth saves under the same connection
 
     import time as _time
-    full = load_full_config()
-    key = profile_key or _resolve_key(full, connection_type="salesforce")
-    if key and key in full.get("profiles", {}):
+    if key:
         cached = full["profiles"][key].get("_token_cache", {})
         cached_token = cached.get("access_token", "")
         cached_instance = cached.get("instance_url", "")
@@ -463,7 +481,6 @@ def get_sf_token(config=None, profile_key=None, allow_browser=True):
     new_refresh = body.get("refresh_token")
     with config_lock():
         full = load_full_config()
-        key = profile_key or _resolve_key(full, connection_type="salesforce")
         if key and key in full.get("profiles", {}):
             if new_refresh and new_refresh != sf["refresh_token"]:
                 full["profiles"][key]["salesforce"]["refresh_token"] = new_refresh

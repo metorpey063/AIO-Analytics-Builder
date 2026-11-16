@@ -4,6 +4,19 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-16 — Each connection uses its own Salesforce login (v2.17.6)
+
+### Fixed
+- **Wrong org on a connection**: testing (or building against) a connection that wasn't the active one could use the *active* connection's login. The AIO Dev card showed the Tableau Next & Slack org's user, instance and Data Cloud. `get_sf_token(config)` didn't know which connection a config belonged to, so it read the active connection's cached token. When it did refresh, it saved the other connection's new tokens over the active one's. It now finds the connection from the config's own credentials, and saves nothing when none matches. Browser re-logins save under the right connection too. This affected the Connections page Test button and every Web UI build step that loads a connection's config, since token caching was added on 2026-10-20.
+- **MCP login on an older MCP app**: `invalid client credentials` after the browser said "Authenticated" means the org's `AIO_MCP_Client` app requires a consumer secret, which AIO doesn't send. Redeploy it with `org_bootstrap.deploy_apps(alias, update_existing=True)`; it keeps the same consumer key. (Done for AIO Dev.)
+
+### Added
+- `tests/test_sf_token_profile.py` (6 tests, no org needed): `python3 -m unittest tests.test_sf_token_profile -v`.
+
+> Tested 2026-11-16: the AIO Dev Test call that returned the Tableau Next & Slack org now reports its own expired login; Tableau Next & Slack still tests OK. All 65 unit tests pass.
+
+---
+
 ## 2026-11-16 — Installer puts a working AIO Builder on the Desktop (v2.17.5)
 
 ### Fixed
