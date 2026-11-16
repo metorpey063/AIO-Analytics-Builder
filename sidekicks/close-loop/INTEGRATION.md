@@ -81,7 +81,7 @@ Line numbers refer to `refactor/sidekicks` (upstream `e7288c1` + kept fixes).
 5. Web UI: `python web-ui/app.py` → Connections → Test responds.
 
 **Close-loop works:**
-1. Offline: `python close_loop.py plan --slug waste_connections_route_ops` prints the headline, drill path, action, trigger, and Flow names, with no org calls.
+1. Offline: `python close_loop.py plan --slug {slug}` (any built demo) prints the headline, drill path, action, trigger, and Flow names, with no org calls.
 2. Org: `preflight --slug X` returns JSON, `slack_ready` reflects config.
 3. `build --slug X --check-only` passes the deploy validation; then `build` deploys, and walkthrough Section 7 appears.
 4. `test` creates the records/alert; `reset` removes them; `remove` undeploys only the names in `cp.close_loop.deployed`.

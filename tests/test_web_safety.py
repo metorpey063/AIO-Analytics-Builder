@@ -122,7 +122,7 @@ class DemoFolderNames(TempProject):
         self.assertTrue((self.tmp / "demos").exists())
 
     def test_safe_name(self):
-        for good in ("acme", "waste_connections_route_ops", "Acme Corp", "a-b.c", "acme_walkthrough.docx"):
+        for good in ("acme", "acme_route_ops", "Acme Corp", "a-b.c", "acme_walkthrough.docx"):
             self.assertTrue(webapp._safe_name(good), good)
         for bad in ("", ".", "..", ".hidden", "a/b", "a\\b", "a\x00b", None, 5, "x" * 151):
             self.assertFalse(webapp._safe_name(bad), repr(bad))

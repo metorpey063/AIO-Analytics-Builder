@@ -12,7 +12,10 @@ CLAUDE.local.md
 hyperd.log
 
 # Demo output — generated at runtime, not source
-demos/
+# Built demos carry customer names and data: never commit them (don't `git add -f`).
+# Only AIO's own dashboard templates under demos/ are tracked.
+demos/*
+!demos/*_package.json
 
 # Python
 __pycache__/
