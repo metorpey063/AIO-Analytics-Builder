@@ -4,7 +4,7 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
-## 2026-11-16 — Fixes from the live test of v2.17.3 (v2.17.4)
+## 2026-11-16 — Fixes from the live tests of v2.17.3 (v2.17.7)
 
 Found while testing v2.17.3 against AIO Dev. All were already on `main`. No change to pages or steps.
 
@@ -22,6 +22,38 @@ Found while testing v2.17.3 against AIO Dev. All were already on `main`. No chan
 - `crm_upserter.demo_external_id()` and `crm_upserter.delete_records_by_id()`.
 
 > Tested 2026-11-16 in a sandbox with mocked HTTP, not against a live org: the unit tests, and data generated with and without the plan (without: no signal check; with: "Signal check passed … South"). The stream delete and Account delete calls have not run against an org.
+## 2026-11-16 — Each connection uses its own Salesforce login (v2.17.6)
+
+### Fixed
+- **Wrong org on a connection**: testing (or building against) a connection that wasn't the active one could use the *active* connection's login. The AIO Dev card showed the Tableau Next & Slack org's user, instance and Data Cloud. `get_sf_token(config)` didn't know which connection a config belonged to, so it read the active connection's cached token. When it did refresh, it saved the other connection's new tokens over the active one's. It now finds the connection from the config's own credentials, and saves nothing when none matches. Browser re-logins save under the right connection too. This affected the Connections page Test button and every Web UI build step that loads a connection's config, since token caching was added on 2026-10-20.
+- **MCP login on an older MCP app**: `invalid client credentials` after the browser said "Authenticated" means the org's `AIO_MCP_Client` app requires a consumer secret, which AIO doesn't send. Redeploy it with `org_bootstrap.deploy_apps(alias, update_existing=True)`; it keeps the same consumer key. (Done for AIO Dev.)
+
+### Added
+- `tests/test_sf_token_profile.py` (6 tests, no org needed): `python3 -m unittest tests.test_sf_token_profile -v`.
+
+> Tested 2026-11-16: the AIO Dev Test call that returned the Tableau Next & Slack org now reports its own expired login; Tableau Next & Slack still tests OK. All 65 unit tests pass.
+
+---
+
+## 2026-11-16 — Installer puts a working AIO Builder on the Desktop (v2.17.5)
+
+### Fixed
+- **Desktop AIO Builder from the installer**: `install_remote.sh` copied the app to the Desktop. The launcher finds its install from its own folder, so the copy looked in `~/Desktop`, reported "AIO is not installed", and never got launcher fixes or the icon. The installer now puts a link to the real app on the Desktop instead. Opening it runs the app inside the install folder. A copy left by an earlier install is moved to the Trash and replaced with the link; anything else with that name is left alone.
+
+> The link behavior was tested on macOS 27.2.1 (opening a linked app runs the real bundle from its own folder). The installer step itself was checked by reading and `bash -n`, not by a fresh install.
+
+---
+
+## 2026-11-16 — AIO Builder launches on macOS 27, and has its own icon (v2.17.4)
+
+### Fixed
+- **AIO Builder on macOS 27**: double-clicking it failed with `bash: install_sf_cli.sh: Operation not permitted` and `arch: realpath failed on .venv/bin/python`, then rebuilt `.venv` and still didn't start. The app opened Terminal with an AppleScript `do script`, and macOS 27 holds that shell to the AIO Builder app's own privacy permissions (none), so every file in the install folder was refused, even with Terminal's Desktop access on. The app now opens its script with `open -a Terminal`, which runs under Terminal's permissions. No privacy settings to change.
+- **Already on macOS 27 and it won't start?** The broken launcher can't update itself. Run it once from Terminal, from your AIO folder: `bash "AIO Builder.app/Contents/MacOS/launch"`. That pulls this fix; double-clicking works after that.
+
+### Changed
+- **AIO Builder icon**: the app has its own icon (blue tile, rising bars, "AIO") instead of the generic one, so it's easy to find in the AIO folder. `Info.plist` already pointed at `AppIcon`; `Contents/Resources/AppIcon.icns` was missing.
+
+> Tested 2026-11-16 on macOS 27.2.1: opening the app the way Finder does failed before the change (no log entry, no server) and started the Web UI in 6 seconds after it.
 
 ---
 

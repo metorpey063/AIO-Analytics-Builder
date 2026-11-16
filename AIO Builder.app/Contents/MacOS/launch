@@ -16,14 +16,12 @@
 # ── Terminal detection ──────────────────────────────────────
 # When double-clicked from Finder, macOS runs this script headlessly
 # (no terminal window). Detect that and re-launch inside Terminal.app.
+# Open it through Launch Services, not an AppleScript `do script`: macOS 27 holds a shell started
+# by `do script` to this app's own privacy permissions (none), so every file in the install folder
+# returned "Operation not permitted". A shell Terminal opens itself uses Terminal's permissions.
 if [ ! -t 1 ]; then
     SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
-    /usr/bin/osascript <<APPLESCRIPT
-tell application "Terminal"
-    activate
-    do script "exec /bin/bash \"$SCRIPT_PATH\""
-end tell
-APPLESCRIPT
+    /usr/bin/open -a Terminal "$SCRIPT_PATH"
     exit 0
 fi
 
