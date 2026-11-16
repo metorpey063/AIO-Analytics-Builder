@@ -4,6 +4,15 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-16 — Home page: In the Works, Transfer Assets in the UI, Rev Intel prerequisites (v2.17.2)
+
+### Changed
+- **Home page, Tools & Skills**: the Transfer Assets card now opens its Web UI page (it was marked CLI only). The Validate Pulse card is gone; the `/validate-pulse` skill still works in Claude Code. Update Rev Intel Data is labelled **(Advanced)**.
+- **Home page, In the Works**: a new section with placeholder cards for Data Apps for Tableau Next, Data Apps for Tableau Cloud and Deploy Service Intelligence. They don't link anywhere yet.
+- **Update Rev Intel Data page**: a Prerequisites box at the top. The org needs Revenue Intelligence installed and running (Revenue Insights, Einstein Account Management and the Customer Insights app EAM reads from, with the recipes run at least once), Collaborative Forecasting with a role-based forecast type, and Enterprise Territory Management with a territory model. It points to Save & inspect org for the checks.
+
+---
+
 ## 2026-11-13 — Restart that comes back, and doesn't stop builds (v2.17.1)
 
 ### Fixed
