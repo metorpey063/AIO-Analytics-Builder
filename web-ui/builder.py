@@ -1285,10 +1285,19 @@ ul{{padding-left:1.5em}}li{{margin:4px 0}}
 # CSV build
 # ---------------------------------------------------------------------------
 
+_csv_written = {}   # csv path -> id() of the DataFrame last written there
+
+
 def csv_build(build_id, df, slug, demo_dir, q):
-    progress(q, "csv", "Exporting CSV...", 10)
+    """Write the demo CSV. The CSV step and each platform build all call this; the same
+    data is written (and logged) once per run."""
     csv_path = os.path.join(demo_dir, f"{slug}_{TODAY.strftime('%Y%m%d')}.csv")
+    if _csv_written.get(csv_path) == id(df) and os.path.exists(csv_path):
+        return csv_path
+    progress(q, "csv", "Exporting CSV...", 10)
     df.to_csv(csv_path, index=False)
+    _csv_written.clear()          # one entry: the run in flight (keeps no old frames' ids around)
+    _csv_written[csv_path] = id(df)
     progress(q, "csv", f"CSV exported: {len(df)} rows", 15)
     return csv_path
 
@@ -2111,6 +2120,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                     resp2 = r_stream2.json()
                     if isinstance(resp2, list): resp2 = resp2[0] if resp2 else {}
                     cp["stream_name"] = resp2.get("name", unique_schema)
+                    cp.setdefault("all_stream_names", []).append(cp["stream_name"])
                     cp["dlo_name"] = resp2.get("dataLakeObjectInfo", {}).get("name", "")
                     cp["schema_name"] = unique_schema
                     progress(q, "stream", f"Created stream with new schema: {cp['stream_name']}", -1)
@@ -2121,6 +2131,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
             if isinstance(resp, list):
                 resp = resp[0] if resp else {}
             cp["stream_name"] = resp.get("name", schema_name)
+            cp.setdefault("all_stream_names", []).append(cp["stream_name"])
             dlo_info = resp.get("dataLakeObjectInfo", {})
             if isinstance(dlo_info, list):
                 dlo_info = dlo_info[0] if dlo_info else {}
@@ -2217,7 +2228,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
     if outputs.get("crm_actionable") and not cp.get("crm_done"):
         progress(q, "crm", "Creating CRM Account records...", 36)
         try:
-            from crm_upserter import ensure_external_id_field, upsert_crm_records
+            from crm_upserter import ensure_external_id_field, upsert_crm_records, demo_external_id
             sf_token, sf_instance = get_sf_token(config)
 
             ensure_external_id_field(sf_token, sf_instance, "Account", "Demo_External_ID__c")
@@ -2229,7 +2240,9 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
                 eid = sample["Entity ID"]
                 rec = {
                     "Name": f"{company} — {eid}",
-                    "Demo_External_ID__c": eid,
+                    # Scoped to this demo: bare E-0001 IDs are the same in every build, so a
+                    # second demo in the org used to overwrite the first demo's Accounts
+                    "Demo_External_ID__c": demo_external_id(slug, eid),
                 }
                 for d in dims:
                     if d in sample:
@@ -2241,6 +2254,8 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
             result = upsert_crm_records(sf_token, sf_instance, "Account", "Demo_External_ID__c", records)
             cp["crm_account_ids"] = result
+            cp["crm_ids_scoped"] = True          # these Accounts belong to this demo only (safe to delete with it)
+            cp["crm_external_id_prefix"] = demo_external_id(slug, "")   # Account ext ID = prefix + Entity ID
             cp["crm_done"] = True   # only on success, so a resumed build retries a failed upsert
             _save_cp(cp, slug, demo_dir)
             progress(q, "crm", f"Created {len(records)} Account records", -1)
@@ -3588,14 +3603,19 @@ def run_build(build_id, build_config, progress_queue):
         if cp_profile and cp_profile != default_profile:
             progress(q, "init", f"Connection changed ({cp_profile} → {default_profile}) — resetting checkpoint", -1)
             progress(q, "init", "Connection changed — rebuilding from scratch...", 0)
+            # (streams and CRM records stay behind in the old org; they aren't tracked across a connection change)
             cp = {"all_ws_apis": cp.get("all_ws_apis", []), "all_sdm_apis": cp.get("all_sdm_apis", []),
                   "all_viz_apis": cp.get("all_viz_apis", []), "all_dash_apis": cp.get("all_dash_apis", [])}
         elif cp_outputs and cp_outputs != current_outputs:
             progress(q, "init", "Build outputs changed — resetting checkpoint", -1)
             progress(q, "init", "Build outputs changed — rebuilding...", 0)
-            keep = {"all_ws_apis", "all_sdm_apis", "all_viz_apis", "all_dash_apis", "story", "company"}
+            keep = {"all_ws_apis", "all_sdm_apis", "all_viz_apis", "all_dash_apis", "all_stream_names",
+                    "crm_account_ids", "crm_ids_scoped", "crm_external_id_prefix", "story", "company"}
             cp = {k: v for k, v in cp.items() if k in keep}
         cp["_profile_key"] = default_profile
+        # Per-output connections, so deleting the demo later cleans up the orgs it was built in
+        cp["_next_profile_key"] = next_profile if outputs.get("next") else cp.get("_next_profile_key")
+        cp["_pulse_profile_key"] = pulse_profile if outputs.get("pulse") else cp.get("_pulse_profile_key")
         cp["_outputs"] = current_outputs
         _save_cp(cp, slug, demo_dir)
 

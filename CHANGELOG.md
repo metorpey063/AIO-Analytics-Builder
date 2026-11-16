@@ -4,6 +4,27 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-16 — Fixes from the live test of v2.17.3 (v2.17.4)
+
+Found while testing v2.17.3 against AIO Dev. All were already on `main`. No change to pages or steps.
+
+### Fixed
+- **The story's culprit now reaches the data.** The Build page dropped the story's `signal_plan` when it started a build, so the data picked a random culprit, skipped the signal check, and the walkthrough could name a different segment than the dashboard showed. The page now sends the generated story whole.
+- **CRM Accounts no longer collide between demos.** Account external IDs were `E-0001`, `E-0002`, … in every build, so a second demo in the same org overwrote the first demo's Accounts. They are now `{demo}-E-0001`. The demo's data is unchanged (Entity ID is still `E-0001`). Demos built before this keep their existing Accounts.
+- **Delete demo → "delete remote assets" cleans up the right org, completely.** It now uses the connection the demo was built with (not whichever is active), and also removes the data stream and its DLO and the demo's CRM Accounts. A demo with both Pulse and Tableau Next outputs has both cleaned up. Accounts from older builds are left in place and the result says so, because those IDs may be shared with another demo.
+- **CSV written once.** With CSV output on, the file was written and logged twice per build.
+
+### Not changed
+- **Accounts aren't linked into the SDM** (no Account data object or relationship). CLAUDE.md described this step, but `/build-demo` had moved it out and Web UI builds never had it. CLAUDE.md now says so. Building it needs the org's Account stream to carry `Demo_External_ID__c`, which can't be added over the API.
+
+### Added
+- `tests/test_live_findings.py` (19 tests): `python3 -m unittest tests.test_live_findings -v`.
+- `crm_upserter.demo_external_id()` and `crm_upserter.delete_records_by_id()`.
+
+> Tested 2026-11-16 in a sandbox with mocked HTTP, not against a live org: the unit tests, and data generated with and without the plan (without: no signal check; with: "Signal check passed … South"). The stream delete and Account delete calls have not run against an org.
+
+---
+
 ## 2026-11-16 — Safety fixes under the hood (v2.17.3)
 
 Nothing changes on screen: same pages, same steps, same buttons.
