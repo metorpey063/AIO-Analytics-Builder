@@ -4,7 +4,7 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
-## 2026-11-16 — Safety fixes under the hood (v2.17.2)
+## 2026-11-16 — Safety fixes under the hood (v2.17.3)
 
 Nothing changes on screen: same pages, same steps, same buttons.
 
@@ -26,6 +26,15 @@ Nothing changes on screen: same pages, same steps, same buttons.
 - `web-ui/progress.py` (replayable progress channel) and `tests/test_web_safety.py` (34 tests; no org or network needed): `python3 -m unittest tests.test_web_safety -v`.
 
 > Tested 2026-11-16 in a sandbox, not against a live org: the unit tests, plus a running server checked page by page (all pages and static files 200; foreign Host, cross-site Origin and `..` refused). The ingest and CRM changes were not run against Data Cloud.
+
+---
+
+## 2026-11-16 — Home page: In the Works, Transfer Assets in the UI, Rev Intel prerequisites (v2.17.2)
+
+### Changed
+- **Home page, Tools & Skills**: the Transfer Assets card now opens its Web UI page (it was marked CLI only). The Validate Pulse card is gone; the `/validate-pulse` skill still works in Claude Code. Update Rev Intel Data is labelled **(Advanced)**.
+- **Home page, In the Works**: a new section with placeholder cards for Data Apps for Tableau Next, Data Apps for Tableau Cloud and Deploy Service Intelligence. They don't link anywhere yet.
+- **Update Rev Intel Data page**: a Prerequisites box at the top. The org needs Revenue Intelligence installed and running (Revenue Insights, Einstein Account Management and the Customer Insights app EAM reads from, with the recipes run at least once), Collaborative Forecasting with a role-based forecast type, and Enterprise Territory Management with a territory model. It points to Save & inspect org for the checks.
 
 ---
 

@@ -9,6 +9,17 @@
     <p class="subtitle">Tailor a demo org's Revenue Intelligence data (Revenue Insights + Einstein Account Management) to one customer and use case. Answer the questions below, inspect the org, then run the steps.</p>
 </div>
 
+<!-- Prerequisites (what the engine expects to find in the org; Inspect checks most of these) -->
+<div class="card story-section" style="padding:16px; margin-bottom:16px">
+    <h3>Prerequisites</h3>
+    <p class="form-hint">This updates an existing Revenue Intelligence setup. It doesn't install or configure the apps. Before you start, the org needs:</p>
+    <ul class="form-hint" style="margin:8px 0 0 18px; line-height:1.6">
+        <li><strong>Revenue Intelligence installed and running</strong>: the Revenue Insights and Einstein Account Management apps, plus the Customer Insights app that EAM reads from, with Data Sync and the recipes having run at least once so the dashboards show data.</li>
+        <li><strong>Collaborative Forecasting</strong> on, with an active role-based forecast type. Revenue Insights doesn't read territory forecast types.</li>
+        <li><strong>Enterprise Territory Management</strong> with a territory model. The engine adds territories to it but doesn't create the model.</li>    </ul>
+    <p class="form-hint" style="margin-top:8px"><strong>Save & inspect org</strong> (step 2) is read-only. It checks the apps, the refresh chain, forecast types, territory models and the team, and warns about common problems: duplicate app installs, EAM record-type filters, scheduled demo-refresh Apex jobs, and duplicate Standard Price Books.</p>
+</div>
+
 <!-- 1. Customer & use case -->
 <div class="card story-section" style="padding:16px; margin-bottom:16px">
     <h3><span class="step-num">1</span> Customer & use case</h3>
