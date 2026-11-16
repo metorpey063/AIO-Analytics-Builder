@@ -393,7 +393,8 @@ def _delete_remote_assets(cp):
     import aio_http as req
     results = []
     build_type = cp.get("build_type", "")
-    has_pulse = build_type == "pulse" or cp.get("pulse_def_ids") or cp.get("pulse_project_id")
+    has_pulse = (build_type == "pulse" or cp.get("pulse_def_ids") or cp.get("pulse_project_id")
+                 or cp.get("pulse_group_id"))
     has_next = build_type == "next" or any(cp.get(k) for k in (
         "all_dash_apis", "all_viz_apis", "all_sdm_apis", "all_ws_apis", "all_stream_names"))
 
@@ -417,6 +418,15 @@ def _delete_remote_assets(cp):
                     results.append(f"Project {cp.get('pulse_project_name', '')}: deleted")
                 except Exception as e:
                     results.append(f"Project delete failed: {e}")
+
+            # The group the build created for the metric subscriptions ("{Company} | {timestamp}").
+            # By the ID in the checkpoint only: never by name, which could match someone else's group.
+            if cp.get("pulse_group_id"):
+                r = req.delete(f"{base}/api/{server.version or '3.24'}/sites/{site_id}/groups/{cp['pulse_group_id']}",
+                               headers={"x-tableau-auth": auth_token}, timeout=60)
+                gone = r.ok or r.status_code == 404
+                results.append(f"Group {cp.get('pulse_group_name', cp['pulse_group_id'])}: "
+                               f"{'deleted' if gone else r.status_code}")
 
             server.auth.sign_out()
         except Exception as e:
