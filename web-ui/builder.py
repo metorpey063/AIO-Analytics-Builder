@@ -2177,22 +2177,36 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         csv_buf = io.StringIO()
         df_ingest.to_csv(csv_buf, index=False)
         csv_bytes = csv_buf.getvalue().encode("utf-8")
-        req.put(f"https://{dc_domain}/api/v1/ingest/jobs/{job_id}/batches",
-                headers={"Authorization": f"Bearer {dc_token}", "Content-Type": "text/csv"},
-                data=csv_bytes)
-        req.patch(f"https://{dc_domain}/api/v1/ingest/jobs/{job_id}",
-                  headers=dch, json={"state": "UploadComplete"})
+        r_batch = req.put(f"https://{dc_domain}/api/v1/ingest/jobs/{job_id}/batches",
+                          headers={"Authorization": f"Bearer {dc_token}", "Content-Type": "text/csv"},
+                          data=csv_bytes)
+        if not r_batch.ok:
+            raise RuntimeError(f"Ingest upload failed: {r_batch.status_code} {r_batch.text[:300]}")
+        r_close = req.patch(f"https://{dc_domain}/api/v1/ingest/jobs/{job_id}",
+                            headers=dch, json={"state": "UploadComplete"})
+        if not r_close.ok:
+            raise RuntimeError(f"Ingest job could not be closed: {r_close.status_code} {r_close.text[:300]}")
 
         progress(q, "ingest", "Waiting for ingest to complete...", 30)
+        state = ""
         for attempt in range(30):
             time.sleep(10)
             r_poll = req.get(f"https://{dc_domain}/api/v1/ingest/jobs/{job_id}", headers=dch)
+            if not r_poll.ok:
+                # A transient error on the status check isn't a failed job; keep polling
+                progress(q, "ingest", f"Status check returned {r_poll.status_code}, retrying... ({(attempt+1)*10}s)", 30)
+                continue
             state = r_poll.json().get("state", "")
             if state == "JobComplete":
                 break
             elif state == "Failed":
                 raise RuntimeError(f"Ingest failed: {r_poll.json()}")
             progress(q, "ingest", f"Ingesting... {state} ({(attempt+1)*10}s)", 30)
+        else:
+            # Same as before: a slow ingest doesn't stop the build (the rows land when the job
+            # finishes). It is now said out loud instead of passing silently.
+            progress(q, "warn", f"Ingest still running after 5 min (last state: {state or 'unknown'}) — "
+                                "continuing; data appears once the job completes", -1)
 
         cp["ingest_done"] = True
         cp["ingest_job_id"] = job_id
@@ -2208,12 +2222,11 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
             ensure_external_id_field(sf_token, sf_instance, "Account", "Demo_External_ID__c")
 
-            entities = df[["Entity ID"]].drop_duplicates()
             dims = story_config.get("dimensions", [])
             records = []
-            for _, row_data in entities.iterrows():
-                eid = row_data["Entity ID"]
-                sample = df[df["Entity ID"] == eid].iloc[0]
+            # First row per entity, in one pass (was a full-frame filter per entity)
+            for _, sample in df.drop_duplicates(subset="Entity ID").iterrows():
+                eid = sample["Entity ID"]
                 rec = {
                     "Name": f"{company} — {eid}",
                     "Demo_External_ID__c": eid,
@@ -2228,12 +2241,11 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
             result = upsert_crm_records(sf_token, sf_instance, "Account", "Demo_External_ID__c", records)
             cp["crm_account_ids"] = result
+            cp["crm_done"] = True   # only on success, so a resumed build retries a failed upsert
+            _save_cp(cp, slug, demo_dir)
             progress(q, "crm", f"Created {len(records)} Account records", -1)
         except Exception as e:
-            progress(q, "warn", f"CRM upsert failed: {e}", -1)
-
-        cp["crm_done"] = True
-        _save_cp(cp, slug, demo_dir)
+            progress(q, "warn", f"CRM upsert failed (the build continues; it is retried on resume): {e}", -1)
 
     # --- Phase 4: Workspace + SDM + DO ---
     if not cp.get("sdm_done"):

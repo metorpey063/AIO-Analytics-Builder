@@ -13,8 +13,11 @@ The build flow picks the connection at output-selection time. If the user
 selects a non-active connection, the UI prompts re-authentication.
 """
 
+import contextlib
 import json
 import os
+import tempfile
+import threading
 import requests
 import tableauserverclient as TSC
 
@@ -100,9 +103,65 @@ def load_full_config() -> dict:
     return raw
 
 
+_config_thread_lock = threading.RLock()
+_config_lock_depth = 0     # only touched while holding _config_thread_lock
+
+
+@contextlib.contextmanager
+def config_lock():
+    """Hold this around any load -> change -> save of config.json.
+
+    Build threads, Web UI requests and the CLI/subprocess tools all rewrite the file (every
+    token refresh does), and Salesforce rotates refresh tokens: a lost write there means a
+    forced re-login. The thread lock covers this process; the flock on config.json.lock
+    covers the others. Re-entrant within a thread.
+    """
+    global _config_lock_depth
+    with _config_thread_lock:
+        fh = None
+        if _config_lock_depth == 0:
+            # Outermost entry only: a second flock from the same process (on a new file handle)
+            # would wait on the first forever
+            try:
+                import fcntl
+                fh = open(CONFIG_FILE + ".lock", "a")
+                fcntl.flock(fh, fcntl.LOCK_EX)
+            except (ImportError, OSError):
+                fh = None   # no flock here (Windows, read-only dir): the thread lock still applies
+        _config_lock_depth += 1
+        try:
+            yield
+        finally:
+            _config_lock_depth -= 1
+            if fh:
+                fh.close()   # closing releases the flock
+
+
 def save_full_config(full_config: dict):
-    with open(CONFIG_FILE, "w") as f:
-        json.dump(full_config, f, indent=2)
+    """Write config.json atomically and readable only by the user (it holds org secrets).
+
+    The new content goes to a temp file in the same folder, then replaces the old file in one
+    step, so a crash mid-write can't leave a truncated config."""
+    folder = os.path.dirname(os.path.abspath(CONFIG_FILE))
+    with config_lock():
+        fd, tmp = tempfile.mkstemp(prefix=".config.json.", suffix=".tmp", dir=folder)
+        try:
+            with os.fdopen(fd, "w") as f:   # mkstemp creates the file 0600
+                json.dump(full_config, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, CONFIG_FILE)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp)
+            raise
+
+
+def secure_config_file():
+    """Tighten an existing config.json that was written with default permissions."""
+    with contextlib.suppress(OSError):
+        if os.path.exists(CONFIG_FILE) and os.stat(CONFIG_FILE).st_mode & 0o077:
+            os.chmod(CONFIG_FILE, 0o600)
 
 
 def _resolve_key(full: dict, profile_key: str = None, connection_type: str = None) -> str | None:
@@ -402,25 +461,20 @@ def get_sf_token(config=None, profile_key=None, allow_browser=True):
     body = r.json()
 
     new_refresh = body.get("refresh_token")
-    full = load_full_config()
-    key = profile_key or _resolve_key(full, connection_type="salesforce")
-    if key and key in full.get("profiles", {}):
-        changed = False
-        if new_refresh and new_refresh != sf["refresh_token"]:
-            full["profiles"][key]["salesforce"]["refresh_token"] = new_refresh
-            sf["refresh_token"] = new_refresh
-            changed = True
-        if pkce_mode and sf.get("pkce_refresh_mode") != pkce_mode:
-            full["profiles"][key]["salesforce"]["pkce_refresh_mode"] = pkce_mode
-            changed = True
-        import time as _time
-        full["profiles"][key]["_token_cache"] = {
-            "access_token": body["access_token"],
-            "instance_url": body["instance_url"],
-            "expires_at": _time.time() + 7200,
-        }
-        changed = True
-        if changed:
+    with config_lock():
+        full = load_full_config()
+        key = profile_key or _resolve_key(full, connection_type="salesforce")
+        if key and key in full.get("profiles", {}):
+            if new_refresh and new_refresh != sf["refresh_token"]:
+                full["profiles"][key]["salesforce"]["refresh_token"] = new_refresh
+                sf["refresh_token"] = new_refresh
+            if pkce_mode and sf.get("pkce_refresh_mode") != pkce_mode:
+                full["profiles"][key]["salesforce"]["pkce_refresh_mode"] = pkce_mode
+            full["profiles"][key]["_token_cache"] = {
+                "access_token": body["access_token"],
+                "instance_url": body["instance_url"],
+                "expires_at": _time.time() + 7200,
+            }
             save_full_config(full)
 
     return body["access_token"], body["instance_url"]
