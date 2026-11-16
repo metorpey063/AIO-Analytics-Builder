@@ -36,7 +36,7 @@ import zipfile
 from datetime import date, datetime, timedelta
 
 import pandas as pd
-import requests
+import aio_http as requests
 
 ROOT = os.path.dirname(os.path.abspath(__file__))  # repo root, so demos/ resolves from any cwd
 

@@ -102,6 +102,26 @@ def _demo_dir(slug) -> Path:
     return d
 
 
+_commit_count_cache = None
+
+
+def _commit_count():
+    """Build number shown in the footer. Read from git once: it only changes with an update,
+    and an update restarts the server. (It used to run `git` on every page load.)"""
+    global _commit_count_cache
+    if _commit_count_cache is None:
+        try:
+            import subprocess
+            git_env = {**os.environ, "PATH": os.environ.get("PATH", "") + ":/opt/homebrew/bin:/usr/local/bin:/usr/bin"}
+            _commit_count_cache = subprocess.check_output(
+                ["git", "rev-list", "--count", "HEAD"],
+                cwd=str(PROJECT_ROOT), stderr=subprocess.DEVNULL, env=git_env,
+            ).decode().strip()
+        except Exception:
+            _commit_count_cache = "—"
+    return _commit_count_cache
+
+
 @app.context_processor
 def inject_connection_status():
     """Make has_tableau / has_salesforce / version available in every template."""
@@ -110,16 +130,7 @@ def inject_connection_status():
     version_path = PROJECT_ROOT / "VERSION"
     if version_path.exists():
         version = version_path.read_text().strip()
-    commit_count = ""
-    try:
-        import subprocess
-        git_env = {**os.environ, "PATH": os.environ.get("PATH", "") + ":/opt/homebrew/bin:/usr/local/bin:/usr/bin"}
-        commit_count = subprocess.check_output(
-            ["git", "rev-list", "--count", "HEAD"],
-            cwd=str(PROJECT_ROOT), stderr=subprocess.DEVNULL, env=git_env,
-        ).decode().strip()
-    except Exception:
-        commit_count = "—"
+    commit_count = _commit_count()
     return {
         "has_tableau": bool(config.get("tableau", {}).get("pat_secret")),
         "has_salesforce": bool(config.get("salesforce", {}).get("refresh_token")),
@@ -379,7 +390,7 @@ def _delete_remote_assets(cp):
     vizzes, SDMs and workspaces; data streams this build created (with their DLOs); and CRM
     Accounts whose external IDs are scoped to this demo.
     """
-    import requests as req
+    import aio_http as req
     results = []
     build_type = cp.get("build_type", "")
     has_pulse = build_type == "pulse" or cp.get("pulse_def_ids") or cp.get("pulse_project_id")
@@ -591,7 +602,7 @@ def test_tableau():
     """Test Tableau Cloud connection and return live site details."""
     try:
         from connections import get_tableau_token, tableau_headers, load_config
-        import requests as req
+        import aio_http as req
         profile_key = (request.get_json(silent=True) or {}).get("profile_key")
         config = load_config(profile_key)
         tc = config["tableau"]
@@ -651,7 +662,7 @@ def test_salesforce():
     """Test Salesforce + Data Cloud connections and return live org details."""
     try:
         from connections import get_sf_token, get_dc_token, sf_headers as sfh, load_config
-        import requests as req
+        import aio_http as req
         profile_key = (request.get_json(silent=True) or {}).get("profile_key")
         config = load_config(profile_key)
         sf_token, sf_instance = get_sf_token(config)

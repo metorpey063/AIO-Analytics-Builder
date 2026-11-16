@@ -240,7 +240,7 @@ def publish_and_run_flow(
     Returns:
         dict with 'flow_id', 'job_id', 'success', 'error'
     """
-    import requests
+    import aio_http as requests
     import time
     import tableauserverclient as TSC
     import xml.etree.ElementTree as ET

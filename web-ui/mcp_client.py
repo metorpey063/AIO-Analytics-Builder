@@ -10,10 +10,10 @@ import sys
 import uuid
 from pathlib import Path
 
-import requests
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+import aio_http as requests  # noqa: E402  (requests with a default timeout; lives in the project root)
 
 MCP_ENDPOINT = "https://api.salesforce.com/platform/mcp/v1/analytics/tableau-next-pilot"
 

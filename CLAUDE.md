@@ -122,6 +122,7 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
 ## Project structure
 
 - `connections.py` — all auth logic; import this everywhere, never inline credentials
+- `aio_http.py` — `requests` with a default timeout (15s connect, 10 min between bytes). In AIO modules write `import aio_http as requests` (or `as req`) instead of `import requests`; calls, exceptions and mocks work the same, and a call that passes its own `timeout=` keeps it. No shared session, cookies or retries. Tests: `python3 -m unittest tests.test_aio_http`
 - `oauth_flow.py` — Salesforce OAuth browser flow (port 8080 callback)
 - `setup.py` — setup wizard logic called by /setup
 - `web-ui/assistant.py` — the Web UI's "Ask Claude" assistant (Claude Sonnet 5.5 with a tool loop). Read-only tools: search/read AIO docs (CLAUDE.md, guides, skill files), list and read files under `demos/` (secret-looking keys redacted, credential files refused), recent job logs from the server, the connections list. It can't write, run commands, call an org or read `config.json`. Add new docs to `ROOT_DOCS`/`DOC_GLOBS` and new pages to `PAGE_HINTS`

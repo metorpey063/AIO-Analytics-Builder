@@ -18,7 +18,7 @@ import re
 import sys
 import uuid
 import time
-import requests
+import aio_http as requests
 from datetime import datetime
 
 # ── Project imports ────────────────────────────────────────────────────────────

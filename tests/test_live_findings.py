@@ -132,7 +132,7 @@ class RemoteCleanup(unittest.TestCase):
 
         for target, attr, fn in ((connections, "get_sf_token", fake_token),):
             p = mock.patch.object(target, attr, side_effect=fn); p.start(); self.addCleanup(p.stop)
-        p = mock.patch("requests.delete", side_effect=fake_delete); p.start(); self.addCleanup(p.stop)
+        p = mock.patch("aio_http.delete", side_effect=fake_delete); p.start(); self.addCleanup(p.stop)
 
     CP = {"build_type": "next", "_profile_key": "demo_org", "all_dash_apis": ["dash"], "all_viz_apis": ["viz"],
           "all_sdm_apis": ["sdm"], "all_ws_apis": ["ws"], "all_stream_names": ["stream_A1"],

@@ -9,7 +9,7 @@ import json
 import uuid
 from typing import Any, Dict, List, Optional
 
-import requests
+import aio_http as requests
 
 
 # Chart type mapping from our template system to CRMA visualizationType.

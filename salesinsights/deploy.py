@@ -20,10 +20,9 @@ import re
 import sys
 import time
 
-import requests
-
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+import aio_http as requests  # noqa: E402  (requests with a default timeout; lives in the project root)
 from connections import dc_headers, get_dc_token, get_sf_token, load_config, sf_headers  # noqa: E402
 
 from salesinsights import generate  # noqa: E402

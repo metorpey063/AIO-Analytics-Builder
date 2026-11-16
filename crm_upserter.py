@@ -24,7 +24,7 @@ Usage in a demo script:
 """
 
 import time
-import requests
+import aio_http as requests
 
 API_VERSION = "v62.0"
 COMPOSITE_BATCH_SIZE = 200
