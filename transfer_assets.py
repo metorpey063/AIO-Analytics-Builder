@@ -30,7 +30,7 @@ import sys
 import time
 
 import pandas as pd
-import requests
+import aio_http as requests
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)

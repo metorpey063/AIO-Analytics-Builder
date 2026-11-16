@@ -405,7 +405,7 @@ def _claude_text(cfg, system, user_msg, max_tokens=4096):
     """One Claude call over whichever credentials AIO has (gateway, OAuth token or API key). Returns the text."""
     from app import CHAT_MODEL
     if cfg["mode"] == "bedrock_gateway":
-        import requests as req
+        import aio_http as req
         url = f"{cfg['base_url']}/model/{CHAT_MODEL}/invoke"
         headers = {"x-api-key": cfg["token"], "Content-Type": "application/json"}
         body = {
@@ -422,7 +422,7 @@ def _claude_text(cfg, system, user_msg, max_tokens=4096):
             if block.get("type") == "text":
                 text += block["text"]
     elif cfg.get("api_key", "").startswith("sk-ant-oat"):
-        import requests as req
+        import aio_http as req
         url = "https://api.anthropic.com/v1/messages"
         headers = {
             "Authorization": f"Bearer {cfg['api_key']}",
@@ -1503,7 +1503,7 @@ def csv_build(build_id, df, slug, demo_dir, q):
 # ---------------------------------------------------------------------------
 
 def pulse_build(build_id, df, slug, company, config, metric_config, story_config, demo_dir, q, cp, build_config=None):
-    import requests as req
+    import aio_http as req
     from connections import get_tableau_token, tableau_headers, tableau_pulse_headers
 
     csv_path = csv_build(build_id, df, slug, demo_dir, q)
@@ -1939,7 +1939,7 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
 
 def _validate_next_build(config, cp, metric_config, q):
     """Post-build validation: query SDM, check metrics and vizzes have data."""
-    import requests as req
+    import aio_http as req
     from connections import get_sf_token, sf_headers
 
     checks_passed = 0
@@ -2157,7 +2157,7 @@ def _validate_next_build(config, cp, metric_config, q):
 
 def _cleanup_assets(asset_list, api_base, headers, asset_type, q):
     """Delete previously created assets before recreating. Skips 404s silently."""
-    import requests as req
+    import aio_http as req
     for name in list(asset_list):
         try:
             r = req.delete(f"{api_base}/{name}", headers=headers)
@@ -2171,7 +2171,7 @@ def _cleanup_assets(asset_list, api_base, headers, asset_type, q):
 
 
 def next_build(build_id, df, slug, company, config, metric_config, story_config, demo_dir, q, cp, build_config=None):
-    import requests as req
+    import aio_http as req
     from connections import get_sf_token, get_dc_token, sf_headers, dc_headers
 
     csv_path = csv_build(build_id, df, slug, demo_dir, q)

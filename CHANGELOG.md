@@ -4,6 +4,26 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-16 — API calls can no longer hang forever (v2.17.9)
+
+Nothing changes on screen, and builds take the same time.
+
+### Changed
+- **Every API call on the build path now has a timeout.** Most calls had none, so if Salesforce or Data Cloud ever stopped answering mid-request, the build would sit there until the server was restarted. Such a call now fails after 10 minutes with a normal error. The limit is long on purpose (it is Salesforce's own ceiling for one request), so no call that works today is cut short. Calls that already set a timeout keep theirs.
+- **The home page no longer runs `git` on every page load** to show the build number; it reads it once at startup.
+
+### Added
+- `aio_http.py` (drop-in for `requests`, used by the 13 build-path modules) and `tests/test_aio_http.py` (9 tests).
+
+### Looked at and left alone
+- **Reusing connections between calls.** It would save a few seconds per build, but a reused connection that the server has closed can fail a request that would have worked on a fresh one.
+- **The fixed waits in a Tableau Next build.** They add up to about 35 seconds (5s before the stream, 30s after it goes active), both documented as needed for Data Cloud to catch up. The build's time is the ingest job itself.
+- **Row-by-row Hyper writing** (a second or two on a Pulse build) and **pinning dependency versions** (needs the package list from a known-good install).
+
+> Tested 2026-11-16 in a sandbox, not against a live org: 109 unit tests, every converted module imported (also from outside the project folder), and a local server that stalls mid-request to confirm the call ends with the usual `Timeout` error.
+
+---
+
 ## 2026-11-16 — Customer demo files removed from the repo (v2.17.8)
 
 ### Removed

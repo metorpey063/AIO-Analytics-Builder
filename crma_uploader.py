@@ -9,7 +9,7 @@ import json
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-import requests
+import aio_http as requests
 
 
 CHUNK_SIZE = 9 * 1024 * 1024  # 9 MB per part (before base64 encoding)

@@ -18,7 +18,7 @@ import json
 import os
 import tempfile
 import threading
-import requests
+import aio_http as requests
 import tableauserverclient as TSC
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")

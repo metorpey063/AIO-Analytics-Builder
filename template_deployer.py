@@ -13,7 +13,7 @@ import copy
 import json
 import os
 import re
-import requests
+import aio_http as requests
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
