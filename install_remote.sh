@@ -125,11 +125,24 @@ if [ ! -f "config.json" ] && [ -f "config.json.template" ]; then
     log "Created config.json"
 fi
 
-# Copy the .app launcher to Desktop (if it exists in the repo)
-if [ -d "$INSTALL_DIR/AIO Builder.app" ]; then
-    cp -R "$INSTALL_DIR/AIO Builder.app" "$HOME/Desktop/AIO Builder.app" 2>/dev/null
-    xattr -cr "$HOME/Desktop/AIO Builder.app" 2>/dev/null
-    log "Added 'AIO Builder' app to Desktop"
+# Put a link to the .app launcher on the Desktop. A link, not a copy: the launcher finds the install
+# from its own folder (three levels up), so a copy on the Desktop looked in ~/Desktop and reported
+# "not installed", and it never got launcher fixes or the icon. Opening the link runs the real app.
+APP="$INSTALL_DIR/AIO Builder.app"
+DESKTOP_APP="$HOME/Desktop/AIO Builder.app"
+if [ -d "$APP" ]; then
+    xattr -cr "$APP" 2>/dev/null
+    if [ -L "$DESKTOP_APP" ]; then
+        rm -f "$DESKTOP_APP"
+    elif [ -d "$DESKTOP_APP" ] && [ -f "$DESKTOP_APP/Contents/MacOS/launch" ]; then
+        # A copy from an earlier install: move it to the Trash (recoverable) rather than delete it
+        mv "$DESKTOP_APP" "$HOME/.Trash/AIO Builder (old copy $(date +%Y%m%d-%H%M%S)).app" 2>/dev/null
+    fi
+    if [ ! -e "$DESKTOP_APP" ]; then
+        ln -s "$APP" "$DESKTOP_APP" && log "Added 'AIO Builder' to the Desktop (a link to $APP)"
+    else
+        log "Left the existing '$DESKTOP_APP' alone; open AIO Builder from $INSTALL_DIR"
+    fi
 fi
 
 # Also create the .command fallback

@@ -4,6 +4,15 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-16 — Installer puts a working AIO Builder on the Desktop (v2.17.5)
+
+### Fixed
+- **Desktop AIO Builder from the installer**: `install_remote.sh` copied the app to the Desktop. The launcher finds its install from its own folder, so the copy looked in `~/Desktop`, reported "AIO is not installed", and never got launcher fixes or the icon. The installer now puts a link to the real app on the Desktop instead. Opening it runs the app inside the install folder. A copy left by an earlier install is moved to the Trash and replaced with the link; anything else with that name is left alone.
+
+> The link behavior was tested on macOS 27.2.1 (opening a linked app runs the real bundle from its own folder). The installer step itself was checked by reading and `bash -n`, not by a fresh install.
+
+---
+
 ## 2026-11-16 — AIO Builder launches on macOS 27, and has its own icon (v2.17.4)
 
 ### Fixed
