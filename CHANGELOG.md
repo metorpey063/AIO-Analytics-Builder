@@ -4,6 +4,31 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-16 — Safety fixes under the hood (v2.17.2)
+
+Nothing changes on screen: same pages, same steps, same buttons.
+
+### Fixed
+- **Deleting a demo**: demo folder names from the URL are now checked, so a crafted name (`..`) can no longer resolve to the project folder itself. The same check covers the other demo routes (open folder, build log, walkthrough, Close the Loop).
+- **Update**: no longer runs `git stash` / `git stash pop`. `config.json` is gitignored, so the stash saved nothing and the pop applied whatever older stash was lying around.
+- **Tableau Next ingest**: a failed CSV upload or a job that couldn't be closed now stops the build at that step with the API's message, instead of carrying on with no data. A slow ingest still continues as before, with a warning in the log. A failed CRM Account upsert is retried when the build is resumed.
+- **Two builds for the same company**: clicking Build while that build is running joins it (and replays its progress) instead of starting a second build over the same folder. Progress now survives a page reload and a second tab.
+- **config.json**: written atomically (a crash mid-write can't truncate it) and under a lock shared by the Web UI, build threads and the CLI tools, so a rotated Salesforce refresh token can't be overwritten by a stale copy. Signing in again no longer drops changes saved during the login.
+- **Background tools** (Close the Loop, Sales Insights, Transfer Assets, Update Rev Intel) run with the server's own Python, so they always see the packages installed in `.venv`.
+
+### Security
+- The Web UI only answers requests addressed to `localhost` / `127.0.0.1`, and API calls must come from its own pages. Other websites open in the browser can no longer send it requests.
+- The Werkzeug debugger is off unless `AIO_DEBUG=1`.
+- `config.json` is readable only by you (mode 600); existing installs are tightened at startup.
+- Company names, column names and file names are escaped on the Build page.
+
+### Added
+- `web-ui/progress.py` (replayable progress channel) and `tests/test_web_safety.py` (34 tests; no org or network needed): `python3 -m unittest tests.test_web_safety -v`.
+
+> Tested 2026-11-16 in a sandbox, not against a live org: the unit tests, plus a running server checked page by page (all pages and static files 200; foreign Host, cross-site Origin and `..` refused). The ingest and CRM changes were not run against Data Cloud.
+
+---
+
 ## 2026-11-13 — Restart that comes back, and doesn't stop builds (v2.17.1)
 
 ### Fixed

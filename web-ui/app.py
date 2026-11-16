@@ -5,23 +5,101 @@ Local web server providing a visual, guided experience for building demo assets.
 
 import json
 import os
+import re
 import sys
-import queue
 import subprocess
 import threading
 import time
 import webbrowser
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, Response
+from urllib.parse import urlparse
+from flask import Flask, render_template, request, jsonify, Response, abort
 
 # Add parent directory so we can import AIO modules
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from progress import ProgressChannel, prune as _prune_channels
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = PROJECT_ROOT / "config.json"
+DEMOS_ROOT = PROJECT_ROOT / "demos"
+
+
+# ---------------------------------------------------------------------------
+# Request guards
+# ---------------------------------------------------------------------------
+# The server holds org credentials and can write to orgs, so only the local browser may talk
+# to it. Two checks:
+#   Host   — must be a loopback name. Stops DNS rebinding (a remote page whose hostname is
+#            re-pointed at 127.0.0.1 would otherwise be same-origin with this server).
+#   Origin — API calls must come from this app's own pages. Stops any other site open in the
+#            browser from firing requests at localhost (CSRF).
+# Non-browser clients (curl, tests, the launcher) send neither Origin nor Sec-Fetch-Site and
+# are allowed: they already run as the local user.
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "[::1]"}
+
+
+def _hostname(netloc: str) -> str:
+    try:
+        return (urlparse("//" + netloc).hostname or "").lower()
+    except ValueError:
+        return ""
+
+
+@app.before_request
+def _guard_request():
+    if _hostname(request.host) not in LOCAL_HOSTS:
+        abort(403, "AIO only answers on localhost.")
+    is_api = request.path.startswith("/api/")
+    if is_api or request.method not in ("GET", "HEAD", "OPTIONS"):
+        origin = request.headers.get("Origin")
+        if origin is not None:
+            # Must be this server's own origin; another local port is still another site
+            if urlparse(origin).netloc.lower() != request.host.lower():
+                abort(403, "Cross-site request blocked.")
+        elif request.headers.get("Sec-Fetch-Site", "same-origin") not in ("same-origin", "none"):
+            abort(403, "Cross-site request blocked.")
+    # Demo folder names arrive in URLs; never let one walk out of demos/.
+    # (Flask's own /static/<path:filename> route takes sub-paths and is already confined.)
+    if request.endpoint == "static":
+        return
+    for arg in ("slug", "filename"):
+        value = (request.view_args or {}).get(arg)
+        if value is not None and not _safe_name(value):
+            abort(404)
+
+
+def _safe_name(name) -> bool:
+    """A single visible path component: no separators, no '.' or '..', no control characters."""
+    return (isinstance(name, str) and 0 < len(name) <= 150 and not name.startswith(".")
+            and not any(c in name for c in "/\\") and all(ord(c) >= 32 for c in name))
+
+
+def _config_txn(view):
+    """Run a quick handler that loads, changes and saves config.json under the config lock,
+    so a token refresh on a build thread can't be overwritten by a stale copy (or the reverse).
+    Only for handlers that don't wait on the network or the browser."""
+    import functools
+
+    @functools.wraps(view)
+    def wrapped(*args, **kwargs):
+        from connections import config_lock
+        with config_lock():
+            return view(*args, **kwargs)
+    return wrapped
+
+
+def _demo_dir(slug) -> Path:
+    """demos/<slug>, or ValueError if the name would resolve anywhere else."""
+    if not _safe_name(slug):
+        raise ValueError("Invalid demo name")
+    d = DEMOS_ROOT / slug
+    if d.resolve().parent != DEMOS_ROOT.resolve():
+        raise ValueError("Invalid demo name")
+    return d
 
 
 @app.context_processor
@@ -52,7 +130,7 @@ def inject_connection_status():
 # ---------------------------------------------------------------------------
 # SSE progress streaming
 # ---------------------------------------------------------------------------
-progress_queues: dict[str, queue.Queue] = {}
+progress_queues: dict[str, ProgressChannel] = {}
 
 
 JOB_LOG = {}   # build id -> recent progress lines, kept for the assistant (the SSE queue is consumed as it streams)
@@ -249,8 +327,11 @@ def retry_concierge(slug):
 def delete_demo(slug):
     """Delete a demo folder and optionally clean up remote assets."""
     import shutil
-    demos_dir = PROJECT_ROOT / "demos" / slug
-    if not demos_dir.exists():
+    try:
+        demos_dir = _demo_dir(slug)
+    except ValueError:
+        return jsonify({"ok": False, "error": "Demo not found"}), 404
+    if not demos_dir.is_dir():
         return jsonify({"ok": False, "error": "Demo not found"})
 
     data = request.get_json(silent=True) or {}
@@ -628,6 +709,13 @@ def _start_job(label, target):
     return t
 
 
+def _prune_jobs(jobs: dict, keep: int = 30):
+    """Forget the oldest finished jobs so the job tables don't grow for the life of the server."""
+    done = [k for k, j in jobs.items() if j.get("state") != "running"]
+    for k in done[:max(0, len(done) - keep)]:
+        jobs.pop(k, None)
+
+
 def _running_jobs() -> list:
     return [t.name[len(JOB_THREAD_PREFIX):] for t in threading.enumerate()
             if t.name.startswith(JOB_THREAD_PREFIX) and t.is_alive()]
@@ -686,6 +774,7 @@ def test_mcp():
 
 
 @app.route("/api/switch-profile", methods=["POST"])
+@_config_txn
 def switch_profile():
     """Switch the active connection. Supports per-type switching via conn_type."""
     try:
@@ -786,9 +875,8 @@ def update():
                                 "output": "Couldn't install the update's new dependencies, so the update wasn't "
                                           "applied: " + res["output"]})
             deps_note = res["output"] if res["installed"] else ""
-        run(["git", "stash", "push", "-m", "pre-update-stash", "--", "config.json"])
+        # config.json and the user's demos are gitignored, so the reset leaves them alone
         result = run(["git", "reset", "--hard", "origin/main"])
-        run(["git", "stash", "pop"])
         rev_after = run(["git", "rev-parse", "HEAD"]).stdout.strip()
         updated = rev_before != rev_after
         output = result.stdout.strip() or result.stderr.strip()
@@ -807,6 +895,7 @@ def update():
 
 
 @app.route("/api/setup/create-profile", methods=["POST"])
+@_config_txn
 def create_profile():
     """Create a new connection profile (or switch to existing) with the given label."""
     try:
@@ -922,11 +1011,17 @@ def oauth_mcp():
         tokens = get_refresh_token(mcp_client_id, mcp_client_secret, sf_login_url,
                                    scopes="mcp_api refresh_token")
 
-        full["profiles"][key]["salesforce"]["mcp_refresh_token"] = tokens["refresh_token"]
-        if tokens.get("code_verifier"):
-            full["profiles"][key]["salesforce"]["mcp_code_verifier"] = tokens["code_verifier"]
-        full["profiles"][key].pop("_token_cache", None)
-        save_full_config(full)
+        from connections import config_lock
+        with config_lock():
+            full = load_full_config()   # fresh: the login above can take a minute
+            if key not in full.get("profiles", {}):
+                return jsonify({"ok": False, "error": "That connection was removed during sign-in."})
+            sf_cfg = full["profiles"][key].setdefault("salesforce", {})
+            sf_cfg["mcp_refresh_token"] = tokens["refresh_token"]
+            if tokens.get("code_verifier"):
+                sf_cfg["mcp_code_verifier"] = tokens["code_verifier"]
+            full["profiles"][key].pop("_token_cache", None)
+            save_full_config(full)
 
         return jsonify({"ok": True, "instance_url": tokens.get("instance_url", "")})
     except Exception as e:
@@ -957,12 +1052,18 @@ def oauth_start():
         from oauth_flow import get_refresh_token
         tokens = get_refresh_token(client_id, client_secret, sf_login_url)
 
-        full["profiles"][key]["salesforce"]["refresh_token"] = tokens["refresh_token"]
-        if tokens.get("code_verifier"):
-            full["profiles"][key]["salesforce"]["code_verifier"] = tokens["code_verifier"]
-        full["profiles"][key]["salesforce"].pop("pkce_refresh_mode", None)
-        full["profiles"][key].pop("_token_cache", None)
-        save_full_config(full)
+        from connections import config_lock
+        with config_lock():
+            full = load_full_config()   # fresh: the login above can take a minute
+            if key not in full.get("profiles", {}):
+                return jsonify({"ok": False, "error": "That connection was removed during sign-in."})
+            sf_cfg = full["profiles"][key].setdefault("salesforce", {})
+            sf_cfg["refresh_token"] = tokens["refresh_token"]
+            if tokens.get("code_verifier"):
+                sf_cfg["code_verifier"] = tokens["code_verifier"]
+            sf_cfg.pop("pkce_refresh_mode", None)
+            full["profiles"][key].pop("_token_cache", None)
+            save_full_config(full)
 
         return jsonify({
             "ok": True,
@@ -973,6 +1074,7 @@ def oauth_start():
 
 
 @app.route("/api/save-config", methods=["POST"])
+@_config_txn
 def save_config():
     """Save config.json — updates the active profile within the full config structure."""
     try:
@@ -1060,6 +1162,8 @@ def close_loop_deploy():
 
         if not slug:
             return jsonify({"ok": False, "error": "No slug provided"})
+        if not _safe_name(slug):
+            return jsonify({"ok": False, "error": "Invalid demo name"}), 400
 
         # Save golden record to checkpoint BEFORE running build so cmd_plan reads it
         import json as _json
@@ -1070,7 +1174,7 @@ def close_loop_deploy():
             cp_path.write_text(_json.dumps(cp, indent=2, default=str))
 
         import subprocess
-        cmd = ["python3", str(PROJECT_ROOT / "close_loop.py"), "build",
+        cmd = [sys.executable, str(PROJECT_ROOT / "close_loop.py"), "build",
                "--slug", slug, "--action", action, "--trigger", trigger, "--notify", notify]
         result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=120)
 
@@ -1220,9 +1324,15 @@ def build_start():
     import re as _re
     data = request.get_json(silent=True) or {}
     company = data.get("company", "Demo")
-    build_id = _re.sub(r"[^a-z0-9]+", "_", company.lower()).strip("_")
+    build_id = _re.sub(r"[^a-z0-9]+", "_", company.lower()).strip("_") or "demo"
 
-    progress_queues[build_id] = queue.Queue()
+    existing = progress_queues.get(build_id)
+    if existing and existing.running():
+        # Already building this one (double click, or a reload mid-build): show that build's
+        # progress, replayed from the start, instead of starting a second one over the same folder
+        return jsonify({"ok": True, "build_id": build_id, "already_running": True})
+    channel = progress_queues[build_id] = ProgressChannel()
+    _prune_channels(progress_queues)
 
     demo_name = data.get("demo_name", "") or company
     build_config = {
@@ -1247,9 +1357,13 @@ def build_start():
 
     def _run():
         from builder import run_build
-        run_build(build_id, build_config, progress_queues[build_id])
+        try:
+            run_build(build_id, build_config, channel)
+        finally:
+            if not channel.finished:   # the build died without reporting; release the page
+                channel.put({"stage": "error", "message": "The build stopped unexpectedly — see the build log.", "pct": -1})
 
-    _start_job(f"build {company}", _run)
+    channel.thread = _start_job(f"build {company}", _run)
 
     return jsonify({"ok": True, "build_id": build_id})
 
@@ -1335,13 +1449,14 @@ def sales_insights_run():
     if SI_RUNNING.get(key):
         return jsonify({"ok": True, "job_id": SI_RUNNING[key], "already_running": True})
     job_id = f"si_{_uuid.uuid4().hex[:8]}"
+    _prune_jobs(SI_JOBS)
     job = SI_JOBS[job_id] = {"profile": key, "action": action, "lines": [], "state": "running", "rc": None}
     SI_RUNNING[key] = job_id
     log_dir = PROJECT_ROOT / "demos" / "sales_insights" / key
     log_dir.mkdir(parents=True, exist_ok=True)
 
     def _run():
-        cmd = ["python3", "-u", "-m", "salesinsights", action, "--profile", key]
+        cmd = [sys.executable, "-u", "-m", "salesinsights", action, "--profile", key]
         job["lines"].append("$ python3 " + " ".join(cmd[2:]))
         try:
             with open(log_dir / f"{action}.log", "a") as log:
@@ -1447,9 +1562,10 @@ def transfer_run():
     if XFER_RUNNING.get(slug):
         return jsonify({"ok": True, "job_id": XFER_RUNNING[slug], "slug": slug, "already_running": True})
     job_id = f"xf_{_uuid.uuid4().hex[:8]}"
+    _prune_jobs(XFER_JOBS)
     job = XFER_JOBS[job_id] = {"action": action, "slug": slug, "lines": [], "state": "running", "rc": None}
     XFER_RUNNING[slug] = job_id
-    cmd = ["python3", "-u", "transfer_assets.py", action, "--source", src, "--target", tgt,
+    cmd = [sys.executable, "-u", "transfer_assets.py", action, "--source", src, "--target", tgt,
            "--dashboards", ",".join(names), "--slug", slug]
     if action == "plan":
         cmd.append("--fresh")
@@ -1615,7 +1731,8 @@ def rev_intel_run():
     else:
         steps = [(REVINTEL_SAFE.get(action) or REVINTEL_WRITES.get(action)) or [action]]
     job_id = f"revintel_{_uuid.uuid4().hex[:8]}"
-    progress_queues[job_id] = queue.Queue()
+    progress_queues[job_id] = ProgressChannel()
+    _prune_channels(progress_queues)
 
     def _run():
         for i, args in enumerate(steps, 1):
@@ -1623,7 +1740,7 @@ def rev_intel_run():
             label = f"[{i}/{len(steps)}] " if len(steps) > 1 else ""
             send_progress(job_id, "start", label + "$ " + " ".join(shown))
             try:
-                p = subprocess.Popen(["python3", "-u", "-m", "revintel", str(d)] + args, cwd=str(PROJECT_ROOT),
+                p = subprocess.Popen([sys.executable, "-u", "-m", "revintel", str(d)] + args, cwd=str(PROJECT_ROOT),
                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
                 for line in p.stdout:
                     send_progress(job_id, "log", line.rstrip())
@@ -1652,7 +1769,8 @@ def rev_intel_research():
     if not (data.get("customer") or "").strip():
         return jsonify({"ok": False, "error": "Enter the customer name first."}), 400
     job_id = f"riresearch_{_uuid.uuid4().hex[:8]}"
-    progress_queues[job_id] = queue.Queue()
+    progress_queues[job_id] = ProgressChannel()
+    _prune_channels(progress_queues)
 
     def _run():
         from revintel import research
@@ -1676,21 +1794,33 @@ def rev_intel_research_result(job_id):
 @app.route("/api/build/progress/<build_id>")
 def build_progress(build_id):
     """SSE endpoint streaming build progress."""
+    # A fresh page load replays the job from the start; EventSource's own reconnect sends
+    # Last-Event-ID and resumes after the last event it saw.
+    try:
+        cursor = int(request.headers.get("Last-Event-ID", "-1")) + 1
+    except ValueError:
+        cursor = 0
+    channel = progress_queues.get(build_id)
+
     def stream():
-        q = progress_queues.get(build_id)
-        if not q:
+        nonlocal cursor
+        if not channel:
             yield f"data: {json.dumps({'stage': 'error', 'message': 'Unknown build', 'pct': -1})}\n\n"
             return
         while True:
-            try:
-                msg = q.get(timeout=30)
-                yield f"data: {json.dumps(msg)}\n\n"
-                if msg.get("stage") == "done" or msg.get("stage") == "error":
-                    break
-            except queue.Empty:
+            events, cursor = channel.read_from(cursor, timeout=30)
+            if not events:
+                if channel.finished:
+                    return
                 yield f"data: {json.dumps({'stage': 'heartbeat', 'message': '', 'pct': -1})}\n\n"
+                continue
+            for idx, msg in events:
+                yield f"id: {idx}\ndata: {json.dumps(msg)}\n\n"
+                if msg.get("stage") in ("done", "error"):
+                    return
 
-    return Response(stream(), mimetype="text/event-stream")
+    return Response(stream(), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 # ---------------------------------------------------------------------------
@@ -1799,6 +1929,7 @@ def chat_test():
 
 
 @app.route("/api/chat/use-claude-code", methods=["POST"])
+@_config_txn
 def chat_use_claude_code():
     """Drop the "use my own key" preference so Claude Code's credentials are used again."""
     from connections import load_full_config, save_full_config
@@ -1810,6 +1941,7 @@ def chat_use_claude_code():
 
 
 @app.route("/api/chat/save-key", methods=["POST"])
+@_config_txn
 def chat_save_key():
     """Save AI chat credentials to config.json (global, not per-profile)."""
     try:
@@ -1899,8 +2031,14 @@ def _load_config() -> dict:
 
 if __name__ == "__main__":
     port = int(os.environ.get("AIO_PORT", 5100))
+    try:
+        from connections import secure_config_file
+        secure_config_file()
+    except Exception:
+        pass
     print(f"\n  AIO Analytics Builder")
     print(f"  http://localhost:{port}\n")
     if not os.environ.get("WERKZEUG_RUN_MAIN") and not os.environ.get("AIO_RESTARTED"):
         webbrowser.open(f"http://localhost:{port}")
-    app.run(host="127.0.0.1", port=port, debug=True, use_reloader=False)
+    # The Werkzeug debugger is an interactive console; only for development (AIO_DEBUG=1)
+    app.run(host="127.0.0.1", port=port, debug=os.environ.get("AIO_DEBUG") == "1", use_reloader=False)

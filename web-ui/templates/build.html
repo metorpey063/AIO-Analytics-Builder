@@ -928,16 +928,18 @@ async function loadExistingDemos() {
         container.innerHTML = '';
         demos.forEach(d => {
             const cols = (d.columns || []).filter(c => !['Record ID','Date','Day_Offset','Entity ID','Unit ID'].includes(c));
-            const badge = d.build_type ? `<span class="badge badge-neutral" style="margin-left:6px">${d.build_type}</span>` : '';
+            // Company names and column names come from files and research; never insert them as HTML
+            const badge = d.build_type ? `<span class="badge badge-neutral" style="margin-left:6px">${escapeHtml(d.build_type)}</span>` : '';
             const el = document.createElement('div');
             el.className = 'demo-picker-item';
             el.innerHTML = `
                 <div class="demo-picker-info">
-                    <strong>${d.company}</strong>${badge}
-                    <div class="demo-picker-cols">${cols.slice(0, 6).join(', ')}${cols.length > 6 ? '...' : ''}</div>
+                    <strong>${escapeHtml(d.company)}</strong>${badge}
+                    <div class="demo-picker-cols">${escapeHtml(cols.slice(0, 6).join(', '))}${cols.length > 6 ? '...' : ''}</div>
                 </div>
-                <button class="btn btn-secondary btn-sm" onclick="selectExistingDemo('${d.slug}', '${d.company.replace(/'/g, "\\'")}')">Use</button>
+                <button class="btn btn-secondary btn-sm">Use</button>
             `;
+            el.querySelector('button').addEventListener('click', () => selectExistingDemo(d.slug, d.company));
             container.appendChild(el);
         });
     } catch (e) {
@@ -1089,7 +1091,7 @@ function _renderFilesInto(container) {
         const icon = doc.type === 'image' ? '🖼' : '📄';
         const size = doc.type === 'text' ? ` (${(doc.text.length / 1000).toFixed(1)}k chars)` : '';
         return `<div class="uploaded-file-chip">
-            <span>${icon} ${doc.filename}${size}</span>
+            <span>${icon} ${escapeHtml(doc.filename)}${size}</span>
             <button type="button" onclick="removeUploadedFile(${i})" title="Remove">&times;</button>
         </div>`;
     }).join('');

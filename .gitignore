@@ -29,3 +29,7 @@ venv/
 
 # Roadmap dashboard build state (owner only)
 roadmap/roadmap_dashboard_checkpoint.json
+
+# Config write lock and temp files
+config.json.lock
+.config.json.*.tmp
