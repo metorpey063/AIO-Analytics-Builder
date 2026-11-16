@@ -4,6 +4,20 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-16 — Customer demo files removed from the repo (v2.17.8)
+
+### Removed
+- **Two built demos that carried customer names** (`demos/waste_connections_route_ops/`, `demos/gocarwash_membership/`) and a stale June snapshot of the code (`analytics_builder.zip`). None of them was used by AIO. The data in them was generated, and they held no credentials.
+- After updating, the "waste_connections_route_ops" entry disappears from My Demos. It was a copy of someone else's build, not a demo in your org.
+
+### Changed
+- `.gitignore` now says why `demos/` is ignored and names the only files under it that are tracked: the dashboard templates (`demos/*_package.json`).
+- Two integration notes used the removed demo as their example; they now say `{slug}`.
+
+> The files are still in the repo's history. Removing them from history is a separate decision (it means every install has to be re-cloned).
+
+---
+
 ## 2026-11-16 — Fixes from the live tests of v2.17.3 (v2.17.7)
 
 Found while testing v2.17.3 against AIO Dev. All were already on `main`. No change to pages or steps.

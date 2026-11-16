@@ -60,7 +60,7 @@ None. No Python packages, scopes, config keys, or env vars. Using the output nee
 **Core still works:** same five checks as in `../close-loop/INTEGRATION.md` § Tests ("Core still works"). Studio touches no Python, so the risk is only in `build-demo.md` wording: confirm a CSV-only build with no add-ons asks exactly the upstream questions.
 
 **Studio works:**
-1. `/studio waste_connections_route_ops` (or any demo with a checkpoint) writes `demos/{slug}/studio_skills/{aio-story,aio-autobuilder,aio-audience}/references/demo-story.md`, `install.sh`, and `README.md`, and sets `studio_skills_generated: true` in the checkpoint.
+1. `/studio {slug}` (any demo with a checkpoint) writes `demos/{slug}/studio_skills/{aio-story,aio-autobuilder,aio-audience}/references/demo-story.md`, `install.sh`, and `README.md`, and sets `studio_skills_generated: true` in the checkpoint.
 2. If the close-loop payload exists, `demo-story.md` has a "Close the Loop" section.
 3. `/studio newco_test --new` with no folder asks the story questions and creates the folder and checkpoint.
 4. `bash sidekicks/studio/install_studio_skills.sh`: without Studio, it prints the prerequisite message and exits 1; with Studio, it installs the three skills and `/reload-skills` lists them.
