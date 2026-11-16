@@ -4,6 +4,19 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-16 — AIO Builder launches on macOS 27, and has its own icon (v2.17.4)
+
+### Fixed
+- **AIO Builder on macOS 27**: double-clicking it failed with `bash: install_sf_cli.sh: Operation not permitted` and `arch: realpath failed on .venv/bin/python`, then rebuilt `.venv` and still didn't start. The app opened Terminal with an AppleScript `do script`, and macOS 27 holds that shell to the AIO Builder app's own privacy permissions (none), so every file in the install folder was refused, even with Terminal's Desktop access on. The app now opens its script with `open -a Terminal`, which runs under Terminal's permissions. No privacy settings to change.
+- **Already on macOS 27 and it won't start?** The broken launcher can't update itself. Run it once from Terminal, from your AIO folder: `bash "AIO Builder.app/Contents/MacOS/launch"`. That pulls this fix; double-clicking works after that.
+
+### Changed
+- **AIO Builder icon**: the app has its own icon (blue tile, rising bars, "AIO") instead of the generic one, so it's easy to find in the AIO folder. `Info.plist` already pointed at `AppIcon`; `Contents/Resources/AppIcon.icns` was missing.
+
+> Tested 2026-11-16 on macOS 27.2.1: opening the app the way Finder does failed before the change (no log entry, no server) and started the Web UI in 6 seconds after it.
+
+---
+
 ## 2026-11-16 — Safety fixes under the hood (v2.17.3)
 
 Nothing changes on screen: same pages, same steps, same buttons.
