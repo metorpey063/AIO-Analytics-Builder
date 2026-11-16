@@ -208,5 +208,182 @@ class CsvWrittenOnce(unittest.TestCase):
         self.assertEqual(Path(first).read_text().split(), ["a", "3"])
 
 
+def _story(**plan):
+    """A story shaped like the one from the live test (Region values are states, not 'West')."""
+    return {
+        "story_summary": "Approval rate is falling in the West region (Oregon/Northern California).",
+        "signal_description": "Loan Approval Rate declines in the West, worst in Auto loans.",
+        "dimensions": ["Region", "Product Type", "Segment"],
+        "dimension_values": {"Region": ["Washington State", "Oregon", "Northern California", "Alaska"],
+                             "Product Type": ["Auto", "Mortgage", "Personal"],
+                             "Segment": ["Prime", "Near Prime"]},
+        "metric_config": [{"label": "Loan Approval Rate", "is_primary": True},
+                          {"label": "Days to Decision"}, {"label": "Member NPS"}],
+        "signal_plan": {"culprit": {"dimension": "Region", "value": "West"},
+                        "culprit_detail": {"dimension": "Product Type", "value": "Auto"},
+                        "counter_trend_metric": "Member NPS", "onset_months_ago": 6, **plan},
+    }
+
+
+GOOD_PLAN = {"culprit": {"dimension": "Region", "value": "Oregon"},
+             "culprit_detail": {"dimension": "Product Type", "value": "Auto"},
+             "counter_trend_metric": "Member NPS", "onset_months_ago": 6}
+
+
+class SignalPlanMatchesTheStory(unittest.TestCase):
+    """A plan that names a value the story doesn't have is fixed at the Story step, or refused."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            import builder
+        except ImportError as e:
+            raise unittest.SkipTest(f"builder dependencies not installed: {e}")
+        cls.b = builder
+
+    def test_live_case_is_reported(self):
+        problems = self.b.signal_plan_problems(_story())
+        self.assertEqual(len(problems), 1)
+        self.assertIn('culprit.value "West" is not a value of Region', problems[0])
+
+    def test_every_kind_of_mismatch(self):
+        cases = {
+            "not one of the dimensions": _story(culprit={"dimension": "Territory", "value": "Oregon"}),
+            "culprit_detail.value": _story(culprit=GOOD_PLAN["culprit"], culprit_detail={"dimension": "Segment", "value": "Enterprise"}),
+            "different dimension": _story(culprit=GOOD_PLAN["culprit"], culprit_detail={"dimension": "Region", "value": "Alaska"}),
+            "is not a metric label": _story(culprit=GOOD_PLAN["culprit"], counter_trend_metric="Net Promoter"),
+            "is the primary metric": _story(culprit=GOOD_PLAN["culprit"], counter_trend_metric="Loan Approval Rate"),
+        }
+        for expected, story in cases.items():
+            self.assertIn(expected, " | ".join(self.b.signal_plan_problems(story)), expected)
+        self.assertEqual(self.b.signal_plan_problems({**_story(), "signal_plan": {}}), ["signal_plan is missing"])
+
+    def test_good_plan_has_no_problems_and_no_claude_call(self):
+        ask = mock.Mock()
+        story = self.b.ensure_valid_signal_plan(_story(**GOOD_PLAN), ask)
+        ask.assert_not_called()
+        self.assertEqual(story["signal_plan"]["culprit"]["value"], "Oregon")
+
+    def test_case_and_spacing_are_fixed_without_asking(self):
+        ask = mock.Mock()
+        story = self.b.ensure_valid_signal_plan(
+            _story(culprit={"dimension": "region", "value": " northern  california"}, counter_trend_metric="member nps"), ask)
+        ask.assert_not_called()
+        self.assertEqual(story["signal_plan"]["culprit"], {"dimension": "Region", "value": "Northern California"})
+        self.assertEqual(story["signal_plan"]["counter_trend_metric"], "Member NPS")
+
+    def test_a_dimension_without_listed_values_is_not_checked(self):
+        story = _story()
+        story["dimension_values"].pop("Region")     # dropped earlier as generic placeholders
+        self.assertEqual(self.b.signal_plan_problems(story), [])
+
+    def test_claude_corrects_the_plan_once(self):
+        reply = "```json\n" + json.dumps({"signal_plan": GOOD_PLAN, "story_summary": "Approval rate is falling in Oregon.",
+                                          "signal_description": "Worst in Oregon Auto loans."}) + "\n```"
+        ask = mock.Mock(return_value=reply)
+        story = self.b.ensure_valid_signal_plan(_story(), ask)
+        ask.assert_called_once()
+        prompt = ask.call_args[0][0]
+        self.assertIn('culprit.value "West"', prompt)
+        self.assertIn("Northern California", prompt)             # the allowed values are in the request
+        self.assertEqual(story["signal_plan"], GOOD_PLAN)
+        self.assertEqual(story["story_summary"], "Approval rate is falling in Oregon.")
+        self.assertEqual(self.b.signal_plan_problems(story), [])
+
+    def test_still_wrong_after_one_try_is_a_clear_error(self):
+        ask = mock.Mock(return_value=json.dumps({"signal_plan": {**GOOD_PLAN, "culprit": {"dimension": "Region", "value": "Pacific"}}}))
+        with self.assertRaises(RuntimeError) as err:
+            self.b.ensure_valid_signal_plan(_story(), ask)
+        ask.assert_called_once()                                  # one correction, not a loop
+        self.assertIn("isn't in its own data", str(err.exception))
+        self.assertIn('"Pacific"', str(err.exception))
+        self.assertIn("Generate again", str(err.exception))
+
+    def test_unusable_reply_or_failed_call_is_the_same_clear_error(self):
+        for ask in (mock.Mock(return_value="Sorry, I can't."), mock.Mock(side_effect=TimeoutError("slow"))):
+            with self.assertRaises(RuntimeError) as err:
+                self.b.ensure_valid_signal_plan(_story(), ask)
+            self.assertIn('"West"', str(err.exception))
+
+    def test_story_endpoint_returns_the_error_to_the_story_step(self):
+        with mock.patch.object(self.b, "generate_story", side_effect=RuntimeError(
+                "The generated story names a segment that isn't in its own data (x). Click Generate again to get a new story.")):
+            r = webapp.app.test_client().post("/api/build/generate-story", json={"company": "Acme"},
+                                               headers={"Host": "localhost:5100"})
+        body = r.get_json()
+        self.assertFalse(body["ok"])
+        self.assertIn("Click Generate again", body["error"])
+
+    def test_generate_story_runs_the_check(self):
+        """End to end with the model mocked: a bad plan from the story call is corrected by the second call."""
+        bad = _story()
+        replies = [json.dumps(bad), json.dumps({"signal_plan": GOOD_PLAN})]
+        research = types.ModuleType("researcher")           # no web research in a unit test
+        research.research_company = lambda **kw: {}
+        research.format_research_for_prompt = lambda r: ""
+        with mock.patch.object(webapp, "_get_chat_config", return_value={"mode": "anthropic_sdk", "api_key": "k"}), \
+                mock.patch.dict(sys.modules, {"researcher": research}), \
+                mock.patch.object(self.b, "_find_existing_demo", return_value=None), \
+                mock.patch.object(self.b, "_claude_text", side_effect=replies) as call:
+            out = self.b.generate_story("Harborview Credit Union", "Banking", "loan approvals", "COO", research_depth="none")
+        self.assertEqual(call.call_count, 2)
+        self.assertEqual(out["signal_plan"]["culprit"]["value"], "Oregon")
+
+
+class SchemaFollowsTheFields(unittest.TestCase):
+    """A rebuild with different metrics or dimensions must not reuse the old Data Cloud schema."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            import builder
+        except ImportError as e:
+            raise unittest.SkipTest(f"builder dependencies not installed: {e}")
+        cls.b = builder
+
+    def schema(self, name, fields, extra=()):
+        return {"name": name, "fields": [{"name": f} for f in list(fields) + list(extra)]}
+
+    OLD = ["record_id", "date", "day_offset", "entity_id", "product_type", "days_to_loan_decision", "loan_volume"]
+    NEW = ["record_id", "date", "day_offset", "entity_id", "region", "loan_approval_rate", "member_nps"]
+
+    def test_no_schema_yet(self):
+        self.assertEqual(self.b.pick_schema_name("harborview", self.NEW, []), ("harborview", False))
+
+    def test_same_fields_reuse_the_schema(self):
+        existing = [self.schema("harborview", self.NEW, extra=["DataSourceId", "DataSourceObjectId"])]
+        self.assertEqual(self.b.pick_schema_name("harborview", list(reversed(self.NEW)), existing), ("harborview", True))
+
+    def test_different_fields_get_a_new_name(self):
+        name, exists = self.b.pick_schema_name("harborview", self.NEW, [self.schema("harborview", self.OLD)])
+        self.assertRegex(name, r"^harborview_[0-9a-f]{6}$")
+        self.assertFalse(exists)
+
+    def test_the_new_name_is_stable_and_reused_next_time(self):
+        first, _ = self.b.pick_schema_name("harborview", self.NEW, [self.schema("harborview", self.OLD)])
+        again, exists = self.b.pick_schema_name(
+            "harborview", self.NEW, [self.schema("harborview", self.OLD), self.schema(first, self.NEW)])
+        self.assertEqual(again, first)
+        self.assertTrue(exists)
+
+    def test_a_third_story_gets_its_own_name(self):
+        a, _ = self.b.pick_schema_name("harborview", self.NEW, [self.schema("harborview", self.OLD)])
+        b, _ = self.b.pick_schema_name("harborview", self.NEW + ["segment"], [self.schema("harborview", self.OLD)])
+        self.assertNotEqual(a, b)
+
+    def test_signature_tracks_metrics_and_dimensions_not_their_order(self):
+        story = {"dimensions": ["Region", "Product Type"]}
+        metrics = [{"label": "Loan Approval Rate"}, {"label": "Member NPS"}]
+        sig = self.b.schema_signature(story, metrics)
+        self.assertEqual(sig, self.b.schema_signature({"dimensions": ["Product Type", "Region"]}, list(reversed(metrics))))
+        self.assertNotEqual(sig, self.b.schema_signature(story, metrics + [{"label": "Loan Volume"}]))
+        self.assertNotEqual(sig, self.b.schema_signature({"dimensions": ["Region", "Segment"]}, metrics))
+
+    def test_build_uses_it(self):
+        src = (ROOT / "web-ui" / "builder.py").read_text()
+        self.assertIn("pick_schema_name(", src.split("# --- Phase 2: Schema + Stream ---")[1].split("# --- Phase 3")[0])
+        self.assertNotIn('schema_exists = any(s.get("name") == schema_name', src)
+
+
 if __name__ == "__main__":
     unittest.main()

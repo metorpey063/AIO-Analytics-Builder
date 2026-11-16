@@ -13,15 +13,17 @@ Found while testing v2.17.3 against AIO Dev. All were already on `main`. No chan
 - **CRM Accounts no longer collide between demos.** Account external IDs were `E-0001`, `E-0002`, … in every build, so a second demo in the same org overwrote the first demo's Accounts. They are now `{demo}-E-0001`. The demo's data is unchanged (Entity ID is still `E-0001`). Demos built before this keep their existing Accounts.
 - **Delete demo → "delete remote assets" cleans up the right org, completely.** It now uses the connection the demo was built with (not whichever is active), and also removes the data stream and its DLO and the demo's CRM Accounts. A demo with both Pulse and Tableau Next outputs has both cleaned up. Accounts from older builds are left in place and the result says so, because those IDs may be shared with another demo.
 - **CSV written once.** With CSV output on, the file was written and logged twice per build.
+- **The story can no longer name a segment that isn't in its data.** Claude sometimes wrote a story about, say, the "West" region while the Region values were states. The build then had no usable culprit. The story is now checked when it's generated: small mismatches are fixed, Claude is asked to correct the plan once, and if it's still wrong the Story step says so and asks you to generate again.
+- **Rebuilding a demo with a changed story works.** A second build for the same company with different metrics or dimensions reused the first build's Data Cloud schema, so metrics were missing and the dashboard had no rows. A changed story now gets its own schema, and resuming a build whose story changed starts over instead of continuing on the old data. Deleting a demo still leaves the schema entry on the Ingest API connector (the API can't remove it); it does no harm.
 
 ### Not changed
 - **Accounts aren't linked into the SDM** (no Account data object or relationship). CLAUDE.md described this step, but `/build-demo` had moved it out and Web UI builds never had it. CLAUDE.md now says so. Building it needs the org's Account stream to carry `Demo_External_ID__c`, which can't be added over the API.
 
 ### Added
-- `tests/test_live_findings.py` (19 tests): `python3 -m unittest tests.test_live_findings -v`.
+- `tests/test_live_findings.py` (35 tests): `python3 -m unittest tests.test_live_findings -v`.
 - `crm_upserter.demo_external_id()` and `crm_upserter.delete_records_by_id()`.
 
-> Tested 2026-11-16 in a sandbox with mocked HTTP, not against a live org: the unit tests, and data generated with and without the plan (without: no signal check; with: "Signal check passed … South"). The stream delete and Account delete calls have not run against an org.
+> Tested 2026-11-16. Live on AIO Dev (CRM actionability off): a page build logged the signal check, and delete with remote assets removed the dashboard, vizzes, SDM, workspace, stream and DLO and nothing else. Sandbox only, with mocked HTTP and a mocked model: the story plan check, the schema naming, and the Account delete.
 ## 2026-11-16 — Each connection uses its own Salesforce login (v2.17.6)
 
 ### Fixed
