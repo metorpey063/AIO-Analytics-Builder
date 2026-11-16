@@ -66,17 +66,22 @@ class MCPClient:
         body = r.json()
         self.access_token = body["access_token"]
 
-        # Save rotated refresh token if one was returned
+        # Save a rotated refresh token under the connection that owns the one just used. Saving it
+        # under the active connection left this one with a retired token (invalid_grant on its next
+        # build) and gave the active connection another org's token (app_not_found).
         new_refresh = body.get("refresh_token")
         if new_refresh and new_refresh != refresh_token:
+            self.sf["mcp_refresh_token"] = new_refresh
             try:
-                from connections import load_full_config, save_full_config
-                full = load_full_config()
-                key = full.get("active_salesforce") or full.get("active_profile")
-                if key and key in full.get("profiles", {}):
-                    full["profiles"][key]["salesforce"]["mcp_refresh_token"] = new_refresh
-                    save_full_config(full)
-                    self.sf["mcp_refresh_token"] = new_refresh
+                from connections import config_lock, load_full_config, save_full_config
+                with config_lock():
+                    full = load_full_config()
+                    owners = [k for k, p in full.get("profiles", {}).items()
+                              if p.get("salesforce", {}).get("mcp_client_id") == self.mcp_client_id
+                              and p.get("salesforce", {}).get("mcp_refresh_token") == refresh_token]
+                    if len(owners) == 1:
+                        full["profiles"][owners[0]]["salesforce"]["mcp_refresh_token"] = new_refresh
+                        save_full_config(full)
             except Exception:
                 pass
 

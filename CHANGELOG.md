@@ -4,6 +4,19 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-16 — MCP logins stay with their own connection (v2.17.11)
+
+### Fixed
+- **MCP login expiring after one build, or failing with "app_not_found"**: when an MCP login refreshed, `web-ui/mcp_client.py` saved the new token under the *active* connection instead of the one it came from. The other connection kept a token Salesforce had already retired (`invalid_grant` on its next build: SDM descriptions and Concierge skipped), and the active connection got another org's MCP token (`app_not_found: External client app is not installed`). It now saves the token under the connection that owns it (matched by MCP app ID and the token just used), under the config lock, and saves nothing when no connection matches. Same mistake as the v2.17.6 `get_sf_token` fix, in its second place.
+- **If a connection's MCP check is red after updating**, click **MCP** on that connection once (Connections page) to sign in again.
+
+### Added
+- `tests/test_mcp_token_owner.py` (5 tests, no org needed): `python3 -m unittest tests.test_mcp_token_owner -v`. Three of them fail on the old code.
+
+> Found in the v2.17.10 live test: AIO Dev's MCP failed on its next build after re-authorizing, and Tableau Next & Slack's MCP started returning `app_not_found`. All 129 unit tests pass.
+
+---
+
 ## 2026-11-16 — Build logs no longer mix; Pulse delete removes the group (v2.17.10)
 
 Found in the live test of v2.17.9. Both were already on `main`. No change to pages or steps.
