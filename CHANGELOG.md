@@ -4,6 +4,19 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-16 — Connections pin themselves to their own org (v2.17.12)
+
+### Fixed
+- **"Cross-org" failures on OAuth or MCP**: a connection whose login URL is the generic `login.salesforce.com` (or `test.salesforce.com`) signs in to whichever org the browser is logged into. Clicking MCP on one connection right after signing in to another org's connection sent the browser to the wrong org and failed cross-org, and the same mix-up once saved one org's login under another connection. After every successful login or token refresh, AIO now replaces a generic login URL with the org's own My Domain (`*.my.salesforce.com`, from the login response). Each connection then always signs in to its own org, whatever the browser is logged into. A connection that already has a My Domain is never changed, and existing logins keep working (a My Domain accepts the same tokens).
+- **Existing connections repair themselves** the next time AIO refreshes their login (within about two hours of use) or the next time you click OAuth or MCP on them. Until then, make sure the browser is signed in to that connection's org before clicking OAuth or MCP.
+
+### Added
+- `connections.pin_login_url()` and `tests/test_login_url_pin.py` (9 tests, no org needed): `python3 -m unittest tests.test_login_url_pin -v`.
+
+> Found 2026-11-16: MCP on Tableau Next & Slack (`login.salesforce.com`) failed cross-org right after authorizing AIO Dev (My Domain). All 138 unit tests pass.
+
+---
+
 ## 2026-11-16 — MCP logins stay with their own connection (v2.17.11)
 
 ### Fixed

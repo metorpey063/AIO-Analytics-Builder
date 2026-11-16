@@ -1084,6 +1084,8 @@ def oauth_mcp():
             sf_cfg["mcp_refresh_token"] = tokens["refresh_token"]
             if tokens.get("code_verifier"):
                 sf_cfg["mcp_code_verifier"] = tokens["code_verifier"]
+            from connections import pin_login_url
+            pin_login_url(sf_cfg, tokens.get("instance_url", ""))   # next login can't go cross-org
             full["profiles"][key].pop("_token_cache", None)
             save_full_config(full)
 
@@ -1126,6 +1128,8 @@ def oauth_start():
             if tokens.get("code_verifier"):
                 sf_cfg["code_verifier"] = tokens["code_verifier"]
             sf_cfg.pop("pkce_refresh_mode", None)
+            from connections import pin_login_url
+            pin_login_url(sf_cfg, tokens.get("instance_url", ""))   # next login can't go cross-org
             full["profiles"][key].pop("_token_cache", None)
             save_full_config(full)
 

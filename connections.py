@@ -189,6 +189,24 @@ def _sf_key_for(full: dict, sf: dict, profile_key: str = None) -> str | None:
     return matches[0] if len(matches) == 1 else None
 
 
+GENERIC_LOGIN_URLS = {"https://login.salesforce.com", "https://test.salesforce.com"}
+
+
+def pin_login_url(sf: dict, instance_url: str) -> bool:
+    """Swap a generic login URL for the org's own My Domain (from a token response), in place.
+    A connection on login.salesforce.com signs in to whichever org the browser is logged into, so
+    an OAuth or MCP click while signed into another org fails cross-org, or saves the wrong org's
+    tokens. A My Domain always lands in its own org and accepts the same tokens. Only replaces a
+    generic URL, and only with a *.my.salesforce.com address. Returns True when it changed."""
+    from urllib.parse import urlparse
+    current = (sf.get("sf_login_url") or "https://login.salesforce.com").rstrip("/")
+    u = urlparse(instance_url or "")
+    if current not in GENERIC_LOGIN_URLS or u.scheme != "https" or not (u.hostname or "").endswith(".my.salesforce.com"):
+        return False
+    sf["sf_login_url"] = f"https://{u.hostname}"
+    return True
+
+
 def load_config(profile_key: str = None, connection_type: str = None) -> dict:
     """
     Returns a connection's {tableau, salesforce, ...} dict.
@@ -408,6 +426,7 @@ def _reauth_via_browser(sf, profile_key=None, allow_browser=True):
         if tokens.get("code_verifier"):
             full["profiles"][key]["salesforce"]["code_verifier"] = tokens["code_verifier"]
         full["profiles"][key]["salesforce"].pop("pkce_refresh_mode", None)
+        pin_login_url(full["profiles"][key]["salesforce"], tokens.get("instance_url", ""))
         import time as _time
         full["profiles"][key]["_token_cache"] = {
             "access_token": tokens["access_token"],
@@ -487,6 +506,8 @@ def get_sf_token(config=None, profile_key=None, allow_browser=True):
                 sf["refresh_token"] = new_refresh
             if pkce_mode and sf.get("pkce_refresh_mode") != pkce_mode:
                 full["profiles"][key]["salesforce"]["pkce_refresh_mode"] = pkce_mode
+            if pin_login_url(full["profiles"][key]["salesforce"], body.get("instance_url", "")):
+                sf["sf_login_url"] = full["profiles"][key]["salesforce"]["sf_login_url"]
             full["profiles"][key]["_token_cache"] = {
                 "access_token": body["access_token"],
                 "instance_url": body["instance_url"],
