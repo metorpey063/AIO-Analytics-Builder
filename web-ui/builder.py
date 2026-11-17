@@ -426,10 +426,11 @@ def _find_existing_demo(company):
 
 def _claude_text(cfg, system, user_msg, max_tokens=4096):
     """One Claude call over whichever credentials AIO has (gateway, OAuth token or API key). Returns the text."""
-    from app import CHAT_MODEL
+    from claude_model import pick, gateway_id
+    model = pick("story")
     if cfg["mode"] == "bedrock_gateway":
         import aio_http as req
-        url = f"{cfg['base_url']}/model/{CHAT_MODEL}/invoke"
+        url = f"{cfg['base_url']}/model/{gateway_id(model)}/invoke"
         headers = {"x-api-key": cfg["token"], "Content-Type": "application/json"}
         body = {
             "anthropic_version": "bedrock-2023-05-31",
@@ -453,7 +454,7 @@ def _claude_text(cfg, system, user_msg, max_tokens=4096):
             "Content-Type": "application/json",
         }
         body = {
-            "model": CHAT_MODEL,
+            "model": model,
             "max_tokens": max_tokens,
             "system": system,
             "messages": [{"role": "user", "content": user_msg}],
@@ -468,7 +469,7 @@ def _claude_text(cfg, system, user_msg, max_tokens=4096):
         import anthropic
         client = anthropic.Anthropic(api_key=cfg["api_key"])
         resp = client.messages.create(
-            model=CHAT_MODEL,
+            model=model,
             max_tokens=max_tokens,
             system=system,
             messages=[{"role": "user", "content": user_msg}],

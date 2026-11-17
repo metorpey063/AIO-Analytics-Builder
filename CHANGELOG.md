@@ -4,6 +4,22 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-17 — Pick which Claude model AIO uses for its own calls (v2.18.0)
+
+AIO's own Claude calls (Web UI chat, story generation, Rev Intel drafting) each used a
+hardcoded model with no way to change it from the UI.
+
+### Added
+- **Model override in Setup → AI Configuration.** Each AIO feature still defaults to the model suited to it (Sonnet for the "Ask Claude" chat assistant, Haiku for story/metric generation, Opus for Rev Intel drafting) — a new dropdown lets you force everything onto one model instead (e.g. for cost control). "Recommended per task" (the default) leaves every feature on its own model. The choice is saved to `config.json` (`anthropic_model`) via a new `/api/chat/save-model` endpoint and read by `claude_model.py`, a shared resolver (parallel to `claude_credentials.py`, which resolves the key/auth) that all four call sites (`assistant.py`, `revintel/llm.py`, `web-ui/builder.py`, the credentials Test button) now use instead of their own hardcoded constants.
+- `tests/test_claude_model.py` (11 tests): `python3 -m unittest tests.test_claude_model -v`.
+
+### Fixed
+- **`web-ui/builder.py`'s story generation never used the Bedrock gateway's model ID correctly** — it passed the plain model name (e.g. `claude-haiku-4-5-20251001`) into the gateway's `/model/{id}/invoke` URL instead of the `us.anthropic.*` ID the gateway expects (the pattern `assistant.py` and `revintel/llm.py` already used correctly). Fixed as part of routing all three call sites through `claude_model.gateway_id()`.
+
+> All 173 unit tests pass.
+
+---
+
 ## 2026-11-17 — A slow data load no longer fails the build check (v2.17.13)
 
 Found in a live test. No change to pages or steps.

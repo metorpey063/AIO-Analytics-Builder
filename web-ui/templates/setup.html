@@ -693,6 +693,14 @@
             <button type="button" class="btn btn-primary" onclick="saveAiKey()">Save</button>
         </div>
         <div id="ai-result" class="test-result"></div>
+
+        <div class="form-group" style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border)">
+            <label for="ai-model">Model</label>
+            <p class="subtitle" style="margin-bottom:8px">Each AIO feature picks a model suited to it (fast for story generation, strongest for Rev Intel drafting). Override to force everything onto one model instead — useful for cost control, but Rev Intel drafting quality may drop on a smaller model.</p>
+            <select id="ai-model" onchange="saveAiModel()" style="width:100%; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--glass-bg); color:var(--text-primary); font-size:12px">
+            </select>
+        </div>
+        <div id="ai-model-result" class="test-result"></div>
     </section>
 </div><!-- end setup-split-form -->
 
@@ -1437,6 +1445,22 @@ async function saveAiKey() {
     }
 }
 
+async function saveAiModel() {
+    const model = document.getElementById('ai-model').value;
+    showResult('ai-model-result', null, 'Saving...');
+    try {
+        const r = await fetch('/api/chat/save-model', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({model}),
+        });
+        const j = await r.json();
+        showResult('ai-model-result', j.ok, j.ok ? 'Saved.' : (j.error || 'Failed to save'));
+    } catch (e) {
+        showResult('ai-model-result', false, 'Request failed: ' + e.message);
+    }
+}
+
 // ---- Wizard AI Assistant (Step 0) ----
 async function saveWizAiKeySimple() {
     const key = document.getElementById('wiz-api-key').value.trim();
@@ -1476,6 +1500,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             badge.style.display = '';
             badge.className = 'badge ' + (j.available ? 'badge-ok' : 'badge-pending');
             badge.textContent = j.available ? 'Configured' : 'Not configured';
+        }
+        const select = document.getElementById('ai-model');
+        if (select && j.model) {
+            select.innerHTML = j.model.choices.map(c =>
+                `<option value="${c.id}">${c.label}</option>`).join('');
+            select.value = j.model.override || '';
         }
     } catch (e) { /* ignore */ }
 });
