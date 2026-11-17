@@ -4,6 +4,20 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-17 — A slow data load no longer fails the build check (v2.17.13)
+
+Found in a live test. No change to pages or steps.
+
+### Fixed
+- **Post-build validation waits for the data to finish loading.** The build moves on after 5 minutes of loading so the dashboard can be built meanwhile, and a load can take 15 minutes or more. Validation then counted rows while the load was still running and marked a good build "SDM query returned 0 rows" and failed. The build now waits for the load (up to 20 more minutes, with progress in the log) before testing Concierge and checking the data, so Concierge's answers come from the full data too. If it is still loading after that, validation says so instead of reporting a failure. A load that fails late is reported as failed, and running the build again re-sends the data.
+
+### Added
+- `tests/test_ingest_wait.py` (14 tests): `python3 -m unittest tests.test_ingest_wait -v`.
+
+> Tested 2026-11-17 in a sandbox with a mocked org and clock, not live: all 152 tests pass.
+
+---
+
 ## 2026-11-16 — Connections pin themselves to their own org (v2.17.12)
 
 ### Fixed

@@ -1961,7 +1961,65 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
 # Tableau Next build
 # ---------------------------------------------------------------------------
 
-def _validate_next_build(config, cp, metric_config, q):
+INGEST_WAIT_SECONDS = 20 * 60   # after the build's own 5-minute wait; live ingests have run over 15 minutes
+INGEST_POLL_SECONDS = 20
+
+
+def wait_for_ingest(config, cp, q, budget=INGEST_WAIT_SECONDS, poll=INGEST_POLL_SECONDS, sleep=time.sleep):
+    """Wait until the build's Data Cloud ingest job has finished, then return its state.
+
+    The ingest step stops waiting after 5 minutes so the SDM, vizzes and dashboard can be built
+    while the rows load. Anything that reads the data (Concierge capture, the post-build row
+    check) must wait for the job first, or it sees an empty table and a good build reads as
+    "0 rows, failed". Returns "JobComplete", "Failed", the last state seen if the budget ran
+    out, or "unknown" if there is no job to check. Saves the result in cp["ingest_state"].
+    """
+    state = cp.get("ingest_state", "")
+    job_id = cp.get("ingest_job_id")
+    if state in ("JobComplete", "Failed"):
+        return state
+    if not job_id:
+        return "unknown"
+
+    import aio_http as req
+    from connections import get_sf_token, get_dc_token, dc_headers
+    try:
+        sf_token, sf_instance = get_sf_token(config)
+        dc_token, dc_domain = get_dc_token(sf_token, sf_instance)
+    except Exception as e:
+        progress(q, "ingest", f"Couldn't check the ingest job ({str(e)[:120]})", -1)
+        return state or "unknown"
+
+    url, h = f"https://{dc_domain}/api/v1/ingest/jobs/{job_id}", dc_headers(dc_token)
+    waited = 0
+    while True:
+        try:
+            r = req.get(url, headers=h, timeout=30)
+            if r.ok:
+                state = r.json().get("state", "") or state
+        except Exception:
+            pass                                    # a failed status check isn't a failed job
+        if state in ("JobComplete", "Failed"):
+            break
+        if waited >= budget:
+            break
+        if waited == 0:
+            progress(q, "ingest", f"Data is still loading ({state or 'in progress'}) — waiting for it before "
+                                  "checking the data...", -1)
+        sleep(poll)
+        waited += poll
+        if waited % 120 == 0:
+            progress(q, "ingest", f"Still loading... {state or 'in progress'} ({waited // 60} min)", -1)
+
+    if state == "JobComplete" and waited:
+        progress(q, "ingest", f"Data load finished after {waited // 60} min {waited % 60} s more", -1)
+    elif state == "Failed":
+        cp["ingest_done"] = False      # so running the build again re-sends the rows (an upsert, safe to repeat)
+    cp["ingest_state"] = state
+    return state
+
+
+def _validate_next_build(config, cp, metric_config, q, sleep=time.sleep, ingest_budget=INGEST_WAIT_SECONDS):
     """Post-build validation: query SDM, check metrics and vizzes have data."""
     import aio_http as req
     from connections import get_sf_token, sf_headers
@@ -1969,6 +2027,7 @@ def _validate_next_build(config, cp, metric_config, q):
     checks_passed = 0
     checks_failed = 0
     checks_total = 0
+    checks_pending = []
 
     try:
         sf_token, sf_instance = get_sf_token(config)
@@ -1996,30 +2055,48 @@ def _validate_next_build(config, cp, metric_config, q):
 
         dlo_name = cp.get("dlo_name", "")
         if first_meas and dlo_name:
-            query_body = {
-                "sql": f'SELECT COUNT(*) as cnt FROM {dlo_name}',
-            }
-            r = req.post(f"{sf_instance}/services/data/v62.0/ssot/queryv2",
-                         headers=h, json=query_body, timeout=30)
-            if r.ok:
+            # The build already waited before Concierge (ingest_budget=0): just re-check the state
+            ingest_state = wait_for_ingest(config, cp, q, budget=ingest_budget, sleep=sleep)
+
+            def count_rows():
+                r = req.post(f"{sf_instance}/services/data/v62.0/ssot/queryv2",
+                             headers=h, json={"sql": f'SELECT COUNT(*) as cnt FROM {dlo_name}'}, timeout=30)
+                if not r.ok:
+                    raise RuntimeError(r.text[:200])
                 resp = r.json()
                 data = resp.get("data", resp) if isinstance(resp, dict) else resp
                 # queryv2 returns rows as lists ([[24000]]); older shape was dicts
                 row = data[0] if data else None
-                row_count = row.get("cnt", 0) if isinstance(row, dict) else row[0] if isinstance(row, list) and row else 0
-                if row_count and int(row_count) > 0:
+                n = row.get("cnt", 0) if isinstance(row, dict) else row[0] if isinstance(row, list) and row else 0
+                return int(n or 0)
+
+            if ingest_state == "Failed":
+                progress(q, "validate", "✗ The Data Cloud ingest job failed — the dashboard has no data. "
+                                        "Run the build again to resume from the ingest step.", -1)
+                checks_failed += 1
+            elif ingest_state != "JobComplete" and cp.get("ingest_job_id"):
+                # Still loading after the wait: not a failure, just not checkable yet
+                checks_pending.append("data")
+                progress(q, "validate", f"… Data is still loading ({ingest_state or 'in progress'}) — the row "
+                                        "check is skipped. The dashboard fills in when the load finishes.", -1)
+            else:
+                # Rows can take a minute or two to show in queries after the job completes
+                row_count = count_rows()
+                for _ in range(6):
+                    if row_count > 0:
+                        break
+                    sleep(20)
+                    row_count = count_rows()
+                if row_count > 0:
                     progress(q, "validate", f"✓ SDM query returned {row_count} rows", -1)
                     checks_passed += 1
                 else:
-                    progress(q, "validate", f"✗ SDM query returned 0 rows — data may not have ingested", -1)
+                    progress(q, "validate", "✗ SDM query returned 0 rows after the data load finished", -1)
                     checks_failed += 1
-            else:
-                progress(q, "validate", f"✗ SDM query failed: {r.text[:200]}", -1)
-                checks_failed += 1
         else:
             progress(q, "validate", "SKIP — no measurement or DO found for query check", -1)
     except Exception as e:
-        progress(q, "validate", f"✗ SDM query error: {str(e)[:200]}", -1)
+        progress(q, "validate", f"✗ SDM query failed: {str(e)[:200]}", -1)
         checks_failed += 1
 
     # 2. Check each metric renders (GET metric, check for non-null value)
@@ -2175,6 +2252,8 @@ def _validate_next_build(config, cp, metric_config, q):
     if checks_failed:
         summary += f", {checks_failed} failed"
         progress(q, "validate", f"⚠ {summary}", -1)
+    elif checks_pending:
+        progress(q, "validate", f"✓ {summary} — {len(checks_pending)} still loading, nothing failed", -1)
     else:
         progress(q, "validate", f"✓ {summary} — all assets verified", -1)
 
@@ -2453,6 +2532,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
         cp["ingest_done"] = True
         cp["ingest_job_id"] = job_id
+        cp["ingest_state"] = state            # "JobComplete", or the last state seen if it ran long
         _save_cp(cp, slug, demo_dir)
 
     # --- Phase 3b: CRM Actionability (upsert Account records) ---
@@ -3535,6 +3615,11 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
     except Exception as e:
         progress(q, "warn", f"Asset linking failed: {e}", -1)
 
+    # Concierge capture and the post-build row check read the data: if the ingest was still
+    # running when the ingest step moved on, wait for it here (once, up to INGEST_WAIT_SECONDS)
+    wait_for_ingest(config, cp, q)
+    _save_cp(cp, slug, demo_dir)
+
     # --- Phase 7b: Concierge prompt testing (capture live responses for walkthrough) ---
     # Re-runs whenever no answer was captured yet — a failed capture doesn't block a retry
     if not concierge_captured(cp) and cp.get("sdm_api"):
@@ -3550,7 +3635,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
     # --- Phase 8: Post-build validation ---
     progress(q, "validate", "Running post-build validation...", 95)
-    _validate_next_build(config, cp, metric_config, q)
+    _validate_next_build(config, cp, metric_config, q, ingest_budget=0)
 
     from datetime import datetime as _dt
     cp["build_type"] = "next"
