@@ -2019,6 +2019,98 @@ def wait_for_ingest(config, cp, q, budget=INGEST_WAIT_SECONDS, poll=INGEST_POLL_
     return state
 
 
+INGEST_OPEN_STATES = ("Open", "UploadComplete", "InProgress")
+
+
+def _ingest_job_state(dc_domain, dch, job_id):
+    """The job's state, or None when the status check itself failed (an error response or a
+    dropped connection). A failed check isn't a failed job: callers keep polling."""
+    import aio_http as req
+    try:
+        r = req.get(f"https://{dc_domain}/api/v1/ingest/jobs/{job_id}", headers=dch, timeout=30)
+        return r.json().get("state", "") if r.ok else None
+    except Exception:
+        return None
+
+
+def _open_ingest_jobs(dc_domain, dch, object_name):
+    """Ingest jobs on this object that are still open, uploading or running."""
+    import aio_http as req
+    try:
+        r = req.get(f"https://{dc_domain}/api/v1/ingest/jobs", headers=dch, params={"limit": 100}, timeout=30)
+        jobs = r.json().get("data", []) if r.ok else []
+    except Exception:
+        return []
+    return [j for j in jobs if j.get("object") == object_name and j.get("state") in INGEST_OPEN_STATES]
+
+
+def _clear_previous_ingest(dc_domain, dch, cp, object_name, q, sleep=time.sleep, budget=INGEST_WAIT_SECONDS,
+                           poll=INGEST_POLL_SECONDS, include_listed=False):
+    """Make way for a new ingest job. Data Cloud allows one open job per object, so a build resumed
+    while its earlier job was still loading failed with 409 Conflict. This build's earlier job
+    (cp["ingest_job_pending"]) is waited for when it is loading, and aborted when its upload never
+    finished ("Open"). With include_listed (after a 409), other open jobs on the object are waited
+    for too; an "Open" job AIO didn't create is left alone and the build stops with a clear message.
+    The new job then loads this run's rows (an upsert on Record ID, so the earlier rows are replaced)."""
+    import aio_http as req
+    mine = cp.get("ingest_job_pending")
+    jobs = {}
+    if mine:
+        state = _ingest_job_state(dc_domain, dch, mine)
+        if state in INGEST_OPEN_STATES or state is None:
+            jobs[mine] = state
+    if include_listed:
+        for j in _open_ingest_jobs(dc_domain, dch, object_name):
+            jobs.setdefault(j["id"], j.get("state"))
+
+    for job_id, state in jobs.items():
+        if state == "Open":
+            if job_id != mine:
+                raise RuntimeError(f"Another data load ({job_id}) is open on '{object_name}' and wasn't started by "
+                                   "this build. Close or abort it in Data Cloud, then run the build again.")
+            r = req.patch(f"https://{dc_domain}/api/v1/ingest/jobs/{job_id}", headers=dch,
+                          json={"state": "Aborted"}, timeout=30)
+            progress(q, "ingest", f"Aborted this build's unfinished earlier data load ({job_id})"
+                     + ("" if r.ok else f" — abort returned {r.status_code}"), -1)
+            continue
+        progress(q, "ingest", f"An earlier data load for this demo is still running ({state or 'checking'}) — "
+                              "waiting for it to finish first...", -1)
+        waited = 0
+        while state not in ("JobComplete", "Failed", "Aborted"):
+            if waited >= budget:
+                raise RuntimeError(f"An earlier data load ({job_id}) is still running after {budget // 60} min. "
+                                   "Run the build again once it finishes.")
+            sleep(poll)
+            waited += poll
+            state = _ingest_job_state(dc_domain, dch, job_id) or state
+        progress(q, "ingest", f"Earlier data load finished ({state}) — loading this run's data", -1)
+    cp.pop("ingest_job_pending", None)
+
+
+def _create_ingest_job(dc_domain, dch, job_payload, cp, q, sleep=time.sleep, **wait_kw):
+    """POST a new ingest job. Retries while a new schema propagates (404), and on 409 Conflict
+    (a job already open on the object) clears the way once, then retries."""
+    import aio_http as req
+    url = f"https://{dc_domain}/api/v1/ingest/jobs"
+    cleared = False
+    for _retry in range(6):
+        r_job = req.post(url, headers=dch, json=job_payload)
+        if r_job.status_code == 404:
+            progress(q, "ingest", f"Schema not ready yet, retrying in 15s... ({_retry+1}/5)", 25)
+            sleep(15)
+            continue
+        if r_job.status_code == 409 and not cleared:
+            progress(q, "ingest", "A data load is already open on this object — checking it...", -1)
+            _clear_previous_ingest(dc_domain, dch, cp, job_payload["object"], q, sleep=sleep,
+                                   include_listed=True, **wait_kw)
+            cleared = True
+            continue
+        r_job.raise_for_status()
+        return r_job.json()["id"]
+    r_job.raise_for_status()
+    raise RuntimeError(f"Couldn't create the ingest job: {r_job.status_code} {r_job.text[:300]}")
+
+
 def _validate_next_build(config, cp, metric_config, q, sleep=time.sleep, ingest_budget=INGEST_WAIT_SECONDS):
     """Post-build validation: query SDM, check metrics and vizzes have data."""
     import aio_http as req
@@ -2482,19 +2574,17 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
             "sourceName": connector_name,
             "operation": "upsert",
         }
-        # Retry with backoff — schema takes 15-30s to propagate after DLO ACTIVE
-        r_job = None
-        for _retry in range(5):
-            r_job = req.post(f"https://{dc_domain}/api/v1/ingest/jobs", headers=dch, json=job_payload)
-            if r_job.status_code == 404:
-                progress(q, "ingest", f"Schema not ready yet, retrying in 15s... ({_retry+1}/5)", 25)
-                time.sleep(15)
-                continue
-            r_job.raise_for_status()
-            break
-        else:
-            r_job.raise_for_status()
-        job_id = r_job.json()["id"]
+        # A resumed build may still have its earlier job open or loading: let it finish (or abort
+        # it if its upload never finished) before creating this run's job
+        if cp.get("ingest_job_pending"):
+            _clear_previous_ingest(dc_domain, dch, cp, schema_name, q)
+        # Retries while the schema propagates (15-30s after DLO ACTIVE) and once on 409 Conflict
+        job_id = _create_ingest_job(dc_domain, dch, job_payload, cp, q)
+        # Saved now, not after the wait: if the build stops mid-load, the next run knows this job
+        cp["ingest_job_pending"] = job_id
+        cp["ingest_job_id"] = job_id
+        cp.pop("ingest_state", None)
+        _save_cp(cp, slug, demo_dir)
 
         csv_buf = io.StringIO()
         df_ingest.to_csv(csv_buf, index=False)
@@ -2513,16 +2603,18 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         state = ""
         for attempt in range(30):
             time.sleep(10)
-            r_poll = req.get(f"https://{dc_domain}/api/v1/ingest/jobs/{job_id}", headers=dch)
-            if not r_poll.ok:
-                # A transient error on the status check isn't a failed job; keep polling
-                progress(q, "ingest", f"Status check returned {r_poll.status_code}, retrying... ({(attempt+1)*10}s)", 30)
+            polled = _ingest_job_state(dc_domain, dch, job_id)
+            if polled is None:
+                # A failed status check (error response or dropped connection) isn't a failed job
+                progress(q, "ingest", f"Status check failed, retrying... ({(attempt+1)*10}s)", 30)
                 continue
-            state = r_poll.json().get("state", "")
+            state = polled
             if state == "JobComplete":
                 break
-            elif state == "Failed":
-                raise RuntimeError(f"Ingest failed: {r_poll.json()}")
+            elif state in ("Failed", "Aborted"):
+                cp.pop("ingest_job_pending", None)
+                _save_cp(cp, slug, demo_dir)
+                raise RuntimeError(f"Ingest {state.lower()} (job {job_id})")
             progress(q, "ingest", f"Ingesting... {state} ({(attempt+1)*10}s)", 30)
         else:
             # Same as before: a slow ingest doesn't stop the build (the rows land when the job
@@ -2533,6 +2625,7 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         cp["ingest_done"] = True
         cp["ingest_job_id"] = job_id
         cp["ingest_state"] = state            # "JobComplete", or the last state seen if it ran long
+        cp.pop("ingest_job_pending", None)    # wait_for_ingest() follows a long job from here
         _save_cp(cp, slug, demo_dir)
 
     # --- Phase 3b: CRM Actionability (upsert Account records) ---

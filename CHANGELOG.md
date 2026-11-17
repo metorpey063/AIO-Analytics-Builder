@@ -11,10 +11,13 @@ Found in a live test. No change to pages or steps.
 ### Fixed
 - **Post-build validation waits for the data to finish loading.** The build moves on after 5 minutes of loading so the dashboard can be built meanwhile, and a load can take 15 minutes or more. Validation then counted rows while the load was still running and marked a good build "SDM query returned 0 rows" and failed. The build now waits for the load (up to 20 more minutes, with progress in the log) before testing Concierge and checking the data, so Concierge's answers come from the full data too. If it is still loading after that, validation says so instead of reporting a failure. A load that fails late is reported as failed, and running the build again re-sends the data.
 
-### Added
-- `tests/test_ingest_wait.py` (14 tests): `python3 -m unittest tests.test_ingest_wait -v`.
+- **A dropped connection while checking the data load no longer fails the build.** One status check that lost its connection (`Connection reset by peer`) ended the whole build. It now counts as a failed check, not a failed load, and the build keeps checking.
+- **Running a build again while its earlier data load is still going no longer fails with "409 Conflict".** Data Cloud allows one load at a time per object, and the build saved the load's ID only after waiting, so a build stopped mid-load (crash, closed laptop, server restart) didn't know about it. The ID is now saved as soon as the load is created. Running the build again waits for that load to finish, then loads this run's data. A load whose upload never finished is aborted. If Data Cloud still reports a conflict, the build waits for the open load once and retries. An open load AIO didn't start is never touched; the build stops with a message instead.
 
-> Tested 2026-11-17 in a sandbox with a mocked org and clock, not live: all 152 tests pass.
+### Added
+- `tests/test_ingest_wait.py` (14 tests) and `tests/test_ingest_resume.py` (10 tests): `python3 -m unittest tests.test_ingest_wait tests.test_ingest_resume -v`.
+
+> Tested live 2026-11-17 on AIO Dev, Tableau Next, daily data (584,800 rows): a load running past 5 minutes logged "Data is still loading… waiting", then "✓ SDM query returned 584800 rows", 16/16. A build stopped mid-load (server killed) and run again logged "An earlier data load for this demo is still running — waiting for it to finish first", then loaded its own data with no 409: 584,800 rows, 16/16, Concierge 6/6, no loads left open. The dropped-connection retry is covered by tests only (it can't be forced live). All 162 tests pass.
 
 ---
 
