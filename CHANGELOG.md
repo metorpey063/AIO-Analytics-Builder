@@ -4,6 +4,15 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-18 — Update Rev Intel: Inspect and Draft show they're running (v2.18.3)
+
+### Fixed
+- **"Save & inspect org" looked like it did nothing.** Inspect ran, but its live output went to the log under step 8 (Build), far down the page, and the summary under step 2 only appeared when it finished 1–3 minutes later. Clicking again started another inspect: four ran at once in a live test. A status line under the button now shows "Inspecting the org…" while it runs, then ✓ finished or ✗ failed. "Draft with Claude", "Revise draft" and "Re-run plan" get the same line under step 7.
+- **One step at a time.** A second step started while one is still running is refused with a message saying which step is running.
+- **A request that never reached the server no longer fails silently.** It now shows "Couldn't start …" in the status line.
+
+---
+
 ## 2026-11-18 — Terminal setup: External Client App with PKCE (v2.18.2)
 
 Salesforce's Connected App & External Client App security notice ends Connected App
