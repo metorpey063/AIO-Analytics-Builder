@@ -285,33 +285,39 @@ def setup_salesforce(profile: dict, profile_key: str = None) -> dict:
             print("  Falling back to manual setup.")
 
     print("\n" + "=" * 60)
-    print("  Salesforce Connected App")
+    print("  Salesforce External Client App")
     print("=" * 60)
     print("""
-  You need a Connected App (or External Client App) in your
-  Salesforce org with the correct OAuth scopes.
+  You need an External Client App in your Salesforce org with
+  the correct OAuth scopes. (Salesforce is ending support for
+  Connected Apps in Summer '27 — don't create a new one.)
 
-  ── Creating a Connected App ───────────────────────────────
+  ── Creating an External Client App ────────────────────────
   1. In Salesforce Setup, search for "App Manager"
-  2. Click "New Connected App" (top right)
+  2. Click "New External Client App" (top right)
   3. Fill in:
-       Connected App Name:  AIO Analytics Builder
-       API Name:            AIO_Analytics_Builder  (auto-fills)
-       Contact Email:       your email
-  4. Check "Enable OAuth Settings"
+       External Client App Name:  AIO Analytics Builder
+       API Name:                  AIO_Analytics_Builder  (auto-fills)
+       Contact Email:             your email
+       Distribution State:        Local
+  4. Expand "API (Enable OAuth Settings)" and check "Enable OAuth"
   5. Callback URL:  http://localhost:8080/callback
   6. Selected OAuth Scopes — add ALL of these:
-       • Access and manage your data (api)
-       • Access Tableau Analytics APIs (sfap_api)
-       • Access Data Cloud Ingestion API resources (cdp_ingest_api)
-       • Access Data Cloud Query API resources (cdp_query_api)
+       • Manage user data via APIs (api)
+       • Access the Salesforce API Platform (sfap_api)
+       • Manage Data Cloud Ingestion API data (cdp_ingest_api)
+       • Perform ANSI SQL queries on Data Cloud data (cdp_query_api)
        • Perform requests at any time (refresh_token, offline_access)
-  7. Uncheck "Require Proof Key for Code Exchange (PKCE)"
-  8. Click Save — wait 2-10 minutes for Salesforce to activate it
+  7. Under "Flow Enablement", check "Enable Authorization Code
+     and Credentials Flow"
+  8. Under "Security", leave "Require Proof Key for Code Exchange
+     (PKCE)" and "Enable Refresh Token Rotation" checked
+  9. Click Create — wait 2-10 minutes for Salesforce to activate it
 
   ── Getting your credentials ──────────────────────────────
-  After saving, click "Manage Consumer Details" (you may need
-  to verify your identity). Copy the Consumer Key and Secret.
+  Open the app's Settings tab → OAuth Settings → "Consumer Key
+  and Secret" (you may need to verify your identity). Copy the
+  Consumer Key, and the Secret if the app requires one.
 
 """)
 
@@ -320,7 +326,7 @@ def setup_salesforce(profile: dict, profile_key: str = None) -> dict:
     print(f"  Using login URL: {login_url}")
 
     client_id = input("\n  Consumer Key (Client ID): ").strip()
-    client_secret = input("  Consumer Secret (Client Secret): ").strip()
+    client_secret = input("  Consumer Secret (blank if the app doesn't require one): ").strip()
 
     profile["salesforce"].update({
         "sf_login_url": login_url,
@@ -533,7 +539,7 @@ def select_mode() -> list[str]:
 
     2  Tableau Next  (Salesforce Data Cloud)
          Build Tableau Next demos via Salesforce Data Cloud.
-         Requires a Salesforce Connected App and OAuth authorization.
+         Requires a Salesforce External Client App and OAuth authorization.
 
     3  Both
          Configure Tableau Cloud and Salesforce/Data Cloud.

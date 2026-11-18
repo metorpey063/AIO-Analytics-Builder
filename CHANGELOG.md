@@ -4,6 +4,19 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-18 — Terminal setup: External Client App with PKCE (v2.18.2)
+
+Salesforce's Connected App & External Client App security notice ends Connected App
+support in Summer '27 and requires PKCE and refresh-token rotation. AIO's automatic
+setup and the Web UI wizard already create compliant Local External Client Apps; the
+manual fallback in the terminal `setup.py` still said to create a Connected App and
+uncheck PKCE.
+
+### Fixed
+- **`setup.py` manual Salesforce steps** now say "New External Client App" (Distribution State: Local), add the "Enable Authorization Code and Credentials Flow" step, and say to leave PKCE and Refresh Token Rotation checked, matching the Web UI wizard. The Consumer Secret prompt says it can be left blank when the app doesn't require one (the token exchange already leaves a blank secret out).
+
+---
+
 ## 2026-11-17 — The model dropdown wasn't on a reachable page (v2.18.1)
 
 Found right after shipping v2.18.0: the Setup page's "Form" mode holds a second, fuller
