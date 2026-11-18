@@ -1895,9 +1895,6 @@ def build_progress(build_id):
 # Chat bot (Claude API)
 # ---------------------------------------------------------------------------
 
-CHAT_MODEL = "claude-haiku-4-5-20251001"   # story generation (builder.py) and the credentials Test button
-
-
 def _get_chat_config():
     """Resolve chat API credentials. Returns dict with mode + params, or None.
     Order and sources live in claude_credentials.py (Claude Code settings are read automatically)."""
@@ -1980,19 +1977,21 @@ def chat():
 
 @app.route("/api/chat/status", methods=["GET"])
 def chat_status():
-    """Check if chat is available, and where the credentials come from (no secrets)."""
+    """Check if chat is available, where the credentials come from, and the model choice (no secrets)."""
     from claude_credentials import describe
-    return jsonify(describe(_get_chat_config()))
+    import claude_model
+    return jsonify({**describe(_get_chat_config()), "model": claude_model.current()})
 
 
 @app.route("/api/chat/test", methods=["POST"])
 def chat_test():
-    """Send one tiny request with the credentials AIO would use."""
+    """Send one tiny request with the credentials and model AIO would use."""
     from claude_credentials import describe, test
+    import claude_model
     cfg = _get_chat_config()
     if not cfg:
         return jsonify({"ok": False, "error": "No Claude credentials found."})
-    ok, msg = test(cfg, CHAT_MODEL)
+    ok, msg = test(cfg, claude_model.pick("story"))
     return jsonify({"ok": ok, "message": msg, **describe(cfg)})
 
 
@@ -2038,6 +2037,25 @@ def chat_save_key():
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/api/chat/save-model", methods=["POST"])
+@_config_txn
+def chat_save_model():
+    """Save (or clear) the model override in config.json. Empty value means "recommended per task"."""
+    import claude_model
+    from connections import load_full_config, save_full_config
+    data = request.get_json(silent=True) or {}
+    model = (data.get("model") or "").strip()
+    if model and model not in {c["id"] for c in claude_model.CHOICES if c["id"]}:
+        return jsonify({"ok": False, "error": "Unknown model"})
+    full = load_full_config()
+    if model:
+        full["anthropic_model"] = model
+    else:
+        full.pop("anthropic_model", None)
+    save_full_config(full)
+    return jsonify({"ok": True, "model": claude_model.current(full)})
 
 
 # ---------------------------------------------------------------------------

@@ -14,10 +14,14 @@ Credentials come from claude_credentials.py (same as the rest of the Web UI). Tw
 
 import json
 import re
+import sys
 from pathlib import Path
 
-MODEL = "claude-sonnet-5-5"
-GATEWAY_MODEL = "us.anthropic.claude-sonnet-5-5"   # Bedrock gateway ID for the same model
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from claude_model import pick as _pick_model, gateway_id as _gateway_id
+
 EFFORT = "medium"        # multi-step troubleshooting; plain questions finish quickly anyway
 MAX_TOKENS = 16000
 MAX_TOOL_ROUNDS = 8
@@ -236,10 +240,10 @@ Answer the question that was asked, lead with the answer, keep it short, and use
 
 # ---- transports -----------------------------------------------------------------------------------
 
-def _call_gateway(cfg, body):
+def _call_gateway(cfg, body, model):
     import requests
     payload = {"anthropic_version": "bedrock-2023-05-31", **body}
-    r = requests.post(f"{cfg['base_url']}/model/{GATEWAY_MODEL}/invoke",
+    r = requests.post(f"{cfg['base_url']}/model/{_gateway_id(model)}/invoke",
                       headers={"x-api-key": cfg["token"], "Content-Type": "application/json"},
                       json=payload, verify=cfg["ca_bundle"], timeout=180)
     if r.status_code != 200:
@@ -247,13 +251,13 @@ def _call_gateway(cfg, body):
     return r.json()
 
 
-def _call_sdk(cfg, body):
+def _call_sdk(cfg, body, model):
     import anthropic
     key = cfg.get("api_key", "")
     client = anthropic.Anthropic(auth_token=key) if key.startswith("sk-ant-oat") else anthropic.Anthropic(api_key=key)
     try:
         # server-side refusal fallback: a declined request is retried on a fallback model inside the same call
-        msg = client.beta.messages.create(model=MODEL, betas=["server-side-fallback-2026-07-01"],
+        msg = client.beta.messages.create(model=model, betas=["server-side-fallback-2026-07-01"],
                                           fallbacks="default", **body)
     except anthropic.AuthenticationError:
         raise RuntimeError("Claude rejected the credentials. Check AI Configuration in Setup.")
@@ -269,6 +273,7 @@ def _call_sdk(cfg, body):
 def chat(cfg, history, page_context, providers):
     """Run the tool loop; yields UI events: {'type': 'status'|'text'|'error'|'done', 'text': ...}."""
     call = _call_gateway if cfg["mode"] == "bedrock_gateway" else _call_sdk
+    model = _pick_model("chat")
     messages = [{"role": m["role"], "content": m["content"]} for m in history
                 if m.get("role") in ("user", "assistant") and m.get("content")]
     system = system_prompt(page_context, providers["summary"]())
@@ -276,7 +281,7 @@ def chat(cfg, history, page_context, providers):
         body = {"max_tokens": MAX_TOKENS, "system": system, "messages": messages, "tools": TOOLS,
                 "output_config": {"effort": EFFORT}}
         try:
-            resp = call(cfg, body)
+            resp = call(cfg, body, model)
         except RuntimeError as e:
             yield {"type": "error", "text": str(e)}
             return

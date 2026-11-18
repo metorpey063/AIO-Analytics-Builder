@@ -10,8 +10,15 @@ import os
 import re
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODEL = "claude-opus-5-5"
-GATEWAY_MODEL = "us.anthropic.claude-opus-5-5"   # Bedrock gateway model ID for the same model
+
+
+def _model():
+    """The model to use for this task (claude_model.py), shared with the web UI."""
+    import sys
+    if ROOT not in sys.path:
+        sys.path.insert(0, ROOT)
+    from claude_model import pick
+    return pick("revintel")
 
 
 def credentials():
@@ -31,12 +38,17 @@ def credentials():
 
 def call(system, user, effort="high", max_tokens=64000):
     """One Claude call; returns the response text."""
+    import sys
+    if ROOT not in sys.path:
+        sys.path.insert(0, ROOT)
+    from claude_model import gateway_id
     cred = credentials()
+    model = _model()
     if cred["mode"] == "gateway":
         # The internal Bedrock gateway speaks Bedrock's /invoke format with an x-api-key header, which the
         # SDK's Bedrock client (SigV4) can't send — same raw call the web UI's chat uses for this gateway.
         import requests
-        r = requests.post(f"{cred['base_url']}/model/{GATEWAY_MODEL}/invoke",
+        r = requests.post(f"{cred['base_url']}/model/{gateway_id(model)}/invoke",
                           headers={"x-api-key": cred["token"], "Content-Type": "application/json"},
                           json={"anthropic_version": "bedrock-2023-05-31", "max_tokens": max_tokens,
                                 "thinking": {"type": "adaptive"}, "output_config": {"effort": effort},
@@ -56,7 +68,7 @@ def call(system, user, effort="high", max_tokens=64000):
     client = anthropic.Anthropic(auth_token=key) if key.startswith("sk-ant-oat") else anthropic.Anthropic(api_key=key)
     try:
         # server-side refusal fallback: a declined request is retried on a fallback model inside the same call
-        with client.beta.messages.stream(model=MODEL, max_tokens=max_tokens, thinking={"type": "adaptive"},
+        with client.beta.messages.stream(model=model, max_tokens=max_tokens, thinking={"type": "adaptive"},
                                          output_config={"effort": effort}, system=system,
                                          messages=[{"role": "user", "content": user}],
                                          betas=["server-side-fallback-2026-07-01"], fallbacks="default") as stream:

@@ -4,6 +4,39 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-17 — Pick which Claude model AIO uses for its own calls (v2.18.0)
+
+AIO's own Claude calls (Web UI chat, story generation, Rev Intel drafting) each used a
+hardcoded model with no way to change it from the UI.
+
+### Added
+- **Model override in Setup → AI Configuration.** Each AIO feature still defaults to the model suited to it (Sonnet for the "Ask Claude" chat assistant, Haiku for story/metric generation, Opus for Rev Intel drafting) — a new dropdown lets you force everything onto one model instead (e.g. for cost control). "Recommended per task" (the default) leaves every feature on its own model. The choice is saved to `config.json` (`anthropic_model`) via a new `/api/chat/save-model` endpoint and read by `claude_model.py`, a shared resolver (parallel to `claude_credentials.py`, which resolves the key/auth) that all four call sites (`assistant.py`, `revintel/llm.py`, `web-ui/builder.py`, the credentials Test button) now use instead of their own hardcoded constants.
+- `tests/test_claude_model.py` (11 tests): `python3 -m unittest tests.test_claude_model -v`.
+
+### Fixed
+- **`web-ui/builder.py`'s story generation never used the Bedrock gateway's model ID correctly** — it passed the plain model name (e.g. `claude-haiku-4-5-20251001`) into the gateway's `/model/{id}/invoke` URL instead of the `us.anthropic.*` ID the gateway expects (the pattern `assistant.py` and `revintel/llm.py` already used correctly). Fixed as part of routing all three call sites through `claude_model.gateway_id()`.
+
+> All 173 unit tests pass.
+
+---
+
+## 2026-11-17 — A slow data load no longer fails the build check (v2.17.13)
+
+Found in a live test. No change to pages or steps.
+
+### Fixed
+- **Post-build validation waits for the data to finish loading.** The build moves on after 5 minutes of loading so the dashboard can be built meanwhile, and a load can take 15 minutes or more. Validation then counted rows while the load was still running and marked a good build "SDM query returned 0 rows" and failed. The build now waits for the load (up to 20 more minutes, with progress in the log) before testing Concierge and checking the data, so Concierge's answers come from the full data too. If it is still loading after that, validation says so instead of reporting a failure. A load that fails late is reported as failed, and running the build again re-sends the data.
+
+- **A dropped connection while checking the data load no longer fails the build.** One status check that lost its connection (`Connection reset by peer`) ended the whole build. It now counts as a failed check, not a failed load, and the build keeps checking.
+- **Running a build again while its earlier data load is still going no longer fails with "409 Conflict".** Data Cloud allows one load at a time per object, and the build saved the load's ID only after waiting, so a build stopped mid-load (crash, closed laptop, server restart) didn't know about it. The ID is now saved as soon as the load is created. Running the build again waits for that load to finish, then loads this run's data. A load whose upload never finished is aborted. If Data Cloud still reports a conflict, the build waits for the open load once and retries. An open load AIO didn't start is never touched; the build stops with a message instead.
+
+### Added
+- `tests/test_ingest_wait.py` (14 tests) and `tests/test_ingest_resume.py` (10 tests): `python3 -m unittest tests.test_ingest_wait tests.test_ingest_resume -v`.
+
+> Tested live 2026-11-17 on AIO Dev, Tableau Next, daily data (584,800 rows): a load running past 5 minutes logged "Data is still loading… waiting", then "✓ SDM query returned 584800 rows", 16/16. A build stopped mid-load (server killed) and run again logged "An earlier data load for this demo is still running — waiting for it to finish first", then loaded its own data with no 409: 584,800 rows, 16/16, Concierge 6/6, no loads left open. The dropped-connection retry is covered by tests only (it can't be forced live). All 162 tests pass.
+
+---
+
 ## 2026-11-16 — Connections pin themselves to their own org (v2.17.12)
 
 ### Fixed
