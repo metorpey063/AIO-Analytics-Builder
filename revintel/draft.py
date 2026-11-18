@@ -57,6 +57,51 @@ type is Enterprise, Mid-Market or Small Business; segment is a SEGMENTS key.
 No text outside the fence."""
 
 
+TEAM_REUSE = """## Keep the team already built in this org
+The config below is the demo already loaded in this org; its team is what the SE demos. By default this \
+demo only swaps the data, so:
+- USERS: the old demo's USERS plus every entry of its new_users.json (key → Id): those people already exist, \
+so NEW_USERS is empty.
+- Copy unchanged: SALES_LEADER, SALES_LEADER_ROLE, CEO, CEO_ROLE, CEO_QUOTA, MANAGERS, LEADS, \
+SUB_ROLES, EXTRA_TEAM, OWNER_SPLITS, TERRITORIES (same Ids, parents and forecast managers), TERRITORY_USERS, \
+TERRITORY_MODEL, TERRITORY_TYPE, TERRITORY_FORECAST_TYPE, ROLE_FORECAST_TYPES, ROLES_UNDER_CEO, \
+OTHER_QUOTA_OWNERS, OTHER_DEMO_OWNER, REFRESH_APPS. TERRITORY_USERS_REMOVE is empty.
+- LEAD_ROLES: same leads in the same roles, each reusing its existing developer name. You may rename a role \
+to fit the new customer (e.g. "EMEA Enterprise Renewals" → "Canada Enterprise Renewals"); the record is kept.
+- SEGMENTS: keep every key, owner and territory, so each person keeps their seat and the click path stays the \
+same. Change what each segment means for the new customer (its label, region wording, accounts and products) \
+and its story multiplier and stretch, so the culprit and counter-trend fit the new story.
+- Reuse the same pool accounts (org_facts.pool_tagged, the old demo's pool seed) and POOL_PREFIX, re-skinned \
+for the new customer. Use a new customer-specific EXT_PREFIX.
+- Only add, remove or restructure people, roles or territories when the SE's answers or requested changes \
+explicitly ask for it. This overrides the pool_unused and NEW_USERS rules above."""
+
+
+def _base_team(org_alias):
+    """The most recently loaded other demo in the same org: (folder name, config text, pool seed text)."""
+    import glob
+    best = None
+    for d in glob.glob(os.path.join(ROOT, "demos", "*")):
+        if os.path.abspath(d) == os.path.abspath(DEMO_DIR):
+            continue
+        cp = os.path.join(d, "out", "checkpoint.json")
+        if not os.path.exists(cp) or "opportunities" not in json.load(open(cp)).get("done", []):
+            continue
+        cfgs = [p for p in (os.path.join(d, "config.json"), os.path.join(d, "config.py")) if os.path.exists(p)] \
+            or sorted(glob.glob(os.path.join(d, "*_config.py")))
+        if not cfgs:
+            continue
+        text = open(cfgs[0]).read()
+        if org_alias not in text:
+            continue
+        if not best or os.path.getmtime(cp) > best[0]:
+            extra = "".join(f"\n\nIts {os.path.basename(f)}:\n{open(f).read()}"
+                            for f in sorted(glob.glob(os.path.join(d, "*pool*seed*.json")))
+                            + [os.path.join(d, "new_users.json")] if os.path.exists(f))
+            best = (os.path.getmtime(cp), os.path.basename(d), text, extra)
+    return best[1:] if best else None
+
+
 def _ask_json(system, user):
     return llm.ask_json(system, user, raw_path=os.path.join(OUT, "draft_raw.txt"))
 
@@ -106,6 +151,11 @@ def run(feedback=None):
              "## Org facts (from inspect)\n" + json.dumps(_facts(), indent=1, default=str),
              "## Config template (keys and meaning)\n" + template,
              "## Worked example: the KnowBe4 config (Python; your output is the JSON equivalent)\n" + example]
+    base = _base_team(answers.get("org_alias", "")) if answers.get("team_mode", "reuse") == "reuse" else None
+    if base:
+        name, text, seed = base
+        parts.append(f"{TEAM_REUSE}\n\nDemo already in this org: demos/{name}\n{text}{seed}")
+        print(f"  keeping the team from demos/{name} (already loaded in this org)", flush=True)
     current = os.path.join(DEMO_DIR, "config.json")
     if feedback and os.path.exists(current):
         parts.append("## Current config (revise this — keep everything the feedback doesn't touch)\n" + open(current).read())

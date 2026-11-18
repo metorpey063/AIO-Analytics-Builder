@@ -101,6 +101,12 @@
 <!-- 5. Team -->
 <div class="card story-section" style="padding:16px; margin-bottom:16px">
     <h3><span class="step-num">5</span> Team & territories</h3>
+    <div class="form-group"><label>Team</label>
+        <select id="ri-teammode" onchange="toggleTeamMode()">
+            <option value="reuse">Keep the team already built in this org (same people, roles, territories and click path)</option>
+            <option value="new">Design a new team for this customer</option></select>
+        <div class="form-hint">Keeping the team swaps only the data: accounts, products, deals and the story. Each person keeps their seat; Claude can rename roles to fit the customer. This replaces the demo currently loaded in the org. Design a new team only when the customer needs a different forecasting structure.</div></div>
+    <div id="ri-team-new">
     <div class="form-row">
         <div class="form-group"><label>Sales leader</label>
             <input type="text" id="ri-leader" placeholder="e.g. Elliot Executive — EVP Renewals"></div>
@@ -122,6 +128,7 @@
     </div>
     <div class="form-group"><label>Forecast structure notes <span class="optional">(optional)</span></label>
         <textarea id="ri-structure" rows="2" placeholder="e.g. NAMR head is TBH; EMEA lead carries a book; territories mirror the BRD's reference structure"></textarea></div>
+    </div>
 </div>
 
 <!-- 6. Forecast window -->
@@ -219,12 +226,17 @@ function addProduct(p = {}) {
     $('ri-products').appendChild(tr);
 }
 
+function toggleTeamMode() {
+    $('ri-team-new').style.display = $('ri-teammode').value === 'new' ? '' : 'none';
+}
+
 function answers() {
     const checked = id => [...$(id).querySelectorAll('input:checked')].map(i => i.value);
     return {
         slug: $('ri-slug').value.trim(), customer: $('ri-customer').value.trim(), industry: $('ri-industry').value.trim(),
         use_case: $('ri-usecase').value.trim(), audience: $('ri-audience').value.trim(),
         requirements: $('ri-requirements').value.trim(), org_alias: $('ri-org').value,
+        team_mode: $('ri-teammode').value,
         products: [...$('ri-products').querySelectorAll('tr')].map(tr => ({
             name: tr.querySelector('.rp-name').value.trim(), family: tr.querySelector('.rp-family').value.trim(),
             list_price: Number(tr.querySelector('.rp-price').value) || null, unit: tr.querySelector('.rp-unit').value.trim(),
@@ -460,7 +472,7 @@ async function init() {
     $('ri-slug').value = slug; $('ri-slug').dataset.touched = '1';
     const r = await loadReport(slug);
     const q = r && r.request;
-    if (!q) { addProduct({ core: true }); return; }
+    if (!q) { addProduct({ core: true }); toggleTeamMode(); return; }
     const set = (id, v) => { if (v !== undefined && v !== null) $(id).value = v; };
     set('ri-customer', q.customer); set('ri-industry', q.industry); set('ri-usecase', q.use_case);
     set('ri-audience', q.audience); set('ri-requirements', q.requirements); set('ri-org', q.org_alias);
@@ -469,6 +481,7 @@ async function init() {
     const s = q.story || {}; set('ri-culprit', s.worst); set('ri-counter', s.counter_trend);
     set('ri-cause', s.root_cause); set('ri-leading', s.leading_indicator);
     $('ri-problems').querySelectorAll('button').forEach(b => { if ((s.problems || []).includes(b.textContent.trim())) b.classList.add('btn-primary'); });
+    set('ri-teammode', q.team_mode || 'reuse'); toggleTeamMode();
     const t = q.team || {}; set('ri-leader', t.leader); set('ri-leads', t.people_under_leader);
     for (const [id, vals] of [['ri-regions', t.regions], ['ri-segments', t.segments]]) {
         if (!vals) continue;

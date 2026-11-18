@@ -4,6 +4,19 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-18 — Update Rev Intel keeps the org's team by default (v2.19.0)
+
+Most Rev Intel demos only need the data made relevant to a new customer, not a new forecasting structure. KnowBe4's custom team was the exception.
+
+### Changed
+- **Draft with Claude keeps the team already built in the org.** It finds the last demo loaded in the same org and copies its leader, people, roles, territories, quota settings and pool accounts. Each person keeps their seat, so the click path stays the same, and only the accounts, products, deals and story change. Claude can rename roles to fit the customer.
+- **New "Team" choice in step 5** of the Update Rev Intel page: "Keep the team already built in this org" (default) or "Design a new team for this customer". The leader/regions/segments questions only show for a new team.
+- `/update-rev-intel` says the same. One org holds one customer at a time with a shared team, so `reset` the previous demo before loading the new one.
+
+> Not yet verified end to end: the first draft with this rule (Osmose) was running at commit time.
+
+---
+
 ## 2026-11-18 — Update Rev Intel: build a demo with an all-new team in a shared org (v2.18.5)
 
 Found reviewing an Osmose draft that uses only new fictional users, so it leaves the KnowBe4 demo in the same org alone. Every earlier build reused existing people, roles and a top-level territory, so these paths had never run.
