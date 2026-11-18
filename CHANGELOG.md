@@ -4,6 +4,21 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-18 — Update Rev Intel: build a demo with an all-new team in a shared org (v2.18.5)
+
+Found reviewing an Osmose draft that uses only new fictional users, so it leaves the KnowBe4 demo in the same org alone. Every earlier build reused existing people, roles and a top-level territory, so these paths had never run.
+
+### Fixed
+- **A new sales leader gets a role.** `team people` expected the leader's role (`SALES_LEADER_ROLE`) to exist and crashed when it didn't. It now creates the role under the CEO's role (developer name from `SALES_LEADER_ROLE_DEV`, or derived from the name), puts the leader in it, and makes them its forecast manager.
+- **New users get the right manager.** Each new user's manager comes from `MANAGERS`, resolved as users are created, so a new leader reports to the CEO instead of failing on a manager that didn't exist yet.
+- **A new top-level territory can be created.** A territory with no parent failed in the load. It's now created without `ParentTerritory2Id`.
+- **The split-role person is no longer hard-coded.** The load forecast-enabled a user called "alan" (from KnowBe4) and failed for any other demo. It now forecast-enables `EXTRA_TEAM`.
+- **`CEO_QUOTA: false` leaves the CEO's quotas alone.** By default `team quotas` deletes and rewrites the CEO's quotas as the leader's total. When another demo in the org shares the CEO, set `CEO_QUOTA` to false. Existing configs behave as before.
+
+> Checked with `plan` on the Osmose config (local). Not yet run against an org.
+
+---
+
 ## 2026-11-18 — Update Rev Intel: Revise draft's status sits under its button (v2.18.4)
 
 ### Fixed

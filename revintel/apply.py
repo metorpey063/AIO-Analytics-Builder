@@ -212,8 +212,11 @@ def s_users(cp):
               ["Id", "Name", "ManagerId", "ForecastEnabled"])
     for u, m in C.MANAGERS.items():
         sf("data", "update", "record", "-s", "User", "-i", C.USERS[u], "-v", f"ManagerId={C.USERS[m]}")
-    sf("data", "update", "record", "-s", "User", "-i", C.USERS["alan"], "-v", "ForecastEnabled=true")
-    print(f"  {len(C.MANAGERS)} managers set; Alan Reed forecast-enabled")
+    # the split-role person (HR line outside the team) still forecasts through a territory
+    split = getattr(C, "EXTRA_TEAM", None) or (["alan"] if "alan" in C.USERS else [])
+    for u in split:
+        sf("data", "update", "record", "-s", "User", "-i", C.USERS[u], "-v", "ForecastEnabled=true")
+    print(f"  {len(C.MANAGERS)} managers set; forecast-enabled: {', '.join(split) or 'none'}")
 
 
 def s_territories(cp):
@@ -232,7 +235,8 @@ def s_territories(cp):
                 label = C.TERRITORY_LABELS.get(dev, dev.replace("_", " "))
                 tid[dev] = sf("data", "create", "record", "-s", "Territory2", "-v",
                               f"Name='{label}' DeveloperName={dev} Territory2ModelId={C.TERRITORY_MODEL} "
-                              f"Territory2TypeId={C.TERRITORY_TYPE} ParentTerritory2Id={tid[parent]}")["id"]
+                              f"Territory2TypeId={C.TERRITORY_TYPE}"
+                              + (f" ParentTerritory2Id={tid[parent]}" if parent else ""))["id"]
                 print(f"  created territory {label}")
             pending.remove(dev)
     existing = query("SELECT Id, Territory2.DeveloperName, UserId, RoleInTerritory2 FROM UserTerritory2Association "

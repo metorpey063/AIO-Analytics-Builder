@@ -23,6 +23,7 @@ CP_PATH = os.path.join(A.OUT, "team_checkpoint.json")
 LEADER = opt("SALES_LEADER", "elliot")                 # USERS key of the sales leader (e.g. EVP Renewals)
 LEADER_ROLE = opt("SALES_LEADER_ROLE", "VP of Sales")  # role whose children are the leads
 CEO = opt("CEO", None)                                 # USERS key above the leader (quota = leader + others)
+CEO_QUOTA = opt("CEO_QUOTA", True)                     # False: leave the CEO's quotas alone (shared with another demo)
 RENEWAL_RT = opt("RENEWAL_RECORD_TYPE", "Renewal")     # Opportunity record type developer name
 
 
@@ -90,19 +91,23 @@ def s_new_users(cp):
     tag = opt("USER_TAG", C.EXT_PREFIX.split("-")[-1].lower())
     for key, first, last, title, tz in C.NEW_USERS:
         if key in made:
+            U[key] = made[key]
             continue
         username = f"{first}.{last}.{tag}@{org}.demo".lower()
         found = A.query(f"SELECT Id FROM User WHERE Username = '{username}'")
         if found:
             made[key] = found[0]["Id"]
         else:
+            # a new leader is created first and reports to the CEO, so resolve the manager as we go
+            manager = U.get(C.MANAGERS.get(key, LEADER)) or U.get(CEO)
             r = A.sf("data", "create", "record", "-s", "User", "-v",
                      f"FirstName='{first}' LastName='{last}' Username='{username}' Email='{me['Email']}' "
                      f"Alias='{(first[0] + last)[:8].lower()}' Title='{title}' ProfileId={profile} "
                      f"TimeZoneSidKey={tz} LocaleSidKey=en_US EmailEncodingKey=UTF-8 LanguageLocaleKey=en_US "
-                     f"ForecastEnabled=true ManagerId={U[LEADER]}")
+                     f"ForecastEnabled=true" + (f" ManagerId={manager}" if manager else ""))
             made[key] = r["id"]
             print(f"  created {first} {last} ({title})")
+        U[key] = made[key]
         json.dump(made, open(path, "w"), indent=1)
     U.update(made)
     print("  new users:", made)
@@ -111,7 +116,19 @@ def s_new_users(cp):
 def s_lead_roles(cp):
     """One role per lead under the leader's role (forecast manager = lead); SUB_ROLES under a lead."""
     roles = {r["DeveloperName"]: r for r in A.query("SELECT Id, Name, DeveloperName, ParentRoleId FROM UserRole")}
-    leader_role = next(r["Id"] for r in roles.values() if r["Name"] == LEADER_ROLE)
+    leader_role = next((r["Id"] for r in roles.values() if r["Name"] == LEADER_ROLE), None)
+    if not leader_role:   # a new sales leader: their role goes under the CEO's role
+        if not CEO:
+            raise SystemExit(f"Role {LEADER_ROLE!r} doesn't exist. Set CEO so it can be created under the CEO's role.")
+        ceo_role = A.query(f"SELECT UserRoleId FROM User WHERE Id = '{U[CEO]}'")[0]["UserRoleId"]
+        dev = opt("SALES_LEADER_ROLE_DEV", "".join(c if c.isalnum() else "_" for c in LEADER_ROLE).strip("_"))
+        leader_role = A.sf("data", "create", "record", "-s", "UserRole", "-v",
+                           f"Name='{LEADER_ROLE}' DeveloperName={dev} ParentRoleId={ceo_role} "
+                           f"RollupDescription='{LEADER_ROLE}'")["id"]
+        A.sf("data", "update", "record", "-s", "User", "-i", U[LEADER], "-v",
+             f"UserRoleId={leader_role} ForecastEnabled=true" + (f" ManagerId={U[CEO]}" if LEADER != CEO else ""))
+        A.sf("data", "update", "record", "-s", "UserRole", "-i", leader_role, "-v", f"ForecastUserId={U[LEADER]}")
+        print(f"  created role {LEADER_ROLE} under the CEO's role, led by {LEADER}")
     backup("roles_before_lead_roles",
            A.query("SELECT Id, Name, UserRoleId, ManagerId FROM User WHERE Id IN " + ids(team_keys())))
     role_id = {}
@@ -187,7 +204,8 @@ def s_quotas(cp):
     role_types = [t for t in opt("ROLE_FORECAST_TYPES", ["OpportunityAmount"]) if t in ftypes]
     terr_type = opt("TERRITORY_FORECAST_TYPE", None)
     terr_type = terr_type if terr_type in ftypes else None
-    people = list(C.STRETCH) + [LEADER] + ([CEO] if CEO else [])
+    ceo = CEO if CEO_QUOTA else None
+    people = list(C.STRETCH) + [LEADER] + ([ceo] if ceo else [])
     start, end = date(*months[0], 1).isoformat(), date(*months[-1], 1).isoformat()
     types = [ftypes[t] for t in role_types + ([terr_type] if terr_type else [])]
     old = A.query("SELECT Id, QuotaOwnerId, ForecastingTypeId, Territory2Id, StartDate, QuotaAmount FROM ForecastingQuota "
@@ -198,7 +216,7 @@ def s_quotas(cp):
     atr, exp, won, terr = books()
     q = rep_quotas(atr, exp, won, months)
     others = defaultdict(float)   # the CEO also carries other personas' existing quotas
-    if CEO and opt("OTHER_QUOTA_OWNERS", []):
+    if ceo and opt("OTHER_QUOTA_OWNERS", []):
         for r in A.query("SELECT QuotaAmount, StartDate, ForecastingTypeId FROM ForecastingQuota "
                          f"WHERE QuotaOwnerId IN {A.ids_in(C.OTHER_QUOTA_OWNERS)} AND StartDate >= {start} AND StartDate <= {end}"):
             others[(r["ForecastingTypeId"], month_key(r["StartDate"]))] += r["QuotaAmount"] or 0
@@ -214,8 +232,8 @@ def s_quotas(cp):
         leader_q = sum(lead_q.values())
         for t in role_types:
             amounts = {**lead_q, **{r: q[(r, m)] for r in sub_members}, LEADER: leader_q}
-            if CEO:
-                amounts[CEO] = leader_q + int(others[(ftypes[t], m)])
+            if ceo:
+                amounts[ceo] = leader_q + int(others[(ftypes[t], m)])
             rows += [{"QuotaOwnerId": U[u], "ForecastingTypeId": ftypes[t], "StartDate": sd, "QuotaAmount": a,
                       "CurrencyIsoCode": "USD"} for u, a in amounts.items()]
         if terr_type:
