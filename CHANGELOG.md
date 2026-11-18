@@ -4,6 +4,13 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-18 — Update Rev Intel: Revise draft's status sits under its button (v2.18.4)
+
+### Fixed
+- **"Revise draft" still looked idle.** Its status line was at the top of step 7, above the review panel, while the button sits below it, so on a long review the line was off-screen. It now shows right under the Revise draft button.
+
+---
+
 ## 2026-11-18 — Update Rev Intel: Inspect and Draft show they're running (v2.18.3)
 
 ### Fixed

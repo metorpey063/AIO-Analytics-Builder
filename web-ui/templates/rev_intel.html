@@ -151,6 +151,7 @@
         <div class="form-group"><label>Request changes</label>
             <textarea id="ri-feedback" rows="3" data-dictation placeholder="e.g. Make APJ the culprit instead; use Bill as the EMEA lead with an MM rep under him; set Copilot's launch to 6 months ago"></textarea></div>
         <button class="btn btn-secondary btn-sm" onclick="requestChanges()">Revise draft</button>
+        <div id="ri-revise-status" class="form-hint hidden" style="margin-top:8px"></div>
     </div>
 </div>
 
@@ -259,7 +260,7 @@ async function saveAnswers(showHandoff = false) {
 // Steps that run far from the log (under step 8) get a status line next to their button.
 const STEP_STATUS = { inspect: ['ri-inspect-status', 'Inspecting the org (read-only), usually 1–3 minutes'],
                       draft: ['ri-draft-status', 'Claude is drafting the config, usually a few minutes'],
-                      'draft-feedback': ['ri-draft-status', 'Claude is revising the draft, usually a few minutes'],
+                      'draft-feedback': ['ri-revise-status', 'Claude is revising the draft, usually a few minutes'],
                       plan: ['ri-draft-status', 'Re-running the plan'] };
 let stepRunning = null;
 
