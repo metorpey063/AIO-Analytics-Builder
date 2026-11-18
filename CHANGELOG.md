@@ -4,6 +4,18 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-17 — The model dropdown wasn't on a reachable page (v2.18.1)
+
+Found right after shipping v2.18.0: the Setup page's "Form" mode holds a second, fuller
+AI Configuration card, but the mode toggle that reaches it is hidden (`setup.html:12`,
+"wizard only for now") — the model dropdown added in v2.18.0 only existed on that
+unreachable card, so it never showed up for anyone using the real Setup page.
+
+### Fixed
+- **Model dropdown moved to the Wizard's Step 0 AI Configuration card** (`#setup-ai-section`), the one every user actually sees, below the Claude key form and visible whether or not Claude Code's credentials were auto-detected. `saveAiModel()` now takes the select/result element IDs so the same function drives both the reachable wizard card and the dormant Form-mode one.
+
+---
+
 ## 2026-11-17 — Pick which Claude model AIO uses for its own calls (v2.18.0)
 
 AIO's own Claude calls (Web UI chat, story generation, Rev Intel drafting) each used a
