@@ -4,6 +4,15 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-19 — Rev Intel reset backs up before deleting (v2.19.2)
+
+### Fixed
+- **`reset` deleted with no backup**, though the skill says every destructive step backs up first. It now writes the opportunities, line items, contacts, tasks and events it's about to delete to `out/backup_reset_<date>_*.csv` before deleting any of them, and prints the counts.
+
+> Used live 2026-11-19 to swap the Tab Next & Slack org from KnowBe4 to Osmose: 389 opportunities, 770 line items, 296 contacts, 846 tasks and 127 events backed up, then deleted; 0 left on the pool accounts.
+
+---
+
 ## 2026-11-19 — Update Rev Intel checks the story lands before loading (v2.19.1)
 
 ### Fixed

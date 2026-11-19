@@ -13,6 +13,7 @@ import os
 import subprocess
 import tempfile
 import time
+from datetime import date
 
 from revintel.config import C, DEMO_DIR, NB_STAGES, OUT, opt
 
@@ -403,11 +404,27 @@ def apply(plan):
 def reset(_=None):
     """Remove pool opps (line items cascade), contacts and activities. Accounts, team and territories stay."""
     pids = ids_in(pool_ids())
-    for sobj, where in (("Task", f"AccountId IN {pids}"), ("Event", f"AccountId IN {pids}"),
-                        ("Opportunity", f"Demo_External_ID__c LIKE '{C.EXT_PREFIX}-%'"),
-                        ("Contact", f"AccountId IN {pids}")):
-        rows = query(f"SELECT Id FROM {sobj} WHERE {where}")
-        bulk("delete", sobj, [{"Id": r["Id"]} for r in rows], cols=["Id"])
+    opp_where = f"Demo_External_ID__c LIKE '{C.EXT_PREFIX}-%'"
+    targets = (("Task", "Subject, Status, ActivityDate, OwnerId, WhatId, WhoId, Description", f"AccountId IN {pids}"),
+               ("Event", "Subject, ActivityDate, StartDateTime, EndDateTime, OwnerId, WhatId, WhoId, Description",
+                f"AccountId IN {pids}"),
+               ("Opportunity", "Name, AccountId, StageName, CloseDate, Amount, OwnerId, Type, RecordTypeId, "
+                               "Demo_External_ID__c, Description", opp_where),
+               ("Contact", "FirstName, LastName, Title, Email, AccountId, OwnerId, Description", f"AccountId IN {pids}"))
+    stamp = date.today().isoformat()
+    lines = query("SELECT Id, OpportunityId, Product2Id, PricebookEntryId, Quantity, UnitPrice, ServiceDate, Description "
+                  f"FROM OpportunityLineItem WHERE Opportunity.{opp_where}")
+    write_csv(os.path.join(OUT, f"backup_reset_{stamp}_OpportunityLineItem.csv"),
+              [{k: v for k, v in r.items() if k != "attributes"} for r in lines])
+    found = {}
+    for sobj, cols, where in targets:   # back everything up before any delete
+        found[sobj] = [{k: v for k, v in r.items() if k != "attributes"}
+                       for r in query(f"SELECT Id, {cols} FROM {sobj} WHERE {where}")]
+        write_csv(os.path.join(OUT, f"backup_reset_{stamp}_{sobj}.csv"), found[sobj])
+    print("backed up to out/backup_reset_" + stamp + "_*.csv: "
+          + ", ".join(f"{len(v)} {k}" for k, v in found.items()) + f", {len(lines)} OpportunityLineItem")
+    for sobj, _, _ in targets:
+        bulk("delete", sobj, [{"Id": r["Id"]} for r in found[sobj]], cols=["Id"])
     cp = load_cp()
     cp["done"] = [d for d in cp["done"] if d not in ("contacts", "opportunities", "line items", "activities", "verify")]
     save_cp(cp)
