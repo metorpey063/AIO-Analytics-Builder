@@ -38,8 +38,9 @@ def _read_json(path):
 
 
 def gateway_id(model):
-    """The Bedrock gateway's ID for a direct-API model name, e.g. 'claude-opus-5-5' -> 'us.anthropic.claude-opus-5-5'."""
-    return model if model.startswith("us.anthropic.") else f"us.anthropic.{model}"
+    """The model ID to send the Salesforce gateway: the plain name. Its allow list uses plain names
+    ('claude-haiku-4-5-20251001'); 'us.anthropic.claude-haiku-4-5-20251001' is refused with 403."""
+    return model.removeprefix("us.anthropic.")
 
 
 def pick(task, full_config=None):

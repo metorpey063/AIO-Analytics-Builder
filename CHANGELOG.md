@@ -4,6 +4,13 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-19 — Story generation works again on the Salesforce gateway (v2.20.1)
+
+### Fixed
+- **Build Demo's story step failed with "403 Client Error: Forbidden … us.anthropic.claude-haiku-4-5-20251001".** v2.18.0 started sending the gateway `us.anthropic.`-prefixed model IDs everywhere. The gateway's allow list uses plain names, and it refuses the prefixed Haiku ID ("team not allowed to access model"); the Sonnet and Opus prefixed IDs happened to work, which hid it. AIO now always sends the plain name. Checked live: the chat assistant (Sonnet 5.5), story generation (Haiku 4.5) and Rev Intel drafting (Opus 5.5) all return 200. The Setup Test button never used the prefix, so it passed while story generation failed.
+
+---
+
 ## 2026-11-19 — Rev Intel demo walkthrough; quotas step fixed for page-made configs (v2.20.0)
 
 ### Added

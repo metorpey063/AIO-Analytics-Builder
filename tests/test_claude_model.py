@@ -42,11 +42,13 @@ class Override(unittest.TestCase):
 
 
 class GatewayId(unittest.TestCase):
-    def test_adds_prefix(self):
-        self.assertEqual(claude_model.gateway_id("claude-sonnet-5-5"), "us.anthropic.claude-sonnet-5-5")
+    """The gateway's allow list uses plain names; us.anthropic.claude-haiku-4-5-20251001 got 403 (2026-11-19)."""
+    def test_plain_name_is_sent_as_is(self):
+        for m in claude_model.DEFAULTS.values():
+            self.assertEqual(claude_model.gateway_id(m), m)
 
-    def test_already_prefixed_is_unchanged(self):
-        self.assertEqual(claude_model.gateway_id("us.anthropic.claude-sonnet-5-5"), "us.anthropic.claude-sonnet-5-5")
+    def test_bedrock_prefix_is_dropped(self):
+        self.assertEqual(claude_model.gateway_id("us.anthropic.claude-sonnet-5-5"), "claude-sonnet-5-5")
 
 
 class Current(unittest.TestCase):
