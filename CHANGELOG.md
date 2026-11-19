@@ -4,6 +4,16 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-19 — Update Rev Intel checks the story lands before loading (v2.19.1)
+
+### Fixed
+- **The named culprit could show the least churn.** A segment's multiplier raises each account's chance of churning, but Revenue Insights shows churn in dollars, and each segment has only a handful of renewals since the signal started. So one large account churning by chance decided the ranking: in the Osmose draft the culprit (co-ops, multiplier 2.5) showed $31K while a "moderate" segment showed $1.26M. `plan` now checks the last 12 months of churn dollars: culprits (multiplier 1.5 or more) must lead, in multiplier order, and the counter-trend must be lowest. On a first build it tries up to 300 seeds (`STORY_SEED_TRIES`, a few seconds) and keeps the first one that lands, or the closest with a warning. The plan log shows the result. The seed is saved to the checkpoint, so later runs regenerate the same data. Demos already in an org keep their seed and aren't redrawn (KnowBe4's plan is unchanged).
+- **A crash on some draws:** an account holding only products with no drop weight crashed the generator. It now drops nothing.
+
+> Osmose, plan anchored to 2026-11-19: co-ops $448K, municipal $379K, then the others, investor-owned utilities $0. It also passes for Dec 7, 8 and 9. Dec 1 misses narrowly (municipal ahead of co-ops; both still lead). No tests cover revintel yet.
+
+---
+
 ## 2026-11-18 — Update Rev Intel keeps the org's team by default (v2.19.0)
 
 Most Rev Intel demos only need the data made relevant to a new customer, not a new forecasting structure. KnowBe4's custom team was the exception.

@@ -11,6 +11,10 @@ from revintel.config import C, DEMO_DIR, FIELDS, OUT  # noqa: E402
 from revintel import generate as G  # noqa: E402
 
 
+def opt_tries():
+    return int(getattr(C, "STORY_SEED_TRIES", 300))
+
+
 def load_pool():
     path = os.path.join(DEMO_DIR, "pool_seed.json")
     return json.load(open(path)) if os.path.exists(path) else []
@@ -76,6 +80,35 @@ def story_stats(d):
     return stats
 
 
+def story_check(d):
+    """Does the generated data tell the configured story? Churn $ (Closed Lost ATR + product churn) over the
+    last 12 months, per segment: the culprits (mult >= 1.5) rank above every other segment, in mult order,
+    and the counter-trend (mult < 0) has the least. Returns (problems, score); score is higher when closer."""
+    today = date.fromisoformat(str(d["today"]))
+    since = date(today.year - 1, today.month, 1).isoformat()
+    seg = {a["Id"]: a["_seg"] for a in d["accounts"]}
+    churn = collections.Counter({s: 0 for s in C.SEGMENTS})
+    for x in d["opportunities"]:
+        if x["RecordTypeId"] == C.RT["renewal"] and x["StageName"].startswith("Closed") and x["CloseDate"] >= since:
+            churn[seg[x["AccountId"]]] += sum(x.get(FIELDS[k] or "", 0) or 0 for k in ("product_churn", "closed_lost_atr"))
+    mult = {s: v.get("mult", 1) for s, v in C.SEGMENTS.items()}
+    culprits = sorted((s for s in mult if mult[s] >= 1.5), key=lambda s: -mult[s])
+    others = [s for s in mult if s not in culprits]
+    problems = []
+    for i, c in enumerate(culprits):
+        beaten = [o for o in others + culprits[:i] if churn[o] >= churn[c] and o != c]
+        if [o for o in beaten if o in others]:
+            problems.append(f"{c} (culprit) has less churn than " + ", ".join(o for o in beaten if o in others))
+        if i and churn[culprits[i - 1]] < churn[c]:
+            problems.append(f"{culprits[i - 1]} should have more churn than {c}")
+    for s in (s for s in mult if mult[s] < 0):
+        if churn[s] > min(churn[o] for o in mult if o != s):
+            problems.append(f"{s} (counter-trend) isn't the lowest-churn segment")
+    top_other = max((churn[o] for o in others), default=0)
+    score = sum(churn[c] for c in culprits) - len(culprits) * top_other
+    return problems, score, dict(churn)
+
+
 def build_date():
     """Anchor incremental runs to the original build date so the plan matches what's in the
     org. A date refresh (reset → apply --today) deliberately re-anchors to today."""
@@ -124,7 +157,31 @@ def plan(today=None, json_out=False):
         raise SystemExit("Config isn't ready:\n  - " + "\n  - ".join(problems))
     today = today or build_date()
     print(f"(plan anchored to {today})")
-    d = G.generate(load_pool(), today)
+    cp_path = os.path.join(OUT, "checkpoint.json")
+    built = json.load(open(cp_path)) if os.path.exists(cp_path) else None
+    base = C.SEED
+    if built:   # already in the org: regenerate exactly what was loaded
+        C.SEED = built.get("seed", base)
+        d = G.generate(load_pool(), today)
+        problems, _, churn = story_check(d)
+    else:       # first build: redraw until the churn ranking matches the story
+        best = None
+        for seed in range(base, base + opt_tries()):
+            C.SEED = seed
+            cand = G.generate(load_pool(), today)
+            problems, score, churn = story_check(cand)
+            if best is None or (len(problems), -score) < (len(best[1]), -best[2]):
+                best = (seed, problems, score, churn, cand)
+            if not problems:
+                break
+        C.SEED, problems, _, churn, d = best
+    d["seed"] = C.SEED
+    print(f"story check (churn $, last 12 months, seed {C.SEED}): "
+          + ", ".join(f"{s} {v / 1000:.0f}K" for s, v in sorted(churn.items(), key=lambda kv: -kv[1])))
+    if problems:
+        print("  ⚠ the story doesn't land: " + "; ".join(problems))
+    else:
+        print("  ✓ culprits lead, counter-trend lowest")
     stats = story_stats(d)
     for k in ("accounts", "opportunities", "line_items", "contacts", "tasks", "events"):
         write_csv(f"{k}.csv", d[k])

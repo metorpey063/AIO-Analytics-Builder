@@ -392,6 +392,7 @@ def apply(plan):
     cp = load_cp()
     cp["_plan"] = plan
     cp["build_date"] = plan["today"]
+    cp.setdefault("seed", plan.get("seed", C.SEED))   # the seed plan picked, so later runs regenerate the same data
     for name, fn in STEPS:
         step(cp, name, fn)
     cp.pop("_plan", None)

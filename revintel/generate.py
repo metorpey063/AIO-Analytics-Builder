@@ -400,8 +400,9 @@ def generate(pool, today=None):
                 dropped = None
                 if len(held) > 1 and draw(acct["Id"], k, "drop") < p_signal("drop", anniv, today, mult):
                     # the churn product is dropped whenever it's held (KnowBe4 BRD: "renew KSAT, drop Defend")
+                    droppable = {p: w for p, w in C.DROP_WEIGHTS.items() if p in held}
                     dropped = CHURN_PRODUCT if CHURN_PRODUCT in held else \
-                        pick_weighted(rng, {p: w for p, w in C.DROP_WEIGHTS.items() if p in held})
+                        pick_weighted(rng, droppable) if droppable else None
                 contract = draw(acct["Id"], k, "contraction") < p_signal("contraction", anniv, today, mult)
                 upsell = rng.random() < S.get("renewal_upsell_p", .15)
                 lines, new_held, lost = [], {}, 0
