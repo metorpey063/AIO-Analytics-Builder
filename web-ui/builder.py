@@ -1298,6 +1298,148 @@ def recapture_concierge(slug, demo_dir, q=None):
     return {"captured": captured, "total": total, "error": failed if not captured else None}
 
 
+PULSE_INSIGHT_WAIT = 5 * 60   # new metrics answer "not enough data" (or nothing) for a few minutes
+PULSE_INSIGHT_POLL = 20
+PULSE_USELESS = ("don't have enough data", "not enough data", "rephrase your question",
+                 "try the suggested questions", "unable to answer", "cannot determine")
+
+
+def capture_pulse_insights(server, cp, metric_config, company, q=None, wait_seconds=PULSE_INSIGHT_WAIT):
+    """Ask Pulse's AI (Brief API) the walkthrough's questions; saves cp["pulse_discover_results"].
+
+    Pulse needs a few minutes after a metric is created before it answers, so first wait (up to
+    wait_seconds) until the first metric gives a real answer. Returns the results list."""
+    import time
+    import aio_http as req
+    server_url, auth_token = server.server_address, server.auth_token
+    h_std = {"x-tableau-auth": auth_token, "Accept": "application/json"}
+    h_brief = {"x-tableau-auth": auth_token,
+               "Content-Type": "application/vnd.tableau.pulse.embeddingsservice.v1.GenerateInsightBriefRequest+json"}
+    pairs = list(zip(cp.get("pulse_def_ids", []), cp.get("pulse_metric_ids", [])))
+
+    def is_useless(answer):
+        return any(p in answer.lower() for p in PULSE_USELESS)
+
+    def clean(markup):
+        c = re.sub(r'<span[^>]*>(.*?)</span>', r'\1', markup)
+        c = re.sub(r'\[\[\d+\]\]\([^)]+\)', '', c)
+        return re.sub(r'\*\*', '', c).strip()
+
+    def context(i):
+        def_id, metric_id = pairs[i]
+        mc = metric_config[i] if i < len(metric_config) else metric_config[0]
+        r_def = req.get(f"{server_url}/api/-/pulse/definitions/{def_id}", headers=h_std)
+        r_met = req.get(f"{server_url}/api/-/pulse/definitions/{def_id}/metrics", headers=h_std)
+        if not (r_def.ok and r_met.ok):
+            return mc, None
+        d = r_def.json()
+        d = d.get("definition", d)
+        m = (r_met.json().get("metrics") or [{}])[0]
+        return mc, {"metadata": {"definition_id": def_id, "metric_id": metric_id,
+                                 "name": f"{company} — {mc['label']}", "tags": []},
+                    "metric": {"definition": d.get("specification", {}),
+                               "extension_options": d.get("extension_options", {}),
+                               "metric_specification": m.get("specification", {}),
+                               "representation_options": d.get("representation_options", {})}}
+
+    def ask(question, ctx):
+        r = req.post(f"{server_url}/api/-/pulse/insights/brief", headers=h_brief, timeout=60, json={
+            "language": "LANGUAGE_EN_US", "locale": "LOCALE_EN_US", "now": date.today().isoformat(),
+            "messages": [{"content": question, "action_type": "ACTION_TYPE_SUMMARIZE", "role": "ROLE_USER",
+                          "metric_group_context": [ctx], "metric_group_context_resolved": False}]})
+        if r.status_code == 201:
+            text = clean(r.json().get("markup", ""))
+            return text if text and not is_useless(text) else None
+        return None
+
+    def variants(label):
+        return [f"Summarize the overall trend for {label}", f"How has {label} changed over the past 6 months?",
+                f"What does the data show for {label}?"]
+
+    if not pairs:
+        return []
+    mc0, ctx0 = context(0)
+    first = None
+    deadline = time.time() + wait_seconds
+    while ctx0:
+        first = ask(variants(mc0["label"])[0], ctx0)
+        if first or time.time() >= deadline:
+            break
+        progress(q, "insights", "Pulse is still processing the new metrics… waiting", -1)
+        time.sleep(PULSE_INSIGHT_POLL)
+        mc0, ctx0 = context(0)
+
+    results = []
+    for i in range(len(pairs)):
+        try:
+            mc, ctx = (mc0, ctx0) if i == 0 else context(i)
+            if not ctx:
+                continue
+            answer, used = (first, variants(mc["label"])[0]) if i == 0 and first else (None, None)
+            for v in ([] if answer else variants(mc["label"])):
+                answer = ask(v, ctx)
+                if answer:
+                    used = v
+                    break
+            if answer:
+                results.append({"question": used, "answer": answer, "metric": mc["label"]})
+                progress(q, "insights", f"Q{i+1}: {mc['label']} — got response", -1)
+            else:
+                progress(q, "info", f"Q{i+1}: {mc['label']} — Pulse gave no answer; use Retry Pulse insights on My Demos later", -1)
+        except Exception as e:
+            progress(q, "info", f"Insight {i+1} failed: {str(e)[:100]}", -1)
+
+    primary = [mc for mc in metric_config if mc.get("is_primary")]
+    if primary:
+        idx = next((j for j, m in enumerate(metric_config) if m["label"] == primary[0]["label"]), 0)
+        if idx < len(pairs):
+            mc, ctx = context(idx)
+            for question in (f"What is driving the change in {mc['label']}?",
+                             f"Which segments are most affected by the {mc['label']} decline?"):
+                try:
+                    answer = ask(question, ctx) if ctx else None
+                    if answer:
+                        results.append({"question": question, "answer": answer, "metric": mc["label"]})
+                        progress(q, "insights", f"Story Q: {mc['label']} — got response", -1)
+                except Exception:
+                    pass
+
+    if results:
+        cp["pulse_discover_results"] = results
+        progress(q, "insights", f"Captured {len(results)} Pulse AI insights", -1)
+    return results
+
+
+def recapture_pulse(slug, demo_dir, q=None):
+    """Ask a built demo's Pulse questions again and rewrite its walkthrough. Returns {captured, total, error}."""
+    from connections import load_config, get_tableau_token
+    cp_path = os.path.join(demo_dir, f"{slug}_checkpoint.json")
+    with open(cp_path) as f:
+        cp = json.load(f)
+    if not cp.get("pulse_def_ids"):
+        return {"captured": 0, "total": 0, "error": "This demo has no Pulse metrics"}
+    story_config = cp.get("story_config") or cp.get("story", {})
+    metric_config = story_config.get("metric_config", [])
+    total = len(cp["pulse_def_ids"])
+    config = load_config(cp.get("_pulse_profile_key") or cp.get("_profile_key"), connection_type="tableau_cloud")
+    server, _, _ = get_tableau_token(config)
+    try:
+        results = capture_pulse_insights(server, cp, metric_config, cp.get("company", slug), q, wait_seconds=0)
+    except Exception as e:
+        return {"captured": 0, "total": total, "error": str(e)[:300]}
+    finally:
+        server.auth.sign_out()
+    if not results:
+        return {"captured": 0, "total": total, "error": "Pulse gave no answers yet. Wait a few minutes and try again."}
+    _save_cp(cp, slug, demo_dir)
+    types = ("pulse", "next", "crma")
+    built = [t for t in types if (t == "pulse" and cp.get("pulse_done")) or (t == "next" and cp.get("sdm_done"))
+             or (t == "crma" and cp.get("crma_dataset_id"))]
+    generate_walkthrough(slug, cp.get("company", slug), story_config, metric_config, built[-1] if built else "pulse",
+                         cp, demo_dir)
+    return {"captured": len(results), "total": total, "error": None}
+
+
 def _template_failed(cp, template_name, errors, q):
     """A picked template couldn't be deployed: say so plainly (build log, final message, walkthrough).
     The build still finishes with the standard dashboard so the demo isn't empty."""
@@ -1813,137 +1955,11 @@ def pulse_build(build_id, df, slug, company, config, metric_config, story_config
     if cp.get("pulse_def_ids") and not cp.get("pulse_insights_done"):
         progress(q, "insights", "Capturing Pulse AI insights...", 87)
         try:
-            import tableauserverclient as TSC
-            auth_token = server.auth_token
-            server_url = server.server_address
-            site_id = server.site_id
-
-            h_std = {"x-tableau-auth": auth_token, "Accept": "application/json"}
-            h_brief = {
-                "x-tableau-auth": auth_token,
-                "Content-Type": "application/vnd.tableau.pulse.embeddingsservice.v1.GenerateInsightBriefRequest+json",
-            }
-
-            discover_results = []
-
-            # Build question variants per metric — retry with rephrased questions if first attempt fails
-            def _question_variants(mc_label):
-                return [
-                    f"Summarize the overall trend for {mc_label}",
-                    f"How has {mc_label} changed over the past 6 months?",
-                    f"What does the data show for {mc_label}?",
-                ]
-
-            primary = [mc for mc in metric_config if mc.get("is_primary")]
-            story_questions = []
-            if primary:
-                story_questions.append((primary[0], f"What is driving the change in {primary[0]['label']}?"))
-                story_questions.append((primary[0], f"Which segments are most affected by the {primary[0]['label']} decline?"))
-
-            USELESS_PHRASES = ("don't have enough data", "not enough data", "rephrase your question",
-                               "try the suggested questions", "unable to answer", "cannot determine")
-
-            def _is_useless(answer):
-                low = answer.lower()
-                return any(p in low for p in USELESS_PHRASES)
-
-            def _clean_markup(markup):
-                clean = re.sub(r'<span[^>]*>(.*?)</span>', r'\1', markup)
-                clean = re.sub(r'\[\[\d+\]\]\([^)]+\)', '', clean)
-                return re.sub(r'\*\*', '', clean).strip()
-
-            def _ask_brief(question, metric_context):
-                brief_payload = {
-                    "language": "LANGUAGE_EN_US", "locale": "LOCALE_EN_US",
-                    "now": TODAY.isoformat(),
-                    "messages": [{"content": question, "action_type": "ACTION_TYPE_SUMMARIZE",
-                                  "role": "ROLE_USER", "metric_group_context": [metric_context],
-                                  "metric_group_context_resolved": False}],
-                }
-                r = req.post(f"{server_url}/api/-/pulse/insights/brief",
-                             headers=h_brief, json=brief_payload, timeout=30)
-                if r.status_code == 201:
-                    return _clean_markup(r.json().get("markup", ""))
-                return None
-
-            for i, (def_id, metric_id) in enumerate(zip(
-                cp.get("pulse_def_ids", []), cp.get("pulse_metric_ids", [])
-            )):
-                mc = metric_config[i] if i < len(metric_config) else metric_config[0]
-                try:
-                    r_def = req.get(f"{server_url}/api/-/pulse/definitions/{def_id}", headers=h_std)
-                    r_met = req.get(f"{server_url}/api/-/pulse/definitions/{def_id}/metrics", headers=h_std)
-                    if not (r_def.ok and r_met.ok):
-                        continue
-
-                    d = r_def.json()
-                    m_list = r_met.json().get("metrics", [])
-                    m = m_list[0] if m_list else {}
-                    metric_context = {
-                        "metadata": {"definition_id": def_id, "metric_id": metric_id,
-                                     "name": f"{company} — {mc['label']}", "tags": []},
-                        "metric": {"definition": d.get("specification", {}),
-                                   "extension_options": d.get("extension_options", {}),
-                                   "metric_specification": m.get("specification", {}),
-                                   "representation_options": d.get("representation_options", {})},
-                    }
-
-                    # Try question variants until we get a real answer
-                    variants = _question_variants(mc["label"])
-                    answer = None
-                    used_question = variants[0]
-                    for variant in variants:
-                        result = _ask_brief(variant, metric_context)
-                        if result and not _is_useless(result):
-                            answer = result
-                            used_question = variant
-                            break
-
-                    if answer:
-                        discover_results.append({"question": used_question, "answer": answer, "metric": mc["label"]})
-                        progress(q, "insights", f"Q{i+1}: {mc['label']} — got response", -1)
-                    else:
-                        progress(q, "info", f"Q{i+1}: {mc['label']} — no useful response after {len(variants)} attempts, skipping", -1)
-                except Exception as e:
-                    progress(q, "info", f"Insight {i+1} failed: {str(e)[:100]}", -1)
-
-            # Also try story-level questions using the primary metric's context
-            for mc, question in story_questions:
-                idx = next((j for j, m in enumerate(metric_config) if m["label"] == mc["label"]), 0)
-                if idx < len(cp.get("pulse_def_ids", [])):
-                    def_id = cp["pulse_def_ids"][idx]
-                    metric_id = cp["pulse_metric_ids"][idx]
-                    try:
-                        r_def = req.get(f"{server_url}/api/-/pulse/definitions/{def_id}", headers=h_std)
-                        r_met = req.get(f"{server_url}/api/-/pulse/definitions/{def_id}/metrics", headers=h_std)
-                        if r_def.ok and r_met.ok:
-                            d = r_def.json()
-                            m_list = r_met.json().get("metrics", [])
-                            m = m_list[0] if m_list else {}
-                            ctx = {
-                                "metadata": {"definition_id": def_id, "metric_id": metric_id,
-                                             "name": f"{company} — {mc['label']}", "tags": []},
-                                "metric": {"definition": d.get("specification", {}),
-                                           "extension_options": d.get("extension_options", {}),
-                                           "metric_specification": m.get("specification", {}),
-                                           "representation_options": d.get("representation_options", {})},
-                            }
-                            result = _ask_brief(question, ctx)
-                            if result and not _is_useless(result):
-                                discover_results.append({"question": question, "answer": result, "metric": mc["label"]})
-                                progress(q, "insights", f"Story Q: {mc['label']} — got response", -1)
-                    except Exception:
-                        pass
-
-            if discover_results:
-                cp["pulse_discover_results"] = discover_results
-                progress(q, "insights", f"Captured {len(discover_results)} Pulse AI insights", -1)
-            cp["pulse_insights_done"] = True
-            _save_cp(cp, slug, demo_dir)
+            capture_pulse_insights(server, cp, metric_config, company, q)
         except Exception as e:
             progress(q, "warn", f"Pulse insights phase failed (non-blocking): {e}", -1)
-            cp["pulse_insights_done"] = True
-            _save_cp(cp, slug, demo_dir)
+        cp["pulse_insights_done"] = True
+        _save_cp(cp, slug, demo_dir)
 
     progress(q, "walkthrough", "Generating walkthrough document...", 90)
     wt_path = generate_walkthrough(slug, company, story_config, metric_config, "pulse", cp, demo_dir)

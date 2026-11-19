@@ -334,6 +334,20 @@ def retry_concierge(slug):
     return jsonify({"ok": res["captured"] > 0, **res})
 
 
+@app.route("/api/demos/<slug>/pulse-insights", methods=["POST"])
+def retry_pulse_insights(slug):
+    """Ask a Pulse demo's questions to Pulse's AI again and update its walkthrough."""
+    demo_dir = PROJECT_ROOT / "demos" / slug
+    if not (demo_dir / f"{slug}_checkpoint.json").exists():
+        return jsonify({"ok": False, "error": "Demo not found"})
+    from builder import recapture_pulse
+    try:
+        res = recapture_pulse(slug, str(demo_dir))
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)[:300]})
+    return jsonify({"ok": res["captured"] > 0, **res})
+
+
 @app.route("/api/demos/<slug>/delete", methods=["POST"])
 def delete_demo(slug):
     """Delete a demo folder and optionally clean up remote assets."""

@@ -4,6 +4,18 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-19 — Pulse builds wait for Pulse's AI; Retry Pulse insights (v2.20.2)
+
+### Fixed
+- **Pulse walkthroughs had no AI answers** ("Q1: … no useful response after 3 attempts, skipping" for every metric). The build asked Pulse within seconds of creating the metrics, before Pulse could answer; the same questions answered a few minutes later. The build now waits (up to 5 minutes, with a "Pulse is still processing the new metrics… waiting" line) until the first metric answers, then asks the rest.
+
+### Added
+- **Retry Pulse insights** on My Demos for Pulse demos: asks the questions again and rewrites the walkthrough. Like Retry Concierge. Don't run it while a Pulse build on the same Tableau site is running: the Tableau sign-in ends that build's session.
+
+> Checked live on the Virgin Voyages Pulse metrics: 7 answers captured (6 metrics + 1 story question). The build-time wait itself hasn't run in a build yet.
+
+---
+
 ## 2026-11-19 — Story generation works again on the Salesforce gateway (v2.20.1)
 
 ### Fixed
