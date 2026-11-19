@@ -102,11 +102,16 @@ async function retryPulseInsights(slug, btn) {
     btn.disabled = true;
     btn.textContent = 'Asking Pulse...';
     try {
-        const j = await (await fetch('/api/demos/' + slug + '/pulse-insights', {method: 'POST'})).json();
+        const r = await fetch('/api/demos/' + slug + '/pulse-insights', {method: 'POST'});
+        if (!r.ok && !(r.headers.get('content-type') || '').includes('json')) {
+            throw new Error(r.status === 404 ? 'the server is running older code. Restart the Web UI and try again.'
+                                             : `the server returned ${r.status}. Check the terminal for details.`);
+        }
+        const j = await r.json();
         alert(j.ok ? `Captured ${j.captured} Pulse answers. The walkthrough is updated.`
                    : 'Pulse answers not captured: ' + (j.error || 'unknown error'));
     } catch (e) {
-        alert('Retry failed: ' + e);
+        alert('Retry failed: ' + e.message);
     }
     btn.disabled = false;
     btn.textContent = label;

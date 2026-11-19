@@ -12,7 +12,9 @@ All notable changes to AIO Analytics Builder are documented here.
 ### Added
 - **Retry Pulse insights** on My Demos for Pulse demos: asks the questions again and rewrites the walkthrough. Like Retry Concierge. Don't run it while a Pulse build on the same Tableau site is running: the Tableau sign-in ends that build's session.
 
-> Checked live on the Virgin Voyages Pulse metrics: 7 answers captured (6 metrics + 1 story question). The build-time wait itself hasn't run in a build yet.
+- If the server is running older code (no restart since updating), the button says "Restart the Web UI and try again" instead of a JSON SyntaxError.
+
+> Checked live on the Virgin Voyages demo through the route: 6 answers saved and the walkthrough rewritten with its Concierge section intact. The build-time wait itself hasn't run in a build yet.
 
 ---
 
