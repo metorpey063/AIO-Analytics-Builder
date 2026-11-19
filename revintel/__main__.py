@@ -9,6 +9,7 @@
     python3 -m revintel <demo_folder> add [--apply] [--count N]    # add new expansion deals (dry run unless --apply)
     python3 -m revintel <demo_folder> refresh [--plan] [--skip-sync]   # Data Sync + CRMA recipes in order
     python3 -m revintel <demo_folder> reset              # delete pool opps/contacts/activities (date refresh)
+    python3 -m revintel <demo_folder> walkthrough        # write the demo click path ({slug}_demo_walkthrough.html)
 
 The demo folder holds the customer config (config.py / *_config.py / config.json), pool seed
 files and out/. Add --today to re-anchor dates to today (a date refresh: reset, then apply --today).
@@ -61,6 +62,9 @@ def main(argv):
         from revintel import draft
         fb = argv[argv.index("--feedback") + 1] if "--feedback" in argv else None
         draft.run(fb)
+    elif cmd == "walkthrough":
+        from revintel import walkthrough
+        walkthrough.run()
     elif cmd == "inspect":
         from revintel import inspect_org
         inspect_org.run()

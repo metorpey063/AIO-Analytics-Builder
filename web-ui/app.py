@@ -1716,7 +1716,8 @@ def rev_intel_load(slug):
     has_config = any((d / n).exists() for n in ("config.py", "config.json")) or bool(list(d.glob("*_config.py")))
     review = _rev_intel_review(d, report.get("inspect"))
     return jsonify({"ok": True, "request": json.loads(req.read_text()) if req.exists() else None,
-                    "report": report, "has_config": has_config, "review": review})
+                    "report": report, "has_config": has_config, "review": review,
+                    "walkthrough": (d / f"{slug}_demo_walkthrough.html").exists()})
 
 
 def _rev_intel_review(d, inspect):

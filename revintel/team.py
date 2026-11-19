@@ -160,7 +160,8 @@ def s_lead_roles(cp):
 
 # ── quotas ──────────────────────────────────────────────────────────────────
 def quota_months():
-    y, m, n = opt("QUOTA_START", (date.today().year - 1, date.today().month)) + (opt("QUOTA_COUNT", 18),)
+    y, m = opt("QUOTA_START", (date.today().year - 1, date.today().month))   # a list in config.json, a tuple in .py
+    n = opt("QUOTA_COUNT", 18)
     return [(y + (m - 1 + i) // 12, (m - 1 + i) % 12 + 1) for i in range(n)]
 
 

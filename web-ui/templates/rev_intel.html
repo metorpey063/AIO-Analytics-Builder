@@ -196,6 +196,10 @@
         </div>
     </div>
     <div id="ri-eam" class="hidden" style="margin-top:12px"></div>
+    <div id="ri-walkthrough" class="hidden" style="margin-top:12px">
+        <button class="btn btn-secondary btn-sm" onclick="openWalkthrough()">Open demo walkthrough</button>
+        <span class="form-hint">The click path for this demo: which team, deal and account to show, with this build's numbers. Updated by every Plan and Build.</span>
+    </div>
     <div id="ri-stats" class="hidden" style="margin-top:12px"></div>
     <pre id="ri-log" class="progress-log hidden" style="max-height:360px; overflow:auto; margin-top:12px; font-size:12px; white-space:pre-wrap"></pre>
 </div>
@@ -317,6 +321,12 @@ function runStep(action, writes = false, extra = {}) {
         .catch(e => { finish(false, `Couldn't start ${action}: ${e.message}`); });
 }
 
+function openWalkthrough() {
+    const slug = $('ri-slug').value.trim();
+    fetch(`/api/demos/${slug}/walkthrough/${slug}_demo_walkthrough.html`).then(r => r.json())
+        .then(r => { if (!r.ok) alert(r.error || 'No walkthrough yet. Run Plan or Build first.'); });
+}
+
 async function loadReport(slug) {
     const r = await (await fetch(`/api/rev-intel/request/${slug}`)).json();
     if (!r.ok) return;
@@ -329,6 +339,7 @@ async function loadReport(slug) {
             · <strong>Pool:</strong> ${(ins.pool || {}).tagged_accounts ?? 0} accounts</div>
             ${(ins.warnings || []).map(w => `<div class="form-hint" style="color:var(--warning, #b26b00)">⚠ ${w}</div>`).join('')}`;
     }
+    $('ri-walkthrough').classList.toggle('hidden', !r.walkthrough);
     renderReview(r.review, r.report.draft_notes);
     const st = r.report.story_stats;
     if (st) {

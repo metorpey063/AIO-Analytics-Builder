@@ -187,6 +187,11 @@ def plan(today=None, json_out=False):
         write_csv(f"{k}.csv", d[k])
     json.dump(d, open(os.path.join(OUT, "plan.json"), "w"), indent=1, default=str)
     json.dump(stats, open(os.path.join(OUT, "story_stats.json"), "w"), indent=1)
+    try:
+        from revintel import walkthrough
+        print("walkthrough:", os.path.basename(walkthrough.build(d)))
+    except Exception as ex:   # the walkthrough is a guide; never fail a plan or build over it
+        print(f"  ⚠ walkthrough not written: {ex}")
     if json_out:
         print(json.dumps(stats))
     print(f"\nCSVs + plan.json written to {OUT} (nothing sent to the org)")
