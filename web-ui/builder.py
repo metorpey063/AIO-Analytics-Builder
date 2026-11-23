@@ -1638,8 +1638,9 @@ ul{{padding-left:1.5em}}li{{margin:4px 0}}
     h.append("</body></html>")
 
     path = os.path.join(demo_dir, f"{slug}_demo_walkthrough.html")
+    from walkthrough_nav import add_nav
     with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(h))
+        f.write(add_nav("\n".join(h)))
     return path
 
 

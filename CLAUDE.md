@@ -132,6 +132,7 @@ Every demo should let the audience *solve a problem*, not just see a chart. Desi
 - `config.json.template` — safe to commit, shows required fields
 - `demos/` — generated demo scripts and exports land here
 - `signal_verifier.py` — reads the generated DataFrame back and checks the story landed: the named culprit is the worst segment, above the measured noise (z >= 2.5), siblings stay quieter, the drill-down cell is >= 1.15x the rest of the culprit, the counter-trend metric improves. `generate_demo_data` (culprit from `signal_plan=` or the multipliers) and the Web UI `generate_data` (from `signal_plan`) call it and redraw a missed draw (3-4 tries, best kept). Tests: `python3 -m unittest tests.test_signal_verifier`
+- `walkthrough_nav.py` — contents table + collapsible sections for HTML walkthroughs (`add_nav`), applied by every walkthrough writer
 - `viz_templates.py` — chart template definitions and auto-recommendation logic
 - `viz_builder.py` — builds complete viz API payloads from templates + SDM field map
 - `viz_validator.py` — 17-rule pre-POST validation engine; run before every viz POST
@@ -173,6 +174,8 @@ When `crm_actionable` is enabled for a Tableau Next build, AIO creates real Sale
 ## Walkthrough document format (.docx)
 
 Every demo build generates a `{slug}_demo_walkthrough.docx` file. **All walkthroughs must follow this consistent structure.** The sections included depend on the build type (Pulse vs Next), but the format within each section is identical across all demos. Reference implementation: `demos/mcgough_labor_productivity/mcgough_labor_productivity_demo_walkthrough.docx` (Pulse), `demos/bi_worldwide_sales_incentive/bi_worldwide_sales_incentive_concierge_walkthrough.docx` (Next).
+
+**HTML walkthroughs** get a contents table and collapsible sections from `walkthrough_nav.add_nav()` (a script that builds both in the browser from the page's `<h1>` sections). Keep sections as plain top-level `<h1>` headings: close_loop and Retry Concierge edit the file by finding them, and sections they add join the contents automatically. `python3 walkthrough_nav.py` adds it to existing files. Rev Intel builds write their own walkthrough (`revintel/walkthrough.py`): a Revenue Insights + EAM click path.
 
 ### Section 1 — Demo Scenario (ALL builds)
 - **H1:** "Demo Scenario"

@@ -4,6 +4,16 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-23 — Walkthroughs get a contents table and collapsible sections; Rev Intel rep view (v2.21.0)
+
+### Added
+- **Contents table and collapsible sections in every HTML walkthrough.** A contents table with links sits at the top, with Expand all / Collapse all. Click any section heading to collapse or expand it. Printing shows everything. Built in the browser from the page's sections (`walkthrough_nav.py`), so sections added later (Close the Loop, Retry Concierge, Retry Pulse insights) appear in the contents too. All 10 existing HTML walkthroughs were updated (`python3 walkthrough_nav.py`).
+- **Rev Intel walkthrough: Sales Rep Command Center step.** After drilling into the culprit lead's team, it shows the rep's own view: log in as the lead, set the Forecasting Type, then Performance Trend (won vs commit, quota gauge) and Pipeline Overview, with the What If Calculator. The numbers come from this build.
+
+> Checked in headless Chrome: the Osmose and Virgin Voyages walkthroughs build their contents (6 sections each) and all sections collapse.
+
+---
+
 ## 2026-11-19 — Pulse builds wait for Pulse's AI; Retry Pulse insights (v2.20.2)
 
 ### Fixed

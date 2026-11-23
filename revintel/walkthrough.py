@@ -58,6 +58,17 @@ def _stage_categories():
         return STAGE_CATEGORY
 
 
+def _forecast_label():
+    """The label of the role-based forecast type the quotas are written to (read-only)."""
+    dev = (opt("ROLE_FORECAST_TYPES", ["OpportunityAmount"]) or ["OpportunityAmount"])[0]
+    try:
+        from revintel import apply as A
+        rows = A.query(f"SELECT MasterLabel FROM ForecastingType WHERE DeveloperName = '{dev}'")
+        return rows[0]["MasterLabel"] if rows else dev
+    except BaseException:
+        return dev
+
+
 def _story_part(m):
     return ("culprit", "Culprit: churn and slips concentrate here") if m >= 1.5 else \
         ("counter", "Counter-trend: healthy, beats quota") if m < 0 else \
@@ -81,6 +92,8 @@ def build(plan=None, categories=None):
     month = today.isoformat()[:7]
     q0 = date(today.year, 3 * ((today.month - 1) // 3) + 1, 1)
     q1 = date(q0.year + (q0.month + 3 > 12), (q0.month + 2) % 12 + 1, 1)
+    forecast_label = _forecast_label()
+    qs, qe = q0.isoformat(), q1.isoformat()
     customer = opt("CUSTOMER_LABEL", req.get("customer", "the customer"))
     leader = opt("SALES_LEADER", "elliot")
     segs = C.SEGMENTS
@@ -147,7 +160,6 @@ def build(plan=None, categories=None):
     commit = commits[0] if commits else None
 
     # Commit Calculator numbers for the counter-trend lead, this quarter
-    qs, qe = q0.isoformat(), q1.isoformat()
     in_q = [o for o in opps if o["_seg"] == counter and qs <= o["CloseDate"] < qe]
     calc = {k: [o for o in in_q if o["_cat"] == k] for k in ("Closed", "Commit", "BestCase", "Pipeline")}
 
@@ -225,6 +237,24 @@ def build(plan=None, categories=None):
         ("Audience sees:", "A renewal whose close date moved out in the last 7 days. This tab only covers 7 days, so "
                            "run Roll + refresh within a few days of the demo and check it's there.")])
 
+    team_q = [o for o in opps if o["_seg"] == culprit and qs <= o["CloseDate"] < qe]
+    won_q = sum(o["_amount"] for o in team_q if o["_cat"] == "Closed")
+    commit_q = sum(o["_amount"] for o in team_q if o["_cat"] == "Commit")
+    open_deals = [o for o in team_q if is_open(o)]
+    step(f"Rep view: Sales Rep Command Center as {names.get(lead_c, lead_c)}", [
+        ("Action:", f"In the <b>Revenue Insights</b> app, open <b>Sales Rep Command Center</b>. It shows the signed-in "
+                    f"user (“Welcome back, …”), so log in as <b>{lc}</b> (Setup → Users → {lc} → Login), or pick {lc} "
+                    f"in the user filter at the top if your view has one. Set <b>Forecasting Type</b> to "
+                    f"<b>{e(forecast_label)}</b>."),
+        ("Audience sees:", f"<b>Performance Trend</b>: this quarter's won revenue ({money(won_q)} so far) against "
+                           f"commit ({money(commit_q)}), the quota progress gauge"
+                           + (" short of quota" if stretch.get(lead_c, 1) > 1 else "")
+                           + f", and the gap to quota. <b>Pipeline Overview</b>: {plural(len(open_deals), 'open deal')} "
+                             "closing this quarter and pipeline coverage."),
+        ("Say:", f"“This is what {lc} sees every morning. Same numbers as the manager's view, so the 1:1 starts from one "
+                 "version of the truth.” Use the <b>What If Calculator</b> slider to show how much more "
+                 f"{lc} needs to close to reach quota.")])
+
     if hero:
         _, _, val, a_id, when, prods, r = hero
         a = accts[a_id]
@@ -288,7 +318,12 @@ def build(plan=None, categories=None):
     h.append("</body></html>")
 
     path = os.path.join(DEMO_DIR, f"{os.path.basename(DEMO_DIR)}_demo_walkthrough.html")
-    open(path, "w", encoding="utf-8").write("\n".join(h))
+    import sys
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from walkthrough_nav import add_nav
+    open(path, "w", encoding="utf-8").write(add_nav("\n".join(h)))
     return path
 
 
