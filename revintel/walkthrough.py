@@ -208,53 +208,71 @@ def build(plan=None, categories=None):
                  f"<td>{sum(r.values())} ({risk})</td><td class='tag {cls}'>{label}</td></tr>")
     h.append("</table>")
 
-    # 3. Click path
-    lc, lk = e(names.get(lead_c, lead_c)), e(names.get(lead_k, lead_k))
-    h.append("<h1>Demo Click Path</h1>")
-    h.append("<p>Each step shows the action to take, followed by what the audience will see. Leave the Revenue "
-             "Insights period on the current month; everything below shows without changing other filters.</p>")
+    # 3. Talk track (structure of the Revenue Intelligence + Tableau Next demo script)
+    lc, lk, ld = e(names.get(lead_c, lead_c)), e(names.get(lead_k, lead_k)), e(names.get(leader, leader))
+    seg_c, seg_k = e(segs[culprit].get("label", culprit)), e(segs[counter].get("label", counter))
+    churn_label = e(C.PRODUCTS[C.CHURN_PRODUCT]["label"]) if getattr(C, "CHURN_PRODUCT", None) in C.PRODUCTS else "an add-on"
+    core_label = e(C.PRODUCTS[C.CORE_PRODUCT]["label"]) if getattr(C, "CORE_PRODUCT", None) in C.PRODUCTS else "the core product"
+    culprits = [s_ for s_ in ranked if segs[s_].get("mult", 1) >= 1.5]
+    behind = list(dict.fromkeys(names.get(lead_for(segs[s_]["owner"]), segs[s_]["owner"]) for s_ in culprits))
+    ahead = list(dict.fromkeys(names.get(lead_for(segs[s_]["owner"]), segs[s_]["owner"])
+                               for s_ in segs if segs[s_].get("mult", 1) < 0.5))
+    h.append("<h1>Demo Talk Track</h1>")
+    h.append(f"<p>Follows the standard Revenue Intelligence demo: a sales rep's day ({lc}), then the sales leader "
+             f"preparing for the forecast call ({ld}). Each step has what to <b>say</b>, what to <b>click</b>, and what the "
+             "audience <b>sees</b>, with this build's people, deals and numbers. Open everything from the "
+             "<b>Revenue Insights</b> app. Plan on about 30 minutes.</p>")
 
     def step(title, items):
         h.append(f"<div class='step'><h2>{e(title)}</h2>" + "".join(f"<p><b>{k}</b> {v}</p>" for k, v in items) + "</div>")
 
-    step("1. Revenue Insights: where do I spend my time?", [
-        ("Action:", f"Open the <b>Revenue Insights</b> app as {e(names.get(leader, leader))}. Show all the leads on one "
-                    f"view, then drill into <b>{lc}</b> ({e(segs[culprit].get('label', culprit))})."),
-        ("Audience sees:", f"Every lead without drilling. {lc}'s team "
-                           + ("is behind quota and " if stretch.get(lead_c, 1) > 1 else "")
-                           + f"carries the most churn "
-                           f"({money(churn12.get(culprit))} in the last 12 months). For contrast, {lk}'s team is the healthy one."),
-        ("Say:", f"“This is how a manager walks into a 1:1 with {lc}, already knowing what to coach on.” "
-                 f"Then scroll to <b>What should I focus on?</b>")])
-    if commit:
-        step("Coaching item: Top Open Opportunities → Commit", [
-            ("Audience sees:", f"<b>{e(commit['Name'])}</b>, {money(commit['_amount'])}, at {e(commit['StageName'])}, "
-                               f"closing {date.fromisoformat(commit['CloseDate']):%b %d}."
-                               + (f" Next step: “{e(commit['NextStep'])}”" if commit.get("NextStep") else "")),
-            ("Say:", "“Before I believe this number, I want to know what's happening in the account.”")])
-    step("Coaching item (after a Roll): Opportunity Changes → Close Date", [
-        ("Action:", "Only after <b>Roll forward</b> has run. Open the Close Date tab for a renewal that slipped."),
-        ("Audience sees:", "A renewal whose close date moved out in the last 7 days. This tab only covers 7 days, so "
-                           "run Roll + refresh within a few days of the demo and check it's there.")])
+    def part(title):
+        h.append(f"<h2 style='margin-top:1.8em'>{e(title)}</h2>")
 
     team_q = [o for o in opps if o["_seg"] == culprit and qs <= o["CloseDate"] < qe]
     won_q = sum(o["_amount"] for o in team_q if o["_cat"] == "Closed")
     commit_q = sum(o["_amount"] for o in team_q if o["_cat"] == "Commit")
     open_deals = [o for o in team_q if is_open(o)]
-    step(f"Rep view: Sales Rep Command Center as {names.get(lead_c, lead_c)}", [
-        ("Action:", f"In the <b>Revenue Insights</b> app, open <b>Sales Rep Command Center</b>. It shows the signed-in "
-                    f"user (“Welcome back, …”), so log in as <b>{lc}</b> (Setup → Users → {lc} → Login), or pick {lc} "
-                    f"in the user filter at the top if your view has one. Set <b>Forecasting Type</b> to "
-                    f"<b>{e(forecast_label)}</b>."),
-        ("Audience sees:", f"<b>Performance Trend</b>: this quarter's won revenue ({money(won_q)} so far) against "
-                           f"commit ({money(commit_q)}), the quota progress gauge"
-                           + (" short of quota" if stretch.get(lead_c, 1) > 1 else "")
-                           + f", and the gap to quota. <b>Pipeline Overview</b>: {plural(len(open_deals), 'open deal')} "
-                             "closing this quarter and pipeline coverage."),
-        ("Say:", f"“This is what {lc} sees every morning. Same numbers as the manager's view, so the 1:1 starts from one "
-                 "version of the truth.” Use the <b>What If Calculator</b> slider to show how much more "
-                 f"{lc} needs to close to reach quota.")])
+    hero_r = hero[6] if hero else None
+    rep_deal = hero_r or (sorted(team_open, key=lambda o: (not o["StageName"].startswith("At Risk"), -o["_amount"]))
+                          or [None])[0]
+    all_q_open = [o for o in opps if qs <= o["CloseDate"] < qe and is_open(o) and o["_amount"] > 0]
+    best = sorted((o for o in all_q_open if o["_cat"] == "BestCase"), key=lambda o: -o["_amount"])
+    best_deal = best[0] if best else None
 
+    part("Part Zero: Revenue Intelligence on its own")
+    step("Set the scene", [
+        ("Say:", f"“Revenue Intelligence is purpose-built for pipeline management and forecasting. {e(customer)}'s reps and "
+                 "leaders each get role-based dashboards with their own numbers, so everyone works from one snapshot of "
+                 f"the business.” Then name the problem: {e(story.get('problems', ['renewals'])[0].lower()) if story.get('problems') else 'renewals'} "
+                 f"concentrated in {seg_c}."),
+        ("Action:", f"Show the two starting points: the rep's <b>Sales Rep Command Center</b> and the leader's "
+                    f"<b>Revenue Insights</b> home.")])
+
+    part(f"Part One: Sales Rep ({names.get(lead_c, lead_c)})")
+    step("1. Where do I stand?", [
+        ("Say:", f"“As {lc}, I start my day here: where I stand against quota, and the trend, not just a snapshot.”"),
+        ("Action:", f"Open <b>Sales Rep Command Center</b> as {lc}. It shows the signed-in user (“Welcome back, …”), so log in "
+                    f"as {lc} (Setup → Users → {lc} → Login), or pick {lc} in the user filter if your view has one. Set "
+                    f"<b>Forecasting Type</b> to <b>{e(forecast_label)}</b>."),
+        ("Audience sees:", f"<b>Performance Trend</b>: {money(won_q)} won so far this quarter against {money(commit_q)} in "
+                           "commit, the quota gauge" + (" short of quota" if stretch.get(lead_c, 1) > 1 else "")
+                           + ", and the gap to quota.")])
+    step("2. What will it take to hit my number?", [
+        ("Say:", "“I can see my gap to quota and run what-ifs to see exactly what it takes to close it.”"),
+        ("Action:", "Scroll to the <b>What If Calculator</b> and move the slider. Optionally open the <b>Pipeline Overview</b> "
+                    "page to show the deals by stage."),
+        ("Audience sees:", f"{plural(len(open_deals), 'open deal')} on {lc}'s team closing this quarter, and how much more "
+                           "they need to close.")])
+    if rep_deal:
+        step("3. Act on my priority deal", [
+            ("Say:", f"“It points me to the deals that need attention, and I can act without switching screens.”"),
+            ("Action:", f"Find <b>{e(rep_deal['Name'])}</b> in the Command Center's opportunity lists (or <b>Stuck "
+                        "Opportunities</b> after a Roll) and open the action menu: log a call, create a task, or open the "
+                        "record."),
+            ("Audience sees:", f"{money(rep_deal['_amount'])}, <b>{e(rep_deal['StageName'])}</b>, closing "
+                               f"{date.fromisoformat(rep_deal['CloseDate']):%b %d, %Y}."
+                               + (f" Next step: “{e(rep_deal['NextStep'])}”" if rep_deal.get("NextStep") else ""))])
     if hero:
         _, _, val, a_id, when, prods, r = hero
         a = accts[a_id]
@@ -262,39 +280,85 @@ def build(plan=None, categories=None):
         ever = {li["_product"] for o in opps if o["AccountId"] == a_id
                 for li in lines_of[o["Demo_External_ID__c"]] if (li["UnitPrice"] or 0) > 0}
         never = [C.PRODUCTS[p]["label"] for p in C.PRODUCTS if p not in ever]
-        items = [("Action:", f"In <b>Einstein Account Management</b>, pick <b>{e(a['Name'])}</b> in the "
-                             f"<b>Account Name</b> filter ({lc}'s team, {e(a.get('BillingCity') or '')}). Each account sits "
-                             f"in exactly one tile, so if it isn't in the default list, look under Where to Sell or Most at Risk.")]
+        items = [("Say:", "“Before my meeting, I want the whole picture of this customer, not just the one deal.”"),
+                 ("Action:", f"In <b>Einstein Account Management</b>, pick <b>{e(a['Name'])}</b> in the <b>Account Name</b> "
+                             f"filter ({e(a.get('BillingCity') or '')}). Each account sits in exactly one tile, so if it isn't "
+                             "in the default list, look under Where to Sell or Most at Risk.")]
         if val:
             items.append(("Audience sees:", f"The product list: <b>{e(dropped)}</b> worth {money(val)} went to $0 at the "
-                                            f"{date.fromisoformat(when):%b %Y} renewal, while the core renewed."))
-            items.append(("Say:", "“They renewed, so on a won/lost report this account looks fine. It isn't.” "
-                                  "A dropped product still counts as a won renewal, so EAM doesn't flag it; that's why "
-                                  "product churn is tracked on the renewal."))
-        if r:
-            items.append(("Then:", f"Open the account's opportunities: <b>{e(r['Name'])}</b>, {money(r['_amount'])}, "
-                                   f"<b>{e(r['StageName'])}</b>"
-                                   + (f". Next step: “{e(r['NextStep'])}”" if r.get("NextStep") else ".")))
-        step(f"2. EAM account: {a['Name']}", items)
+                                            f"{date.fromisoformat(when):%b %Y} renewal, while {core_label} renewed."))
+            items.append(("Say:", "“They renewed, so on a won/lost report this account looks fine. It isn't. A dropped "
+                                  "product still counts as a won renewal, so it never shows up as churn. That's the early "
+                                  "warning before an account leaves.”"))
         if never:
-            step("3. Whitespace: what's the next conversation?", [
-                ("Action:", f"Open the <b>Whitespace</b> page for {e(a['Name'])}."),
-                ("Audience sees:", f"Products it has never bought: {e(', '.join(never))}. Whitespace counts anything "
-                                   "ever bought, so a dropped product shows as purchased, not as a gap."),
-                ("Then:", "On <b>Cluster Analysis</b>, pick a typical account from the same team, not a standout: EAM puts "
-                          "standout accounts in a cluster of their own, so you'd only see that one account.")])
+            items.append(("Then:", f"Open <b>Whitespace</b>: products it has never bought ({e(', '.join(never))}) are the next "
+                                   "conversation. Whitespace counts anything ever bought, so the dropped product shows as "
+                                   "purchased, not as a gap."))
+        step(f"4. Prepare for the meeting: {a['Name']}", items)
 
-    if any(calc.values()):
-        sums = {k: (len(v), sum(o["_amount"] for o in v)) for k, v in calc.items()}
-        step("4. Commit Calculator: walk into the forecast call with a number", [
-            ("Action:", f"Open it in the <b>Revenue Insights</b> app. Filter to <b>{lk}</b>, enter a goal, then add a "
-                        "Best Case deal and remove a Commit deal."),
-            ("Audience sees:", f"This quarter: Won {money(sums['Closed'][1])}, Commit {money(sums['Commit'][1])} "
-                               f"({plural(sums['Commit'][0])}), Best Case {money(sums['BestCase'][1])} ({plural(sums['BestCase'][0])}), "
-                               f"Pipeline {money(sums['Pipeline'][1])}. The gap to goal moves as deals are added or removed."),
-            ("Why this lead:", f"{lk} leads the healthy team, so the quarter has deals in every column; "
-                               "a struggling team's calculator can look empty.")])
-    step("5. Close", [("Say:", "“Where to focus → what's really happening in the account → the next play → the number.”")])
+    part(f"Part Two: Sales Leader ({names.get(leader, leader)})")
+    step("5. How is the team pacing?", [
+        ("Say:", f"“As {ld}, I need every lead positioned to hit their number, and to step in early when something "
+                 "slips.”"),
+        ("Action:", f"Log back in as {ld} and open the <b>Revenue Insights</b> home. Hover over each lead to show attainment, "
+                    "and open the person filter (don't choose anyone) to show you can filter to one lead."),
+        ("Audience sees:", f"All the leads on one view. {' and '.join(e(n) for n in ahead) or lk} "
+                           f"{'are' if len(ahead) > 1 else 'is'} tracking well; {' and '.join(e(n) for n in behind) or lc} "
+                           f"{'are' if len(behind) > 1 else 'is'} behind, with the most churn ({money(sum(churn12.get(s_, 0) for s_ in culprits))} "
+                           "in the last 12 months between them).")])
+    step("6. What should I focus on?", [
+        ("Say:", "“Revenue Insights surfaces what needs attention, so I don't dig for it.”"
+                 + (f" Tie it to the leading indicator: {e(story['leading_indicator'])}" if story.get("leading_indicator") else "")),
+        ("Action:", "Scroll to <b>What should I focus on?</b>. Show <b>Opportunities Needing My Attention</b> and "
+                    "<b>Top Open Opportunities</b>"
+                    + (f". On <b>{e(commit['Name'])}</b>, open the action menu → <b>New Task</b> → “Please validate "
+                       f"opportunity”, set a due date, and assign it to {lc}." if commit else ".")),
+        ("Audience sees:", (f"<b>{e(commit['Name'])}</b>, {money(commit['_amount'])} in Commit"
+                            + (f", next step “{e(commit['NextStep'].rstrip('.'))}”" if commit.get("NextStep") else "") + ". "
+                            if commit else "")
+                           + "Skip <b>No Next Step</b> and <b>Stuck in Stage</b>: the demo data has little stage history. "
+                             "<b>No Activity</b> lists most open deals, because activity is logged on accounts, so point to "
+                             f"{lc}'s renewals only.")])
+    if best_deal:
+        step("7. Which deals can move into Commit?", [
+            ("Say:", "“I need more deals in Commit. Revenue Insights brings the biggest Best Case deals to the front.”"),
+            ("Action:", "In <b>Top Open Opportunities</b>, click <b>Best Case</b>."),
+            ("Audience sees:", f"<b>{e(best_deal['Name'])}</b>, {money(best_deal['_amount'])}, closing "
+                               f"{date.fromisoformat(best_deal['CloseDate']):%b %d}: the deal to pull forward.")])
+    calc_all = {k: [o for o in opps if qs <= o["CloseDate"] < qe and o["_cat"] == k] for k in ("Closed", "Commit", "BestCase")}
+    sums = {k: (len(v), sum(o["_amount"] for o in v)) for k, v in calc_all.items()}
+    step("8. Commit Calculator: the number for the forecast call", [
+        ("Say:", "“Now I test scenarios and see how each change moves my forecast.”"
+                 + (f" Pulling {e(commit['Name'])}: “{lc}'s team carries the most churn"
+                    + (f", and this one is still at “{e(commit['NextStep'].rstrip('.'))}”" if commit.get("NextStep") else "")
+                    + ", so it stays out of Commit until it's signed.”" if commit else "")),
+        ("Action:", "Open <b>Commit Calculator</b> in the Revenue Insights app (not the older Revenue Intelligence app's "
+                    "copy)."
+                    + (f" Remove <b>{e(commit['Name'])}</b> from Commit" if commit else "")
+                    + (f", then add <b>{e(best_deal['Name'])}</b> from Best Case." if best_deal else ".")),
+        ("Audience sees:", f"This quarter for the whole team: Won {money(sums['Closed'][1])}, Commit {money(sums['Commit'][1])} "
+                           f"({plural(sums['Commit'][0])}), Best Case {money(sums['BestCase'][1])} "
+                           f"({plural(sums['BestCase'][0])}). The gap to goal moves as deals come out and go in."),
+        ("Tip:", f"If the whole-team view is crowded, filter to {lk}: the healthy team's quarter has deals in every column.")])
+    step("Close", [("Say:", f"“With Revenue Intelligence, {ld} sees where the business stands, finds the team that needs help, "
+                            "and walks into the forecast call with a number they can defend. "
+                            f"{lc} knows exactly which deals to work today.”")])
+
+    # Optional: agent prompts, tailored to the story
+    h.append("<h1>Optional: Agentforce for Analytics prompts</h1>")
+    h.append("<p>Only if this org has the Analytics Agent (Concierge) set up on Revenue Intelligence data. Ask these in "
+             "the agent panel; check the answers before the demo.</p>")
+    rep_qs = [f"What is my pipeline by product family?",
+              f"What are my top 5 renewals closing this quarter?",
+              (f"What is the predicted likelihood of closing the {e(rep_deal['Name'])} deal?" if rep_deal else None),
+              (f"Summarize metrics for {e(accts[hero[3]]['Name'])}" if hero else None)]
+    lead_qs = [f"Which teams have the most churn this year?",
+               f"What are the top 5 opportunities in the Commit forecast category that are at risk?",
+               f"Which accounts dropped {churn_label} at renewal?",
+               f"Why is churn highest in {seg_c}?",
+               "Analyze monthly pipeline for the current quarter"]
+    h.append("<h2>As the rep</h2><ul>" + "".join(f"<li>“{q}”</li>" for q in rep_qs if q) + "</ul>")
+    h.append("<h2>As the leader</h2><ul>" + "".join(f"<li>“{q}”</li>" for q in lead_qs) + "</ul>")
 
     # 4. Don't show / before the demo
     h.append("<h1>Don't show</h1><ul>"

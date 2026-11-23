@@ -4,6 +4,16 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-23 — Rev Intel walkthrough follows the standard demo talk track (v2.22.0)
+
+### Changed
+- **The Rev Intel walkthrough's click path is now a talk track**, in the structure of the standard Revenue Intelligence + Tableau Next demo script. It runs Part Zero (Revenue Intelligence on its own), then Part One, a sales rep's day: Command Center → What If → their priority deal → the account in EAM and its whitespace. Then Part Two, the sales leader: team pacing → What should I focus on? (validate-opportunity task) → Best Case → Commit Calculator. Each step has Say / Action / Audience sees. The rep is the culprit lead and the leader is the org's sales leader. The deals and accounts come from the build's data, and the focus step ties back to the story's leading indicator.
+- **Optional Agentforce for Analytics prompts**, written for the story (churn by team, at-risk Commit deals, accounts that dropped the churn product), for orgs that have the Analytics Agent on Revenue Intelligence data.
+
+> Osmose: rep Ely East (co-ops), priority deal and account Red River Valley Power Cooperative (O-Calc Pro dropped, $484K renewal open), leader Elliot Executive, Commit Calculator pulls Wabash Prairie Power Cooperative (awaiting PO) and adds Cascade Pacific Power ($5.92M Best Case).
+
+---
+
 ## 2026-11-23 — Walkthroughs get a contents table and collapsible sections; Rev Intel rep view (v2.21.0)
 
 ### Added
