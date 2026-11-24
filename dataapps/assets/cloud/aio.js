@@ -298,13 +298,15 @@
       return v.length ? [Math.min.apply(null, v), Math.max.apply(null, v)] : [0, 1];
     }
     var s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, width: W, style: 'max-width:100%', role: 'img', 'aria-label': 'Site map' });
-    // Ground, a light contour pattern so it reads as terrain, not a chart
+    // Ground
     s.appendChild(svg('rect', { x: 4, y: 4, width: W - 8, height: H - 8, rx: 10, fill: '#efe9dc', stroke: '#ddd4c2' }));
-    for (var c = 1; c <= 6; c++) {
-      s.appendChild(svg('ellipse', { cx: W * 0.52, cy: H * 0.46, rx: W * 0.08 * c, ry: H * 0.07 * c, fill: 'none',
-                                     stroke: '#e2d9c6', 'stroke-width': 1 }));
-    }
-    // Lot outlines around the places in each zone
+    function pathD(pts) { return pts.map(function (q, i) { return (i ? 'L' : 'M') + q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(''); }
+    function dist(p1, p2) { return Math.hypot(p1[0] - p2[0], p1[1] - p2[1]); }
+    var loaderPts = (marks || []).map(function (m) { return [X(m[o.markers.x]), Y(m[o.markers.y])]; });
+    // Lot outlines around the places in each zone; each lot's gate is the edge facing the equipment
+    var gates = {}, lots = [];
+    var ex = loaderPts.length ? loaderPts.reduce(function (t, q) { return t + q[0]; }, 0) / loaderPts.length : W / 2;
+    var ey = loaderPts.length ? loaderPts.reduce(function (t, q) { return t + q[1]; }, 0) / loaderPts.length : H / 2;
     if (o.zone) {
       var zones = {};
       rows.forEach(function (r) { (zones[r[o.zone]] = zones[r[o.zone]] || []).push(r); });
@@ -312,33 +314,114 @@
         var xs = zones[z].map(function (r) { return X(r[o.x]); }), ys = zones[z].map(function (r) { return Y(r[o.y]); });
         var x0 = Math.min.apply(null, xs) - 26, x1 = Math.max.apply(null, xs) + 26;
         var y0 = Math.min.apply(null, ys) - 40, y1 = Math.max.apply(null, ys) + 22;
-        var hot = o.highlight && z === o.highlight;
-        s.appendChild(svg('rect', { x: x0, y: y0, width: x1 - x0, height: y1 - y0, rx: 10, fill: hot ? '#f6dcd6' : '#e4ddcd',
-                                    stroke: hot ? '#cf222e' : '#c9bfa9', 'stroke-dasharray': '5 4', 'stroke-width': hot ? 2 : 1 }));
-        s.appendChild(svg('text', { x: x0 + 2, y: y0 - 6, 'class': 'aio-axis', 'font-weight': 700, fill: hot ? '#a40e26' : '#57606a' }, z));
+        lots.push({ z: z, x0: x0, x1: x1, y0: y0, y1: y1 });
+        var gx = Math.max(x0 + 14, Math.min(x1 - 14, ex));
+        gates[z] = [gx, ey > (y0 + y1) / 2 ? y1 : y0];
       });
     }
-    // Haul routes under everything else
+    // The pit: benches between the loaders, kept clear of every lot
+    if (loaderPts.length >= 2) {
+      var clear = lots.reduce(function (m, L) {
+        var dx = Math.max(L.x0 - ex, 0, ex - L.x1), dy = Math.max(L.y0 - ey, 0, ey - L.y1);
+        return Math.min(m, Math.hypot(dx, dy));
+      }, 1e9);
+      var spread = loaderPts.reduce(function (m, q) { return Math.max(m, dist(q, [ex, ey])); }, 0);
+      var pr = Math.max(24, Math.min(clear - 12, spread * 0.6));
+      for (var bn = 5; bn >= 1; bn--) {
+        var f = bn / 5;
+        s.appendChild(svg('ellipse', { cx: ex, cy: ey, rx: pr * f * 1.35, ry: pr * f * 0.85,
+                                       fill: 'rgb(' + (214 - 22 * (5 - bn)) + ',' + (202 - 22 * (5 - bn)) + ',' + (178 - 20 * (5 - bn)) + ')',
+                                       stroke: '#c4b799', 'stroke-width': 1 }));
+      }
+    }
+    lots.forEach(function (L) {
+      var hot = o.highlight && L.z === o.highlight;
+      s.appendChild(svg('rect', { x: L.x0, y: L.y0, width: L.x1 - L.x0, height: L.y1 - L.y0, rx: 10, fill: hot ? '#f6dcd6' : '#e4ddcd',
+                                  stroke: hot ? '#cf222e' : '#c9bfa9', 'stroke-dasharray': '5 4', 'stroke-width': hot ? 2 : 1 }));
+      s.appendChild(svg('text', { x: L.x0 + 2, y: L.y0 - 6, 'class': 'aio-axis', 'font-weight': 700, fill: hot ? '#a40e26' : '#57606a' }, L.z));
+    });
+    // Haul-road network: lot gates and loaders, each joined to its two nearest neighbours (plus whatever keeps the
+    // network in one piece), every road a gentle curve. Routes take the shortest way along it.
+    var net = Object.keys(gates).map(function (z) { return gates[z]; }).concat(loaderPts);
+    if (!net.length) net = rows.map(function (r) { return [X(r[o.x]), Y(r[o.y])]; });
+    var edges = {};
+    function edgeKey(i, j) { return i < j ? i + '-' + j : j + '-' + i; }
+    net.forEach(function (q, i) {
+      net.map(function (q2, j) { return [j, dist(q, q2)]; }).filter(function (e) { return e[0] !== i; })
+        .sort(function (e1, e2) { return e1[1] - e2[1]; }).slice(0, 2).forEach(function (e) { edges[edgeKey(i, e[0])] = 1; });
+    });
+    var inTree = [0], restNodes = net.map(function (_, i) { return i; }).slice(1);   // spanning tree: no island is left out
+    while (restNodes.length) {
+      var best = null;
+      inTree.forEach(function (i) { restNodes.forEach(function (j) { var d = dist(net[i], net[j]); if (!best || d < best[2]) best = [i, j, d]; }); });
+      edges[edgeKey(best[0], best[1])] = 1;
+      inTree.push(best[1]); restNodes.splice(restNodes.indexOf(best[1]), 1);
+    }
+    var geom = {}, adj = net.map(function () { return []; });
+    Object.keys(edges).forEach(function (k, n) {
+      var ij = k.split('-').map(Number), A = net[ij[0]], B = net[ij[1]], len = dist(A, B);
+      var mx2 = (A[0] + B[0]) / 2, my2 = (A[1] + B[1]) / 2, side = n % 2 ? 1 : -1;
+      var bx2 = mx2 + side * (-(B[1] - A[1]) / Math.max(1e-9, len)) * len * 0.14;
+      var by2 = my2 + side * ((B[0] - A[0]) / Math.max(1e-9, len)) * len * 0.14;
+      var pts = [];
+      for (var t = 0; t <= 1.0001; t += 1 / 14) {
+        pts.push([(1 - t) * (1 - t) * A[0] + 2 * (1 - t) * t * bx2 + t * t * B[0], (1 - t) * (1 - t) * A[1] + 2 * (1 - t) * t * by2 + t * t * B[1]]);
+      }
+      geom[k] = pts;
+      adj[ij[0]].push([ij[1], len]); adj[ij[1]].push([ij[0], len]);
+    });
+    function nearestNode(q) { var bi = 0; net.forEach(function (n2, i) { if (dist(n2, q) < dist(net[bi], q)) bi = i; }); return bi; }
+    function shortest(a2, b3) {   // Dijkstra over the road network
+      var d = net.map(function () { return Infinity; }), prev = net.map(function () { return -1; }), done2 = {};
+      d[a2] = 0;
+      for (;;) {
+        var u = -1;
+        d.forEach(function (v, i) { if (!done2[i] && v < Infinity && (u < 0 || v < d[u])) u = i; });
+        if (u < 0 || u === b3) break;
+        done2[u] = 1;
+        adj[u].forEach(function (e) { if (d[u] + e[1] < d[e[0]]) { d[e[0]] = d[u] + e[1]; prev[e[0]] = u; } });
+      }
+      var path = [];
+      for (var v2 = b3; prev[v2] >= 0; v2 = prev[v2]) path.unshift(edgeKey(prev[v2], v2));
+      return path;
+    }
+    // Traffic is summed per road, so a shared road gets as thick as the cycles on it, shaded by their wait
+    var traffic = {};
+    function addPiece(key, pts, w, cval) {
+      var t2 = traffic[key] = traffic[key] || { pts: pts, w: 0, cw: 0, n: 0 };
+      t2.w += w; if (cval !== null) { t2.cw += w * cval; t2.n += w; }
+    }
+    function placeAt(x, y) {
+      return rows.filter(function (r) { return Math.abs(X(r[o.x]) - x) < 0.5 && Math.abs(Y(r[o.y]) - y) < 0.5; })[0];
+    }
     if (o.routes && routes.length) {
-      var R = o.routes, wr = range(routes, R.weight || R.color), cr = range(routes, R.color || R.weight);
-      // Only the worse half of the routes (by `color`) is drawn bold; the rest fade back so the problem stands out
-      var cv = routes.map(function (r) { return num(r[R.color]); }).filter(function (v) { return v !== null; }).sort(function (a, b) { return a - b; });
-      var mid = cv.length ? cv[Math.floor(cv.length / 2)] : null;
-      routes.slice().sort(function (a, b) {   // faint lines first, the worst on top
-        var d = (num(a[R.color]) || 0) - (num(b[R.color]) || 0);
-        return bad ? d : -d;
-      }).forEach(function (r) {
-        var v = num(r[R.color]);
-        var strong = !R.color || mid === null || (bad ? v >= mid : v <= mid);
-        var w = R.weight ? 1 + 5 * (num(r[R.weight]) - wr[0]) / Math.max(1e-9, wr[1] - wr[0]) : 2;
-        var line = svg('line', { x1: X(r[R.fromX]), y1: Y(r[R.fromY]), x2: X(r[R.toX]), y2: Y(r[R.toY]),
-                                 stroke: strong && R.color ? shade(v, cr[0], cr[1]) : '#b9b1a0',
-                                 'stroke-width': (strong ? w : 1).toFixed(1),
-                                 'stroke-opacity': strong ? 0.7 : 0.35, 'stroke-linecap': 'round' });
-        if (R.label) line.appendChild(svg('title', {}, r[R.label] + (R.color ? ': ' + fmt(r[R.color], o.format) : '')));
-        s.appendChild(line);
+      var R = o.routes;
+      routes.forEach(function (r) {
+        var from = [X(r[R.fromX]), Y(r[R.fromY])], to = [X(r[R.toX]), Y(r[R.toY])];
+        var w = R.weight ? (num(r[R.weight]) || 0) : 1, cval = R.color ? num(r[R.color]) : null;
+        var place = placeAt(from[0], from[1]), z = place && o.zone ? place[o.zone] : null;
+        var start = z && gates[z] ? gates[z] : from;
+        if (start !== from) addPiece('lane:' + from, [from, start], w, cval);
+        shortest(nearestNode(start), nearestNode(to)).forEach(function (k) { addPiece(k, geom[k], w, cval); });
       });
     }
+    // Road surface first (every road, used or not), then the traffic on top
+    Object.keys(geom).forEach(function (k) {
+      s.appendChild(svg('path', { d: pathD(geom[k]), fill: 'none', stroke: '#cdbf9f', 'stroke-width': 10, 'stroke-linecap': 'round' }));
+    });
+    var tk = Object.keys(traffic), tw = tk.map(function (k) { return traffic[k].w; });
+    var wmax = Math.max.apply(null, tw.concat([1e-9]));
+    var cavg = tk.map(function (k) { return traffic[k].n ? traffic[k].cw / traffic[k].n : null; }).filter(function (v) { return v !== null; });
+    var clo = Math.min.apply(null, cavg), chi = Math.max.apply(null, cavg);
+    tk.sort(function (a, b2) {   // calm roads first, the worst on top
+      var d = traffic[a].cw / Math.max(1e-9, traffic[a].n) - traffic[b2].cw / Math.max(1e-9, traffic[b2].n);
+      return bad ? d : -d;
+    }).forEach(function (k) {
+      var t = traffic[k], v = t.n ? t.cw / t.n : null;
+      s.appendChild(svg('path', { d: pathD(t.pts), fill: 'none', stroke: o.routes.color ? shade(v, clo, chi) : '#57606a',
+                                  'stroke-width': (1.5 + 6.5 * t.w / wmax).toFixed(1), 'stroke-opacity': 0.85,
+                                  'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+    });
     // Equipment
     (marks || []).forEach(function (m) {
       var mx = X(m[o.markers.x]), my = Y(m[o.markers.y]);
@@ -377,7 +460,7 @@
     body.appendChild(s);
     var parts = ['Circles: ' + (o.colorLabel || key) + ', green better, red worse (' + fmt(cr2[0], o.format) + ' to ' + fmt(cr2[1], o.format) + ')'];
     if ((marks || []).length) parts.push('squares: equipment');
-    if (o.routes && routes.length) parts.push('lines: routes' + (o.routes.weight ? ', thicker = more' : '') + (o.routes.color ? ', the worse half in color' : ''));
+    if (o.routes && routes.length) parts.push('roads: haul routes, thicker = more ' + (o.routes.weightLabel || 'traffic') + (o.routes.color ? ', shaded by ' + (o.routes.colorLabel || o.routes.color) : ''));
     if (count) parts.push(count + ' dots: where each ' + (o.trucks.noun || 'truck') + ' was last');
     body.appendChild(el('p', { 'class': 'aio-note' }, parts.join(' · ') + '.'));
   }

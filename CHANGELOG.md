@@ -17,7 +17,7 @@ All notable changes to AIO Analytics Builder are documented here.
 - **Site maps:** the Cloud runtime (`aio.js`) adds `app.map`. It has layers:
   - places shaded by the problem metric, with lot outlines by zone (the culprit lot outlined in red)
   - equipment as markers
-  - routes between places, sized by volume, with the worse half in color and the rest faded
+  - a generated haul-road network: lot gates and loaders joined by curved roads around a drawn pit. Each route takes the shortest way along the roads, and each road is as thick as the traffic on it and shaded by its average wait
   - a dot per truck (or other moving thing) at its latest position
 
   Tableau Next apps draw the map as a scatter on the position fields. On a revise, a new app title now renames the workbook; the old workbook this app created is removed.
