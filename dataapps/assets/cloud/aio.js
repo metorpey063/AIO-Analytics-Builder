@@ -298,11 +298,62 @@
       return v.length ? [Math.min.apply(null, v), Math.max.apply(null, v)] : [0, 1];
     }
     var s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, width: W, style: 'max-width:100%', role: 'img', 'aria-label': 'Site map' });
-    // Ground
-    s.appendChild(svg('rect', { x: 4, y: 4, width: W - 8, height: H - 8, rx: 10, fill: '#efe9dc', stroke: '#ddd4c2' }));
+    // Aerial ground, drawn: hill-shaded dirt (two noise layers lit from the north-west) with scrub patches.
+    // Seeded, so the same data always draws the same site.
+    var seed = 0;
+    String(o.title || (rows[0] && rows[0][o.label]) || 'site').split('').forEach(function (ch) { seed = (seed * 31 + ch.charCodeAt(0)) >>> 0; });
+    function rnd() { seed = (seed + 0x6D2B79F5) >>> 0; var t = seed; t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
+    var uid = 'aio' + Math.floor(rnd() * 1e9);
+    var defs = svg('defs');
+    defs.innerHTML = '' +
+      '<filter id="' + uid + 'g" x="0" y="0" width="100%" height="100%">' +
+      '<feTurbulence type="fractalNoise" baseFrequency="0.006" numOctaves="5" seed="' + Math.floor(rnd() * 99) + '" result="h"/>' +
+      '<feDiffuseLighting in="h" surfaceScale="16" lighting-color="#fff4e2" result="lit"><feDistantLight azimuth="235" elevation="38"/></feDiffuseLighting>' +
+      '<feTurbulence type="fractalNoise" baseFrequency="0.018" numOctaves="4" seed="' + Math.floor(rnd() * 99) + '" result="c"/>' +
+      '<feColorMatrix in="c" type="matrix" values="0.30 0 0 0 0.50  0.26 0 0 0 0.41  0.18 0 0 0 0.29  0 0 0 0 1" result="soil"/>' +
+      '<feBlend in="soil" in2="lit" mode="multiply" result="ground"/>' +
+      '<feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="1" seed="5" result="grain"/>' +
+      '<feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.12 0" result="grainA"/>' +
+      '<feComposite in="grainA" in2="ground" operator="over"/></filter>' +
+      '<filter id="' + uid + 'v" x="0" y="0" width="100%" height="100%">' +
+      '<feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="4" seed="' + Math.floor(rnd() * 99) + '"/>' +
+      '<feColorMatrix type="matrix" values="0 0 0 0 0.26  0 0 0 0 0.31  0 0 0 0 0.17  0 0 0 -14 5.9"/></filter>' +
+      '<filter id="' + uid + 'r" x="0" y="0" width="100%" height="100%">' +
+      '<feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="2" seed="9"/>' +
+      '<feColorMatrix type="matrix" values="0 0 0 0 0.62  0 0 0 0 0.58  0 0 0 0 0.52  0 0 0 0.35 0"/></filter>' +
+      '<clipPath id="' + uid + 'c"><rect x="4" y="4" width="' + (W - 8) + '" height="' + (H - 8) + '" rx="10"/></clipPath>';
+    s.appendChild(defs);
+    var scene = svg('g', { 'clip-path': 'url(#' + uid + 'c)' });
+    s.appendChild(scene);
+    scene.appendChild(svg('rect', { x: 0, y: 0, width: W, height: H, fill: '#a08d6c' }));
+    scene.appendChild(svg('rect', { x: 0, y: 0, width: W, height: H, filter: 'url(#' + uid + 'g)' }));
+    var scrub = svg('rect', { x: 0, y: 0, width: W, height: H, filter: 'url(#' + uid + 'v)', opacity: 0.6 });
+    scene.appendChild(scrub);
+    // A wobbly closed shape (pit bench, dump), smooth through jittered points
+    function blob(cx0, cy0, rx0, ry0, jit, phase) {
+      var pts = [], n = 56, a1 = phase, a2 = phase * 1.7, a3 = phase * 2.3;
+      for (var i = 0; i < n; i++) {
+        var th = 2 * Math.PI * i / n;
+        var f2 = 1 + jit * (Math.sin(3 * th + a1) * 0.5 + Math.sin(5 * th + a2) * 0.3 + Math.sin(8 * th + a3) * 0.2);
+        pts.push([cx0 + rx0 * f2 * Math.cos(th), cy0 + ry0 * f2 * Math.sin(th)]);
+      }
+      var d2 = '';
+      pts.forEach(function (q, i) {
+        var nq = pts[(i + 1) % n], mxq = (q[0] + nq[0]) / 2, myq = (q[1] + nq[1]) / 2;
+        d2 += (i ? ' Q' + q[0].toFixed(1) + ',' + q[1].toFixed(1) + ' ' : 'M' + mxq.toFixed(1) + ',' + myq.toFixed(1) + ' Q' + nq[0].toFixed(1) + ',' + nq[1].toFixed(1) + ' ') + mxq.toFixed(1) + ',' + myq.toFixed(1);
+      });
+      return d2 + 'Z';
+    }
+    function halo(x, y, txt, attrs) {   // a label that stays readable on the imagery
+      var t3 = svg('text', Object.assign({ x: x, y: y, 'font-size': 11, 'font-weight': 600, fill: '#1f2328',
+        stroke: 'rgba(255,255,255,0.85)', 'stroke-width': 3, 'paint-order': 'stroke', 'stroke-linejoin': 'round' }, attrs || {}), txt);
+      return t3;
+    }
     function pathD(pts) { return pts.map(function (q, i) { return (i ? 'L' : 'M') + q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(''); }
     function dist(p1, p2) { return Math.hypot(p1[0] - p2[0], p1[1] - p2[1]); }
     var loaderPts = (marks || []).map(function (m) { return [X(m[o.markers.x]), Y(m[o.markers.y])]; });
+    var pitR = null;
     // Lot outlines around the places in each zone; each lot's gate is the edge facing the equipment
     var gates = {}, lots = [];
     var ex = loaderPts.length ? loaderPts.reduce(function (t, q) { return t + q[0]; }, 0) / loaderPts.length : W / 2;
@@ -326,19 +377,64 @@
         return Math.min(m, Math.hypot(dx, dy));
       }, 1e9);
       var spread = loaderPts.reduce(function (m, q) { return Math.max(m, dist(q, [ex, ey])); }, 0);
-      var pr = Math.max(24, Math.min(clear - 12, spread * 0.6));
-      for (var bn = 5; bn >= 1; bn--) {
-        var f = bn / 5;
-        s.appendChild(svg('ellipse', { cx: ex, cy: ey, rx: pr * f * 1.35, ry: pr * f * 0.85,
-                                       fill: 'rgb(' + (214 - 22 * (5 - bn)) + ',' + (202 - 22 * (5 - bn)) + ',' + (178 - 20 * (5 - bn)) + ')',
-                                       stroke: '#c4b799', 'stroke-width': 1 }));
+      var pr = Math.max(40, Math.min(clear + 18, spread * 0.85));
+      pitR = [pr * 1.4, pr * 0.9];
+      var phase = rnd() * 6;
+      // Open pit: terraced benches, each a lit crest over a shadowed face, darker and greyer toward the floor
+      for (var bn = 0; bn < 8; bn++) {
+        var f = 1 - bn / 9, tone = bn / 8;
+        var r0 = Math.round(170 - 70 * tone), g0 = Math.round(152 - 62 * tone), b0 = Math.round(126 - 46 * tone);
+        scene.appendChild(svg('path', { d: blob(ex + bn * 1.6, ey + bn * 1.1, pr * f * 1.4, pr * f * 0.9, 0.09, phase),
+                                        fill: 'rgb(' + r0 + ',' + g0 + ',' + b0 + ')', stroke: 'rgba(240,228,205,0.55)', 'stroke-width': 1.6 }));
+        scene.appendChild(svg('path', { d: blob(ex + bn * 1.6 + 1.5, ey + bn * 1.1 + 2, pr * f * 1.4 - 3, pr * f * 0.9 - 3, 0.09, phase),
+                                        fill: 'none', stroke: 'rgba(40,30,20,0.25)', 'stroke-width': 2 }));
       }
+      scene.appendChild(svg('path', { d: blob(ex + 13, ey + 9, pr * 0.18, pr * 0.11, 0.2, phase + 1),
+                                      fill: '#3f6f73', stroke: '#2e5458', 'stroke-width': 1, opacity: 0.9 }));
+      // Waste dumps: flat-topped piles in the open ground away from the lots and the pit
+      var cands = [];
+      for (var gx2 = 0.1; gx2 <= 0.9; gx2 += 0.1) for (var gy2 = 0.12; gy2 <= 0.88; gy2 += 0.12) {
+        var q2 = [W * gx2, H * gy2], free = dist(q2, [ex, ey]) - pr * 1.5;
+        lots.forEach(function (L) { free = Math.min(free, Math.hypot(Math.max(L.x0 - q2[0], 0, q2[0] - L.x1), Math.max(L.y0 - q2[1], 0, q2[1] - L.y1)) - 30); });
+        loaderPts.forEach(function (lp) { free = Math.min(free, dist(q2, lp) - 40); });
+        cands.push([free, q2]);
+      }
+      var picked = [];
+      cands.sort(function (a3, b4) { return b4[0] - a3[0]; }).forEach(function (cnd) {
+        if (picked.length < 2 && picked.every(function (pk) { return dist(pk[1], cnd[1]) > Math.min(160, cnd[0] * 2.2); })) picked.push(cnd);
+      });
+      picked.forEach(function (cnd, i) {
+        if (cnd[0] < 20) return;
+        var dr = Math.min(70, cnd[0] * 0.8), ph = rnd() * 6;
+        for (var lv = 0; lv < 4; lv++) {
+          var k2 = 1 - lv * 0.2, c0 = 178 + lv * 10;
+          scene.appendChild(svg('path', { d: blob(cnd[1][0], cnd[1][1] - lv * 2, dr * k2 * 1.3, dr * k2 * 0.8, 0.12, ph),
+                                          fill: 'rgb(' + c0 + ',' + (c0 - 8) + ',' + (c0 - 22) + ')', stroke: 'rgba(60,50,40,0.25)', 'stroke-width': 1.2 }));
+        }
+        scene.appendChild(halo(cnd[1][0] - 24, cnd[1][1] + 4, i ? 'Waste Dump 2' : 'Waste Dump 1', { 'font-weight': 500, fill: '#57606a' }));
+      });
     }
     lots.forEach(function (L) {
-      var hot = o.highlight && L.z === o.highlight;
-      s.appendChild(svg('rect', { x: L.x0, y: L.y0, width: L.x1 - L.x0, height: L.y1 - L.y0, rx: 10, fill: hot ? '#f6dcd6' : '#e4ddcd',
-                                  stroke: hot ? '#cf222e' : '#c9bfa9', 'stroke-dasharray': '5 4', 'stroke-width': hot ? 2 : 1 }));
-      s.appendChild(svg('text', { x: L.x0 + 2, y: L.y0 - 6, 'class': 'aio-axis', 'font-weight': 700, fill: hot ? '#a40e26' : '#57606a' }, L.z));
+      var hot = o.highlight && L.z === o.highlight, w2 = L.x1 - L.x0, h2 = L.y1 - L.y0;
+      // Gravel pad, a pad edge berm, two shop roofs and the alert outline on the culprit lot
+      scene.appendChild(svg('rect', { x: L.x0 - 3, y: L.y0 - 3, width: w2 + 6, height: h2 + 6, rx: 6, fill: 'rgba(90,75,55,0.35)' }));
+      scene.appendChild(svg('rect', { x: L.x0, y: L.y0, width: w2, height: h2, rx: 5, fill: '#b9b0a0' }));
+      scene.appendChild(svg('rect', { x: L.x0, y: L.y0, width: w2, height: h2, rx: 5, filter: 'url(#' + uid + 'r)' }));
+      for (var bx3 = L.x0 + 10; bx3 < L.x1 - 6; bx3 += 14) {
+        scene.appendChild(svg('line', { x1: bx3, y1: L.y0 + 16, x2: bx3, y2: L.y1 - 6, stroke: 'rgba(255,255,255,0.45)', 'stroke-width': 1 }));
+      }
+      var roofX = L.x1 + 8 + rnd() * 6, roofY = L.y0 + 4;
+      if (roofX + 26 < W - 8) {
+        scene.appendChild(svg('rect', { x: roofX + 3, y: roofY + 3, width: 24, height: 16, fill: 'rgba(0,0,0,0.3)' }));
+        scene.appendChild(svg('rect', { x: roofX, y: roofY, width: 24, height: 16, fill: '#dfe3e6', stroke: '#9aa4ae', 'stroke-width': 0.8 }));
+        scene.appendChild(svg('rect', { x: roofX + 3, y: roofY + 22, width: 16, height: 11, fill: 'rgba(0,0,0,0.3)' }));
+        scene.appendChild(svg('rect', { x: roofX, y: roofY + 19, width: 16, height: 11, fill: '#c9cdd1', stroke: '#9aa4ae', 'stroke-width': 0.8 }));
+      }
+      if (hot) {
+        scene.appendChild(svg('rect', { x: L.x0 - 6, y: L.y0 - 6, width: w2 + 12, height: h2 + 12, rx: 8, fill: 'rgba(207,34,46,0.10)',
+                                        stroke: '#ff4d4f', 'stroke-width': 2.5, 'stroke-dasharray': '7 4' }));
+      }
+      scene.appendChild(halo(L.x0 + 2, L.y0 - 9, L.z, { 'font-size': 12, 'font-weight': 700, fill: hot ? '#a40e26' : '#1f2328' }));
     });
     // Haul-road network: lot gates and loaders, each joined to its two nearest neighbours (plus whatever keeps the
     // network in one piece), every road a gentle curve. Routes take the shortest way along it.
@@ -363,6 +459,16 @@
       var mx2 = (A[0] + B[0]) / 2, my2 = (A[1] + B[1]) / 2, side = n % 2 ? 1 : -1;
       var bx2 = mx2 + side * (-(B[1] - A[1]) / Math.max(1e-9, len)) * len * 0.14;
       var by2 = my2 + side * ((B[0] - A[0]) / Math.max(1e-9, len)) * len * 0.14;
+      if (pitR) {   // a road that would cross the pit swings round its rim instead
+        var tt = Math.max(0, Math.min(1, ((ex - A[0]) * (B[0] - A[0]) + (ey - A[1]) * (B[1] - A[1])) / Math.max(1e-9, len * len)));
+        var px3 = A[0] + tt * (B[0] - A[0]), py3 = A[1] + tt * (B[1] - A[1]);
+        var dpx = (px3 - ex) / (pitR[0] * 1.1), dpy = (py3 - ey) / (pitR[1] * 1.1);
+        if (Math.hypot(dpx, dpy) < 1) {
+          var nx = px3 - ex, ny = py3 - ey, nl = Math.hypot(nx, ny);
+          if (nl < 1) { nx = -(B[1] - A[1]); ny = B[0] - A[0]; nl = len; }
+          bx2 = ex + nx / nl * pitR[0] * 2.3; by2 = ey + ny / nl * pitR[1] * 2.3;
+        }
+      }
       var pts = [];
       for (var t = 0; t <= 1.0001; t += 1 / 14) {
         pts.push([(1 - t) * (1 - t) * A[0] + 2 * (1 - t) * t * bx2 + t * t * B[0], (1 - t) * (1 - t) * A[1] + 2 * (1 - t) * t * by2 + t * t * B[1]]);
@@ -407,7 +513,12 @@
     }
     // Road surface first (every road, used or not), then the traffic on top
     Object.keys(geom).forEach(function (k) {
-      s.appendChild(svg('path', { d: pathD(geom[k]), fill: 'none', stroke: '#cdbf9f', 'stroke-width': 10, 'stroke-linecap': 'round' }));
+      scene.appendChild(svg('path', { d: pathD(geom[k]), fill: 'none', stroke: 'rgba(80,65,45,0.45)', 'stroke-width': 16, 'stroke-linecap': 'round' }));
+    });
+    Object.keys(traffic).filter(function (k) { return k.indexOf('lane:') === 0; }).concat(Object.keys(geom)).forEach(function (k) {
+      var pts2 = geom[k] || traffic[k].pts, wide = geom[k] ? 12 : 5;
+      scene.appendChild(svg('path', { d: pathD(pts2), fill: 'none', stroke: '#d8c9a6', 'stroke-width': wide, 'stroke-linecap': 'round' }));
+      if (geom[k]) scene.appendChild(svg('path', { d: pathD(pts2), fill: 'none', stroke: 'rgba(150,130,100,0.5)', 'stroke-width': 1, 'stroke-dasharray': '6 9' }));
     });
     var tk = Object.keys(traffic), tw = tk.map(function (k) { return traffic[k].w; });
     var wmax = Math.max.apply(null, tw.concat([1e-9]));
@@ -418,25 +529,34 @@
       return bad ? d : -d;
     }).forEach(function (k) {
       var t = traffic[k], v = t.n ? t.cw / t.n : null;
-      s.appendChild(svg('path', { d: pathD(t.pts), fill: 'none', stroke: o.routes.color ? shade(v, clo, chi) : '#57606a',
-                                  'stroke-width': (1.5 + 6.5 * t.w / wmax).toFixed(1), 'stroke-opacity': 0.85,
+      scene.appendChild(svg('path', { d: pathD(t.pts), fill: 'none', stroke: o.routes.color ? shade(v, clo, chi) : '#57606a',
+                                  'stroke-width': (1.5 + 5 * t.w / wmax).toFixed(1), 'stroke-opacity': 0.9,
                                   'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
     });
     // Equipment
     (marks || []).forEach(function (m) {
-      var mx = X(m[o.markers.x]), my = Y(m[o.markers.y]);
-      s.appendChild(svg('rect', { x: mx - 9, y: my - 9, width: 18, height: 18, rx: 3, fill: '#24292f', stroke: '#ffffff', 'stroke-width': 2 }));
-      s.appendChild(svg('text', { x: mx + 13, y: my + 4, 'class': 'aio-axis', 'font-weight': 600 }, m[o.markers.label]));
+      var mx = X(m[o.markers.x]), my = Y(m[o.markers.y]), rot = Math.atan2(ey - my, ex - mx) * 180 / Math.PI;
+      // A loader from above: tracks, a turning body and a boom reaching toward the pit
+      var ex2 = svg('g', { transform: 'translate(' + mx + ',' + my + ') rotate(' + rot.toFixed(0) + ')' });
+      ex2.appendChild(svg('rect', { x: -10, y: -9, width: 20, height: 18, rx: 2, fill: 'rgba(0,0,0,0.35)', transform: 'translate(2,2)' }));
+      ex2.appendChild(svg('rect', { x: -10, y: -9, width: 20, height: 4, fill: '#2b2b2b' }));
+      ex2.appendChild(svg('rect', { x: -10, y: 5, width: 20, height: 4, fill: '#2b2b2b' }));
+      ex2.appendChild(svg('rect', { x: -8, y: -6, width: 14, height: 12, rx: 2, fill: '#f2b705', stroke: '#6b5200', 'stroke-width': 0.8 }));
+      ex2.appendChild(svg('rect', { x: 4, y: -2, width: 16, height: 4, fill: '#d99e00' }));
+      ex2.appendChild(svg('rect', { x: 19, y: -4, width: 5, height: 8, rx: 1, fill: '#3a3a3a' }));
+      s.appendChild(ex2);
+      s.appendChild(halo(mx + 14, my - 10, m[o.markers.label]));
     });
     // Places
     var key = o.color || o.size, cr2 = range(rows, key), sr = range(rows, o.size || key);
     rows.forEach(function (r) {
       var rad = 7 + 11 * ((num(r[o.size || key]) || 0) - sr[0]) / Math.max(1e-9, sr[1] - sr[0]);
+      rad = Math.max(6, rad * 0.75);
       var circle = svg('circle', { cx: X(r[o.x]), cy: Y(r[o.y]), r: rad.toFixed(1), fill: shade(r[key], cr2[0], cr2[1]),
-                                   'fill-opacity': 0.9, stroke: '#ffffff', 'stroke-width': 1.5 });
+                                   'fill-opacity': 0.55, stroke: shade(r[key], cr2[0], cr2[1]), 'stroke-width': 2.5 });
       circle.appendChild(svg('title', {}, r[o.label] + ': ' + fmt(r[key], o.format)));
       s.appendChild(circle);
-      s.appendChild(svg('text', { x: X(r[o.x]), y: Y(r[o.y]) - rad - 3, 'text-anchor': 'middle', 'class': 'aio-axis' }, r[o.label]));
+      s.appendChild(halo(X(r[o.x]), Y(r[o.y]) - rad - 4, r[o.label], { 'text-anchor': 'middle', 'font-size': 10, 'font-weight': 500 }));
     });
     // Moving things: latest position each, spread around the place they're at
     var count = 0;
@@ -451,17 +571,20 @@
         var t = latest[id], k = t[T.x] + ',' + t[T.y], n = at[k] = (at[k] || 0) + 1;
         var ang = n * 2.4, dist = 12 + 4 * Math.floor(n / 6);
         var tx = X(t[T.x]) + Math.cos(ang) * dist, ty = Y(t[T.y]) + Math.sin(ang) * dist;
-        var dot = svg('circle', { cx: tx.toFixed(1), cy: ty.toFixed(1), r: 3.6, fill: '#0a3069', stroke: '#ffffff', 'stroke-width': 1 });
+        var dot = svg('g', { transform: 'translate(' + tx.toFixed(1) + ',' + ty.toFixed(1) + ') rotate(' + ((n * 47) % 180 - 90) + ')' });
+        dot.appendChild(svg('rect', { x: -5, y: -3, width: 11, height: 7, rx: 1, fill: 'rgba(0,0,0,0.35)', transform: 'translate(1.5,1.5)' }));
+        dot.appendChild(svg('rect', { x: -6, y: -4, width: 10, height: 8, rx: 1, fill: '#f5c400', stroke: '#7a6000', 'stroke-width': 0.6 }));
+        dot.appendChild(svg('rect', { x: 4, y: -3.5, width: 3.5, height: 7, rx: 0.8, fill: '#3a3a3a' }));
         dot.appendChild(svg('title', {}, id + (T.date ? ' · last cycle ' + label(t[T.date]) : '')));
         s.appendChild(dot);
         count++;
       });
     }
     body.appendChild(s);
-    var parts = ['Circles: ' + (o.colorLabel || key) + ', green better, red worse (' + fmt(cr2[0], o.format) + ' to ' + fmt(cr2[1], o.format) + ')'];
-    if ((marks || []).length) parts.push('squares: equipment');
+    var parts = ['Rings: ' + (o.colorLabel || key) + ', green better, red worse (' + fmt(cr2[0], o.format) + ' to ' + fmt(cr2[1], o.format) + ')'];
+    if ((marks || []).length) parts.push('yellow machines: loaders');
     if (o.routes && routes.length) parts.push('roads: haul routes, thicker = more ' + (o.routes.weightLabel || 'traffic') + (o.routes.color ? ', shaded by ' + (o.routes.colorLabel || o.routes.color) : ''));
-    if (count) parts.push(count + ' dots: where each ' + (o.trucks.noun || 'truck') + ' was last');
+    if (count) parts.push(count + ' trucks: where each ' + (o.trucks.noun || 'truck') + ' was last');
     body.appendChild(el('p', { 'class': 'aio-note' }, parts.join(' · ') + '.'));
   }
 
