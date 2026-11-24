@@ -148,12 +148,14 @@
   App.prototype.bar = function (body, queryId, o) { this._draw(body, queryId, function (rows) { bars(body, rows, o); }); };
   App.prototype.line = function (body, queryId, o) { this._draw(body, queryId, function (rows) { lines(body, rows, o); }); };
   App.prototype.dumbbell = function (body, queryId, o) { this._draw(body, queryId, function (rows) { dumbbell(body, rows, o); }); };
+  // Site map: the main query's rows (e.g. parking spots) plus optional extra layers, each its own query
   App.prototype.map = function (body, queryId, o) {
     var self = this;
     this._draw(body, queryId, function (rows) {
-      if (!o.markers) { siteMap(body, rows, o, []); return; }
-      self.query(o.markers.query).then(function (marks) { siteMap(body, rows, o, marks); },
-                                       function () { siteMap(body, rows, o, []); });
+      var layers = ['markers', 'routes', 'trucks'];
+      Promise.all(layers.map(function (k) {
+        return o[k] ? self.query(o[k].query).then(null, function () { return []; }) : Promise.resolve([]);
+      })).then(function (res) { siteMap(body, rows, o, res[0], res[1], res[2]); });
     });
   };
   App.prototype.table = function (body, queryId, o) { this._draw(body, queryId, function (rows) { table(body, rows, o); }); };
@@ -273,40 +275,111 @@
     body.appendChild(s);
   }
 
-  // Site map on a 0-100 grid: {label, x, y, size?, color?, format, highlight?, markers?: {query, label, x, y}}.
-  // Circles are the rows (e.g. parking spots), sized by `size` and shaded by `color` (red = worse when
-  // goodDirection is 'down'); markers are fixed things (e.g. loaders) drawn as labelled squares.
-  function siteMap(body, rows, o, marks) {
-    var W = Math.min(900, Math.max(420, body.clientWidth || 640)), H = Math.round(W * 0.62), P = 24;
+  // Site map on a 0-100 grid.
+  //   rows (the main query): the places, e.g. parking spots: {label, x, y, size?, color?, zone?}
+  //     circles sized by `size`, shaded by `color` (green = better, red = worse; goodDirection 'down' = lower is better);
+  //     `zone` draws a labelled lot outline around the places that share it
+  //   markers: {query, label, x, y} fixed equipment (e.g. loaders), drawn as labelled squares
+  //   routes:  {query, fromX, fromY, toX, toY, weight?, color?} lines between two places (e.g. spot -> loader),
+  //            width by `weight` (e.g. cycles), shaded by `color` (e.g. queue wait) like the places
+  //   trucks:  {query, id, x, y, date?} moving things: one dot each at their latest position (latest `date` wins)
+  function siteMap(body, rows, o, marks, routes, trucks) {
+    var W = Math.min(980, Math.max(460, body.clientWidth || 700)), H = Math.round(W * 0.64), P = 28;
     var X = function (v) { return P + num(v) / 100 * (W - 2 * P); };
     var Y = function (v) { return H - P - num(v) / 100 * (H - 2 * P); };
-    var s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, width: W, style: 'max-width:100%', role: 'img', 'aria-label': 'Site map' });
-    s.appendChild(svg('rect', { x: P / 2, y: P / 2, width: W - P, height: H - P, rx: 8, fill: '#f4f1ea', stroke: '#e1dccf' }));
-    var key = o.color || o.size;
-    var vals = rows.map(function (r) { return num(r[key]); }).filter(function (v) { return v !== null; });
-    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
-    var sizes = rows.map(function (r) { return num(r[o.size || key]) || 0; });
-    var smax = Math.max.apply(null, sizes.concat([1e-9])), smin = Math.min.apply(null, sizes);
     var bad = (o.goodDirection || 'down') === 'down';
+    function shade(v, lo, hi) {
+      var t = (num(v) - lo) / Math.max(1e-9, hi - lo), share = bad ? t : 1 - t;
+      share = Math.max(0, Math.min(1, share));
+      return 'rgb(' + Math.round(70 + 185 * share) + ',' + Math.round(165 - 115 * share) + ',' + Math.round(95 - 45 * share) + ')';
+    }
+    function range(list, k) {
+      var v = list.map(function (r) { return num(r[k]); }).filter(function (x) { return x !== null; });
+      return v.length ? [Math.min.apply(null, v), Math.max.apply(null, v)] : [0, 1];
+    }
+    var s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, width: W, style: 'max-width:100%', role: 'img', 'aria-label': 'Site map' });
+    // Ground, a light contour pattern so it reads as terrain, not a chart
+    s.appendChild(svg('rect', { x: 4, y: 4, width: W - 8, height: H - 8, rx: 10, fill: '#efe9dc', stroke: '#ddd4c2' }));
+    for (var c = 1; c <= 6; c++) {
+      s.appendChild(svg('ellipse', { cx: W * 0.52, cy: H * 0.46, rx: W * 0.08 * c, ry: H * 0.07 * c, fill: 'none',
+                                     stroke: '#e2d9c6', 'stroke-width': 1 }));
+    }
+    // Lot outlines around the places in each zone
+    if (o.zone) {
+      var zones = {};
+      rows.forEach(function (r) { (zones[r[o.zone]] = zones[r[o.zone]] || []).push(r); });
+      Object.keys(zones).forEach(function (z) {
+        var xs = zones[z].map(function (r) { return X(r[o.x]); }), ys = zones[z].map(function (r) { return Y(r[o.y]); });
+        var x0 = Math.min.apply(null, xs) - 26, x1 = Math.max.apply(null, xs) + 26;
+        var y0 = Math.min.apply(null, ys) - 40, y1 = Math.max.apply(null, ys) + 22;
+        var hot = o.highlight && z === o.highlight;
+        s.appendChild(svg('rect', { x: x0, y: y0, width: x1 - x0, height: y1 - y0, rx: 10, fill: hot ? '#f6dcd6' : '#e4ddcd',
+                                    stroke: hot ? '#cf222e' : '#c9bfa9', 'stroke-dasharray': '5 4', 'stroke-width': hot ? 2 : 1 }));
+        s.appendChild(svg('text', { x: x0 + 2, y: y0 - 6, 'class': 'aio-axis', 'font-weight': 700, fill: hot ? '#a40e26' : '#57606a' }, z));
+      });
+    }
+    // Haul routes under everything else
+    if (o.routes && routes.length) {
+      var R = o.routes, wr = range(routes, R.weight || R.color), cr = range(routes, R.color || R.weight);
+      // Only the worse half of the routes (by `color`) is drawn bold; the rest fade back so the problem stands out
+      var cv = routes.map(function (r) { return num(r[R.color]); }).filter(function (v) { return v !== null; }).sort(function (a, b) { return a - b; });
+      var mid = cv.length ? cv[Math.floor(cv.length / 2)] : null;
+      routes.slice().sort(function (a, b) {   // faint lines first, the worst on top
+        var d = (num(a[R.color]) || 0) - (num(b[R.color]) || 0);
+        return bad ? d : -d;
+      }).forEach(function (r) {
+        var v = num(r[R.color]);
+        var strong = !R.color || mid === null || (bad ? v >= mid : v <= mid);
+        var w = R.weight ? 1 + 5 * (num(r[R.weight]) - wr[0]) / Math.max(1e-9, wr[1] - wr[0]) : 2;
+        var line = svg('line', { x1: X(r[R.fromX]), y1: Y(r[R.fromY]), x2: X(r[R.toX]), y2: Y(r[R.toY]),
+                                 stroke: strong && R.color ? shade(v, cr[0], cr[1]) : '#b9b1a0',
+                                 'stroke-width': (strong ? w : 1).toFixed(1),
+                                 'stroke-opacity': strong ? 0.7 : 0.35, 'stroke-linecap': 'round' });
+        if (R.label) line.appendChild(svg('title', {}, r[R.label] + (R.color ? ': ' + fmt(r[R.color], o.format) : '')));
+        s.appendChild(line);
+      });
+    }
+    // Equipment
     (marks || []).forEach(function (m) {
       var mx = X(m[o.markers.x]), my = Y(m[o.markers.y]);
-      s.appendChild(svg('rect', { x: mx - 7, y: my - 7, width: 14, height: 14, rx: 2, fill: '#24292f' }));
-      s.appendChild(svg('text', { x: mx + 10, y: my + 4, 'class': 'aio-axis', 'font-weight': 600 }, m[o.markers.label]));
+      s.appendChild(svg('rect', { x: mx - 9, y: my - 9, width: 18, height: 18, rx: 3, fill: '#24292f', stroke: '#ffffff', 'stroke-width': 2 }));
+      s.appendChild(svg('text', { x: mx + 13, y: my + 4, 'class': 'aio-axis', 'font-weight': 600 }, m[o.markers.label]));
     });
+    // Places
+    var key = o.color || o.size, cr2 = range(rows, key), sr = range(rows, o.size || key);
     rows.forEach(function (r) {
-      var v = num(r[key]), t = (v - lo) / Math.max(1e-9, hi - lo), share = bad ? t : 1 - t;
-      var red = Math.round(80 + 175 * share), green = Math.round(160 - 110 * share), blue = Math.round(90 - 40 * share);
-      var rad = 6 + 12 * ((num(r[o.size || key]) || 0) - smin) / Math.max(1e-9, smax - smin);
-      var hot = o.highlight && (r[o.label] === o.highlight);
-      var c = svg('circle', { cx: X(r[o.x]), cy: Y(r[o.y]), r: rad.toFixed(1), fill: 'rgb(' + red + ',' + green + ',' + blue + ')',
-                              'fill-opacity': 0.85, stroke: hot ? '#24292f' : '#ffffff', 'stroke-width': hot ? 2.5 : 1.5 });
-      c.appendChild(svg('title', {}, r[o.label] + ': ' + fmt(v, o.format)));
-      s.appendChild(c);
+      var rad = 7 + 11 * ((num(r[o.size || key]) || 0) - sr[0]) / Math.max(1e-9, sr[1] - sr[0]);
+      var circle = svg('circle', { cx: X(r[o.x]), cy: Y(r[o.y]), r: rad.toFixed(1), fill: shade(r[key], cr2[0], cr2[1]),
+                                   'fill-opacity': 0.9, stroke: '#ffffff', 'stroke-width': 1.5 });
+      circle.appendChild(svg('title', {}, r[o.label] + ': ' + fmt(r[key], o.format)));
+      s.appendChild(circle);
       s.appendChild(svg('text', { x: X(r[o.x]), y: Y(r[o.y]) - rad - 3, 'text-anchor': 'middle', 'class': 'aio-axis' }, r[o.label]));
     });
+    // Moving things: latest position each, spread around the place they're at
+    var count = 0;
+    if (o.trucks && trucks.length) {
+      var T = o.trucks, latest = {};
+      trucks.forEach(function (t) {
+        var id = t[T.id], prev = latest[id];
+        if (!prev || (T.date && String(t[T.date]) > String(prev[T.date]))) latest[id] = t;
+      });
+      var at = {};
+      Object.keys(latest).sort().forEach(function (id) {
+        var t = latest[id], k = t[T.x] + ',' + t[T.y], n = at[k] = (at[k] || 0) + 1;
+        var ang = n * 2.4, dist = 12 + 4 * Math.floor(n / 6);
+        var tx = X(t[T.x]) + Math.cos(ang) * dist, ty = Y(t[T.y]) + Math.sin(ang) * dist;
+        var dot = svg('circle', { cx: tx.toFixed(1), cy: ty.toFixed(1), r: 3.6, fill: '#0a3069', stroke: '#ffffff', 'stroke-width': 1 });
+        dot.appendChild(svg('title', {}, id + (T.date ? ' · last cycle ' + label(t[T.date]) : '')));
+        s.appendChild(dot);
+        count++;
+      });
+    }
     body.appendChild(s);
-    body.appendChild(el('p', { 'class': 'aio-note' }, 'Green = better, red = worse ' + (o.colorLabel || key) +
-      ' (' + fmt(lo, o.format) + ' to ' + fmt(hi, o.format) + '). Squares: ' + ((marks || []).length ? 'fixed equipment.' : 'none.')));
+    var parts = ['Circles: ' + (o.colorLabel || key) + ', green better, red worse (' + fmt(cr2[0], o.format) + ' to ' + fmt(cr2[1], o.format) + ')'];
+    if ((marks || []).length) parts.push('squares: equipment');
+    if (o.routes && routes.length) parts.push('lines: routes' + (o.routes.weight ? ', thicker = more' : '') + (o.routes.color ? ', the worse half in color' : ''));
+    if (count) parts.push(count + ' dots: where each ' + (o.trucks.noun || 'truck') + ' was last');
+    body.appendChild(el('p', { 'class': 'aio-note' }, parts.join(' · ') + '.'));
   }
 
   // Table: {columns: [{field, label, format}], sort: field, dir, limit}

@@ -77,11 +77,18 @@ API (nothing else exists):
 - `app.line(body, queryId, {x, y, series?, format?, highlight?, height?})`: x is a date alias, sorted for you.
 - `app.bar(body, queryId, {x, y, format?, sort?: 'desc'|'asc', highlight?})`: horizontal ranked bars.
 - `app.dumbbell(body, queryId, {x, from, to, format?, fromLabel?, toLabel?})`: before/after per category.
-- `app.map(body, queryId, {label, x, y, size?, color?, format?, goodDirection?, highlight?, colorLabel?,
-  markers?: {query, label, x, y}})`: a site map on a 0-100 grid, when the datasource has position fields
-  (`<Thing> X` / `<Thing> Y`). The query groups by the thing (e.g. Parking Spot) with AVG of its X and Y and
-  the measure to shade by (e.g. AVG Queue Wait); `markers` is a second query for fixed equipment (e.g. Loader
-  with AVG Loader X / Loader Y). Use it as the hero when the ask is about where things are.
+- `app.map(body, queryId, {label, x, y, size?, color?, zone?, format?, goodDirection?, highlight?, colorLabel?,
+  markers?, routes?, trucks?})`: a site map on a 0-100 grid, when the datasource has position fields
+  (`<Thing> X` / `<Thing> Y`). Use it as the hero when the ask is about where things are. Layers, each its own query:
+  - the main query: one row per place (e.g. Parking Spot) with `AVG` of its X and Y, the measure to shade by
+    (e.g. AVG Queue Wait) and, for `zone`, the zone field (e.g. Parking Zone) to draw lot outlines; `highlight`
+    a zone value outlines it in red.
+  - `markers: {query, label, x, y}`: fixed equipment (e.g. Loader with AVG Loader X / Loader Y), squares.
+  - `routes: {query, label?, fromX, fromY, toX, toY, weight?, color?}`: lines between two places, e.g. grouped by
+    Parking Spot and Loader with AVG of both positions, COUNT of cycles as `weight` and AVG Queue Wait as `color`.
+    Add a recent-window filter (last 3 months) so the lines show the current problem.
+  - `trucks: {query, id, x, y, date, noun?}`: one dot per moving thing at its latest position: group by its id
+    field (e.g. Entity ID), the place, AVG of the place's X / Y and `MAX` of Date; AIO keeps each id's latest row.
 - `app.table(body, queryId, {columns: [{field, label?, format?}], sort?, dir?, limit?})`.
 - `format`: `'percent'` (0.62 → 62.0%), `'number'`, `'currency'`, or a unit word (`'min'`, `'days'`).
 - Every `query` / `queryId` is a key of your queries object; every `field`, `x`, `y`, `series`, `from`, `to`

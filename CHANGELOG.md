@@ -14,7 +14,13 @@ All notable changes to AIO Analytics Builder are documented here.
   4. The data app is built on it, with a site map when things have positions.
 
   "Design the data" shows the model and the story first, read-only.
-- **Site maps:** the Cloud runtime (`aio.js`) adds `app.map` (spots shaded by the problem metric, equipment as markers). Tableau Next apps draw it as a scatter on the position fields.
+- **Site maps:** the Cloud runtime (`aio.js`) adds `app.map`. It has layers:
+  - places shaded by the problem metric, with lot outlines by zone (the culprit lot outlined in red)
+  - equipment as markers
+  - routes between places, sized by volume, with the worse half in color and the rest faded
+  - a dot per truck (or other moving thing) at its latest position
+
+  Tableau Next apps draw the map as a scatter on the position fields. On a revise, a new app title now renames the workbook; the old workbook this app created is removed.
 
 > Coeur Mining (Palmarejo): 24 haul trucks, Guadalupe (silver) and Zona Central (gold) loaders, 15 parking spots in 3 lots, about 51,000 cycles. Queue wait climbs at South Ridge Lot, worst for silver, while payload per cycle rises. The signal check passed. Built on both platforms; on Tableau Next the post-build validation passed 10 of 10 and the app passed every query check on the first try.
 

@@ -74,7 +74,9 @@ def ds_profile(site, ds_id, hints):
         raise SystemExit(f"Couldn't read the datasource's fields: {r.status_code} {r.text[:300]}. The PAT's user "
                          "needs API Access on the datasource.")
     fields = r.json().get("data", [])
-    prof = {"id": ds_id, "fields": fields, "dimensions": [], "measures": [], "date": None}
+    prof = {"id": ds_id, "fields": fields, "dimensions": [], "measures": [], "date": None, "entity": None}
+    if any(f.get("fieldCaption") == "Entity ID" for f in fields):
+        prof["entity"] = "Entity ID"   # one per entity (a haul truck); the trucks layer of a site map groups by it
     for f in fields:
         cap, dt = f.get("fieldCaption"), f.get("dataType")
         if not cap or cap.lower() in SKIP_FIELDS or cap.endswith(" Target"):
@@ -135,8 +137,9 @@ def probes(site, prof):
 
 # ── Claude writes the page ───────────────────────────────────────────────────
 
-def author_prompt(prof, probe_text, story, ask, title, current=None, feedback=None, problems=None):
+def author_prompt(prof, probe_text, story, ask, title, current=None, feedback=None, problems=None, entity_noun=""):
     fields = {"dimensions": prof["dimensions"], "date": prof["date"],
+              "entity_id_field": prof.get("entity"), "entity_is": entity_noun or None,
               "measures": [{"caption": m["caption"], "aggregate_with": m["function"], "unit": m["unit"],
                             "lower_is_better": m["sentiment"] == "up_is_bad"} for m in prof["measures"]]}
     parts = [f"App title: {title}", "Datasource fields (use these captions exactly):\n" + json.dumps(fields, indent=1),
@@ -209,7 +212,8 @@ def author(site, prof, slug, title, story, ask, current=None, feedback=None):
     problems = None
     for attempt in range(1, MAX_AUTHOR_TRIES + 1):
         C.step("author", f"Claude is writing the app (try {attempt} of {MAX_AUTHOR_TRIES})")
-        out = C.ask_claude(system, author_prompt(prof, probe_text, story, ask, title, current, feedback, problems),
+        out = C.ask_claude(system, author_prompt(prof, probe_text, story, ask, title, current, feedback, problems,
+                                                 prof.get("entity_noun", "")),
                            os.path.join(C.app_dir(slug), "data_app_cloud_claude.txt"))
         C.step("check", "running every query against the datasource")
         problems = check_app(site, prof, out.get("queries"), out.get("app_js") or "")
@@ -350,6 +354,7 @@ def build(profile, ds_id, project_id, slug=None, ask="", feedback="", repackage=
             raise SystemExit("Packages are turned off on this site, so the app can't render. A site admin turns them on "
                              "in Settings → Packages → Allow Packages, then run Build again.")
         prof = ds_profile(site, ds_id, C.metric_hints(demo_cp))
+        prof["entity_noun"] = ((demo_cp or {}).get("data_app_scenario") or {}).get("entity", {}).get("name", "")
         company = (demo_cp or {}).get("company", "")
         title = cp.get("title") or (f"{company} Data App" if company else f"{ds.name} Data App")
         cp.update({"profile": profile, "datasource_id": ds_id, "datasource": ds.name, "project_id": project_id,
@@ -364,7 +369,9 @@ def build(profile, ds_id, project_id, slug=None, ask="", feedback="", repackage=
         else:
             current = {"queries": cp["app"]["queries"], "app_js": cp["app"]["app_js"]} if feedback and cp.get("app") else None
             app = author(site, prof, slug, title, C.story_brief(demo_cp), ask, current, feedback or None)
-        title = cp["title"] = cp.get("title") or app.get("title") or title
+        old_title, old_wb = cp.get("title"), cp.get("workbook_id")
+        # Claude's title wins on a revise (the SE may have asked for a new name); the first build keeps a preset one
+        title = cp["title"] = (app.get("title") if feedback else None) or cp.get("title") or app.get("title") or title
         cp["app"] = {k: app[k] for k in ("queries", "app_js", "summary", "findings") if k in app}
         C.save_cp(slug, "cloud", cp)
 
@@ -382,6 +389,14 @@ def build(profile, ds_id, project_id, slug=None, ask="", feedback="", repackage=
         cp.setdefault("created", [])
         if wb.id not in cp["created"]:
             cp["created"].append(wb.id)
+        # Publishing goes by name, so a renamed app is a new workbook: delete the old one this app created
+        if old_wb and old_wb != wb.id and old_wb in cp["created"]:
+            try:
+                site.server.workbooks.delete(old_wb)
+                cp["created"].remove(old_wb)
+                print(f"  renamed from {old_title}: removed the old workbook", flush=True)
+            except Exception as e:
+                print(f"  couldn't remove the old workbook {old_title}: {e}", flush=True)
         C.save_cp(slug, "cloud", cp)
         C.step("publish", "done")
 
