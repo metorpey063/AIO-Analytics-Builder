@@ -7,12 +7,15 @@ Planned enhancements, fixes, and integration work. Updated as items are complete
 The Web UI home page shows this list (title, status, summary) with live vote counts. Keep it to 5 items, one line each, in the form `1. **Title** | Status | Summary`. After editing, run `python3 roadmap_votes.py sync` to push it to the roadmap org (items that drop off keep their votes).
 
 1. **Sales Insights customizations** | Next | Tailor the deployed Sales Insights data and dashboards to a customer through a config file
-2. **Service Insights deployment** | Planned | Deploy the Service Insights dashboard package to any org with Data Cloud, like Sales Insights
-3. **Data Apps for Tableau Next** | Shipped | Build data apps on any semantic model; AIO demos first (v2.23.0)
-4. **Data Apps for Tableau Cloud** | Shipped | Build data apps on any published datasource; AIO demos first (v2.23.0)
-5. **Tableau Studio skills in the Web UI** | Planned | Generate and install a demo's Studio skills from the Web UI and at the end of a build
+2. **Data apps from a description** | In progress | Describe the app a customer needs; AIO designs the data model, generates the mock data and builds the data app on it
+3. **Service Insights deployment** | Planned | Deploy the Service Insights dashboard package to any org with Data Cloud, like Sales Insights
+4. **Tableau Studio skills in the Web UI** | Planned | Generate and install a demo's Studio skills from the Web UI and at the end of a build
+5. **Agentforce action trigger for close-loop** | Planned | Create the story's follow-ups from an Agentforce action instead of a Slack button
 
 ## Planned
+
+### Data apps from a description
+- The Data Apps pages build on existing data only. Add a third source, "Describe it": the SE writes what the customer wants (e.g. Coeur Mining tracking haul trucks, loaders and parking spots by mineral at one site, to optimize parking), and AIO designs a fit-for-purpose data model (not the metric-by-dimension demo shape), generates realistic mock data with the problem engineered in, loads it (Data Cloud + SDM for Next, a published .hyper for Cloud) and builds the data app on it
 
 ### Sales Insights customizations
 - `/deploy-sales-insights` deploys 6 dashboards with fixed, generic, seeded data (`salesinsights/DESIGN.md`). Next: a customer config (company, products, regions, team, story) that drives the generated data and dashboard labels
