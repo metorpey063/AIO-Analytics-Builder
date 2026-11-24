@@ -1,5 +1,6 @@
 // Site map, drawn as an aerial view of the site: terrain, an open pit, waste dumps, the lots the places sit in,
 // haul roads with the traffic on each road, the equipment, and a truck at each truck's latest place.
+import { useState } from 'react';
 import { numericCellValue } from '@analytics/data-app-sdk';
 import { useQuery } from '@analytics/data-app-sdk/react';
 import { ChartCard } from '@analytics/data-app-ui-kit/components/react/ChartCard';
@@ -10,8 +11,12 @@ import { useContainerWidth } from '@analytics/data-app-ui-kit/charts/react/useCo
 type Pt = [number, number];
 type Row = Record<string, unknown>;
 
-interface Layer { queryId: string; label?: string; x: string; y: string }
-interface Routes { queryId: string; fromX: string; fromY: string; toX: string; toY: string; weight?: string; color?: string }
+interface TipField { field: string; label?: string; format?: string }   // format: percent, number, currency or a unit (min, L)
+interface Layer { queryId: string; label?: string; x: string; y: string; tooltip?: TipField[] }
+interface Routes {
+  queryId: string; fromX: string; fromY: string; toX: string; toY: string; weight?: string; color?: string;
+  fromLabel?: string; toLabel?: string; weightLabel?: string; colorLabel?: string; tooltip?: TipField[];
+}
 interface Trucks { queryId: string; id: string; x: string; y: string; date?: string; noun?: string }
 
 export interface SiteMapProps {
@@ -25,6 +30,8 @@ export interface SiteMapProps {
   highlight?: string;         // a zone value to outline in red
   lowerIsBetter?: boolean;    // true (default): a higher color value is worse
   colorLabel?: string;
+  format?: string;            // format of the color measure
+  tooltip?: TipField[];       // extra fields of the main query shown when hovering a place
   markers?: Layer;            // fixed equipment (loaders)
   routes?: Routes;            // traffic between two places, drawn along the road network
   trucks?: Trucks;            // moving things; the latest row per id wins
@@ -43,6 +50,22 @@ function rowsOf(result: unknown): Row[] {
   const r = result as { rows?: Row[] } | undefined;
   return r && Array.isArray(r.rows) ? r.rows : [];
 }
+
+// A value for a tooltip: percent (0.62 -> 62.0%), number, currency, or a unit word (min, L)
+function fmt(v: unknown, format?: string): string {
+  const raw = text(v);
+  if (raw !== '' && !/^\s*-?\d+(\.\d+)?(e-?\d+)?\s*$/i.test(raw)) return raw;   // text (a mineral, a name) stays text
+  const n = numericCellValue(v);
+  if (!Number.isFinite(n)) return '–';
+  if (format === 'percent') return `${(n * 100).toFixed(1)}%`;
+  const num = Math.abs(n) >= 1000 ? `${(n / 1000).toFixed(1)}K` : n.toFixed(Math.abs(n) < 10 ? 2 : Math.abs(n) >= 100 ? 0 : 1);
+  if (format === 'currency') return `$${num}`;
+  return format && format !== 'number' ? `${num} ${format}` : num;
+}
+const short = (l: string) => l.replace(/^avg\.?\s+/i, '').replace(/\s*\((min|l|tonnes|t)\)\s*$/i, '').toLowerCase();
+const avgLabel = (l: string) => (/^avg/i.test(l) ? l : `Avg ${l}`);
+
+interface Tip { x: number; y: number; key?: string; title: string; lines: [string, string][]; groups: [string, [string, string][]][] }
 
 const dist = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 const pathD = (pts: Pt[]) => pts.map((q, i) => `${i ? 'L' : 'M'}${q[0].toFixed(1)},${q[1].toFixed(1)}`).join('');
@@ -109,6 +132,7 @@ export function SiteMap(props: SiteMapProps) {
 
 function MapBody(p: SiteMapProps & { places: Row[]; marks: Row[]; links: Row[]; movers: Row[] }) {
   const { ref, width } = useContainerWidth<HTMLDivElement>();
+  const [tip, setTip] = useState<Tip | null>(null);
   if (!width) return <div ref={ref} style={{ width: '100%', minHeight: 460 }} />;
   const W = Math.max(460, Math.min(1100, width)), H = Math.round(W * 0.62), P = 28;
   const lowerIsBetter = p.lowerIsBetter !== false;
@@ -220,11 +244,12 @@ function MapBody(p: SiteMapProps & { places: Row[]; marks: Row[]; links: Row[]; 
     return out;
   };
   // Traffic per road: as thick as the cycles on it, shaded by their weighted average
-  const traffic: Record<string, { pts: Pt[]; w: number; cw: number; n: number }> = {};
-  const add = (k: string, pts: Pt[], w: number, c: number | null) => {
-    const t = (traffic[k] = traffic[k] || { pts, w: 0, cw: 0, n: 0 });
+  const traffic: Record<string, { pts: Pt[]; w: number; cw: number; n: number; routes: Row[] }> = {};
+  const add = (k: string, pts: Pt[], w: number, c: number | null, route: Row) => {
+    const t = (traffic[k] = traffic[k] || { pts, w: 0, cw: 0, n: 0, routes: [] });
     t.w += w;
     if (c !== null) { t.cw += w * c; t.n += w; }
+    t.routes.push(route);
   };
   if (p.routes && net.length > 1) {
     const R = p.routes;
@@ -234,8 +259,8 @@ function MapBody(p: SiteMapProps & { places: Row[]; marks: Row[]; links: Row[]; 
       const place = p.places.find((pl) => Math.abs(X(pl[p.x]) - from[0]) < 0.5 && Math.abs(Y(pl[p.y]) - from[1]) < 0.5);
       const z = place && p.zone ? text(place[p.zone]) : '';
       const start = gates[z] ?? from;
-      if (start !== from) add(`lane:${from}`, [from, start], w, c);
-      shortest(nearest(start), nearest(to)).forEach((k) => add(k, geom[k], w, c));
+      if (start !== from) add(`lane:${from}`, [from, start], w, c, r);
+      shortest(nearest(start), nearest(to)).forEach((k) => add(k, geom[k], w, c, r));
     });
   }
   const tk = Object.keys(traffic);
@@ -261,11 +286,54 @@ function MapBody(p: SiteMapProps & { places: Row[]; marks: Row[]; links: Row[]; 
     return { id, x: X(m[T.x]) + Math.cos(a) * r, y: Y(m[T.y]) + Math.sin(a) * r, rot: ((n * 47) % 180) - 90 };
   });
 
+  // Tooltips: a card that follows the pointer (or sits by the focused mark)
+  const fields = (row: Row, list?: TipField[]): [string, string][] =>
+    (list ?? []).filter((f) => row[f.field] != null).map((f) => [f.label ?? f.field, fmt(row[f.field], f.format)]);
+  const R2 = p.routes;
+  const routeName = (r: Row) => (R2 && (R2.fromLabel || R2.toLabel) ? `${text(r[R2.fromLabel ?? ''])} → ${text(r[R2.toLabel ?? ''])}` : 'Route');
+  const roadTip = (k: string): Omit<Tip, 'x' | 'y'> => {
+    const t = traffic[k], v = t.n ? t.cw / t.n : null;
+    const lines: [string, string][] = [[`${R2?.weightLabel ?? 'Cycles'} on this road`, fmt(t.w)]];
+    if (v !== null && R2?.color) lines.push([avgLabel(R2.colorLabel ?? R2.color), fmt(v, p.format)]);
+    const shown = (R2?.tooltip ?? []).map((f) => f.field);
+    const groups: [string, [string, string][]][] = t.routes
+      .slice().sort((a, b) => numericCellValue(b[R2?.weight ?? '']) - numericCellValue(a[R2?.weight ?? ''])).slice(0, 4)
+      .map((r) => {
+        const ls = fields(r, R2?.tooltip);
+        if (R2?.weight && !shown.includes(R2.weight)) ls.push([R2.weightLabel ?? 'Cycles', fmt(r[R2.weight])]);
+        return [routeName(r), ls];
+      });
+    if (t.routes.length > 4) groups.push([`+ ${t.routes.length - 4} more routes on this road`, []]);
+    return { key: k, title: k.startsWith('lane:') ? 'Lot lane' : 'Haul road', lines, groups };
+  };
+  const placeTip = (r: Row): Omit<Tip, 'x' | 'y'> => ({
+    title: text(r[p.label]),
+    lines: [...(p.zone ? [['Zone', text(r[p.zone])] as [string, string]] : []), [p.colorLabel ?? key, fmt(r[key], p.format)], ...fields(r, p.tooltip)],
+    groups: [],
+  });
+  const markerTip = (m: Row): Omit<Tip, 'x' | 'y'> => ({ title: text(m[p.markers?.label ?? '']), lines: fields(m, p.markers?.tooltip), groups: [] });
+  const at = (e: { clientX: number; clientY: number; currentTarget: Element }) => {
+    const box = (e.currentTarget as SVGElement).ownerSVGElement?.getBoundingClientRect();
+    return { x: e.clientX - (box?.left ?? 0) + 14, y: e.clientY - (box?.top ?? 0) + 14 };
+  };
+  const near = (el: Element) => {
+    const svgBox = (el as SVGElement).ownerSVGElement?.getBoundingClientRect(), b = el.getBoundingClientRect();
+    return { x: b.left - (svgBox?.left ?? 0) + b.width / 2 + 10, y: b.top - (svgBox?.top ?? 0) + b.height / 2 + 10 };
+  };
+  const tipProps = (label: string, build: () => Omit<Tip, 'x' | 'y'>) => ({
+    role: 'button' as const, tabIndex: 0, 'aria-label': label, style: { cursor: 'pointer', outline: 'none' },
+    onMouseEnter: (e: React.MouseEvent<SVGElement>) => setTip({ ...build(), ...at(e) }),
+    onMouseMove: (e: React.MouseEvent<SVGElement>) => setTip((t) => (t ? { ...t, ...at(e) } : t)),
+    onMouseLeave: () => setTip(null),
+    onFocus: (e: React.FocusEvent<SVGElement>) => setTip({ ...build(), ...near(e.currentTarget) }),
+    onBlur: () => setTip(null),
+  });
+
   const describe = `Aerial site map of ${p.places.length} places, ${p.marks.length} loaders and ${parked.length} ` +
     `${p.trucks?.noun ?? 'trucks'}; ${p.colorLabel ?? key} from ${lo.toFixed(1)} to ${hi.toFixed(1)}.`;
   const seedA = Math.floor(rnd() * 99), seedB = Math.floor(rnd() * 99), seedC = Math.floor(rnd() * 99);
   return (
-    <div ref={ref} style={{ width: '100%' }}>
+    <div ref={ref} style={{ width: '100%', position: 'relative' }}>
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={describe} style={{ maxWidth: '100%', display: 'block' }}>
         <defs>
           <filter id={`${uid}g`} x="0" y="0" width="100%" height="100%">
@@ -372,12 +440,17 @@ function MapBody(p: SiteMapProps & { places: Row[]; marks: Row[]; links: Row[]; 
                   strokeWidth={1.5 + (5 * traffic[k].w) / wmax} strokeOpacity={0.9} />
           ))}
         </g>
+        {tk.map((k) => (
+          <path key={`hit-${k}`} d={pathD(traffic[k].pts)} fill="none" strokeLinecap="round" strokeWidth={16}
+                stroke={tip?.key === k ? 'rgba(255,255,255,0.35)' : 'transparent'}
+                {...tipProps(`Road with ${fmt(traffic[k].w)} cycles`, () => roadTip(k))} />
+        ))}
         {p.markers && p.marks.map((m) => {
           const mx = X(m[p.markers!.x]), my = Y(m[p.markers!.y]), name = text(m[p.markers!.label ?? p.markers!.x]);
           const rot = (Math.atan2(ey - my, ex - mx) * 180) / Math.PI;
           return (
             <g key={`loader-${name}`}>
-              <g transform={`translate(${mx},${my}) rotate(${rot.toFixed(0)})`}>
+              <g transform={`translate(${mx},${my}) rotate(${rot.toFixed(0)})`} {...tipProps(name, () => markerTip(m))}>
                 <rect x={-8} y={-7} width={20} height={18} rx={2} fill="rgba(0,0,0,0.35)" />
                 <rect x={-10} y={-9} width={20} height={4} fill="rgb(43,43,43)" />
                 <rect x={-10} y={5} width={20} height={4} fill="rgb(43,43,43)" />
@@ -385,7 +458,7 @@ function MapBody(p: SiteMapProps & { places: Row[]; marks: Row[]; links: Row[]; 
                 <rect x={4} y={-2} width={16} height={4} fill="rgb(217,158,0)" />
                 <rect x={19} y={-4} width={5} height={8} rx={1} fill="rgb(58,58,58)" />
               </g>
-              <text x={mx + 14} y={my - 10} fontSize={11} fontWeight={600} fill="rgb(31,35,40)" {...HALO}>{name}</text>
+              <text x={mx + 14} y={my - 10} fontSize={11} fontWeight={600} fill="rgb(31,35,40)" pointerEvents="none" {...HALO}>{name}</text>
             </g>
           );
         })}
@@ -395,10 +468,10 @@ function MapBody(p: SiteMapProps & { places: Row[]; marks: Row[]; links: Row[]; 
           const c = shade(v, lo, hi, lowerIsBetter);
           return (
             <g key={`place-${name}`}>
-              <circle cx={X(r[p.x])} cy={Y(r[p.y])} r={rad} fill={c} fillOpacity={0.55} stroke={c} strokeWidth={2.5}>
-                <title>{`${name}: ${v.toFixed(1)}`}</title>
-              </circle>
-              <text x={X(r[p.x])} y={Y(r[p.y]) - rad - 4} textAnchor="middle" fontSize={10} fontWeight={500} fill="rgb(31,35,40)" {...HALO}>
+              <circle cx={X(r[p.x])} cy={Y(r[p.y])} r={rad} fill={c} fillOpacity={0.55} stroke={c} strokeWidth={2.5}
+                      {...tipProps(`${name}: ${fmt(v, p.format)}`, () => placeTip(r))} />
+              <text x={X(r[p.x])} y={Y(r[p.y]) - rad - 4} textAnchor="middle" fontSize={10} fontWeight={500} fill="rgb(31,35,40)"
+                    pointerEvents="none" {...HALO}>
                 {name}
               </text>
             </g>
@@ -413,6 +486,31 @@ function MapBody(p: SiteMapProps & { places: Row[]; marks: Row[]; links: Row[]; 
           </g>
         ))}
       </svg>
+      {tip && (
+        <div role="tooltip" style={{ position: 'absolute', left: Math.min(tip.x, W - 330), top: Math.min(tip.y, H - 40), zIndex: 5,
+                                     pointerEvents: 'none', minWidth: 220, maxWidth: 340, padding: '8px 10px', fontSize: 12,
+                                     background: 'var(--surface-card)', color: 'var(--text-primary)', borderRadius: 8,
+                                     border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-card-hover)' }}>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{tip.title}</div>
+          {tip.lines.map(([l, v]) => (
+            <div key={l} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, color: 'var(--text-secondary)' }}>
+              <span>{l}</span><b style={{ color: 'var(--text-primary)' }}>{v}</b>
+            </div>
+          ))}
+          {tip.groups.map(([name, ls]) => (
+            <div key={name} style={{ marginTop: 6, paddingTop: 5, borderTop: '1px solid var(--border-default)' }}>
+              <div style={{ fontWeight: 600 }}>{name}</div>
+              {ls.length > 0 && (
+                <div style={{ color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                  {ls.map(([l, v], i) => (
+                    <span key={l}>{i ? ' · ' : ''}{`${short(l)} `}<b style={{ color: 'var(--text-primary)' }}>{v}</b></span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
         {`Rings: ${p.colorLabel ?? key}, green better, red worse. Yellow machines: loaders. Roads: thicker = more traffic`}
         {p.routes?.color ? ', shaded by the same measure' : ''}

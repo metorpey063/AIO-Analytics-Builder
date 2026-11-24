@@ -37,7 +37,7 @@
   // Format a value: percent (0.62 -> 62.0%), number, currency, or a unit suffix ("min")
   function fmt(v, kind) {
     var n = num(v);
-    if (n === null) return '–';
+    if (n === null || (typeof v === 'string' && !isNumeric(v) && !kind)) return v == null || v === '' ? '–' : String(v);   // text stays text
     if (kind === 'percent') return (n * 100).toFixed(1) + '%';
     if (kind === 'currency') return '$' + abbreviate(n);
     if (kind && kind !== 'number') return n.toFixed(n < 100 ? 1 : 0) + ' ' + kind;

@@ -530,7 +530,9 @@ def build(profile, sdm, workspace, slug=None, ask="", feedback="", repackage=Fal
     slug = slug or demo_slug or C.slugify(sdm)
     cp = C.load_cp(slug, "next")
     if cp.get("sdm") and cp["sdm"] != sdm:
-        raise SystemExit(f"demos/{slug} already has a data app on {cp['sdm']}. Pick another name.")
+        if not (demo_cp or {}).get("data_app_scenario"):
+            raise SystemExit(f"demos/{slug} already has a data app on {cp['sdm']}. Pick another name.")
+        cp.pop("app_id", None)   # generated data that was reloaded onto a new model: same app, new model
     C.step("source", f"reading {sdm}")
     prof = model_profile(org, sdm)
     ws = [w for w in sources(profile)["workspaces"] if workspace in (w["name"], w["id"])]

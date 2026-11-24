@@ -123,6 +123,11 @@ Components (props are exact; nothing else type-checks, so a wrong prop is a runt
     both positions, a `count`/`sum` weight and the problem measure (filter to the last 3 months with an inline
     `IF [date] >= DATEADD('month', -3, TODAY())` calc, or a `relativeDate` filter). Roads are drawn for you and every
     route follows them. `trucks`: grouped by `entity_id_field` and the place, `avg` X / Y and `max` of the date.
+  - Tooltips on hover/focus: `tooltip={[{field, label, format}]}` on the component (places), on `markers` and on
+    `routes` (format: `min`, `L`, `percent`, `number`), plus `routes.fromLabel` / `toLabel` (the route query's place
+    and equipment aliases) to name each route. A road's tooltip shows its traffic and the busiest routes on it with
+    their fields: give the audience transit/travel time, wait, cycle time, fuel and cycles. `format` sets the color
+    measure's format.
   - `lowerIsBetter={false}` when a higher value is good. Props are aliases of those queries. Put it in a
     `FindingSection` as the hero when the ask is about where things are; it brings its own card.
 - `DumbbellChart` `queryId`, `dimension`, `from`, `to` (two measures per category: before and after).
