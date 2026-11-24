@@ -105,10 +105,12 @@ def model_profile(org, sdm):
         raise SystemExit(f"Couldn't read semantic model {sdm}: {r.status_code} {r.text[:300]}")
     m = r.json()
     prof = {"sdm": m["apiName"], "label": html.unescape(m.get("label", "")), "dimensions": [], "measures": [],
-            "calc_measures": [], "calc_dimensions": [], "metrics": [], "date": None}
+            "calc_measures": [], "calc_dimensions": [], "metrics": [], "date": None, "entity": None}
     for do in m.get("semanticDataObjects", []):
         obj = do["apiName"]
         for d in do.get("semanticDimensions", []):
+            if d.get("dataObjectFieldName") == "entity_id__c":
+                prof["entity"] = f"{obj}.{d['apiName']}"   # hidden, but a site map's trucks layer groups by it
             if not d.get("isVisible", True):
                 continue
             item = {"ref": f"{obj}.{d['apiName']}", "label": html.unescape(d.get("label", "")),
@@ -308,6 +310,7 @@ def author_prompt(prof, probe_text, story, ask, app_name, label, current=None, f
         "calc_dimensions": prof["calc_dimensions"],
         "governed_metrics": prof["metrics"],
         "date_to_trend_on": prof["date"],
+        "entity_id_field": prof.get("entity"),
     }
     parts = [f"App name (spec `name`): {app_name}\nPage file: src/pages/{page_name(app_name)}.tsx "
              f"(default export function {page_name(app_name)})\nApp label: {label}",
@@ -357,7 +360,9 @@ def check_app(org, prof, spec, page, app_name):
             problems.append(f'filter {flt.get("id")}: options query "{oq}" is not in the spec')
     # Page: imports, default export, and every id it names
     for imp in re.findall(r"""import\s+[^'"]*?from\s+['"]([^'"]+)['"]""", page):
-        if imp not in ALLOWED_IMPORTS and not imp.startswith("./") and not imp.startswith("../"):
+        if imp.startswith(".") and imp not in ("../components/SiteMap",):
+            problems.append(f'import "{imp}": the only local import is "../components/SiteMap"')
+        elif not imp.startswith(".") and imp not in ALLOWED_IMPORTS:
             problems.append(f'import "{imp}" is not in the reference list')
     if not re.search(rf"export\s+default\s+function\s+{re.escape(page_name(app_name))}\b", page):
         problems.append(f"the page must `export default function {page_name(app_name)}`")
@@ -436,7 +441,18 @@ def app_name_for(slug):
 
 
 def write_draft(client, cp, app):
-    """Create the draft on the first build, then write the spec and page as one new revision."""
+    """Create the draft on the first build, then write the spec and page as one new revision. Drafts expire some
+    time after publishing ("No data app draft …"): a revise then starts a new draft under the same app name,
+    which publishes over the deployed app."""
+    if cp.get("app_id"):
+        try:
+            info = mcp_call(client, "read_data_app_file", {"appId": cp["app_id"]})
+            cp["revision"] = int(info.get("revision") or (info.get("dataApp") or {}).get("revision") or cp.get("revision", 1))
+        except MCPError as e:
+            if "No data app draft" not in str(e) and "NOT_FOUND" not in str(e):
+                raise
+            print(f"  the draft {cp['app_id']} has expired, starting a new draft of {cp['app_name']}", flush=True)
+            cp.pop("app_id", None)
     if not cp.get("app_id"):
         # A name another app already has gets the smallest free number (Overview -> Overview2)
         base = cp["app_name"]
@@ -455,12 +471,11 @@ def write_draft(client, cp, app):
         da = res.get("dataApp") or {}
         cp["app_id"], cp["revision"] = da["appId"], int(da.get("revision", 1))
         print(f"  created draft {cp['app_id']} ({cp['app_name']})", flush=True)
-    else:
-        info = mcp_call(client, "read_data_app_file", {"appId": cp["app_id"]})
-        cp["revision"] = int(info.get("revision") or (info.get("dataApp") or {}).get("revision") or cp.get("revision", 1))
     page_path = f"src/pages/{page_name(cp['app_name'])}.tsx"
     spec = dict(app["spec"], name=cp["app_name"], label=app["label"])
     res = mcp_call(client, "edit_data_app", {"appId": cp["app_id"], "baseRevision": cp["revision"], "operations": [
+        # AIO's own components ship with every app (written before the page that imports them)
+        {"op": "write_file", "path": "src/components/SiteMap.tsx", "content": C.read_asset("next_sitemap.tsx")},
         {"op": "write_file", "path": "src/app.spec.json", "content": json.dumps(spec, indent=2) + "\n"},
         {"op": "write_file", "path": page_path, "content": app["page"]}]})
     cp["revision"] = int((res.get("dataApp") or {}).get("revision", cp["revision"] + 1))

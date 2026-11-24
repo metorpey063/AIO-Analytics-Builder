@@ -89,6 +89,7 @@ import { Chart } from '@analytics/data-app-ui-kit/components/react/connected/Cha
 import { DumbbellChart } from '@analytics/data-app-ui-kit/components/react/connected/DumbbellChart';
 import { DataTable } from '@analytics/data-app-ui-kit/components/react/connected/DataTable';
 import { CaveatBox } from '@analytics/data-app-ui-kit/components/react/CaveatBox';
+import { SiteMap } from '../components/SiteMap';   // AIO's site map, only when the model has positions
 ```
 
 Components (props are exact; nothing else type-checks, so a wrong prop is a runtime error):
@@ -110,10 +111,20 @@ Components (props are exact; nothing else type-checks, so a wrong prop is a runt
   or `secondMeasure`), `stackedBar` (`series`), `heatmap` (`dimension` = rows, `series` = columns),
   `dualAxis` (`secondMeasure` as a line), `donut` (≤5 categories), `scatter` (`secondMeasure`, `sizeMeasure?`),
   `diverging` (signed values), `waterfall`. Props `target` / `targetLabel` draw a reference line.
-- **Site map** (when the model has `<Thing> X` / `<Thing> Y` position measures): `Chart archetype="scatter"`
-  on a query grouped by the thing (e.g. Parking Spot) with `avg` of its X (`measure`), its Y (`secondMeasure`)
-  and the problem measure as `sizeMeasure`. Headline it with where the problem sits. Use it as the hero when
-  the ask is about where things are on a site.
+- **Site map** (when the model has `<Thing> X` / `<Thing> Y` position measures): AIO's own component, which
+  ships with every app. `import { SiteMap } from '../components/SiteMap';` then
+  `<SiteMap queryId="spot_map" label="spot" x="spot_x" y="spot_y" color="wait" size="cycles" zone="zone"
+     highlight="South Ridge Lot" colorLabel="Avg queue wait (min)"
+     markers={{queryId: 'loaders', label: 'loader', x: 'loader_x', y: 'loader_y'}}
+     routes={{queryId: 'routes', fromX: 'spot_x', fromY: 'spot_y', toX: 'loader_x', toY: 'loader_y', weight: 'cycles', color: 'wait'}}
+     trucks={{queryId: 'trucks', id: 'truck', x: 'spot_x', y: 'spot_y', date: 'last_date', noun: 'haul truck'}} />`
+  - main query: grouped by the place (and its zone), `avg` of its X and Y, the problem measure, a count/sum for size.
+  - `markers`: grouped by the equipment, `avg` of its X / Y. `routes`: grouped by place AND equipment with `avg` of
+    both positions, a `count`/`sum` weight and the problem measure (filter to the last 3 months with an inline
+    `IF [date] >= DATEADD('month', -3, TODAY())` calc, or a `relativeDate` filter). Roads are drawn for you and every
+    route follows them. `trucks`: grouped by `entity_id_field` and the place, `avg` X / Y and `max` of the date.
+  - `lowerIsBetter={false}` when a higher value is good. Props are aliases of those queries. Put it in a
+    `FindingSection` as the hero when the ask is about where things are; it brings its own card.
 - `DumbbellChart` `queryId`, `dimension`, `from`, `to` (two measures per category: before and after).
 - `DataTable` `queryId`, `entity` (the label column alias), `measures` (aliases), `title?`.
 - `CaveatBox` children = one sentence.

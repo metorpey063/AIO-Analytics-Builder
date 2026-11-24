@@ -20,7 +20,7 @@ All notable changes to AIO Analytics Builder are documented here.
   - a generated haul-road network: lot gates and loaders joined by curved roads around a drawn pit. Each route takes the shortest way along the roads, and each road is as thick as the traffic on it and shaded by its average wait
   - a dot per truck (or other moving thing) at its latest position
 
-  Tableau Next apps draw the map as a scatter on the position fields. On a revise, a new app title now renames the workbook; the old workbook this app created is removed.
+  Tableau Next apps get the same map from AIO's own `SiteMap` component, which ships with every Next app: lots, pit, roads with traffic, equipment and truck dots, drawn with the theme's colors. Revising a Next app whose draft has expired starts a new draft under the same name, and publishing it replaces the app in place. On a revise, a new app title now renames the workbook; the old workbook this app created is removed.
 
 > Coeur Mining (Palmarejo): 24 haul trucks, Guadalupe (silver) and Zona Central (gold) loaders, 15 parking spots in 3 lots, about 51,000 cycles. Queue wait climbs at South Ridge Lot, worst for silver, while payload per cycle rises. The signal check passed. Built on both platforms; on Tableau Next the post-build validation passed 10 of 10 and the app passed every query check on the first try.
 
