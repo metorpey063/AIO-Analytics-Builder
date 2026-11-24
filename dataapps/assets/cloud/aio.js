@@ -41,6 +41,7 @@
     if (kind === 'percent') return (n * 100).toFixed(1) + '%';
     if (kind === 'currency') return '$' + abbreviate(n);
     if (kind && kind !== 'number') return n.toFixed(n < 100 ? 1 : 0) + ' ' + kind;
+    if (Number.isInteger(n) && Math.abs(n) < 1000) return String(n);   // counts stay whole
     return Math.abs(n) >= 1000 ? abbreviate(n) : n.toFixed(Math.abs(n) < 10 ? 2 : (Math.abs(n) >= 100 ? 0 : 1));
   }
 
@@ -572,11 +573,10 @@
         var t = latest[id], k = t[T.x] + ',' + t[T.y], n = at[k] = (at[k] || 0) + 1;
         var ang = n * 2.4, dist = 12 + 4 * Math.floor(n / 6);
         var tx = X(t[T.x]) + Math.cos(ang) * dist, ty = Y(t[T.y]) + Math.sin(ang) * dist;
-        var dot = svg('g', { transform: 'translate(' + tx.toFixed(1) + ',' + ty.toFixed(1) + ') rotate(' + ((n * 47) % 180 - 90) + ')' });
+        var dot = svg('g', { 'data-truck': id, transform: 'translate(' + tx.toFixed(1) + ',' + ty.toFixed(1) + ') rotate(' + ((n * 47) % 180 - 90) + ')' });
         dot.appendChild(svg('rect', { x: -5, y: -3, width: 11, height: 7, rx: 1, fill: 'rgba(0,0,0,0.35)', transform: 'translate(1.5,1.5)' }));
         dot.appendChild(svg('rect', { x: -6, y: -4, width: 10, height: 8, rx: 1, fill: '#f5c400', stroke: '#7a6000', 'stroke-width': 0.6 }));
         dot.appendChild(svg('rect', { x: 4, y: -3.5, width: 3.5, height: 7, rx: 0.8, fill: '#3a3a3a' }));
-        dot.appendChild(svg('title', {}, id + (T.date ? ' · last cycle ' + label(t[T.date]) : '')));
         s.appendChild(dot);
         count++;
       });
@@ -603,7 +603,7 @@
         var line = el('div', { 'class': 'aio-tip-inline' });
         g[1].forEach(function (ln, i) {
           if (i) line.appendChild(document.createTextNode(' · '));
-          line.appendChild(document.createTextNode(short(ln[0]) + ' '));
+          if (ln[0]) line.appendChild(document.createTextNode(short(ln[0]) + ' '));
           line.appendChild(el('b', {}, ln[1]));
         });
         tip.appendChild(line);
@@ -655,12 +655,32 @@
       s.insertBefore(hit, s.querySelector('g[data-marker]') || s.querySelector('circle[data-place]'));
     });
     // Places and equipment: their own numbers
+    // The trucks whose latest position is a place, and the place a truck is at
+    function sameSpot(t4, r) { return Math.abs(X(t4[o.trucks.x]) - X(r[o.x])) < 0.5 && Math.abs(Y(t4[o.trucks.y]) - Y(r[o.y])) < 0.5; }
+    var latestAll = (o.trucks && typeof latest !== 'undefined') ? latest : {};
     Array.prototype.forEach.call(s.querySelectorAll('circle[data-place]'), function (c2, i) {
       var r = rows[Number(c2.getAttribute('data-place'))];
       hover(c2, function () {
         var ls = [[o.colorLabel || key, fmt(r[key], o.format)]].concat(fieldLines(r, o.tooltip));
         if (o.zone) ls.unshift(['Zone', r[o.zone]]);
-        return [r[o.label], ls];
+        var groups = [];
+        if (o.trucks) {
+          var here = Object.keys(latestAll).sort().filter(function (id) { return sameSpot(latestAll[id], r); });
+          var noun = o.trucks.noun || 'truck';
+          groups.push([here.length ? here.length + ' ' + noun + (here.length > 1 ? 's' : '') + ' parked here now' : 'No ' + noun + 's parked here now',
+                       here.length ? [['', here.length > 6 ? here.slice(0, 6).join(', ') + ' + ' + (here.length - 6) + ' more' : here.join(', ')]] : []]);
+        }
+        return [r[o.label], ls, groups];
+      });
+    });
+    Array.prototype.forEach.call(s.querySelectorAll('g[data-truck]'), function (g3) {
+      var id = g3.getAttribute('data-truck'), t5 = latestAll[id];
+      hover(g3, function () {
+        var place = rows.filter(function (r) { return sameSpot(t5, r); })[0], ls = [];
+        if (place) ls.push(['Parked at', place[o.label]]);
+        if (place && o.zone) ls.push(['Zone', place[o.zone]]);
+        if (o.trucks.date) ls.push(['Last cycle', String(t5[o.trucks.date]).slice(0, 10)]);
+        return [id, ls];
       });
     });
     Array.prototype.forEach.call(s.querySelectorAll('g[data-marker]'), function (g2) {

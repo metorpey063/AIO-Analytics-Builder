@@ -58,7 +58,7 @@ function fmt(v: unknown, format?: string): string {
   const n = numericCellValue(v);
   if (!Number.isFinite(n)) return '–';
   if (format === 'percent') return `${(n * 100).toFixed(1)}%`;
-  const num = Math.abs(n) >= 1000 ? `${(n / 1000).toFixed(1)}K` : n.toFixed(Math.abs(n) < 10 ? 2 : Math.abs(n) >= 100 ? 0 : 1);
+  const num = Number.isInteger(n) && Math.abs(n) < 1000 ? String(n) : Math.abs(n) >= 1000 ? `${(n / 1000).toFixed(1)}K` : n.toFixed(Math.abs(n) < 10 ? 2 : Math.abs(n) >= 100 ? 0 : 1);
   if (format === 'currency') return `$${num}`;
   return format && format !== 'number' ? `${num} ${format}` : num;
 }
@@ -283,7 +283,8 @@ function MapBody(p: SiteMapProps & { places: Row[]; marks: Row[]; links: Row[]; 
   const parked = Object.keys(latest).sort().map((id) => {
     const m = latest[id], T = p.trucks!;
     const at = `${text(m[T.x])},${text(m[T.y])}`, n = (crowd[at] = (crowd[at] || 0) + 1), a = n * 2.4, r = 12 + 4 * Math.floor(n / 6);
-    return { id, x: X(m[T.x]) + Math.cos(a) * r, y: Y(m[T.y]) + Math.sin(a) * r, rot: ((n * 47) % 180) - 90 };
+    return { id, px: X(m[T.x]), py: Y(m[T.y]), date: T.date ? text(m[T.date]) : '',
+             x: X(m[T.x]) + Math.cos(a) * r, y: Y(m[T.y]) + Math.sin(a) * r, rot: ((n * 47) % 180) - 90 };
   });
 
   // Tooltips: a card that follows the pointer (or sits by the focused mark)
@@ -306,11 +307,27 @@ function MapBody(p: SiteMapProps & { places: Row[]; marks: Row[]; links: Row[]; 
     if (t.routes.length > 4) groups.push([`+ ${t.routes.length - 4} more routes on this road`, []]);
     return { key: k, title: k.startsWith('lane:') ? 'Lot lane' : 'Haul road', lines, groups };
   };
-  const placeTip = (r: Row): Omit<Tip, 'x' | 'y'> => ({
-    title: text(r[p.label]),
-    lines: [...(p.zone ? [['Zone', text(r[p.zone])] as [string, string]] : []), [p.colorLabel ?? key, fmt(r[key], p.format)], ...fields(r, p.tooltip)],
-    groups: [],
-  });
+  // The trucks whose latest position is this place
+  const trucksAt = (r: Row) => parked.filter((t) => Math.abs(t.px - X(r[p.x])) < 0.5 && Math.abs(t.py - Y(r[p.y])) < 0.5);
+  const truckList = (ids: string[]) => (ids.length > 6 ? `${ids.slice(0, 6).join(', ')} + ${ids.length - 6} more` : ids.join(', '));
+  const placeTip = (r: Row): Omit<Tip, 'x' | 'y'> => {
+    const here = trucksAt(r).map((t) => t.id);
+    const noun = p.trucks?.noun ?? 'truck';
+    return {
+      title: text(r[p.label]),
+      lines: [...(p.zone ? [['Zone', text(r[p.zone])] as [string, string]] : []), [p.colorLabel ?? key, fmt(r[key], p.format)], ...fields(r, p.tooltip)],
+      groups: p.trucks ? [[here.length ? `${here.length} ${noun}${here.length > 1 ? 's' : ''} parked here now` : `No ${noun}s parked here now`,
+                           here.length ? [['', truckList(here)] as [string, string]] : []]] : [],
+    };
+  };
+  const truckTip = (t: (typeof parked)[number]): Omit<Tip, 'x' | 'y'> => {
+    const place = p.places.find((r) => Math.abs(t.px - X(r[p.x])) < 0.5 && Math.abs(t.py - Y(r[p.y])) < 0.5);
+    return { title: t.id, groups: [], lines: [
+      ...(place ? [['Parked at', text(place[p.label])] as [string, string]] : []),
+      ...(place && p.zone ? [['Zone', text(place[p.zone])] as [string, string]] : []),
+      ...(t.date ? [['Last cycle', t.date.slice(0, 10)] as [string, string]] : []),
+    ] };
+  };
   const markerTip = (m: Row): Omit<Tip, 'x' | 'y'> => ({ title: text(m[p.markers?.label ?? '']), lines: fields(m, p.markers?.tooltip), groups: [] });
   // Positions are read while the event is live (React clears currentTarget once the handler returns)
   const svgOf = (el: EventTarget | null): SVGSVGElement | null => {
@@ -484,11 +501,11 @@ function MapBody(p: SiteMapProps & { places: Row[]; marks: Row[]; links: Row[]; 
           );
         })}
         {parked.map((t) => (
-          <g key={`truck-${t.id}`} transform={`translate(${t.x.toFixed(1)},${t.y.toFixed(1)}) rotate(${t.rot})`}>
+          <g key={`truck-${t.id}`} transform={`translate(${t.x.toFixed(1)},${t.y.toFixed(1)}) rotate(${t.rot})`}
+             {...tipProps(t.id, () => truckTip(t))}>
             <rect x={-4.5} y={-2.5} width={11} height={8} rx={1} fill="rgba(0,0,0,0.35)" />
             <rect x={-6} y={-4} width={10} height={8} rx={1} fill="rgb(245,196,0)" stroke="rgb(122,96,0)" strokeWidth={0.6} />
             <rect x={4} y={-3.5} width={3.5} height={7} rx={0.8} fill="rgb(58,58,58)" />
-            <title>{t.id}</title>
           </g>
         ))}
       </svg>
@@ -509,7 +526,7 @@ function MapBody(p: SiteMapProps & { places: Row[]; marks: Row[]; links: Row[]; 
               {ls.length > 0 && (
                 <div style={{ color: 'var(--text-secondary)', lineHeight: 1.45 }}>
                   {ls.map(([l, v], i) => (
-                    <span key={l}>{i ? ' · ' : ''}{`${short(l)} `}<b style={{ color: 'var(--text-primary)' }}>{v}</b></span>
+                    <span key={l || i}>{i ? ' · ' : ''}{l ? `${short(l)} ` : ''}<b style={{ color: 'var(--text-primary)' }}>{v}</b></span>
                   ))}
                 </div>
               )}
