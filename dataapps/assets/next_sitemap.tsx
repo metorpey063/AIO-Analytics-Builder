@@ -312,20 +312,26 @@ function MapBody(p: SiteMapProps & { places: Row[]; marks: Row[]; links: Row[]; 
     groups: [],
   });
   const markerTip = (m: Row): Omit<Tip, 'x' | 'y'> => ({ title: text(m[p.markers?.label ?? '']), lines: fields(m, p.markers?.tooltip), groups: [] });
-  const at = (e: { clientX: number; clientY: number; currentTarget: Element }) => {
-    const box = (e.currentTarget as SVGElement).ownerSVGElement?.getBoundingClientRect();
+  // Positions are read while the event is live (React clears currentTarget once the handler returns)
+  const svgOf = (el: EventTarget | null): SVGSVGElement | null => {
+    const node = el as SVGElement | null;
+    return node ? (node.ownerSVGElement ?? (node instanceof SVGSVGElement ? node : null)) : null;
+  };
+  const at = (e: { clientX: number; clientY: number; currentTarget: EventTarget | null; target: EventTarget | null }) => {
+    const box = svgOf(e.currentTarget ?? e.target)?.getBoundingClientRect();
     return { x: e.clientX - (box?.left ?? 0) + 14, y: e.clientY - (box?.top ?? 0) + 14 };
   };
-  const near = (el: Element) => {
-    const svgBox = (el as SVGElement).ownerSVGElement?.getBoundingClientRect(), b = el.getBoundingClientRect();
+  const near = (el: Element | null) => {
+    if (!el) return { x: 20, y: 20 };
+    const svgBox = svgOf(el)?.getBoundingClientRect(), b = el.getBoundingClientRect();
     return { x: b.left - (svgBox?.left ?? 0) + b.width / 2 + 10, y: b.top - (svgBox?.top ?? 0) + b.height / 2 + 10 };
   };
   const tipProps = (label: string, build: () => Omit<Tip, 'x' | 'y'>) => ({
     role: 'button' as const, tabIndex: 0, 'aria-label': label, style: { cursor: 'pointer', outline: 'none' },
-    onMouseEnter: (e: React.MouseEvent<SVGElement>) => setTip({ ...build(), ...at(e) }),
-    onMouseMove: (e: React.MouseEvent<SVGElement>) => setTip((t) => (t ? { ...t, ...at(e) } : t)),
+    onMouseEnter: (e: React.MouseEvent<SVGElement>) => { const pos = at(e); setTip({ ...build(), ...pos }); },
+    onMouseMove: (e: React.MouseEvent<SVGElement>) => { const pos = at(e); setTip((t) => (t ? { ...t, ...pos } : t)); },
     onMouseLeave: () => setTip(null),
-    onFocus: (e: React.FocusEvent<SVGElement>) => setTip({ ...build(), ...near(e.currentTarget) }),
+    onFocus: (e: React.FocusEvent<SVGElement>) => { const pos = near(e.currentTarget); setTip({ ...build(), ...pos }); },
     onBlur: () => setTip(null),
   });
 
