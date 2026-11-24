@@ -185,3 +185,75 @@ class Checkpoints(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+SCENARIO = {
+    "company": "Coeur Mining", "title": "Haul Parking", "headline": "Queue wait is up at South Ridge",
+    "entity": {"name": "Haul Truck", "prefix": "HT", "count": 12},
+    "events": {"name": "Haul Cycle", "per_day": 20, "days": 365},
+    "dimensions": [
+        {"name": "Truck Class", "values": ["CAT 777G", "CAT 785D"], "per_entity": True},
+        {"name": "Loader", "values": ["Loader L1", "Loader L2"]},
+        {"name": "Mineral", "derived_from": "Loader", "map": {"Loader L1": "Silver", "Loader L2": "Gold"}},
+        {"name": "Parking Spot", "values": ["P-01", "P-02", "P-03", "P-04"]},
+        {"name": "Parking Zone", "derived_from": "Parking Spot",
+         "map": {"P-01": "Central Lot", "P-02": "Central Lot", "P-03": "South Ridge Lot", "P-04": "South Ridge Lot"}}],
+    "layout": {"Parking Spot": {"P-01": [20, 50], "P-02": [25, 50], "P-03": [80, 90], "P-04": [85, 90]},
+               "Loader": {"Loader L1": [20, 10], "Loader L2": [70, 10]}},
+    "measures": [
+        {"label": "Queue Wait (Min)", "agg": "Average", "sentiment": "up_is_bad", "base_range": [3.5, 6.0],
+         "distance": {"from": "Parking Spot", "to": "Loader", "per_unit": 0.03}, "is_primary": True},
+        {"label": "Cycle Time (Min)", "agg": "Average", "sentiment": "up_is_bad", "base_range": [25, 32]},
+        {"label": "Payload Per Cycle (Tonnes)", "agg": "Average", "sentiment": "up_is_good", "base_range": [95, 110]}],
+    "signal": {"measure": "Queue Wait (Min)", "culprit": {"dimension": "Parking Zone", "value": "South Ridge Lot"},
+               "culprit_detail": {"dimension": "Mineral", "value": "Silver"}, "magnitude": 0.5,
+               "onset_months_ago": 3, "counter_trend_metric": "Payload Per Cycle (Tonnes)"}}
+
+
+class Scenario(unittest.TestCase):
+    def test_good_design_has_no_problems(self):
+        from dataapps import scenario
+        self.assertEqual(scenario.design_problems(SCENARIO), [])
+
+    def test_design_problems_are_caught(self):
+        from dataapps import scenario
+        bad = json.loads(json.dumps(SCENARIO))
+        bad["dimensions"][2]["map"].pop("Loader L2")                     # map misses a source value
+        bad["layout"]["Parking Spot"]["P-01"] = [120, 5]                  # off the grid
+        bad["signal"]["culprit"]["value"] = "North Lot"                   # not a value
+        bad["signal"]["counter_trend_metric"] = "Queue Wait (Min)"        # same as the primary
+        bad["events"]["days"] = 90
+        problems = " | ".join(scenario.design_problems(bad))
+        for text in ("map is missing", "between 0 and 100", "North Lot", "different measure", "at least 300"):
+            self.assertIn(text, problems)
+
+    def test_generated_table_is_in_the_fact_schema(self):
+        from dataapps import scenario
+        df = scenario.generate(SCENARIO, seed=1)
+        for col in ("Record ID", "Date", "Day_Offset", "Entity ID", "Mineral", "Parking Zone",
+                    "Queue Wait (Min)", "Parking Spot X", "Loader Y"):
+            self.assertIn(col, df.columns)
+        self.assertTrue(df["Record ID"].is_unique)
+        self.assertTrue((df[df["Loader"] == "Loader L1"]["Mineral"] == "Silver").all())
+        self.assertEqual(df.groupby("Entity ID")["Truck Class"].nunique().max(), 1)   # per_entity stays fixed
+
+    def test_configs_mark_positions_as_helpers(self):
+        from dataapps import scenario
+        metric_config, story_config, story = scenario.configs(SCENARIO)
+        self.assertTrue(metric_config[0]["is_primary"])
+        helpers = [m["label"] for m in metric_config if m.get("no_metric")]
+        self.assertEqual(sorted(helpers), ["Loader X", "Loader Y", "Parking Spot X", "Parking Spot Y"])
+        self.assertEqual(story_config["dimension_values"]["Parking Zone"], ["Central Lot", "South Ridge Lot"])
+        self.assertEqual(story_config["signal_plan"]["culprit"]["value"], "South Ridge Lot")
+
+    def test_the_problem_lands_in_the_culprit(self):
+        from dataapps import scenario
+        import pandas as pd
+        df = scenario.generate(SCENARIO, seed=3)
+        recent = df["Date"] >= pd.Timestamp.today() - pd.Timedelta(days=45)
+        early = df["Date"] < pd.Timestamp.today() - pd.Timedelta(days=150)
+        def change(zone):
+            z = df["Parking Zone"] == zone
+            return df[z & recent]["Queue Wait (Min)"].mean() / df[z & early]["Queue Wait (Min)"].mean() - 1
+        self.assertGreater(change("South Ridge Lot"), 0.2)
+        self.assertLess(abs(change("Central Lot")), 0.1)

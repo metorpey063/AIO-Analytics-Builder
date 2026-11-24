@@ -11,6 +11,10 @@
     python3 -m dataapps cloud repackage --slug S    # republish the recorded app as is (newer AIO runtime)
     python3 -m dataapps cloud remove --slug S
 
+    python3 -m dataapps <next|cloud> describe --profile <key> --company "Coeur Mining" --description "..."
+                                    [--slug S] [--plan]     # no data yet: design it, mock it, load it, build the app
+                                                            # (--plan: design + generate + check only, no org writes)
+
     python3 -m dataapps status --slug S        # both checkpoints for a demo folder
 
 Claude writes the app (the page and its queries); AIO runs every query against the data before it
@@ -47,6 +51,9 @@ def main(argv):
     p.add_argument("--slug")
     p.add_argument("--ask", default="")
     p.add_argument("--feedback", default="")
+    p.add_argument("--company", default="")
+    p.add_argument("--description", default="")
+    p.add_argument("--plan", action="store_true")
     a = p.parse_args(argv[2:])
     engine = __import__(f"dataapps.{platform}", fromlist=["build"])
     if cmd == "sources":
@@ -57,6 +64,11 @@ def main(argv):
         if not (a.profile and a.source and a.dest):
             sys.exit("--profile, --source and --dest are required")
         engine.build(a.profile, a.source, a.dest, slug=a.slug, ask=a.ask, feedback=a.feedback)
+    elif cmd == "describe":
+        if not (a.company and a.description) or (not a.plan and not a.profile):
+            sys.exit("--company and --description are required (and --profile unless --plan)")
+        from dataapps import scenario
+        scenario.describe(platform, a.profile, a.company, a.description, slug=a.slug, plan_only=a.plan, ask=a.ask)
     elif cmd == "repackage" and platform == "cloud":
         cp = C.load_cp(a.slug or "", "cloud")
         if not cp.get("app"):

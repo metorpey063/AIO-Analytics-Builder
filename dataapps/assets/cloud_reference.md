@@ -30,6 +30,11 @@ published datasource live through the Extensions API (the VizQL Data Service). Y
 - A dimension field has no `function`. Give every field a `fieldAlias` (letters, digits, `_`): rows are keyed by it.
 - Calculated field: `{"fieldCaption": "Recent FCR", "calculation": "AVG(IF [Date] >= DATEADD('month', -3, TODAY()) THEN [First-Contact Resolution] END)", "fieldAlias": "recent"}`
   (Tableau calc syntax, fields in brackets by caption). Use it for before/after pairs.
+- A calculation's `fieldCaption` must be a NEW name: reusing an existing field's caption (e.g. "Queue Wait (Min)")
+  fails with "Field Caption for a Calculation references existing field".
+- A monthly trend of a `SUM` measure dips in the current, partial month: trend it as `AVG` per event instead,
+  or filter the trend to complete months (`{"field": {"fieldCaption": "Date"}, "filterType": "DATE",
+  "periodType": "MONTHS", "dateRangeType": "LASTN", "rangeN": 13}` still includes this month, so prefer AVG).
 - Filters: `{"field": {"fieldCaption": "X"}, "filterType": "SET", "values": ["A"]}` or the relative `DATE`
   filter above (`dateRangeType`: `LASTN`, `CURRENT`, `LAST`). The filter bar adds SET filters itself; don't
   add them for the bar's fields.
@@ -72,6 +77,11 @@ API (nothing else exists):
 - `app.line(body, queryId, {x, y, series?, format?, highlight?, height?})`: x is a date alias, sorted for you.
 - `app.bar(body, queryId, {x, y, format?, sort?: 'desc'|'asc', highlight?})`: horizontal ranked bars.
 - `app.dumbbell(body, queryId, {x, from, to, format?, fromLabel?, toLabel?})`: before/after per category.
+- `app.map(body, queryId, {label, x, y, size?, color?, format?, goodDirection?, highlight?, colorLabel?,
+  markers?: {query, label, x, y}})`: a site map on a 0-100 grid, when the datasource has position fields
+  (`<Thing> X` / `<Thing> Y`). The query groups by the thing (e.g. Parking Spot) with AVG of its X and Y and
+  the measure to shade by (e.g. AVG Queue Wait); `markers` is a second query for fixed equipment (e.g. Loader
+  with AVG Loader X / Loader Y). Use it as the hero when the ask is about where things are.
 - `app.table(body, queryId, {columns: [{field, label?, format?}], sort?, dir?, limit?})`.
 - `format`: `'percent'` (0.62 → 62.0%), `'number'`, `'currency'`, or a unit word (`'min'`, `'days'`).
 - Every `query` / `queryId` is a key of your queries object; every `field`, `x`, `y`, `series`, `from`, `to`

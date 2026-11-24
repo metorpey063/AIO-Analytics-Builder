@@ -55,6 +55,23 @@ python3 -m dataapps cloud sources --profile <key>    # demos, datasources, proje
 Offer the AIO demos first (`demos`), then the other sources. Destination: the demo's own workspace / Pulse
 project by default; otherwise ask.
 
+**No data yet? Describe it.** When the customer's use case has no data in the org (e.g. Coeur Mining tracking
+haul trucks, parking spots and loaders by mineral at one site), offer "Describe it" instead of a source:
+
+```bash
+python3 -m dataapps <next|cloud> describe --plan --company "Coeur Mining" --description "..."   # read-only
+python3 -m dataapps <next|cloud> describe --profile <key> --company "Coeur Mining" --description "..."
+```
+
+`--plan` has Claude design an event-level data model (one fact row per event, dimensions incl. derived ones
+like Loader → Mineral, measures with a distance cost, site positions on a 0-100 grid), generates a year of
+mock data with the problem engineered in and runs the signal check. Show the printed summary and the signal
+check, and confirm before the real run. The real run loads the data (Next: Data Cloud stream + semantic
+model + metrics in a new workspace, through the Build Demo engine with `data_only`; Cloud: a new project and
+a self-healing published datasource), saves it as an AIO demo in `demos/{slug}/`, then builds the app on it
+with a site map when the data has positions. The design is saved (`{slug}_data_app_scenario.json`) and reused
+while the company and description don't change.
+
 ### Step 3 — What the app should answer
 
 Optional. Blank builds around the demo's story (AIO demo) or what the data shows.

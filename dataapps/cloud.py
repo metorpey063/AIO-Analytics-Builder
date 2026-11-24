@@ -180,7 +180,7 @@ def check_app(site, prof, queries, app_js):
             problems.append(f"app_js must not use {bad.strip()}")
     # Query ids: `query: 'id'` (KPIs, trends) and the id before a chart's options (`'id', {x: …}`)
     refs = re.findall(r"""\bquery\s*:\s*['"]([^'"]+)['"]""", app_js)
-    refs += re.findall(r"""['"]([^'"]+)['"]\s*,\s*\{\s*['"]?(?:x|columns|from)['"]?\s*:""", app_js)
+    refs += re.findall(r"""['"]([^'"]+)['"]\s*,\s*\{\s*['"]?(?:x|columns|from|label)['"]?\s*:""", app_js)
     for ref in refs:
         if ref not in queries:
             problems.append(f'app_js uses query "{ref}" but `queries` has no such id')

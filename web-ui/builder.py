@@ -2832,6 +2832,8 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         cp["metric_apis"] = []
         mmap = cp.get("measurement_map", {})
         for i, mc in enumerate(metric_config):
+            if mc.get("no_metric"):
+                continue   # a helper column (e.g. a data app's site coordinates), not a business metric
             pct = 55 + int(10 * (i / len(metric_config)))
             progress(q, "metrics", f"Creating metric {i+1}/{len(metric_config)}: {mc['label']}...", pct)
 
@@ -3104,6 +3106,11 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         [(build_config or {}).get("dashboard_template", "z_layout")]
     want_dynamic = "dynamic" in dash_templates
     layout_template = next((t for t in dash_templates if t != "dynamic"), None)
+
+    # Data only (a data app's generated data): the SDM and metrics, no vizzes or dashboard
+    if (build_config or {}).get("data_only") and not cp.get("viz_done"):
+        cp["viz_done"] = cp["dash_done"] = True
+        _save_cp(cp, slug, demo_dir)
 
     if want_dynamic and not layout_template and not cp.get("viz_done"):
         # Dynamic only: clear tracked prior assets, then skip the template phase
@@ -3733,7 +3740,8 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
 
     # --- Phase 7b: Concierge prompt testing (capture live responses for walkthrough) ---
     # Re-runs whenever no answer was captured yet — a failed capture doesn't block a retry
-    if not concierge_captured(cp) and cp.get("sdm_api"):
+    data_only = bool((build_config or {}).get("data_only"))
+    if not data_only and not concierge_captured(cp) and cp.get("sdm_api"):
         progress(q, "concierge", "Testing Concierge prompts...", 90)
         try:
             capture_concierge(cp, config, metric_config, story_config, q)
@@ -3741,8 +3749,9 @@ def next_build(build_id, df, slug, company, config, metric_config, story_config,
         except Exception as e:
             progress(q, "warn", f"Concierge testing skipped: {str(e)[:200]}", -1)
 
-    progress(q, "walkthrough", "Generating walkthrough document...", 92)
-    generate_walkthrough(slug, company, story_config, metric_config, "next", cp, demo_dir)
+    if not data_only:
+        progress(q, "walkthrough", "Generating walkthrough document...", 92)
+        generate_walkthrough(slug, company, story_config, metric_config, "next", cp, demo_dir)
 
     # --- Phase 8: Post-build validation ---
     progress(q, "validate", "Running post-build validation...", 95)

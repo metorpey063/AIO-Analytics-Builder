@@ -47,6 +47,8 @@ AppField: set exactly ONE of `field` / `calculatedFieldApiName` / `calculation`,
   - Multiply a 0-1 rate by 100 in a calculation only when it feeds a chart that has no percent format
     (calculation results come back as plain numbers; governed calcs keep their percent format).
 
+A monthly trend of a `sum` measure dips in the current, partial month: trend it with `avg` instead.
+
 A query with only measures returns one row (a KPI). Measures plus dimensions return one row per group.
 
 ### AppQueryFilter (inline on a query) / AppFilter (registered in `data.filters`)
@@ -108,6 +110,10 @@ Components (props are exact; nothing else type-checks, so a wrong prop is a runt
   or `secondMeasure`), `stackedBar` (`series`), `heatmap` (`dimension` = rows, `series` = columns),
   `dualAxis` (`secondMeasure` as a line), `donut` (≤5 categories), `scatter` (`secondMeasure`, `sizeMeasure?`),
   `diverging` (signed values), `waterfall`. Props `target` / `targetLabel` draw a reference line.
+- **Site map** (when the model has `<Thing> X` / `<Thing> Y` position measures): `Chart archetype="scatter"`
+  on a query grouped by the thing (e.g. Parking Spot) with `avg` of its X (`measure`), its Y (`secondMeasure`)
+  and the problem measure as `sizeMeasure`. Headline it with where the problem sits. Use it as the hero when
+  the ask is about where things are on a site.
 - `DumbbellChart` `queryId`, `dimension`, `from`, `to` (two measures per category: before and after).
 - `DataTable` `queryId`, `entity` (the label column alias), `measures` (aliases), `title?`.
 - `CaveatBox` children = one sentence.

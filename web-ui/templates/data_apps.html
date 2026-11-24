@@ -25,7 +25,19 @@
 <div class="card story-section" style="padding:16px; margin-bottom:16px">
     <h3><span class="step-num">2</span> Data</h3>
     <div id="da-sources" class="form-hint">Pick a connection to list its data.</div>
-    <div class="form-group" style="margin-top:12px"><label>{{ "Workspace to publish into" if platform == "next" else "Project to publish into" }} *</label>
+    <div id="da-describe" class="hidden" style="margin-top:12px">
+        <div class="form-group"><label>Customer *</label>
+            <input type="text" id="da-company" placeholder="e.g. Coeur Mining"></div>
+        <div class="form-group"><label>What should the app show? *</label>
+            <textarea id="da-description" rows="4" placeholder="e.g. Track haul trucks at the Palmarejo site in relation to parking spots and the loaders for each mineral (silver, gold), so they can optimize where trucks park between cycles."></textarea>
+            <div class="form-hint">Claude designs the data model, AIO generates a year of mock data with the problem built in and checks the story landed. Things with a place on a site get positions, so the app can draw a site map.</div></div>
+        <div class="wizard-actions" style="flex-wrap:wrap; gap:8px">
+            <button class="btn btn-secondary" id="da-plan" onclick="daRun('plan')">Design the data</button>
+            <span class="form-hint">Read-only, about a minute: shows the data model and the story before anything is loaded.</span>
+        </div>
+        <pre id="da-plan-out" class="progress-log hidden" style="margin-top:10px; font-size:12px; white-space:pre-wrap"></pre>
+    </div>
+    <div class="form-group" id="da-dest-group" style="margin-top:12px"><label>{{ "Workspace to publish into" if platform == "next" else "Project to publish into" }} *</label>
         <select id="da-dest"><option value="">—</option></select></div>
 </div>
 
@@ -115,7 +127,7 @@ async function daOnProfile(preselect) {
                                       : r.projects.map(p => ({id: p.id, label: p.name}));
     $('da-dest').innerHTML = '<option value="">— pick one —</option>' + dests.map(d => `<option value="${esc(d.id)}">${esc(d.label)}</option>`).join('');
     window._demos = r.demos; window._items = items;
-    let html = '';
+    let html = `<label style="display:block; font-weight:normal; margin-bottom:10px"><input type="radio" name="da-src" value="__describe__" onchange="daPickSource(this.value)"> <strong>Describe it</strong> <span class="form-hint">— no data yet: AIO designs and mocks the data, ${PLATFORM === 'next' ? 'loads it into Data Cloud with a semantic model' : 'publishes it as a datasource'}, then builds the app</span></label>`;
     if (r.demos.length) {
         html += '<div style="margin-bottom:10px"><strong>AIO demos on this connection</strong>' + r.demos.map(d =>
             `<label style="display:block; margin-left:12px; font-weight:normal"><input type="radio" name="da-src" value="${esc(d.source)}" onchange="daPickSource(this.value)"> ${esc(d.company)} <code>${esc(d.slug)}</code> <span class="form-hint">built ${esc(d.built)}</span></label>`).join('') + '</div>';
@@ -132,7 +144,20 @@ async function daOnProfile(preselect) {
     }
 }
 
+let describing = false;
+
 async function daPickSource(id) {
+    describing = id === '__describe__';
+    $('da-describe').classList.toggle('hidden', !describing);
+    $('da-dest-group').classList.toggle('hidden', describing);
+    if (describing) {
+        document.querySelectorAll('input[name=da-src]').forEach(b => { if (b.value !== id) b.checked = false; });
+        if ($('da-other')) $('da-other').value = '';
+        src = null; current = null; daShowResult(null);
+        $('da-build').disabled = false;
+        $('da-build').textContent = 'Build data + app';
+        return;
+    }
     if (!id) { daSetSource(null); return; }
     document.querySelectorAll('input[name=da-src]').forEach(b => { if (b.value !== id) b.checked = false; });
     if ($('da-other') && window._demos.some(d => d.source === id)) $('da-other').value = '';
@@ -167,8 +192,10 @@ function daShowResult(app) {
     $('da-result').innerHTML = html;
 }
 
+let STEPS_NOW = STEPS;
+
 function daRenderSteps(done, cur, detail, failed) {
-    $('da-steps').innerHTML = STEPS.map(([k, label]) => {
+    $('da-steps').innerHTML = STEPS_NOW.map(([k, label]) => {
         if (done.includes(k)) return `<span class="badge badge-ok">✓ ${label}</span>`;
         if (k === failed) return `<span class="badge" style="background:var(--red-light); color:var(--red)">✕ ${label}</span>`;
         if (k === cur) return `<span class="badge badge-neutral">… ${label}${detail ? ': ' + esc(detail) : ''}</span>`;
@@ -176,12 +203,22 @@ function daRenderSteps(done, cur, detail, failed) {
     }).join('');
 }
 
-function daSetBusy(b) { ['da-profile', 'da-dest', 'da-build', 'da-revise', 'da-remove'].forEach(id => $(id).disabled = b); }
+function daSetBusy(b) { ['da-profile', 'da-dest', 'da-build', 'da-revise', 'da-remove', 'da-plan'].forEach(id => $(id).disabled = b); }
+
+const DESCRIBE_STEPS = [['design', 'Design data'], ['data', 'Mock data'], ['load', 'Load data']];
 
 async function daRun(action, revise) {
+    if (describing && action === 'build') action = 'describe';
     const body = {action, confirmed: true, slug, profile: $('da-profile').value, source: src && src.id,
                   source_name: src && src.name, dest: $('da-dest').value, ask: $('da-ask').value};
-    if (action === 'build') {
+    if (action === 'plan' || action === 'describe') {
+        body.company = $('da-company').value.trim(); body.description = $('da-description').value.trim();
+        body.slug = '';
+        if (!body.profile || !body.company || !body.description) { alert('Pick a connection, then give the customer and describe the app.'); return; }
+        if (action === 'describe' && !confirm(`Build the data and the app for ${body.company}?\n\nThis ${PLATFORM === 'next'
+            ? 'creates a Data Cloud stream, a semantic model and a workspace in the org'
+            : 'creates a project and a published datasource on the site'}, then publishes the data app there.`)) return;
+    } else if (action === 'build') {
         if (!body.source || !body.dest) { alert('Pick the data and where to publish (step 2).'); return; }
         if (revise) {
             body.feedback = $('da-feedback').value.trim();
@@ -192,7 +229,9 @@ async function daRun(action, revise) {
     } else if (!confirm('Delete this data app? Only the app is removed; the data stays.')) return;
     daSetBusy(true);
     $('da-log').textContent = ''; $('da-log').classList.remove('hidden');
-    daRenderSteps([], action === 'build' ? 'source' : null, '', null);
+    STEPS_NOW = (action === 'plan') ? DESCRIBE_STEPS.slice(0, 2) : (action === 'describe' ? DESCRIBE_STEPS.concat(STEPS) : STEPS);
+    if (action === 'plan') $('da-plan-out').classList.add('hidden');
+    daRenderSteps([], action === 'remove' ? null : STEPS_NOW[0][0], '', null);
     const r = await (await fetch(`/api/data-apps/${PLATFORM}/run`, {method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body)})).json();
     if (!r.ok) { daSetBusy(false); alert(r.error); return; }
@@ -214,11 +253,26 @@ async function daPoll(id, since, done, cur, detail) {
         }
     }
     $('da-log').scrollTop = $('da-log').scrollHeight;
-    if (r.action === 'build') daRenderSteps(done, cur, detail, r.state === 'error' ? cur : null);
+    if (r.action !== 'remove') daRenderSteps(done, cur, detail, r.state === 'error' ? cur : null);
     if (r.state === 'running') { setTimeout(() => daPoll(id, r.next, done, cur, detail), 2000); return; }
     daSetBusy(false);
     if (r.action === 'remove') {
         if (r.state === 'done') { current = null; daShowResult(null); $('da-build').textContent = 'Build data app'; }
+        return;
+    }
+    if (r.action === 'plan') {
+        // The data model and the signal check, as printed between the [data] step and the PLAN line
+        const text = $('da-log').textContent, a = text.indexOf('[data] generating'), b = text.indexOf('\nPLAN ');
+        if (r.state === 'done' && a >= 0) {
+            $('da-plan-out').textContent = text.slice(text.indexOf('\n', a) + 1, b > a ? b : undefined).replace(/\[data\] done.*\n?/, '');
+            $('da-plan-out').classList.remove('hidden');
+        }
+        return;
+    }
+    if (r.action === 'describe' && r.state === 'done' && r.source) {
+        // The new data is an AIO demo now: list it and select it like the others
+        describing = false; $('da-describe').classList.add('hidden'); $('da-dest-group').classList.remove('hidden');
+        await daOnProfile(r.source);
         return;
     }
     if (r.state === 'done') { current = r.app; $('da-feedback').value = ''; $('da-build').textContent = 'Rebuild data app'; daShowResult(r.app); }

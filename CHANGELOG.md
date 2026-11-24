@@ -4,6 +4,22 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-23 — Data apps from a description: AIO designs and mocks the data (v2.24.0)
+
+### Added
+- **"Describe it" on both Data Apps pages** (and `python3 -m dataapps <next|cloud> describe`), for when the customer's use case has no data in the org yet. Give the customer and what the app should show:
+  1. Claude designs an event-level data model: one row per event (a haul cycle, a ticket, a shipment), with derived dimensions (a loader serves one mineral; a spot sits in one zone), distance costs between things on a site, and positions on a site grid.
+  2. AIO generates a year of mock data with the problem built in, and the signal check confirms it landed.
+  3. AIO loads the data and saves it as an AIO demo. Next gets a Data Cloud stream, semantic model and metrics in a new workspace, built by the Build Demo engine in a new data-only mode. Cloud gets a new project and a self-healing published datasource.
+  4. The data app is built on it, with a site map when things have positions.
+
+  "Design the data" shows the model and the story first, read-only.
+- **Site maps:** the Cloud runtime (`aio.js`) adds `app.map` (spots shaded by the problem metric, equipment as markers). Tableau Next apps draw it as a scatter on the position fields.
+
+> Coeur Mining (Palmarejo): 24 haul trucks, Guadalupe (silver) and Zona Central (gold) loaders, 15 parking spots in 3 lots, about 51,000 cycles. Queue wait climbs at South Ridge Lot, worst for silver, while payload per cycle rises. The signal check passed. Built on both platforms; on Tableau Next the post-build validation passed 10 of 10 and the app passed every query check on the first try.
+
+---
+
 ## 2026-11-23 — Data Apps for Tableau Next and Tableau Cloud (v2.23.0)
 
 ### Added

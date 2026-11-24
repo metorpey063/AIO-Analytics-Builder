@@ -148,6 +148,14 @@
   App.prototype.bar = function (body, queryId, o) { this._draw(body, queryId, function (rows) { bars(body, rows, o); }); };
   App.prototype.line = function (body, queryId, o) { this._draw(body, queryId, function (rows) { lines(body, rows, o); }); };
   App.prototype.dumbbell = function (body, queryId, o) { this._draw(body, queryId, function (rows) { dumbbell(body, rows, o); }); };
+  App.prototype.map = function (body, queryId, o) {
+    var self = this;
+    this._draw(body, queryId, function (rows) {
+      if (!o.markers) { siteMap(body, rows, o, []); return; }
+      self.query(o.markers.query).then(function (marks) { siteMap(body, rows, o, marks); },
+                                       function () { siteMap(body, rows, o, []); });
+    });
+  };
   App.prototype.table = function (body, queryId, o) { this._draw(body, queryId, function (rows) { table(body, rows, o); }); };
 
   // Draw from a query result once it arrives; any error or empty result shows in the section
@@ -263,6 +271,42 @@
     s.appendChild(svg('circle', { cx: L + 120, cy: ly - 4, r: 4, fill: PALETTE[0] }));
     s.appendChild(svg('text', { x: L + 128, y: ly, 'class': 'aio-axis' }, o.toLabel || 'Now'));
     body.appendChild(s);
+  }
+
+  // Site map on a 0-100 grid: {label, x, y, size?, color?, format, highlight?, markers?: {query, label, x, y}}.
+  // Circles are the rows (e.g. parking spots), sized by `size` and shaded by `color` (red = worse when
+  // goodDirection is 'down'); markers are fixed things (e.g. loaders) drawn as labelled squares.
+  function siteMap(body, rows, o, marks) {
+    var W = Math.min(900, Math.max(420, body.clientWidth || 640)), H = Math.round(W * 0.62), P = 24;
+    var X = function (v) { return P + num(v) / 100 * (W - 2 * P); };
+    var Y = function (v) { return H - P - num(v) / 100 * (H - 2 * P); };
+    var s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, width: W, style: 'max-width:100%', role: 'img', 'aria-label': 'Site map' });
+    s.appendChild(svg('rect', { x: P / 2, y: P / 2, width: W - P, height: H - P, rx: 8, fill: '#f4f1ea', stroke: '#e1dccf' }));
+    var key = o.color || o.size;
+    var vals = rows.map(function (r) { return num(r[key]); }).filter(function (v) { return v !== null; });
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    var sizes = rows.map(function (r) { return num(r[o.size || key]) || 0; });
+    var smax = Math.max.apply(null, sizes.concat([1e-9])), smin = Math.min.apply(null, sizes);
+    var bad = (o.goodDirection || 'down') === 'down';
+    (marks || []).forEach(function (m) {
+      var mx = X(m[o.markers.x]), my = Y(m[o.markers.y]);
+      s.appendChild(svg('rect', { x: mx - 7, y: my - 7, width: 14, height: 14, rx: 2, fill: '#24292f' }));
+      s.appendChild(svg('text', { x: mx + 10, y: my + 4, 'class': 'aio-axis', 'font-weight': 600 }, m[o.markers.label]));
+    });
+    rows.forEach(function (r) {
+      var v = num(r[key]), t = (v - lo) / Math.max(1e-9, hi - lo), share = bad ? t : 1 - t;
+      var red = Math.round(80 + 175 * share), green = Math.round(160 - 110 * share), blue = Math.round(90 - 40 * share);
+      var rad = 6 + 12 * ((num(r[o.size || key]) || 0) - smin) / Math.max(1e-9, smax - smin);
+      var hot = o.highlight && (r[o.label] === o.highlight);
+      var c = svg('circle', { cx: X(r[o.x]), cy: Y(r[o.y]), r: rad.toFixed(1), fill: 'rgb(' + red + ',' + green + ',' + blue + ')',
+                              'fill-opacity': 0.85, stroke: hot ? '#24292f' : '#ffffff', 'stroke-width': hot ? 2.5 : 1.5 });
+      c.appendChild(svg('title', {}, r[o.label] + ': ' + fmt(v, o.format)));
+      s.appendChild(c);
+      s.appendChild(svg('text', { x: X(r[o.x]), y: Y(r[o.y]) - rad - 3, 'text-anchor': 'middle', 'class': 'aio-axis' }, r[o.label]));
+    });
+    body.appendChild(s);
+    body.appendChild(el('p', { 'class': 'aio-note' }, 'Green = better, red = worse ' + (o.colorLabel || key) +
+      ' (' + fmt(lo, o.format) + ' to ' + fmt(hi, o.format) + '). Squares: ' + ((marks || []).length ? 'fixed equipment.' : 'none.')));
   }
 
   // Table: {columns: [{field, label, format}], sort: field, dir, limit}

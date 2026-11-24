@@ -1797,12 +1797,24 @@ def data_apps_run(platform):
         return jsonify({"ok": False, "error": "Unknown platform"}), 404
     data = request.get_json() or {}
     action = data.get("action")
-    if action not in ("build", "remove"):
+    if action not in ("build", "remove", "plan", "describe"):
         return jsonify({"ok": False, "error": f"Unknown action {action!r}"}), 400
-    if not data.get("confirmed"):
+    if action != "plan" and not data.get("confirmed"):
         return jsonify({"ok": False, "error": "This writes to the org — confirm first."}), 400
     slug = DA.slugify(data.get("slug") or "") if data.get("slug") else ""
-    if action == "build":
+    if action in ("plan", "describe"):
+        # No data yet: design it from the description, mock it, (describe:) load it and build the app
+        company, desc = (data.get("company") or "").strip(), (data.get("description") or "").strip()
+        if not (company and desc) or not data.get("profile"):
+            return jsonify({"ok": False, "error": "Pick a connection, then give the customer and describe the app."}), 400
+        slug = slug or DA.slugify(f"{company} {desc[:40]}")
+        cmd = [sys.executable, "-u", "-m", "dataapps", platform, "describe", "--profile", data["profile"],
+               "--company", company[:200], "--description", desc[:4000], "--slug", slug]
+        if action == "plan":
+            cmd.append("--plan")
+        if (data.get("ask") or "").strip():
+            cmd += ["--ask", data["ask"].strip()[:4000]]
+    elif action == "build":
         profile, source, dest = data.get("profile"), data.get("source"), data.get("dest")
         if not (profile and source and dest):
             return jsonify({"ok": False, "error": "Pick a connection, a data source and where to publish."}), 400
@@ -1861,7 +1873,17 @@ def data_apps_job(job_id):
     since = int(request.args.get("since", 0))
     cp = DA.load_cp(job["slug"], job["platform"]) if job["state"] != "running" else None
     return jsonify({"ok": True, "lines": job["lines"][since:], "next": len(job["lines"]), "state": job["state"],
-                    "action": job["action"], "slug": job["slug"], "app": cp or None})
+                    "action": job["action"], "slug": job["slug"], "app": cp or None,
+                    "source": _data_app_source(job) if job["state"] == "done" and job["action"] == "describe" else None})
+
+
+def _data_app_source(job):
+    """After a describe build: the new demo's source, so the page can select it like any AIO demo."""
+    from dataapps import common as DA
+    for s, cp in DA.demo_checkpoints():
+        if s == job["slug"]:
+            return cp.get("sdm_api") if job["platform"] == "next" else cp.get("pulse_datasource_id")
+    return None
 
 
 @app.route("/update-rev-intel")
