@@ -66,6 +66,8 @@ Rules:
   "up_is_good". base_range = realistic per-event values before the problem. Rates are decimals (0.82 not 82).
   `distance` (optional) adds per_unit x grid distance between the row's two layout positions: this is how
   parking far from the loader costs time. Exactly one measure has is_primary: true (the problem metric).
+  With a layout, include a travel/transit time measure driven by distance (e.g. "Haul Transit (Min)", base
+  [2.5, 4.5], distance per_unit 0.09 from the place to the equipment): the site map's route tooltips show it.
 - signal: the culprit is a dimension value where the problem concentrates; culprit_detail narrows it further
   (a value of another dimension, the steepest cell); counter_trend_metric is a different measure that improves
   (it makes the overall picture look fine). magnitude 0.4-0.6. onset_months_ago 2-4. The culprit should also
@@ -363,6 +365,22 @@ def load_next(sc, df, slug, profile):
     from connections import load_config
     metric_config, story_config, story = configs(sc)
     cp, _ = demo_checkpoint(slug)
+    # New measures or dimensions mean a new schema: reload the data and rebuild the semantic model. The builder
+    # deletes the old workspace and model it created, so the data app on them goes first (it is republished after)
+    if cp.get("sdm_done") and cp.get("schema_fields_sig") != builder.schema_signature(story_config, metric_config):
+        print("  the data model changed: reloading the data and rebuilding the semantic model", flush=True)
+        app_cp = C.load_cp(slug, "next")
+        if app_cp.get("app_name"):
+            from dataapps import next as N
+            org = N.org_for(profile)
+            r = N.rest(org, "DELETE", f"v66.0/tableau/dashboards/{app_cp['app_name']}")
+            print(f"  removed the data app {app_cp['app_name']} ({r.status_code}); it is rebuilt on the new model", flush=True)
+            for k in ("app_id", "revision", "workspace", "workspace_id", "sdm", "url", "asset_id", "job_id"):
+                app_cp.pop(k, None)
+            C.save_cp(slug, "next", app_cp)
+        for k in ("streams_done", "ingest_done", "sdm_done", "metrics_done", "sdm_enhanced", "schema_name",
+                  "stream_name", "dlo_name", "ingest_job_id", "ingest_job_pending", "ingest_state", "csv_done"):
+            cp.pop(k, None)
     cp.update({"_profile_key": profile, "_next_profile_key": profile, "company": sc["company"], "story": story,
                "story_config": story_config, "data_app_scenario": sc})
     for k in ("all_ws_apis", "all_sdm_apis", "all_viz_apis", "all_dash_apis"):

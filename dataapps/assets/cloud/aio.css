@@ -30,3 +30,13 @@ body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; pa
 .aio-table td { border-bottom: 1px solid #eef1f4; padding: 4px 6px; font-variant-numeric: tabular-nums; }
 .aio-note { font-size: 12px; color: var(--aio-muted); }
 .aio-error { color: #cf222e; font-size: 13px; }
+.aio-map { position: relative; }
+.aio-hit { cursor: pointer; }
+.aio-tip { position: absolute; display: none; pointer-events: none; z-index: 5; min-width: 220px; max-width: 360px; background: #ffffff;
+  border: 1px solid var(--aio-line); border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.18); padding: 8px 10px; font-size: 12px; }
+.aio-tip-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+.aio-tip-sub { font-weight: 600; margin-top: 6px; padding-top: 5px; border-top: 1px solid #eef1f4; }
+.aio-tip-row { display: flex; justify-content: space-between; gap: 12px; color: var(--aio-muted); }
+.aio-tip-row b { color: var(--aio-text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.aio-tip-inline { color: var(--aio-muted); line-height: 1.45; }
+.aio-tip-inline b { color: var(--aio-text); font-weight: 600; }

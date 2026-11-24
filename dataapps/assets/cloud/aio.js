@@ -41,7 +41,7 @@
     if (kind === 'percent') return (n * 100).toFixed(1) + '%';
     if (kind === 'currency') return '$' + abbreviate(n);
     if (kind && kind !== 'number') return n.toFixed(n < 100 ? 1 : 0) + ' ' + kind;
-    return Math.abs(n) >= 1000 ? abbreviate(n) : n.toFixed(Math.abs(n) < 10 ? 2 : 1);
+    return Math.abs(n) >= 1000 ? abbreviate(n) : n.toFixed(Math.abs(n) < 10 ? 2 : (Math.abs(n) >= 100 ? 0 : 1));
   }
 
   function abbreviate(n) {
@@ -346,7 +346,7 @@
       return d2 + 'Z';
     }
     function halo(x, y, txt, attrs) {   // a label that stays readable on the imagery
-      var t3 = svg('text', Object.assign({ x: x, y: y, 'font-size': 11, 'font-weight': 600, fill: '#1f2328',
+      var t3 = svg('text', Object.assign({ x: x, y: y, 'font-size': 11, 'font-weight': 600, fill: '#1f2328', 'pointer-events': 'none',
         stroke: 'rgba(255,255,255,0.85)', 'stroke-width': 3, 'paint-order': 'stroke', 'stroke-linejoin': 'round' }, attrs || {}), txt);
       return t3;
     }
@@ -493,9 +493,10 @@
     }
     // Traffic is summed per road, so a shared road gets as thick as the cycles on it, shaded by their wait
     var traffic = {};
-    function addPiece(key, pts, w, cval) {
-      var t2 = traffic[key] = traffic[key] || { pts: pts, w: 0, cw: 0, n: 0 };
+    function addPiece(key, pts, w, cval, route) {
+      var t2 = traffic[key] = traffic[key] || { pts: pts, w: 0, cw: 0, n: 0, routes: [] };
       t2.w += w; if (cval !== null) { t2.cw += w * cval; t2.n += w; }
+      if (route) t2.routes.push(route);
     }
     function placeAt(x, y) {
       return rows.filter(function (r) { return Math.abs(X(r[o.x]) - x) < 0.5 && Math.abs(Y(r[o.y]) - y) < 0.5; })[0];
@@ -507,8 +508,8 @@
         var w = R.weight ? (num(r[R.weight]) || 0) : 1, cval = R.color ? num(r[R.color]) : null;
         var place = placeAt(from[0], from[1]), z = place && o.zone ? place[o.zone] : null;
         var start = z && gates[z] ? gates[z] : from;
-        if (start !== from) addPiece('lane:' + from, [from, start], w, cval);
-        shortest(nearestNode(start), nearestNode(to)).forEach(function (k) { addPiece(k, geom[k], w, cval); });
+        if (start !== from) addPiece('lane:' + from, [from, start], w, cval, r);
+        shortest(nearestNode(start), nearestNode(to)).forEach(function (k) { addPiece(k, geom[k], w, cval, r); });
       });
     }
     // Road surface first (every road, used or not), then the traffic on top
@@ -520,7 +521,7 @@
       scene.appendChild(svg('path', { d: pathD(pts2), fill: 'none', stroke: '#d8c9a6', 'stroke-width': wide, 'stroke-linecap': 'round' }));
       if (geom[k]) scene.appendChild(svg('path', { d: pathD(pts2), fill: 'none', stroke: 'rgba(150,130,100,0.5)', 'stroke-width': 1, 'stroke-dasharray': '6 9' }));
     });
-    var tk = Object.keys(traffic), tw = tk.map(function (k) { return traffic[k].w; });
+    var tk = Object.keys(traffic), tw = tk.map(function (k) { return traffic[k].w; }), hits = [];
     var wmax = Math.max.apply(null, tw.concat([1e-9]));
     var cavg = tk.map(function (k) { return traffic[k].n ? traffic[k].cw / traffic[k].n : null; }).filter(function (v) { return v !== null; });
     var clo = Math.min.apply(null, cavg), chi = Math.max.apply(null, cavg);
@@ -532,12 +533,13 @@
       scene.appendChild(svg('path', { d: pathD(t.pts), fill: 'none', stroke: o.routes.color ? shade(v, clo, chi) : '#57606a',
                                   'stroke-width': (1.5 + 5 * t.w / wmax).toFixed(1), 'stroke-opacity': 0.9,
                                   'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+      hits.push([k, t]);
     });
     // Equipment
     (marks || []).forEach(function (m) {
       var mx = X(m[o.markers.x]), my = Y(m[o.markers.y]), rot = Math.atan2(ey - my, ex - mx) * 180 / Math.PI;
       // A loader from above: tracks, a turning body and a boom reaching toward the pit
-      var ex2 = svg('g', { transform: 'translate(' + mx + ',' + my + ') rotate(' + rot.toFixed(0) + ')' });
+      var ex2 = svg('g', { 'data-marker': (marks || []).indexOf(m), transform: 'translate(' + mx + ',' + my + ') rotate(' + rot.toFixed(0) + ')' });
       ex2.appendChild(svg('rect', { x: -10, y: -9, width: 20, height: 18, rx: 2, fill: 'rgba(0,0,0,0.35)', transform: 'translate(2,2)' }));
       ex2.appendChild(svg('rect', { x: -10, y: -9, width: 20, height: 4, fill: '#2b2b2b' }));
       ex2.appendChild(svg('rect', { x: -10, y: 5, width: 20, height: 4, fill: '#2b2b2b' }));
@@ -552,9 +554,8 @@
     rows.forEach(function (r) {
       var rad = 7 + 11 * ((num(r[o.size || key]) || 0) - sr[0]) / Math.max(1e-9, sr[1] - sr[0]);
       rad = Math.max(6, rad * 0.75);
-      var circle = svg('circle', { cx: X(r[o.x]), cy: Y(r[o.y]), r: rad.toFixed(1), fill: shade(r[key], cr2[0], cr2[1]),
+      var circle = svg('circle', { 'data-place': rows.indexOf(r), cx: X(r[o.x]), cy: Y(r[o.y]), r: rad.toFixed(1), fill: shade(r[key], cr2[0], cr2[1]),
                                    'fill-opacity': 0.55, stroke: shade(r[key], cr2[0], cr2[1]), 'stroke-width': 2.5 });
-      circle.appendChild(svg('title', {}, r[o.label] + ': ' + fmt(r[key], o.format)));
       s.appendChild(circle);
       s.appendChild(halo(X(r[o.x]), Y(r[o.y]) - rad - 4, r[o.label], { 'text-anchor': 'middle', 'font-size': 10, 'font-weight': 500 }));
     });
@@ -580,7 +581,92 @@
         count++;
       });
     }
-    body.appendChild(s);
+    // Tooltips: an HTML card that follows the pointer (built with text nodes, never HTML from the data)
+    var wrap = el('div', { 'class': 'aio-map' }), tip = el('div', { 'class': 'aio-tip' });
+    wrap.appendChild(s); wrap.appendChild(tip);
+    body.appendChild(wrap);
+    function fieldLines(row, fields) {
+      return (fields || []).filter(function (f) { return row[f.field] !== undefined && row[f.field] !== null; })
+        .map(function (f) { return [f.label || f.field, fmt(row[f.field], f.format)]; });
+    }
+    function show(evt, title, lines, groups) {
+      tip.textContent = '';
+      tip.appendChild(el('div', { 'class': 'aio-tip-title' }, title));
+      (lines || []).forEach(function (ln) {
+        var d3 = el('div', { 'class': 'aio-tip-row' });
+        d3.appendChild(el('span', {}, ln[0])); d3.appendChild(el('b', {}, ln[1]));
+        tip.appendChild(d3);
+      });
+      (groups || []).forEach(function (g) {
+        tip.appendChild(el('div', { 'class': 'aio-tip-sub' }, g[0]));
+        if (!g[1].length) return;
+        var line = el('div', { 'class': 'aio-tip-inline' });
+        g[1].forEach(function (ln, i) {
+          if (i) line.appendChild(document.createTextNode(' · '));
+          line.appendChild(document.createTextNode(short(ln[0]) + ' '));
+          line.appendChild(el('b', {}, ln[1]));
+        });
+        tip.appendChild(line);
+      });
+      tip.style.display = 'block';
+      move(evt);
+    }
+    function move(evt) {
+      var box = wrap.getBoundingClientRect(), x = evt.clientX - box.left + 14, y = evt.clientY - box.top + 14;
+      if (x + tip.offsetWidth > box.width) x = Math.max(0, x - tip.offsetWidth - 28);
+      if (y + tip.offsetHeight > box.height) y = Math.max(0, y - tip.offsetHeight - 28);
+      tip.style.left = x + 'px'; tip.style.top = y + 'px';
+    }
+    function hide() { tip.style.display = 'none'; }
+    function short(lbl) { return String(lbl).replace(/^avg\.?\s+/i, '').replace(/\s*\((min|l|tonnes|t)\)\s*$/i, '').toLowerCase(); }
+    function avgLabel(lbl) { return /^avg/i.test(lbl) ? lbl : 'Avg ' + lbl; }
+    function hover(node, build) {
+      node.addEventListener('mouseenter', function (e) { var c = build(); show(e, c[0], c[1], c[2]); });
+      node.addEventListener('mousemove', move);
+      node.addEventListener('mouseleave', hide);
+    }
+    var R2 = o.routes || {};
+    function routeName(r) {
+      var a = R2.fromLabel ? r[R2.fromLabel] : '', b = R2.toLabel ? r[R2.toLabel] : '';
+      return (a || b) ? (a + ' → ' + b) : 'Route';
+    }
+    // Roads: the traffic on this road, then the busiest routes that use it with their own numbers
+    hits.forEach(function (h) {
+      var k = h[0], t = h[1], v = t.n ? t.cw / t.n : null;
+      var hit = svg('path', { d: pathD(t.pts), fill: 'none', stroke: 'transparent', 'stroke-width': 16, 'stroke-linecap': 'round',
+                              'class': 'aio-hit' });
+      hit.addEventListener('mouseenter', function () { hit.setAttribute('stroke', 'rgba(255,255,255,0.35)'); });
+      hit.addEventListener('mouseleave', function () { hit.setAttribute('stroke', 'transparent'); });
+      hover(hit, function () {
+        var head = [[(R2.weightLabel || 'Cycles') + ' on this road', fmt(t.w, R2.weightFormat || 'number')]];
+        if (v !== null) head.push([avgLabel(R2.colorLabel || R2.color), fmt(v, R2.colorFormat || o.format)]);
+        var groups = t.routes.slice().sort(function (a, b) { return (num(b[R2.weight]) || 0) - (num(a[R2.weight]) || 0); })
+          .slice(0, 4).map(function (r) {
+            var ls = fieldLines(r, R2.tooltip);
+            var shown = (R2.tooltip || []).map(function (f) { return f.field; });
+            if (!ls.length && R2.color) ls.push([R2.colorLabel || R2.color, fmt(r[R2.color], R2.colorFormat || o.format)]);
+            if (R2.weight && shown.indexOf(R2.weight) < 0) ls.push([R2.weightLabel || 'Cycles', fmt(r[R2.weight], R2.weightFormat || 'number')]);
+            return [routeName(r), ls];
+          });
+        if (t.routes.length > 4) groups.push(['+ ' + (t.routes.length - 4) + ' more routes on this road', []]);
+        return [k.indexOf('lane:') === 0 ? 'Lot lane' : 'Haul road', head, groups];
+      });
+      // Under the loaders and the places, so their own tooltips win where they overlap a road
+      s.insertBefore(hit, s.querySelector('g[data-marker]') || s.querySelector('circle[data-place]'));
+    });
+    // Places and equipment: their own numbers
+    Array.prototype.forEach.call(s.querySelectorAll('circle[data-place]'), function (c2, i) {
+      var r = rows[Number(c2.getAttribute('data-place'))];
+      hover(c2, function () {
+        var ls = [[o.colorLabel || key, fmt(r[key], o.format)]].concat(fieldLines(r, o.tooltip));
+        if (o.zone) ls.unshift(['Zone', r[o.zone]]);
+        return [r[o.label], ls];
+      });
+    });
+    Array.prototype.forEach.call(s.querySelectorAll('g[data-marker]'), function (g2) {
+      var m = (marks || [])[Number(g2.getAttribute('data-marker'))];
+      hover(g2, function () { return [m[o.markers.label], fieldLines(m, o.markers.tooltip)]; });
+    });
     var parts = ['Rings: ' + (o.colorLabel || key) + ', green better, red worse (' + fmt(cr2[0], o.format) + ' to ' + fmt(cr2[1], o.format) + ')'];
     if ((marks || []).length) parts.push('yellow machines: loaders');
     if (o.routes && routes.length) parts.push('roads: haul routes, thicker = more ' + (o.routes.weightLabel || 'traffic') + (o.routes.color ? ', shaded by ' + (o.routes.colorLabel || o.routes.color) : ''));

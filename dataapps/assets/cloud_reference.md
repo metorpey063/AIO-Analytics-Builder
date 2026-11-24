@@ -84,7 +84,13 @@ API (nothing else exists):
     (e.g. AVG Queue Wait) and, for `zone`, the zone field (e.g. Parking Zone) to draw lot outlines; `highlight`
     a zone value outlines it in red.
   - `markers: {query, label, x, y}`: fixed equipment (e.g. Loader with AVG Loader X / Loader Y), squares.
-  - `routes: {query, label?, fromX, fromY, toX, toY, weight?, color?, weightLabel?, colorLabel?}`: traffic between two
+  - Hover tooltips on every layer. `tooltip: [{field, label, format}]` on the map options (places), on `markers` and
+    on `routes` lists extra fields of that layer's query to show (e.g. AVG Haul Transit, AVG Cycle Time, AVG Fuel,
+    SUM Cycles). A road's tooltip shows its traffic and the busiest routes on it, named by `fromLabel` / `toLabel`
+    (the route query's place and equipment aliases), each with its `tooltip` fields. Add the fields that help the
+    audience act: transit/travel time, wait, cycle time, cycles, fuel, payload.
+  - `routes: {query, label?, fromX, fromY, toX, toY, weight?, color?, weightLabel?, colorLabel?, colorFormat?,
+    fromLabel?, toLabel?, tooltip?}`: traffic between two
     places, drawn along a generated haul-road network (curved roads between lot gates and equipment; each route
     takes the shortest way, each road as thick as its traffic), e.g. grouped by
     Parking Spot and Loader with AVG of both positions, COUNT of cycles as `weight` and AVG Queue Wait as `color`.

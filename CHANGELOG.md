@@ -19,6 +19,7 @@ All notable changes to AIO Analytics Builder are documented here.
   - equipment as markers
   - a generated haul-road network: lot gates and loaders joined by curved roads around a drawn pit. Each route takes the shortest way along the roads, and each road is as thick as the traffic on it and shaded by its average wait
   - a dot per truck (or other moving thing) at its latest position
+  - hover tooltips on every layer. A road shows its traffic and the busiest spot → loader routes on it, each with avg haul transit, queue wait, cycle time, fuel and cycles; spots and loaders show their own numbers. Each layer takes a `tooltip` field list, so Claude picks what helps for each app. Scenarios with a site layout now include a distance-driven travel time measure (Coeur: Haul Transit).
 
   Tableau Next apps get the same map from AIO's own `SiteMap` component, which ships with every Next app: lots, pit, roads with traffic, equipment and truck dots, drawn with the theme's colors. `python3 -m dataapps next repackage` republishes a Next app with newer AIO components. Revising a Next app whose draft has expired starts a new draft under the same name, and publishing it replaces the app in place. On a revise, a new app title now renames the workbook; the old workbook this app created is removed.
 
