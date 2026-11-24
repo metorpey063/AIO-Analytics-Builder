@@ -4,6 +4,18 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-23 — Data Apps for Tableau Next and Tableau Cloud (v2.23.0)
+
+### Added
+- **Data Apps for Tableau Next** (homepage card, `/data-apps/next`, `/data-app`). Pick a Salesforce connection, a semantic model (AIO demos first) and a workspace. Claude designs the app from the data and the demo's story (culprit, drill-down, counter-trend). AIO runs every query against the semantic model, then creates, publishes and deploys it through the tableau-next-pilot MCP's data app tools. If the server's build check finds problems, they go back to Claude to fix. Needs the org's Data Apps (Beta) toggle and the connection's MCP login.
+- **Data Apps for Tableau Cloud** (homepage card, `/data-apps/cloud`). Pick a Tableau Cloud connection, a published datasource (AIO Pulse demos first) and a project. Claude writes the app's queries and page against AIO's runtime (`aio.js`: KPI tiles with trends, line / bar / before-and-after / table charts, a filter bar). AIO runs every query through the VizQL Data Service, packages the workbook from the tableau-mcp template, publishes it, and shows how it renders on the page. Needs the site's Allow Packages setting; the build checks and says so.
+- **Revise and remove.** "Change something" publishes a new version of the same app from your feedback. Remove deletes only the app. `python3 -m dataapps cloud repackage` republishes an existing Cloud app with a newer AIO runtime.
+- **Deep links:** `/data-apps/<next|cloud>?slug=<demo>` opens a demo's app with its connection and data selected.
+
+> Tested on Virgin Voyages: the Next app passed every check on Claude's first try and deployed to VV Demo Analytics. The Cloud app rendered live from the datasource, and a revise through the page passed on the first try.
+
+---
+
 ## 2026-11-23 — Rev Intel walkthrough follows the standard demo talk track (v2.22.0)
 
 ### Changed

@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% set active = "data_apps_" + platform %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ title }}</h1>
+    {% if platform == "next" %}
+    <p class="subtitle">Build a Tableau Next data app (a React page in a workspace) on any semantic model in your org. Claude designs the page from the data and the demo's story, AIO runs every query against the semantic model, then publishes and deploys the app. Needs Setup → Tableau Next Features → <strong>Data Apps (Beta)</strong> turned on in the org.</p>
+    {% else %}
+    <p class="subtitle">Build a Tableau Cloud data app (a web page packaged as a workbook) on any published datasource. Claude designs the page from the data and the demo's story, AIO runs every query against the datasource, then packages and publishes the workbook and shows you how it renders. Needs Settings → Packages → <strong>Allow Packages</strong> turned on for the site.</p>
+    {% endif %}
+</div>
+
+<!-- 1. Connection -->
+<div class="card story-section" style="padding:16px; margin-bottom:16px">
+    <h3><span class="step-num">1</span> Connection</h3>
+    <div class="form-group"><label>{{ "Salesforce org" if platform == "next" else "Tableau Cloud site" }} *</label>
+        <select id="da-profile" onchange="daOnProfile()"><option value="">Loading connections…</option></select>
+        <div id="da-profile-note" class="form-hint"></div></div>
+</div>
+
+<!-- 2. Data -->
+<div class="card story-section" style="padding:16px; margin-bottom:16px">
+    <h3><span class="step-num">2</span> Data</h3>
+    <div id="da-sources" class="form-hint">Pick a connection to list its data.</div>
+    <div class="form-group" style="margin-top:12px"><label>{{ "Workspace to publish into" if platform == "next" else "Project to publish into" }} *</label>
+        <select id="da-dest"><option value="">—</option></select></div>
+</div>
+
+<!-- 3. Build -->
+<div class="card story-section" style="padding:16px; margin-bottom:16px">
+    <h3><span class="step-num">3</span> Build</h3>
+    <div class="form-group"><label>What should the app answer? (optional)</label>
+        <textarea id="da-ask" rows="3" placeholder="e.g. Where is first-contact resolution slipping, and which service teams should we staff up first?"></textarea>
+        <div class="form-hint">Leave it blank to build around the demo's story (AIO demos) or what the data shows.</div></div>
+    <div class="wizard-actions" style="flex-wrap:wrap; gap:8px">
+        <button class="btn btn-primary" id="da-build" onclick="daRun('build')" disabled>Build data app</button>
+        <span class="form-hint">3–8 minutes: Claude writes the app, AIO checks every query, then {{ "publishes and deploys it" if platform == "next" else "publishes the workbook and renders it" }}.</span>
+    </div>
+    <div id="da-steps" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:12px"></div>
+    <pre id="da-log" class="progress-log hidden" style="max-height:360px; overflow:auto; margin-top:12px; font-size:12px; white-space:pre-wrap"></pre>
+</div>
+
+<!-- 4. The app -->
+<div class="card story-section hidden" id="da-result-card" style="padding:16px; margin-bottom:16px">
+    <h3><span class="step-num">4</span> Your data app</h3>
+    <div id="da-result"></div>
+    <div class="form-group" style="margin-top:14px"><label>Change something</label>
+        <textarea id="da-feedback" rows="2" placeholder="e.g. Lead with response time, and add a table of the worst ship and service area pairs"></textarea></div>
+    <div class="wizard-actions" style="flex-wrap:wrap; gap:8px">
+        <button class="btn btn-secondary" id="da-revise" onclick="daRun('build', true)">Revise app</button>
+        <button class="btn btn-ghost btn-sm" id="da-remove" onclick="daRun('remove')">Remove app</button>
+        <span class="form-hint">Revise publishes a new version of the same app. Remove deletes only this app{{ "" if platform == "next" else "'s workbook" }}; the data is not touched.</span>
+    </div>
+</div>
+
+<script>
+const PLATFORM = '{{ platform }}';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const STEPS = PLATFORM === 'next'
+    ? [['source', 'Source'], ['probe', 'Read data'], ['author', 'Write app'], ['check', 'Check queries'], ['draft', 'Draft'], ['publish', 'Build'], ['deploy', 'Deploy'], ['verify', 'Verify']]
+    : [['source', 'Source'], ['probe', 'Read data'], ['author', 'Write app'], ['check', 'Check queries'], ['package', 'Package'], ['publish', 'Publish'], ['verify', 'Render']];
+let profiles = [], src = null, current = null, slug = '{{ slug }}';
+
+async function daLoadProfiles() {
+    const r = await (await fetch(`/api/data-apps/${PLATFORM}/profiles`)).json();
+    profiles = r.profiles || [];
+    if (!profiles.length) {
+        $('da-profile').innerHTML = '<option value="">No connections yet</option>';
+        $('da-profile-note').innerHTML = 'Add one on <a href="/setup">Setup</a> first.';
+        return;
+    }
+    $('da-profile').innerHTML = '<option value="">— pick a connection —</option>' + profiles.map(p =>
+        `<option value="${esc(p.key)}">${esc(p.label)} — ${esc(p.instance)}</option>`).join('');
+    // A link with ?slug= (e.g. from My Demos) opens that demo's app: its connection and data preselected
+    let linked = null;
+    if (slug) {
+        const r = await (await fetch(`/api/data-apps/${PLATFORM}/app?slug=${encodeURIComponent(slug)}`)).json();
+        linked = r.app;
+        if (!linked) {
+            const d = await (await fetch(`/api/data-apps/${PLATFORM}/demo?slug=${encodeURIComponent(slug)}`)).json();
+            linked = d.ok ? d.demo : null;
+        }
+    }
+    const saved = localStorage.getItem(`da-${PLATFORM}-profile`);
+    const active = profiles.find(p => p.active);
+    const want = linked && profiles.some(p => p.key === linked.profile) ? linked.profile
+               : (saved && profiles.some(p => p.key === saved)) ? saved : (active ? active.key : '');
+    $('da-profile').value = want;
+    if (want) await daOnProfile(linked ? (linked.sdm || linked.datasource_id || linked.source) : null);
+}
+
+async function daOnProfile(preselect) {
+    const key = $('da-profile').value;
+    localStorage.setItem(`da-${PLATFORM}-profile`, key);
+    src = null; daSetSource(null);
+    const p = profiles.find(x => x.key === key);
+    $('da-profile-note').innerHTML = (PLATFORM === 'next' && p && !p.mcp)
+        ? '<span style="color:var(--orange)">⚠ This connection has no MCP login, which Tableau Next data apps need. Authorize MCP for it on <a href="/connections">Connections</a>.</span>' : '';
+    if (!key) { $('da-sources').textContent = 'Pick a connection to list its data.'; return; }
+    $('da-sources').textContent = 'Loading…';
+    const r = await (await fetch(`/api/data-apps/${PLATFORM}/sources?profile=${encodeURIComponent(key)}`)).json();
+    if (!r.ok) {
+        $('da-sources').innerHTML = `<span style="color:var(--red)">${esc(r.error)}</span>` + (r.reconnect ? ' <a href="/connections">Reconnect on Connections</a>' : '');
+        return;
+    }
+    const items = PLATFORM === 'next'
+        ? r.models.map(m => ({id: m.apiName, name: m.label, sub: m.apiName}))
+        : r.datasources.map(d => ({id: d.id, name: d.name, sub: d.project}));
+    const demoIds = new Set(r.demos.map(d => d.source));
+    const dests = PLATFORM === 'next' ? r.workspaces.map(w => ({id: w.name, label: w.label}))
+                                      : r.projects.map(p => ({id: p.id, label: p.name}));
+    $('da-dest').innerHTML = '<option value="">— pick one —</option>' + dests.map(d => `<option value="${esc(d.id)}">${esc(d.label)}</option>`).join('');
+    window._demos = r.demos; window._items = items;
+    let html = '';
+    if (r.demos.length) {
+        html += '<div style="margin-bottom:10px"><strong>AIO demos on this connection</strong>' + r.demos.map(d =>
+            `<label style="display:block; margin-left:12px; font-weight:normal"><input type="radio" name="da-src" value="${esc(d.source)}" onchange="daPickSource(this.value)"> ${esc(d.company)} <code>${esc(d.slug)}</code> <span class="form-hint">built ${esc(d.built)}</span></label>`).join('') + '</div>';
+    }
+    const others = items.filter(i => !demoIds.has(i.id));
+    html += `<div><strong>${PLATFORM === 'next' ? 'Other semantic models' : 'Other datasources'}</strong><br>
+        <select id="da-other" onchange="daPickSource(this.value)" style="margin-top:4px"><option value="">— pick one —</option>${others.map(i =>
+            `<option value="${esc(i.id)}">${esc(i.name)}${i.sub ? ' — ' + esc(i.sub) : ''}</option>`).join('')}</select></div>`;
+    $('da-sources').innerHTML = html;
+    if (typeof preselect === 'string' && preselect) {
+        const radio = [...document.querySelectorAll('input[name=da-src]')].find(b => b.value === preselect);
+        if (radio) radio.checked = true; else if ($('da-other')) $('da-other').value = preselect;
+        await daPickSource(preselect);
+    }
+}
+
+async function daPickSource(id) {
+    if (!id) { daSetSource(null); return; }
+    document.querySelectorAll('input[name=da-src]').forEach(b => { if (b.value !== id) b.checked = false; });
+    if ($('da-other') && window._demos.some(d => d.source === id)) $('da-other').value = '';
+    const demo = window._demos.find(d => d.source === id);
+    const item = window._items.find(i => i.id === id) || {};
+    src = {id, name: item.name || (demo && demo.source_name) || id, demo};
+    if (demo) $('da-dest').value = PLATFORM === 'next' ? (demo.workspace || '') : (demo.project || '');
+    const r = await (await fetch(`/api/data-apps/${PLATFORM}/app?source=${encodeURIComponent(id)}&source_name=${encodeURIComponent(src.name)}`)).json();
+    slug = r.slug;
+    daSetSource(src, r.app);
+}
+
+function daSetSource(s, app) {
+    $('da-build').disabled = !s;
+    current = app || null;
+    $('da-build').textContent = current ? 'Rebuild data app' : 'Build data app';
+    if (current && current.workspace && PLATFORM === 'next') $('da-dest').value = current.workspace;
+    if (current && current.project_id && PLATFORM === 'cloud') $('da-dest').value = current.project_id;
+    daShowResult(current);
+}
+
+function daShowResult(app) {
+    if (!app || !app.url) { $('da-result-card').classList.add('hidden'); return; }
+    $('da-result-card').classList.remove('hidden');
+    const a = app.app || {};
+    let html = `<p><a class="btn btn-primary btn-sm" href="${esc(app.url)}" target="_blank" rel="noopener">Open ${esc(app.label || app.title || 'app')} ↗</a>
+        <span class="form-hint" style="margin-left:8px">${PLATFORM === 'next' ? 'Revision ' + esc(app.revision) + ' in ' + esc(app.workspace) : 'Workbook in ' + esc(app.datasource)} · published ${esc(app.published || '')}</span></p>`;
+    if (a.summary) html += `<p>${esc(a.summary)}</p>`;
+    if ((a.findings || []).length) html += '<ul>' + a.findings.map(f => `<li>${esc(f)}</li>`).join('') + '</ul>';
+    if (PLATFORM === 'cloud' && app.image) html += `<img src="/api/data-apps/cloud/image/${encodeURIComponent(slug)}?t=${Date.now()}" alt="How the app renders" style="max-width:100%; border:1px solid var(--border); border-radius:8px; margin-top:8px">`;
+    if (PLATFORM === 'next') html += '<p class="form-hint">Open the app in the org to see it: nothing outside the org can render a Tableau Next data app.</p>';
+    $('da-result').innerHTML = html;
+}
+
+function daRenderSteps(done, cur, detail, failed) {
+    $('da-steps').innerHTML = STEPS.map(([k, label]) => {
+        if (done.includes(k)) return `<span class="badge badge-ok">✓ ${label}</span>`;
+        if (k === failed) return `<span class="badge" style="background:var(--red-light); color:var(--red)">✕ ${label}</span>`;
+        if (k === cur) return `<span class="badge badge-neutral">… ${label}${detail ? ': ' + esc(detail) : ''}</span>`;
+        return `<span class="badge badge-pending">${label}</span>`;
+    }).join('');
+}
+
+function daSetBusy(b) { ['da-profile', 'da-dest', 'da-build', 'da-revise', 'da-remove'].forEach(id => $(id).disabled = b); }
+
+async function daRun(action, revise) {
+    const body = {action, confirmed: true, slug, profile: $('da-profile').value, source: src && src.id,
+                  source_name: src && src.name, dest: $('da-dest').value, ask: $('da-ask').value};
+    if (action === 'build') {
+        if (!body.source || !body.dest) { alert('Pick the data and where to publish (step 2).'); return; }
+        if (revise) {
+            body.feedback = $('da-feedback').value.trim();
+            if (!body.feedback) { alert('Describe what to change first.'); return; }
+        }
+        const where = $('da-dest').selectedOptions[0] ? $('da-dest').selectedOptions[0].textContent : body.dest;
+        if (!confirm(`${revise ? 'Revise' : (current ? 'Rebuild' : 'Build')} the data app on ${src.name} and publish it to ${where}?`)) return;
+    } else if (!confirm('Delete this data app? Only the app is removed; the data stays.')) return;
+    daSetBusy(true);
+    $('da-log').textContent = ''; $('da-log').classList.remove('hidden');
+    daRenderSteps([], action === 'build' ? 'source' : null, '', null);
+    const r = await (await fetch(`/api/data-apps/${PLATFORM}/run`, {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)})).json();
+    if (!r.ok) { daSetBusy(false); alert(r.error); return; }
+    slug = r.slug;
+    daPoll(r.job_id, 0, [], null, '');
+}
+
+async function daPoll(id, since, done, cur, detail) {
+    let r;
+    try { r = await (await fetch(`/api/data-apps/job/${id}?since=${since}`)).json(); }
+    catch (e) { setTimeout(() => daPoll(id, since, done, cur, detail), 3000); return; }
+    if (!r.ok) { daSetBusy(false); $('da-log').textContent += '\n' + r.error; return; }
+    for (const line of r.lines) {
+        $('da-log').textContent += line + '\n';
+        const m = /^\[(\w+)\]\s*(.*)$/.exec(line);
+        if (m) {
+            if (m[2] === 'done') { if (!done.includes(m[1])) done.push(m[1]); cur = null; detail = ''; }
+            else { cur = m[1]; detail = m[2]; }
+        }
+    }
+    $('da-log').scrollTop = $('da-log').scrollHeight;
+    if (r.action === 'build') daRenderSteps(done, cur, detail, r.state === 'error' ? cur : null);
+    if (r.state === 'running') { setTimeout(() => daPoll(id, r.next, done, cur, detail), 2000); return; }
+    daSetBusy(false);
+    if (r.action === 'remove') {
+        if (r.state === 'done') { current = null; daShowResult(null); $('da-build').textContent = 'Build data app'; }
+        return;
+    }
+    if (r.state === 'done') { current = r.app; $('da-feedback').value = ''; $('da-build').textContent = 'Rebuild data app'; daShowResult(r.app); }
+}
+
+daLoadProfiles();
+</script>
+{% endblock %}

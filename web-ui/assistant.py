@@ -45,6 +45,8 @@ PAGE_HINTS = {
     "/update-rev-intel": "Update Rev Intel Data (tailoring a demo org's Revenue Intelligence data to a customer)",
     "/deploy-sales-insights": "Deploy Sales Insights (deploying the six Sales Insights dashboards to an org with Data Cloud)",
     "/transfer-assets": "Transfer Assets (copying Tableau Next dashboards, their SDM and data from one org to another via transfer_assets.py)",
+    "/data-apps/next": "Data Apps for Tableau Next (Claude builds a data app on a semantic model; dataapps/next.py checks the queries and deploys it through the tableau-next-pilot MCP)",
+    "/data-apps/cloud": "Data Apps for Tableau Cloud (Claude builds a data app on a published datasource; dataapps/cloud.py checks the queries, publishes the .twbx and renders it)",
 }
 
 TOOLS = [

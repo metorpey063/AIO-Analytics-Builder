@@ -1,0 +1,32 @@
+/* AIO data app styles (Tableau Cloud). Apps set --aio-brand through AIO.start({brand}). */
+:root { --aio-brand: #1f6feb; --aio-text: #1f2328; --aio-muted: #57606a; --aio-bg: #f6f7f9; --aio-card: #ffffff; --aio-line: #d8dee4; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 16px 20px; background: var(--aio-bg); color: var(--aio-text); }
+.aio-header h1 { font-size: 22px; font-weight: 500; margin: 0 0 4px; }
+.aio-header p { margin: 0 0 12px; color: var(--aio-muted); font-size: 13px; }
+.aio-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.aio-filter { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; background: var(--aio-card); border: 1px solid var(--aio-line); border-radius: 6px; font-size: 12px; color: var(--aio-muted); }
+.aio-filter select { border: 0; background: transparent; font-size: 13px; color: var(--aio-text); max-width: 180px; }
+.aio-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.aio-kpi { background: var(--aio-card); border: 1px solid var(--aio-line); border-radius: 8px; padding: 10px 14px; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; }
+.aio-kpi-label { grid-column: 1 / 3; font-size: 12px; color: var(--aio-muted); }
+.aio-kpi-value { font-size: 26px; letter-spacing: -0.5px; white-space: nowrap; }
+.aio-kpi-spark { align-self: end; }
+.aio-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.aio-section { background: var(--aio-card); border: 1px solid var(--aio-line); border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; min-width: 0; }
+.aio-section h2 { font-size: 16px; font-weight: 500; margin: 0 0 2px; }
+.aio-text { margin: 0 0 8px; font-size: 13px; color: var(--aio-muted); }
+.aio-bar-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; font-size: 13px; }
+.aio-bar-label { width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aio-bar-track { flex: 1; background: #eef1f4; height: 14px; border-radius: 3px; }
+.aio-bar-fill { background: var(--aio-brand); height: 100%; border-radius: 3px; }
+.aio-bar-fill.aio-hot { background: #cf222e; }
+.aio-bar-val { width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
+.aio-grid { stroke: #eef1f4; }
+.aio-axis { font-size: 11px; fill: var(--aio-muted); }
+.aio-series { font-size: 11px; }
+.aio-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.aio-table th { text-align: left; color: var(--aio-muted); font-weight: 500; border-bottom: 1px solid var(--aio-line); padding: 4px 6px; }
+.aio-table td { border-bottom: 1px solid #eef1f4; padding: 4px 6px; font-variant-numeric: tabular-nums; }
+.aio-note { font-size: 12px; color: var(--aio-muted); }
+.aio-error { color: #cf222e; font-size: 13px; }

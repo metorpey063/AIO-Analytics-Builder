@@ -13,7 +13,7 @@ import time
 import webbrowser
 from pathlib import Path
 from urllib.parse import urlparse
-from flask import Flask, render_template, request, jsonify, Response, abort
+from flask import Flask, render_template, request, jsonify, Response, abort, redirect, send_file
 
 # Add parent directory so we can import AIO modules
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -1691,6 +1691,177 @@ def transfer_job(job_id):
         cp = json.loads(p.read_text()) if p.exists() else None
     return jsonify({"ok": True, "lines": job["lines"][since:], "next": len(job["lines"]), "state": job["state"],
                     "action": job["action"], "slug": job["slug"], "checkpoint": cp})
+
+
+# ── Data apps (/data-app skill): Tableau Next and Tableau Cloud ──────────────
+DATA_APP_PLATFORMS = {"next": {"title": "Data Apps for Tableau Next", "conn": "salesforce"},
+                      "cloud": {"title": "Data Apps for Tableau Cloud", "conn": "tableau_cloud"}}
+DA_JOBS = {}      # job id -> {platform, action, slug, lines, state, rc}
+DA_RUNNING = {}   # (platform, slug) -> job id currently running
+
+
+@app.route("/data-apps/<platform>")
+def data_apps_page(platform):
+    if platform not in DATA_APP_PLATFORMS:
+        return redirect("/")
+    return render_template("data_apps.html", platform=platform, title=DATA_APP_PLATFORMS[platform]["title"],
+                           slug=request.args.get("slug", ""))
+
+
+@app.route("/api/data-apps/<platform>/profiles")
+def data_apps_profiles(platform):
+    """The connections this platform builds on (Next also needs the connection's MCP login)."""
+    from connections import list_connections, load_full_config
+    if platform not in DATA_APP_PLATFORMS:
+        return jsonify({"ok": False, "error": "Unknown platform"}), 404
+    full = load_full_config()
+    out = []
+    for c in list_connections(full, DATA_APP_PLATFORMS[platform]["conn"]):
+        p = full["profiles"][c["key"]]
+        if platform == "next":
+            sf = p.get("salesforce", {})
+            out.append({"key": c["key"], "label": c["label"], "active": c["active_salesforce"],
+                        "instance": (p.get("_token_cache") or {}).get("instance_url") or sf.get("sf_login_url", ""),
+                        "mcp": bool(sf.get("mcp_client_id") and sf.get("mcp_refresh_token"))})
+        else:
+            tc = p.get("tableau", {})
+            out.append({"key": c["key"], "label": c["label"], "active": c["active_tableau_cloud"],
+                        "instance": f"{tc.get('server_url', '')} · {tc.get('site_name', '')}"})
+    return jsonify({"ok": True, "profiles": out})
+
+
+@app.route("/api/data-apps/<platform>/sources")
+def data_apps_sources(platform):
+    """Read-only: the semantic models / datasources and workspaces / projects, AIO demos first."""
+    if platform not in DATA_APP_PLATFORMS:
+        return jsonify({"ok": False, "error": "Unknown platform"}), 404
+    try:
+        engine = __import__(f"dataapps.{platform}", fromlist=["sources"])
+        return jsonify({"ok": True, **engine.sources(request.args.get("profile", ""))})
+    except SystemExit as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:
+        reconnect = type(e).__name__ in ("AuthError", "ReauthRequired")
+        return jsonify({"ok": False, "error": f"Couldn't list sources: {e}", "reconnect": reconnect}), 400
+
+
+@app.route("/api/data-apps/<platform>/app")
+def data_apps_app(platform):
+    """The data app recorded for a source (by its demo folder or source name), if any."""
+    from dataapps import common as DA
+    if platform not in DATA_APP_PLATFORMS:
+        return jsonify({"ok": False, "error": "Unknown platform"}), 404
+    slug = request.args.get("slug") or ""
+    if not slug and request.args.get("source"):
+        demo_slug, _ = DA.demo_for_source(platform, request.args["source"])
+        slug = demo_slug or DA.slugify(request.args.get("source_name") or request.args["source"])
+    cp = DA.load_cp(slug, platform) if slug else {}
+    return jsonify({"ok": True, "slug": slug, "app": cp or None})
+
+
+@app.route("/api/data-apps/<platform>/demo")
+def data_apps_demo(platform):
+    """An AIO demo's connection and source for this platform (for a link from My Demos)."""
+    from dataapps import common as DA
+    slug = request.args.get("slug", "")
+    for s, cp in DA.demo_checkpoints():
+        if s != slug:
+            continue
+        if platform == "next" and cp.get("sdm_api"):
+            return jsonify({"ok": True, "demo": {"profile": cp.get("_next_profile_key") or cp.get("_profile_key"),
+                                                 "source": cp["sdm_api"]}})
+        if platform == "cloud" and cp.get("pulse_datasource_id"):
+            return jsonify({"ok": True, "demo": {"profile": cp.get("_pulse_profile_key") or cp.get("_profile_key"),
+                                                 "source": cp["pulse_datasource_id"]}})
+    return jsonify({"ok": False})
+
+
+@app.route("/api/data-apps/<platform>/image/<slug>")
+def data_apps_image(platform, slug):
+    """The rendered view of a published Cloud app (saved by the build's verify step)."""
+    from dataapps import common as DA
+    cp = DA.load_cp(slug, platform)
+    path = cp.get("image") or ""
+    if not path or not os.path.exists(path) or not os.path.abspath(path).startswith(str(PROJECT_ROOT / "demos")):
+        return "", 404
+    return send_file(path, mimetype="image/png", max_age=0)
+
+
+@app.route("/api/data-apps/<platform>/run", methods=["POST"])
+def data_apps_run(platform):
+    """build (writes the app to the org/site; with feedback it revises the app) or remove (deletes only the app)."""
+    import subprocess
+    import uuid as _uuid
+    from dataapps import common as DA
+    if platform not in DATA_APP_PLATFORMS:
+        return jsonify({"ok": False, "error": "Unknown platform"}), 404
+    data = request.get_json() or {}
+    action = data.get("action")
+    if action not in ("build", "remove"):
+        return jsonify({"ok": False, "error": f"Unknown action {action!r}"}), 400
+    if not data.get("confirmed"):
+        return jsonify({"ok": False, "error": "This writes to the org — confirm first."}), 400
+    slug = DA.slugify(data.get("slug") or "") if data.get("slug") else ""
+    if action == "build":
+        profile, source, dest = data.get("profile"), data.get("source"), data.get("dest")
+        if not (profile and source and dest):
+            return jsonify({"ok": False, "error": "Pick a connection, a data source and where to publish."}), 400
+        if not slug:
+            demo_slug, _ = DA.demo_for_source(platform, source)
+            slug = demo_slug or DA.slugify(data.get("source_name") or source)
+        cmd = [sys.executable, "-u", "-m", "dataapps", platform, "build", "--profile", profile, "--source", source,
+               "--dest", dest, "--slug", slug]
+        if (data.get("ask") or "").strip():
+            cmd += ["--ask", data["ask"].strip()[:4000]]
+        if (data.get("feedback") or "").strip():
+            cmd += ["--feedback", data["feedback"].strip()[:4000]]
+    else:
+        if not slug:
+            return jsonify({"ok": False, "error": "No app to remove."}), 400
+        cmd = [sys.executable, "-u", "-m", "dataapps", platform, "remove", "--slug", slug]
+    if DA_RUNNING.get((platform, slug)):
+        return jsonify({"ok": True, "job_id": DA_RUNNING[(platform, slug)], "slug": slug, "already_running": True})
+    job_id = f"da_{_uuid.uuid4().hex[:8]}"
+    _prune_jobs(DA_JOBS)
+    job = DA_JOBS[job_id] = {"platform": platform, "action": action, "slug": slug, "lines": [], "state": "running",
+                             "rc": None}
+    DA_RUNNING[(platform, slug)] = job_id
+
+    def _run():
+        job["lines"].append("$ python3 " + " ".join(cmd[2:]))
+        try:
+            log_path = PROJECT_ROOT / "demos" / slug / f"data_app_{platform}_{action}.log"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(log_path, "a") as log:
+                # No hidden browser logins from a background job: an expired token fails with a message instead
+                env = dict(os.environ, AIO_NO_BROWSER_REAUTH="1")
+                p = subprocess.Popen(cmd, cwd=str(PROJECT_ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                     text=True, bufsize=1, env=env)
+                for line in p.stdout:
+                    job["lines"].append(line.rstrip()); log.write(line); log.flush()
+                p.wait()
+            job["rc"] = p.returncode
+            job["state"] = "done" if p.returncode == 0 else "error"
+        except Exception as e:
+            job["lines"].append(f"error: {e}"); job["state"] = "error"
+        finally:
+            DA_RUNNING.pop((platform, slug), None)
+
+    _start_job(DATA_APP_PLATFORMS[platform]["title"], _run)
+    return jsonify({"ok": True, "job_id": job_id, "slug": slug})
+
+
+@app.route("/api/data-apps/job/<job_id>")
+def data_apps_job(job_id):
+    """New log lines since ?since=N, the job state, and the app checkpoint once finished."""
+    from dataapps import common as DA
+    job = DA_JOBS.get(job_id)
+    if not job:
+        return jsonify({"ok": False, "error": "Unknown job (the server may have restarted)."}), 404
+    since = int(request.args.get("since", 0))
+    cp = DA.load_cp(job["slug"], job["platform"]) if job["state"] != "running" else None
+    return jsonify({"ok": True, "lines": job["lines"][since:], "next": len(job["lines"]), "state": job["state"],
+                    "action": job["action"], "slug": job["slug"], "app": cp or None})
 
 
 @app.route("/update-rev-intel")

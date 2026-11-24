@@ -8,8 +8,8 @@ The Web UI home page shows this list (title, status, summary) with live vote cou
 
 1. **Sales Insights customizations** | Next | Tailor the deployed Sales Insights data and dashboards to a customer through a config file
 2. **Service Insights deployment** | Planned | Deploy the Service Insights dashboard package to any org with Data Cloud, like Sales Insights
-3. **Data Apps for Tableau Next** | Planned | Build data apps on top of AIO's Tableau Next demos
-4. **Data Apps for Tableau Cloud** | Planned | Build data apps on top of AIO's Tableau Cloud and Pulse demos
+3. **Data Apps for Tableau Next** | Shipped | Build data apps on any semantic model; AIO demos first (v2.23.0)
+4. **Data Apps for Tableau Cloud** | Shipped | Build data apps on any published datasource; AIO demos first (v2.23.0)
 5. **Tableau Studio skills in the Web UI** | Planned | Generate and install a demo's Studio skills from the Web UI and at the end of a build
 
 ## Planned
@@ -19,12 +19,6 @@ The Web UI home page shows this list (title, status, summary) with live vote cou
 
 ### Service Insights deployment
 - The Service Insights counterpart of `/deploy-sales-insights`: capture the package from the source org, generate synthetic service data, deploy to any org with Data Cloud. Reuse `salesinsights/` (capture → generate → deploy)
-
-### Data Apps for Tableau Next
-- Data apps built on AIO's Tableau Next demos (SDM, metrics, Concierge). Scope to be defined
-
-### Data Apps for Tableau Cloud
-- Data apps built on AIO's Tableau Cloud demos (published datasources, Pulse metrics). Scope to be defined
 
 ### Tableau Studio skills (/studio) — Web UI and build flow
 - Currently CLI only (`/studio {slug}`); the Web UI build already saves the story to the checkpoint
@@ -57,6 +51,10 @@ The Web UI home page shows this list (title, status, summary) with live vote cou
 - Enables close-loop on demos the SE already has without rebuilding
 
 ## Completed
+
+### Data Apps for Tableau Next and Tableau Cloud (2026-11-23)
+- Homepage cards + `/data-app`: Claude designs the app from the data and the demo's story; AIO checks every query against the data, then publishes (Next: tableau-next-pilot MCP data app tools into a workspace; Cloud: a `.twbx` from the tableau-mcp template, published with TSC and rendered back as an image)
+- Revise with feedback (a new version of the same app), remove only the app. Engine: `dataapps/`
 
 ### Roadmap voting in the Web UI (2026-11-12)
 - Home page panel: each SE ranks a top 3 (3 / 2 / 1 points) across Top Priorities and Ideas from SEs (live immediately); Suggest an idea. Anonymous, capped per install per day
