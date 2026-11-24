@@ -9,7 +9,7 @@
   'use strict';
 
   var SVGNS = 'http://www.w3.org/2000/svg';
-  var PALETTE = ['#1f6feb', '#e8710a', '#1a7f37', '#8250df', '#cf222e', '#0a7ea4', '#bf8700', '#57606a'];
+  var PALETTE = ['var(--aio-c0)', 'var(--aio-c1)', 'var(--aio-c2)', 'var(--aio-c3)', 'var(--aio-bad)', 'var(--aio-c5)', 'var(--aio-c6)', 'var(--aio-c7)'];
 
   function el(tag, attrs, text) {
     var n = document.createElement(tag);
@@ -123,26 +123,55 @@
   };
 
   // KPI tiles: [{label, query, field, format, trend: {query, x, y}, goodDirection: 'up'|'down'}]
+  // KPI tiles: [{label, query, field, format, goodDirection: 'up'|'down', trend: {query, x, y}, compare?: months back (3),
+  //   sum?: true for a Sum measure (its partial current month is left out)}]
+  // A caps label, the value counting up, a pill with the change vs `compare` months back (green when it moved the good
+  // way), and an area sparkline ending in a glowing dot. A trailing partial month of a Sum is left out of the change.
   App.prototype.kpis = function (tiles) {
     var self = this;
     var strip = el('div', { 'class': 'aio-kpis' });
     this.root.appendChild(strip);
-    tiles.forEach(function (t) {
-      var tile = el('div', { 'class': 'aio-kpi' });
+    tiles.forEach(function (t, ti) {
+      var tile = el('div', { 'class': 'aio-kpi' + (ti === 0 ? ' aio-kpi-primary' : '') });
       tile.appendChild(el('div', { 'class': 'aio-kpi-label' }, t.label));
+      var row = el('div', { 'class': 'aio-kpi-row' });
       var value = el('div', { 'class': 'aio-kpi-value' }, '…');
-      tile.appendChild(value);
+      var pill = el('span', { 'class': 'aio-kpi-delta' });
+      row.appendChild(value); row.appendChild(pill);
+      tile.appendChild(row);
       var spark = el('div', { 'class': 'aio-kpi-spark' });
       tile.appendChild(spark);
+      var note = el('div', { 'class': 'aio-kpi-note' });
+      tile.appendChild(note);
       strip.appendChild(tile);
+      var good = t.goodDirection || 'up';
       self.query(t.query).then(function (rows) {
-        value.textContent = rows.length ? fmt(rows[0][t.field], t.format) : '–';
+        var v = rows.length ? num(rows[0][t.field]) : null;
+        if (v === null) { value.textContent = '–'; return; }
+        value.textContent = fmt(v, t.format);
+        value.classList.add('aio-in');   // slides in; the real number from the first frame
       }, function (e) { value.textContent = '–'; tile.title = e.message; });
-      if (t.trend) {
-        self.query(t.trend.query).then(function (rows) {
-          sparkline(spark, sortBy(rows, t.trend.x), t.trend.y, t.goodDirection || 'up');
-        }, function () {});
-      }
+      if (!t.trend) return;
+      self.query(t.trend.query).then(function (rows) {
+        rows = sortBy(rows, t.trend.x);
+        var vals = rows.map(function (r) { return num(r[t.trend.y]); });
+        // the current month of a Sum is partial and reads as a crash: leave it out of the comparison
+        var used = vals.slice(), lastX = String(rows.length ? rows[rows.length - 1][t.trend.x] : ''), today = new Date();
+        var thisMonth = today.getFullYear() + '-' + ('0' + (today.getMonth() + 1)).slice(-2);
+        if (used.length > 2 && lastX.slice(0, 7) === thisMonth && (t.sum || used[used.length - 1] < used[used.length - 2] * 0.9)) used.pop();
+        var back = Math.min(t.compare || 3, used.length - 1);
+        if (back >= 1) {
+          var now = used[used.length - 1], then = used[used.length - 1 - back];
+          var ch = (now - then) / Math.max(1e-9, Math.abs(then)), up = ch >= 0;
+          var better = Math.abs(ch) < 0.005 ? null : (up === (good === 'up'));
+          pill.textContent = (up ? '▲ ' : '▼ ') + Math.abs(ch * 100).toFixed(1) + '%';
+          pill.className = 'aio-kpi-delta ' + (better === null ? 'aio-flat' : better ? 'aio-good' : 'aio-badd');
+          var when = rows[used.length - 1 - back] ? label(rows[used.length - 1 - back][t.trend.x]) : '';
+          note.textContent = 'vs ' + when + ' · ' + rows.length + ' months';
+          tile.classList.add(better === false ? 'aio-kpi-alert' : better ? 'aio-kpi-ok' : 'aio-kpi-flat');
+        }
+        sparkline(spark, rows, t.trend.y, good, used.length);
+      }, function () {});
     });
   };
 
@@ -223,13 +252,14 @@
     });
     var ends = [];
     Object.keys(groups).sort().forEach(function (g, gi) {
-      var color = o.highlight ? (g === o.highlight ? PALETTE[4] : '#9aa4ae') : PALETTE[gi % PALETTE.length];
+      var color = o.highlight ? (g === o.highlight ? PALETTE[4] : 'var(--aio-dim)') : PALETTE[gi % PALETTE.length];
       var pts = [], last = null;
       xs.forEach(function (x, i) {
         var v = groups[g][x];
         if (v !== null && v !== undefined) { pts.push(X(i).toFixed(1) + ',' + Y(v).toFixed(1)); last = [X(i), Y(v), v]; }
       });
-      s.appendChild(svg('polyline', { points: pts.join(' '), fill: 'none', stroke: color, 'stroke-width': g === o.highlight ? 3 : 2 }));
+      s.appendChild(svg('polyline', { points: pts.join(' '), fill: 'none', stroke: color, 'stroke-width': g === o.highlight ? 3 : 2,
+                                      'class': g === o.highlight || !o.highlight ? 'aio-glow' : '' }));
       if (last) {
         s.appendChild(svg('circle', { cx: last[0], cy: last[1], r: 3, fill: color }));
         ends.push({ x: last[0], y: last[1], text: g + ' ' + fmt(last[2], o.format), color: color });
@@ -260,8 +290,8 @@
     rows.forEach(function (r, i) {
       var y = 18 + i * rowH, a = num(r[o.from]), b = num(r[o.to]);
       s.appendChild(svg('text', { x: L - 8, y: y + 4, 'text-anchor': 'end', 'class': 'aio-axis' }, r[o.x]));
-      s.appendChild(svg('line', { x1: X(a), x2: X(b), y1: y, y2: y, stroke: '#c9d1d9', 'stroke-width': 3 }));
-      s.appendChild(svg('circle', { cx: X(a), cy: y, r: 5, fill: '#9aa4ae' }));
+      s.appendChild(svg('line', { x1: X(a), x2: X(b), y1: y, y2: y, stroke: 'var(--aio-track)', 'stroke-width': 3 }));
+      s.appendChild(svg('circle', { cx: X(a), cy: y, r: 5, fill: 'var(--aio-dim)' }));
       s.appendChild(svg('circle', { cx: X(b), cy: y, r: 6, fill: PALETTE[0] }));
       // The current value sits beside its own dot, on the side away from the earlier one
       var right = b >= a;
@@ -269,7 +299,7 @@
                                   'class': 'aio-axis' }, fmt(b, o.format)));
     });
     var ly = H - 6;
-    s.appendChild(svg('circle', { cx: L, cy: ly - 4, r: 4, fill: '#9aa4ae' }));
+    s.appendChild(svg('circle', { cx: L, cy: ly - 4, r: 4, fill: 'var(--aio-dim)' }));
     s.appendChild(svg('text', { x: L + 8, y: ly, 'class': 'aio-axis' }, o.fromLabel || 'Before'));
     s.appendChild(svg('circle', { cx: L + 120, cy: ly - 4, r: 4, fill: PALETTE[0] }));
     s.appendChild(svg('text', { x: L + 128, y: ly, 'class': 'aio-axis' }, o.toLabel || 'Now'));
@@ -710,17 +740,33 @@
     body.appendChild(t);
   }
 
-  function sparkline(box, rows, key, good) {
+  // Area sparkline: a gradient fill under the line, the latest point as a glowing dot. Points after `upto` (a
+  // partial month left out of the change) are drawn faint.
+  function sparkline(box, rows, key, good, upto) {
     var vals = rows.map(function (r) { return num(r[key]); }).filter(function (v) { return v !== null; });
     if (vals.length < 2) return;
-    var W = 100, H = 34, lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
-    var pts = vals.map(function (v, i) {
-      return (i * W / (vals.length - 1)).toFixed(1) + ',' + (H - 3 - (v - lo) / Math.max(1e-9, hi - lo) * (H - 6)).toFixed(1);
-    });
-    var rising = vals[vals.length - 1] >= vals[0];
-    var color = (rising === (good === 'up')) ? '#1a7f37' : '#cf222e';
-    var s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, width: W, height: H, 'aria-hidden': 'true' });
-    s.appendChild(svg('polyline', { points: pts.join(' '), fill: 'none', stroke: color, 'stroke-width': 2 }));
+    var W = Math.max(120, box.clientWidth || 160), H = 44, lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    var n2 = Math.min(upto || vals.length, vals.length);
+    var P2 = function (v, i) { return [i * W / (vals.length - 1), H - 4 - (v - lo) / Math.max(1e-9, hi - lo) * (H - 10)]; };
+    var pts = vals.map(P2);
+    var rising = vals[n2 - 1] >= vals[0];
+    var color = (rising === (good === 'up')) ? 'var(--aio-good)' : 'var(--aio-bad)';
+    var id = 'sp' + Math.floor(Math.random() * 1e9);
+    var s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', height: H, preserveAspectRatio: 'none', 'aria-hidden': 'true' });
+    var defs2 = svg('defs'), grad = svg('linearGradient', { id: id, x1: 0, y1: 0, x2: 0, y2: 1 });
+    grad.appendChild(svg('stop', { offset: '0%', 'stop-color': color, 'stop-opacity': 0.45 }));
+    grad.appendChild(svg('stop', { offset: '100%', 'stop-color': color, 'stop-opacity': 0 }));
+    defs2.appendChild(grad); s.appendChild(defs2);
+    var main = pts.slice(0, n2), line2 = main.map(function (q) { return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' ');
+    s.appendChild(svg('polygon', { points: '0,' + H + ' ' + line2 + ' ' + main[main.length - 1][0].toFixed(1) + ',' + H, fill: 'url(#' + id + ')' }));
+    s.appendChild(svg('polyline', { points: line2, fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'class': 'aio-glow' }));
+    if (n2 < vals.length) {
+      s.appendChild(svg('polyline', { points: pts.slice(n2 - 1).map(function (q) { return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' '),
+                                      fill: 'none', stroke: color, 'stroke-width': 1.5, 'stroke-dasharray': '3 3', opacity: 0.5 }));
+    }
+    var end = main[main.length - 1];
+    s.appendChild(svg('circle', { cx: end[0], cy: end[1], r: 6, fill: color, opacity: 0.25 }));
+    s.appendChild(svg('circle', { cx: end[0], cy: end[1], r: 3, fill: color }));
     box.appendChild(s);
   }
 
@@ -749,6 +795,7 @@
     function fail(msg) { root.textContent = ''; root.appendChild(el('p', { 'class': 'aio-error' }, 'Live query unavailable: ' + msg)); }
     if (!window.tableau || !tableau.extensions) { fail('Extensions API not loaded'); return; }
     if (opts.brand) document.documentElement.style.setProperty('--aio-brand', opts.brand);
+    if (opts.theme === 'dark') document.documentElement.classList.add('aio-dark');
     tableau.extensions.initializeAsync().then(function () {
       return tableau.extensions.workbook.getAllDataSourcesAsync();
     }).then(function (list) {

@@ -14,6 +14,7 @@ All notable changes to AIO Analytics Builder are documented here.
   4. The data app is built on it, with a site map when things have positions.
 
   "Design the data" shows the model and the story first, read-only.
+- **Dark presentation theme and richer KPI tiles.** Cloud: `AIO.start({theme: 'dark'})` gives a deep slate page with a soft brand glow, dark glass cards, bright chart colors and glowing lines. KPI tiles get a caps label, a value that slides in, a ▲/▼ pill vs N months back (green when it moved the good way, red edge on the tile when not), and a gradient area sparkline. A Sum tile (`sum: true`) leaves the partial current month out. Next: the platform's `dark` theme on `PageShell`, and `KpiTile` with `trendPoints`, `accent` and `insight` (documented in the Next reference).
 - **Site maps, drawn as an aerial view of the site:** hill-shaded terrain with scrub (SVG noise filters, no image files or licensing), an open pit with terraced benches and a pond, waste dumps, gravel lots with bays and shop roofs, dusty haul roads that swing round the pit, excavator icons for the loaders, and yellow haul trucks. Everything is seeded, so the same data always draws the same site. The Cloud runtime (`aio.js`) adds `app.map`. It has layers:
   - places shaded by the problem metric, with lot outlines by zone (the culprit lot outlined in red)
   - equipment as markers

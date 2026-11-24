@@ -459,7 +459,9 @@ def describe(platform, profile, company, description, slug=None, plan_only=False
     C.step("load", "done")
     # The app takes the scenario's title, not the generic "{company} Data App"
     app_cp = C.load_cp(slug, platform)
-    app_cp.setdefault("title" if platform == "cloud" else "label", sc.get("title") or f"{company} Data App")
+    field = "title" if platform == "cloud" else "label"
+    if not app_cp.get(field) or app_cp[field] == f"{company} Data App":   # a generic name gives way to the scenario's
+        app_cp[field] = sc.get("title") or f"{company} Data App"
     C.save_cp(slug, platform, app_cp)
     engine = __import__(f"dataapps.{platform}", fromlist=["build"])
     brief = description + (f"\n\n{ask}" if ask else "")

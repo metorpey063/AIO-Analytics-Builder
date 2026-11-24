@@ -70,8 +70,13 @@ AIO.start({
 
 API (nothing else exists):
 
-- `AIO.start({title, subtitle?, brand?, filters?: [captions], render(app)})`. `render` runs again when a filter changes.
-- `app.kpis([{label, query, field, format?, goodDirection?: 'up'|'down', trend?: {query, x, y}}])`: 2–5 tiles.
+- `AIO.start({title, subtitle?, brand?, theme?: 'dark', filters?: [captions], render(app)})`. `render` runs again when a
+  filter changes. `theme: 'dark'` is the dark, presentation look (glowing accents on a deep slate page); `brand` is the
+  company's primary color (lifted for dark).
+- `app.kpis([{label, query, field, format?, goodDirection?: 'up'|'down', trend?: {query, x, y}, compare?, sum?}])`: 2–5
+  tiles, the primary KPI first. Each shows the value, a ▲/▼ pill with the change vs `compare` months back (default 3;
+  green when it moved the good way) and an area sparkline. Set `sum: true` on a Sum measure (its partial current month is
+  left out of the change). Give every tile a `trend`.
 - `app.section(headline, text?)` returns a body element; pass it to one chart call.
 - `app.row(fn)`: sections created inside `fn` sit side by side (use for 2 related charts).
 - `app.line(body, queryId, {x, y, series?, format?, highlight?, height?})`: x is a date alias, sorted for you.

@@ -94,12 +94,17 @@ import { SiteMap } from '../components/SiteMap';   // AIO's site map, only when 
 
 Components (props are exact; nothing else type-checks, so a wrong prop is a runtime error):
 
-- `PageShell` `header`, `filters`, `children`. `AppHeader` `title`.
+- `PageShell` `header`, `filters`, `children`, `theme?`. `theme={{ name: 'dark', focusStyle: 'glow' }}` is the dark
+  presentation look (other names: `light`, `org`, `press`, `grid`; options `density`, `controlCorner`); add
+  `accent: '<brand hex>'` for the company color. `AppHeader` `title`.
 - `FilterPanel` `filters={[{kind: 'dimension' as const, filterId, label, optionsId, multiple: true}]}`;
   each `filterId` / `optionsId` must exist in the spec.
-- `KpiStrip` holds 2–5 `KpiTile`s. `KpiTile` `queryId` (a one-row query), `label`, `trendQueryId`
-  (a monthly query of the same measure, ascending), `sparkGoodDirection="down"` for lower-is-better,
-  `entryIndex`. The value formats itself from the result (percent calcs show as %).
+- `KpiStrip` holds 2–5 `KpiTile`s, the primary KPI first. `KpiTile` `queryId` (a one-row query), `label`,
+  `trendQueryId` (a monthly query of the same measure, ascending), `trendPoints` (how many months the spark and its
+  delta pill cover; 4 = this month vs 3 months back, default 12), `sparkGoodDirection="down"` for lower-is-better,
+  `accent` (a 4px stripe on the tile; use it on the primary KPI), `insight` (a sentence shown on hover: what moved and
+  where), `entryIndex`. The value formats itself from the result (percent calcs show as %). The delta pill compares
+  the first and last trend points, so leave the partial current month out of a Sum measure's trend query.
 - `FindingSection` `finding` (slug), `region` (`"hero"` | `"row"` | `"detail"`), `arrangement`
   (`"stacked"` | `"pair"` inside a ChartRow | `"right"` | `"band"`), `form` (a word: `"multi-line"`,
   `"dumbbell"`, `"bar"`, `"heatmap"`, `"table"`), `lead` (exactly one, the first section), `headline`

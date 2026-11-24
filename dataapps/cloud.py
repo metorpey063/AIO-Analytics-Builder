@@ -394,7 +394,7 @@ def build(profile, ds_id, project_id, slug=None, ask="", feedback="", repackage=
             try:
                 site.server.workbooks.delete(old_wb)
                 cp["created"].remove(old_wb)
-                print(f"  renamed from {old_title}: removed the old workbook", flush=True)
+                print(f"  the app has a new name ({title}): removed its previous workbook", flush=True)
             except Exception as e:
                 print(f"  couldn't remove the old workbook {old_title}: {e}", flush=True)
         C.save_cp(slug, "cloud", cp)
