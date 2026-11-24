@@ -3,6 +3,7 @@
     python3 -m dataapps next sources --profile <sf connection>
     python3 -m dataapps next build --profile <key> --source <SDM apiName> --dest <workspace name or id>
                                    [--slug S] [--ask "what to answer"] [--feedback "what to change"]
+    python3 -m dataapps next repackage --slug S     # republish the recorded app as is (newer AIO components)
     python3 -m dataapps next remove --slug S
 
     python3 -m dataapps cloud sources --profile <tableau connection>
@@ -69,11 +70,14 @@ def main(argv):
             sys.exit("--company and --description are required (and --profile unless --plan)")
         from dataapps import scenario
         scenario.describe(platform, a.profile, a.company, a.description, slug=a.slug, plan_only=a.plan, ask=a.ask)
-    elif cmd == "repackage" and platform == "cloud":
-        cp = C.load_cp(a.slug or "", "cloud")
+    elif cmd == "repackage":
+        cp = C.load_cp(a.slug or "", platform)
         if not cp.get("app"):
-            sys.exit(f"No Tableau Cloud data app recorded in demos/{a.slug}.")
-        engine.build(cp["profile"], cp["datasource_id"], cp["project_id"], slug=a.slug, repackage=True)
+            sys.exit(f"No data app recorded in demos/{a.slug}.")
+        if platform == "cloud":
+            engine.build(cp["profile"], cp["datasource_id"], cp["project_id"], slug=a.slug, repackage=True)
+        else:
+            engine.build(cp["profile"], cp["sdm"], cp["workspace"], slug=a.slug, repackage=True)
     elif cmd == "remove":
         if not a.slug:
             sys.exit("--slug is required")

@@ -14,13 +14,13 @@ All notable changes to AIO Analytics Builder are documented here.
   4. The data app is built on it, with a site map when things have positions.
 
   "Design the data" shows the model and the story first, read-only.
-- **Site maps:** the Cloud runtime (`aio.js`) adds `app.map`. It has layers:
+- **Site maps, drawn as an aerial view of the site:** hill-shaded terrain with scrub (SVG noise filters, no image files or licensing), an open pit with terraced benches and a pond, waste dumps, gravel lots with bays and shop roofs, dusty haul roads that swing round the pit, excavator icons for the loaders, and yellow haul trucks. Everything is seeded, so the same data always draws the same site. The Cloud runtime (`aio.js`) adds `app.map`. It has layers:
   - places shaded by the problem metric, with lot outlines by zone (the culprit lot outlined in red)
   - equipment as markers
   - a generated haul-road network: lot gates and loaders joined by curved roads around a drawn pit. Each route takes the shortest way along the roads, and each road is as thick as the traffic on it and shaded by its average wait
   - a dot per truck (or other moving thing) at its latest position
 
-  Tableau Next apps get the same map from AIO's own `SiteMap` component, which ships with every Next app: lots, pit, roads with traffic, equipment and truck dots, drawn with the theme's colors. Revising a Next app whose draft has expired starts a new draft under the same name, and publishing it replaces the app in place. On a revise, a new app title now renames the workbook; the old workbook this app created is removed.
+  Tableau Next apps get the same map from AIO's own `SiteMap` component, which ships with every Next app: lots, pit, roads with traffic, equipment and truck dots, drawn with the theme's colors. `python3 -m dataapps next repackage` republishes a Next app with newer AIO components. Revising a Next app whose draft has expired starts a new draft under the same name, and publishing it replaces the app in place. On a revise, a new app title now renames the workbook; the old workbook this app created is removed.
 
 > Coeur Mining (Palmarejo): 24 haul trucks, Guadalupe (silver) and Zona Central (gold) loaders, 15 parking spots in 3 lots, about 51,000 cycles. Queue wait climbs at South Ridge Lot, worst for silver, while payload per cycle rises. The signal check passed. Built on both platforms; on Tableau Next the post-build validation passed 10 of 10 and the app passed every query check on the first try.
 

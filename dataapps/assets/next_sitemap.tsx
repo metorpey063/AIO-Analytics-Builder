@@ -1,5 +1,5 @@
-// Site map: places on the site (e.g. parking spots) shaded by a measure, the lots they sit in, fixed equipment,
-// the haul roads between them with the traffic on each road, and a dot per truck at its latest place.
+// Site map, drawn as an aerial view of the site: terrain, an open pit, waste dumps, the lots the places sit in,
+// haul roads with the traffic on each road, the equipment, and a truck at each truck's latest place.
 import { numericCellValue } from '@analytics/data-app-sdk';
 import { useQuery } from '@analytics/data-app-sdk/react';
 import { ChartCard } from '@analytics/data-app-ui-kit/components/react/ChartCard';
@@ -25,7 +25,7 @@ export interface SiteMapProps {
   highlight?: string;         // a zone value to outline in red
   lowerIsBetter?: boolean;    // true (default): a higher color value is worse
   colorLabel?: string;
-  markers?: Layer;            // fixed equipment
+  markers?: Layer;            // fixed equipment (loaders)
   routes?: Routes;            // traffic between two places, drawn along the road network
   trucks?: Trucks;            // moving things; the latest row per id wins
   title?: string;
@@ -47,12 +47,43 @@ function rowsOf(result: unknown): Row[] {
 const dist = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 const pathD = (pts: Pt[]) => pts.map((q, i) => `${i ? 'L' : 'M'}${q[0].toFixed(1)},${q[1].toFixed(1)}`).join('');
 
-// Green for better, red for worse, mixed from the theme's semantic colors
+// Green for better, red for worse, from the theme's semantic colors
 function shade(v: number, lo: number, hi: number, lowerIsBetter: boolean): string {
   const t = Math.max(0, Math.min(1, (v - lo) / Math.max(1e-9, hi - lo)));
   const bad = Math.round((lowerIsBetter ? t : 1 - t) * 100);
   return `color-mix(in srgb, var(--sem-danger) ${bad}%, var(--sem-success))`;
 }
+
+// The same site always draws the same way
+function seeded(name: string) {
+  let s = 0;
+  for (const ch of name) s = (s * 31 + ch.charCodeAt(0)) >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(s ^ (s >>> 15), s | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// A wobbly closed outline (a pit bench, a dump), smooth through jittered points
+function blob(cx: number, cy: number, rx: number, ry: number, jit: number, phase: number): string {
+  const n = 56, pts: Pt[] = [];
+  for (let i = 0; i < n; i++) {
+    const th = (2 * Math.PI * i) / n;
+    const f = 1 + jit * (Math.sin(3 * th + phase) * 0.5 + Math.sin(5 * th + phase * 1.7) * 0.3 + Math.sin(8 * th + phase * 2.3) * 0.2);
+    pts.push([cx + rx * f * Math.cos(th), cy + ry * f * Math.sin(th)]);
+  }
+  const mid = (i: number): Pt => [(pts[i][0] + pts[(i + 1) % n][0]) / 2, (pts[i][1] + pts[(i + 1) % n][1]) / 2];
+  let d = `M${mid(0)[0].toFixed(1)},${mid(0)[1].toFixed(1)}`;
+  for (let i = 1; i <= n; i++) {
+    const c = pts[i % n], m = mid(i % n);
+    d += ` Q${c[0].toFixed(1)},${c[1].toFixed(1)} ${m[0].toFixed(1)},${m[1].toFixed(1)}`;
+  }
+  return d + 'Z';
+}
+
+const HALO = { stroke: 'rgba(255,255,255,0.85)', strokeWidth: 3, paintOrder: 'stroke' as const, strokeLinejoin: 'round' as const };
 
 export function SiteMap(props: SiteMapProps) {
   const main = useQuery(props.queryId);
@@ -61,7 +92,7 @@ export function SiteMap(props: SiteMapProps) {
   const trucks = useQuery(props.trucks?.queryId ?? props.queryId);
   return (
     <ChartCard title={props.title}>
-      <QueryBoundary queryId={props.queryId} skeleton={<Skeleton variant="chart" height={420} />}>
+      <QueryBoundary queryId={props.queryId} skeleton={<Skeleton variant="chart" height={460} />}>
         {() => (
           <MapBody
             {...props}
@@ -78,9 +109,11 @@ export function SiteMap(props: SiteMapProps) {
 
 function MapBody(p: SiteMapProps & { places: Row[]; marks: Row[]; links: Row[]; movers: Row[] }) {
   const { ref, width } = useContainerWidth<HTMLDivElement>();
-  if (!width) return <div ref={ref} style={{ width: '100%', minHeight: 420 }} />;
-  const W = Math.max(420, width), H = Math.round(W * 0.62), P = 28;
+  if (!width) return <div ref={ref} style={{ width: '100%', minHeight: 460 }} />;
+  const W = Math.max(460, Math.min(1100, width)), H = Math.round(W * 0.62), P = 28;
   const lowerIsBetter = p.lowerIsBetter !== false;
+  const rnd = seeded(p.title ?? (p.places[0] ? text(p.places[0][p.label]) : 'site'));
+  const uid = `aio${Math.floor(rnd() * 1e9)}`;
   const X = (v: unknown) => P + numericCellValue(v) / 100 * (W - 2 * P);
   const Y = (v: unknown) => H - P - numericCellValue(v) / 100 * (H - 2 * P);
   const key = p.color ?? p.size ?? '';
@@ -105,12 +138,32 @@ function MapBody(p: SiteMapProps & { places: Row[]; marks: Row[]; links: Row[]; 
       gates[z] = [Math.max(L.x0 + 14, Math.min(L.x1 - 14, ex)), ey > (L.y0 + L.y1) / 2 ? L.y1 : L.y0];
     });
   }
-  // The pit between the loaders, kept clear of every lot
+  // The pit between the loaders; lots and roads sit over its rim
   const clear = lots.reduce((m, L) => Math.min(m, Math.hypot(Math.max(L.x0 - ex, 0, ex - L.x1), Math.max(L.y0 - ey, 0, ey - L.y1))), 1e9);
   const spread = loaderPts.reduce((m, q) => Math.max(m, dist(q, [ex, ey])), 0);
-  const pr = Math.max(24, Math.min(clear - 12, spread * 0.6));
+  const pr = Math.max(40, Math.min(clear + 18, spread * 0.85));
+  const hasPit = loaderPts.length >= 2;
+  const pitR: Pt = [pr * 1.4, pr * 0.9];
+  const phase = rnd() * 6;
+  // Waste dumps in the open ground away from the lots, the loaders and the pit
+  const cands: [number, Pt][] = [];
+  for (let gx = 0.1; gx <= 0.9; gx += 0.1) {
+    for (let gy = 0.12; gy <= 0.88; gy += 0.12) {
+      const q: Pt = [W * gx, H * gy];
+      let free = dist(q, [ex, ey]) - pr * 1.5;
+      lots.forEach((L) => { free = Math.min(free, Math.hypot(Math.max(L.x0 - q[0], 0, q[0] - L.x1), Math.max(L.y0 - q[1], 0, q[1] - L.y1)) - 30); });
+      loaderPts.forEach((lp) => { free = Math.min(free, dist(q, lp) - 40); });
+      cands.push([free, q]);
+    }
+  }
+  const dumps: [number, Pt][] = [];
+  cands.sort((a, b) => b[0] - a[0]).forEach((c) => {
+    if (dumps.length < 2 && c[0] >= 20 && dumps.every((d) => dist(d[1], c[1]) > Math.min(160, c[0] * 2.2))) dumps.push(c);
+  });
+  const dumpPhase = dumps.map(() => rnd() * 6);
 
   // Road network: gates and loaders joined to their two nearest neighbours plus a spanning tree, each road a curve
+  // that swings round the pit rim rather than crossing the pit
   const net: Pt[] = Object.keys(gates).map((z) => gates[z]).concat(loaderPts);
   const edgeKey = (i: number, j: number) => (i < j ? `${i}-${j}` : `${j}-${i}`);
   const edges = new Set<string>();
@@ -130,8 +183,18 @@ function MapBody(p: SiteMapProps & { places: Row[]; marks: Row[]; links: Row[]; 
   const adj: [number, number][][] = net.map(() => []);
   Array.from(edges).forEach((k, n) => {
     const [i, j] = k.split('-').map(Number), A = net[i], B = net[j], len = dist(A, B), side = n % 2 ? 1 : -1;
-    const bx = (A[0] + B[0]) / 2 + side * (-(B[1] - A[1]) / Math.max(1e-9, len)) * len * 0.14;
-    const by = (A[1] + B[1]) / 2 + side * ((B[0] - A[0]) / Math.max(1e-9, len)) * len * 0.14;
+    let bx = (A[0] + B[0]) / 2 + side * (-(B[1] - A[1]) / Math.max(1e-9, len)) * len * 0.14;
+    let by = (A[1] + B[1]) / 2 + side * ((B[0] - A[0]) / Math.max(1e-9, len)) * len * 0.14;
+    if (hasPit) {
+      const t0 = Math.max(0, Math.min(1, ((ex - A[0]) * (B[0] - A[0]) + (ey - A[1]) * (B[1] - A[1])) / Math.max(1e-9, len * len)));
+      const px = A[0] + t0 * (B[0] - A[0]), py = A[1] + t0 * (B[1] - A[1]);
+      if (Math.hypot((px - ex) / (pitR[0] * 1.1), (py - ey) / (pitR[1] * 1.1)) < 1) {
+        let nx = px - ex, ny = py - ey, nl = Math.hypot(nx, ny);
+        if (nl < 1) { nx = -(B[1] - A[1]); ny = B[0] - A[0]; nl = len; }
+        bx = ex + (nx / nl) * pitR[0] * 2.3;
+        by = ey + (ny / nl) * pitR[1] * 2.3;
+      }
+    }
     const pts: Pt[] = [];
     for (let s = 0; s <= 14; s++) {
       const t = s / 14;
@@ -180,8 +243,9 @@ function MapBody(p: SiteMapProps & { places: Row[]; marks: Row[]; links: Row[]; 
   const avg = (k: string) => (traffic[k].n ? traffic[k].cw / traffic[k].n : 0);
   const clo = Math.min(...tk.map(avg)), chi = Math.max(...tk.map(avg));
   tk.sort((a, b) => (lowerIsBetter ? avg(a) - avg(b) : avg(b) - avg(a)));
+  const lanes = tk.filter((k) => k.startsWith('lane:'));
 
-  // Moving things: the latest row per id, spread around the place they're at
+  // Trucks: the latest row per id, parked around the place they're at
   const latest: Record<string, Row> = {};
   if (p.trucks) {
     const T = p.trucks;
@@ -191,74 +255,168 @@ function MapBody(p: SiteMapProps & { places: Row[]; marks: Row[]; links: Row[]; 
     });
   }
   const crowd: Record<string, number> = {};
-  const dots = Object.keys(latest).sort().map((id) => {
+  const parked = Object.keys(latest).sort().map((id) => {
     const m = latest[id], T = p.trucks!;
     const at = `${text(m[T.x])},${text(m[T.y])}`, n = (crowd[at] = (crowd[at] || 0) + 1), a = n * 2.4, r = 12 + 4 * Math.floor(n / 6);
-    return { id, x: X(m[T.x]) + Math.cos(a) * r, y: Y(m[T.y]) + Math.sin(a) * r };
+    return { id, x: X(m[T.x]) + Math.cos(a) * r, y: Y(m[T.y]) + Math.sin(a) * r, rot: ((n * 47) % 180) - 90 };
   });
 
-  const describe = `Site map of ${p.places.length} places, ${p.marks.length} pieces of equipment and ${dots.length} ` +
+  const describe = `Aerial site map of ${p.places.length} places, ${p.marks.length} loaders and ${parked.length} ` +
     `${p.trucks?.noun ?? 'trucks'}; ${p.colorLabel ?? key} from ${lo.toFixed(1)} to ${hi.toFixed(1)}.`;
+  const seedA = Math.floor(rnd() * 99), seedB = Math.floor(rnd() * 99), seedC = Math.floor(rnd() * 99);
   return (
     <div ref={ref} style={{ width: '100%' }}>
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={describe} style={{ maxWidth: '100%', display: 'block' }}>
-        <rect x={4} y={4} width={W - 8} height={H - 8} rx={10} fill="var(--surface-muted)" stroke="var(--border-default)" />
-        {loaderPts.length >= 2 && [5, 4, 3, 2, 1].map((b) => (
-          <ellipse key={b} cx={ex} cy={ey} rx={pr * (b / 5) * 1.35} ry={pr * (b / 5) * 0.85}
-                   fill={`color-mix(in srgb, var(--text-secondary) ${8 + (5 - b) * 9}%, var(--surface-muted))`}
-                   stroke="var(--border-default)" />
-        ))}
-        {lots.map((L) => {
-          const hot = p.highlight === L.z;
-          return (
-            <g key={L.z}>
-              <rect x={L.x0} y={L.y0} width={L.x1 - L.x0} height={L.y1 - L.y0} rx={10} strokeDasharray="5 4"
-                    fill={hot ? 'color-mix(in srgb, var(--sem-danger) 12%, var(--surface-card))' : 'var(--surface-card)'}
-                    stroke={hot ? 'var(--sem-danger)' : 'var(--border-default)'} strokeWidth={hot ? 2 : 1} />
-              <text x={L.x0 + 2} y={L.y0 - 6} fontSize={11} fontWeight={600} fill={hot ? 'var(--sem-danger)' : 'var(--text-secondary)'}>{L.z}</text>
+        <defs>
+          <filter id={`${uid}g`} x="0" y="0" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.006" numOctaves={5} seed={seedA} result="h" />
+            <feDiffuseLighting in="h" surfaceScale={16} lightingColor="rgb(255,244,226)" result="lit">
+              <feDistantLight azimuth={235} elevation={38} />
+            </feDiffuseLighting>
+            <feTurbulence type="fractalNoise" baseFrequency="0.018" numOctaves={4} seed={seedB} result="c" />
+            <feColorMatrix in="c" type="matrix" values="0.30 0 0 0 0.50  0.26 0 0 0 0.41  0.18 0 0 0 0.29  0 0 0 0 1" result="soil" />
+            <feBlend in="soil" in2="lit" mode="multiply" result="ground" />
+            <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves={1} seed={5} result="grain" />
+            <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.12 0" result="grainA" />
+            <feComposite in="grainA" in2="ground" operator="over" />
+          </filter>
+          <filter id={`${uid}v`} x="0" y="0" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves={4} seed={seedC} />
+            <feColorMatrix type="matrix" values="0 0 0 0 0.26  0 0 0 0 0.31  0 0 0 0 0.17  0 0 0 -14 5.9" />
+          </filter>
+          <filter id={`${uid}r`} x="0" y="0" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves={2} seed={9} />
+            <feColorMatrix type="matrix" values="0 0 0 0 0.62  0 0 0 0 0.58  0 0 0 0 0.52  0 0 0 0.35 0" />
+          </filter>
+          <clipPath id={`${uid}c`}><rect x={4} y={4} width={W - 8} height={H - 8} rx={10} /></clipPath>
+        </defs>
+        <g clipPath={`url(#${uid}c)`}>
+          <rect x={0} y={0} width={W} height={H} fill="rgb(160,141,108)" />
+          <rect x={0} y={0} width={W} height={H} filter={`url(#${uid}g)`} />
+          <rect x={0} y={0} width={W} height={H} filter={`url(#${uid}v)`} opacity={0.6} />
+          {hasPit && Array.from({ length: 8 }, (_, bn) => {
+            const f = 1 - bn / 9, tone = bn / 8;
+            const fill = `rgb(${Math.round(170 - 70 * tone)},${Math.round(152 - 62 * tone)},${Math.round(126 - 46 * tone)})`;
+            return (
+              <g key={`bench-${bn}`}>
+                <path d={blob(ex + bn * 1.6, ey + bn * 1.1, pr * f * 1.4, pr * f * 0.9, 0.09, phase)} fill={fill}
+                      stroke="rgba(240,228,205,0.55)" strokeWidth={1.6} />
+                <path d={blob(ex + bn * 1.6 + 1.5, ey + bn * 1.1 + 2, pr * f * 1.4 - 3, pr * f * 0.9 - 3, 0.09, phase)} fill="none"
+                      stroke="rgba(40,30,20,0.25)" strokeWidth={2} />
+              </g>
+            );
+          })}
+          {hasPit && (
+            <path d={blob(ex + 13, ey + 9, pr * 0.18, pr * 0.11, 0.2, phase + 1)} fill="rgb(63,111,115)"
+                  stroke="rgb(46,84,88)" strokeWidth={1} opacity={0.9} />
+          )}
+          {dumps.map((c, i) => (
+            <g key={`dump-${i}`}>
+              {[0, 1, 2, 3].map((lv) => {
+                const dr = Math.min(70, c[0] * 0.8), k2 = 1 - lv * 0.2, c0 = 178 + lv * 10;
+                return (
+                  <path key={lv} d={blob(c[1][0], c[1][1] - lv * 2, dr * k2 * 1.3, dr * k2 * 0.8, 0.12, dumpPhase[i])}
+                        fill={`rgb(${c0},${c0 - 8},${c0 - 22})`} stroke="rgba(60,50,40,0.25)" strokeWidth={1.2} />
+                );
+              })}
+              <text x={c[1][0] - 24} y={c[1][1] + 4} fontSize={11} fontWeight={500} fill="rgb(87,96,106)" {...HALO}>
+                {`Waste Dump ${i + 1}`}
+              </text>
             </g>
-          );
-        })}
-        {Object.keys(geom).map((k) => (
-          <path key={`road-${k}`} d={pathD(geom[k])} fill="none" stroke="var(--border-default)" strokeWidth={10} strokeLinecap="round" />
-        ))}
-        {tk.map((k) => (
-          <path key={`traffic-${k}`} d={pathD(traffic[k].pts)} fill="none" strokeLinecap="round" strokeLinejoin="round"
-                stroke={p.routes?.color ? shade(avg(k), clo, chi, lowerIsBetter) : 'var(--text-secondary)'}
-                strokeWidth={1.5 + 6.5 * traffic[k].w / wmax} strokeOpacity={0.85} />
-        ))}
+          ))}
+          {lots.map((L) => {
+            const hot = p.highlight === L.z, w2 = L.x1 - L.x0, h2 = L.y1 - L.y0, roofX = L.x1 + 10;
+            const bays: number[] = [];
+            for (let bx = L.x0 + 10; bx < L.x1 - 6; bx += 14) bays.push(bx);
+            return (
+              <g key={`lot-${L.z}`}>
+                <rect x={L.x0 - 3} y={L.y0 - 3} width={w2 + 6} height={h2 + 6} rx={6} fill="rgba(90,75,55,0.35)" />
+                <rect x={L.x0} y={L.y0} width={w2} height={h2} rx={5} fill="rgb(185,176,160)" />
+                <rect x={L.x0} y={L.y0} width={w2} height={h2} rx={5} filter={`url(#${uid}r)`} />
+                {bays.map((bx) => (
+                  <line key={bx} x1={bx} y1={L.y0 + 16} x2={bx} y2={L.y1 - 6} stroke="rgba(255,255,255,0.45)" strokeWidth={1} />
+                ))}
+                {roofX + 26 < W - 8 && (
+                  <g>
+                    <rect x={roofX + 3} y={L.y0 + 7} width={24} height={16} fill="rgba(0,0,0,0.3)" />
+                    <rect x={roofX} y={L.y0 + 4} width={24} height={16} fill="rgb(223,227,230)" stroke="rgb(154,164,174)" strokeWidth={0.8} />
+                    <rect x={roofX + 3} y={L.y0 + 26} width={16} height={11} fill="rgba(0,0,0,0.3)" />
+                    <rect x={roofX} y={L.y0 + 23} width={16} height={11} fill="rgb(201,205,209)" stroke="rgb(154,164,174)" strokeWidth={0.8} />
+                  </g>
+                )}
+                {hot && (
+                  <rect x={L.x0 - 6} y={L.y0 - 6} width={w2 + 12} height={h2 + 12} rx={8} fill="rgba(207,34,46,0.10)"
+                        stroke="var(--sem-danger)" strokeWidth={2.5} strokeDasharray="7 4" />
+                )}
+                <text x={L.x0 + 2} y={L.y0 - 9} fontSize={12} fontWeight={700} fill={hot ? 'var(--sem-danger)' : 'rgb(31,35,40)'} {...HALO}>
+                  {L.z}
+                </text>
+              </g>
+            );
+          })}
+          {Object.keys(geom).map((k) => (
+            <path key={`edge-${k}`} d={pathD(geom[k])} fill="none" stroke="rgba(80,65,45,0.45)" strokeWidth={16} strokeLinecap="round" />
+          ))}
+          {lanes.map((k) => (
+            <path key={`lane-${k}`} d={pathD(traffic[k].pts)} fill="none" stroke="rgb(216,201,166)" strokeWidth={5} strokeLinecap="round" />
+          ))}
+          {Object.keys(geom).map((k) => (
+            <g key={`road-${k}`}>
+              <path d={pathD(geom[k])} fill="none" stroke="rgb(216,201,166)" strokeWidth={12} strokeLinecap="round" />
+              <path d={pathD(geom[k])} fill="none" stroke="rgba(150,130,100,0.5)" strokeWidth={1} strokeDasharray="6 9" />
+            </g>
+          ))}
+          {tk.map((k) => (
+            <path key={`traffic-${k}`} d={pathD(traffic[k].pts)} fill="none" strokeLinecap="round" strokeLinejoin="round"
+                  stroke={p.routes?.color ? shade(avg(k), clo, chi, lowerIsBetter) : 'var(--text-secondary)'}
+                  strokeWidth={1.5 + (5 * traffic[k].w) / wmax} strokeOpacity={0.9} />
+          ))}
+        </g>
         {p.markers && p.marks.map((m) => {
           const mx = X(m[p.markers!.x]), my = Y(m[p.markers!.y]), name = text(m[p.markers!.label ?? p.markers!.x]);
+          const rot = (Math.atan2(ey - my, ex - mx) * 180) / Math.PI;
           return (
-            <g key={`marker-${name}`}>
-              <rect x={mx - 9} y={my - 9} width={18} height={18} rx={3} fill="var(--text-primary)" stroke="var(--surface-card)" strokeWidth={2} />
-              <text x={mx + 13} y={my + 4} fontSize={11} fontWeight={600} fill="var(--text-primary)">{name}</text>
+            <g key={`loader-${name}`}>
+              <g transform={`translate(${mx},${my}) rotate(${rot.toFixed(0)})`}>
+                <rect x={-8} y={-7} width={20} height={18} rx={2} fill="rgba(0,0,0,0.35)" />
+                <rect x={-10} y={-9} width={20} height={4} fill="rgb(43,43,43)" />
+                <rect x={-10} y={5} width={20} height={4} fill="rgb(43,43,43)" />
+                <rect x={-8} y={-6} width={14} height={12} rx={2} fill="rgb(242,183,5)" stroke="rgb(107,82,0)" strokeWidth={0.8} />
+                <rect x={4} y={-2} width={16} height={4} fill="rgb(217,158,0)" />
+                <rect x={19} y={-4} width={5} height={8} rx={1} fill="rgb(58,58,58)" />
+              </g>
+              <text x={mx + 14} y={my - 10} fontSize={11} fontWeight={600} fill="rgb(31,35,40)" {...HALO}>{name}</text>
             </g>
           );
         })}
         {p.places.map((r) => {
           const v = numericCellValue(r[key]), name = text(r[p.label]);
-          const rad = 7 + 11 * (numericCellValue(r[p.size ?? key]) - smin) / Math.max(1e-9, smax - smin);
+          const rad = Math.max(6, 0.75 * (7 + (11 * (numericCellValue(r[p.size ?? key]) - smin)) / Math.max(1e-9, smax - smin)));
+          const c = shade(v, lo, hi, lowerIsBetter);
           return (
             <g key={`place-${name}`}>
-              <circle cx={X(r[p.x])} cy={Y(r[p.y])} r={rad} fill={shade(v, lo, hi, lowerIsBetter)} fillOpacity={0.9}
-                      stroke="var(--surface-card)" strokeWidth={1.5}>
+              <circle cx={X(r[p.x])} cy={Y(r[p.y])} r={rad} fill={c} fillOpacity={0.55} stroke={c} strokeWidth={2.5}>
                 <title>{`${name}: ${v.toFixed(1)}`}</title>
               </circle>
-              <text x={X(r[p.x])} y={Y(r[p.y]) - rad - 3} textAnchor="middle" fontSize={11} fill="var(--text-secondary)">{name}</text>
+              <text x={X(r[p.x])} y={Y(r[p.y]) - rad - 4} textAnchor="middle" fontSize={10} fontWeight={500} fill="rgb(31,35,40)" {...HALO}>
+                {name}
+              </text>
             </g>
           );
         })}
-        {dots.map((d) => (
-          <circle key={`mover-${d.id}`} cx={d.x} cy={d.y} r={3.6} fill="var(--chart-brand)" stroke="var(--surface-card)" strokeWidth={1}>
-            <title>{d.id}</title>
-          </circle>
+        {parked.map((t) => (
+          <g key={`truck-${t.id}`} transform={`translate(${t.x.toFixed(1)},${t.y.toFixed(1)}) rotate(${t.rot})`}>
+            <rect x={-4.5} y={-2.5} width={11} height={8} rx={1} fill="rgba(0,0,0,0.35)" />
+            <rect x={-6} y={-4} width={10} height={8} rx={1} fill="rgb(245,196,0)" stroke="rgb(122,96,0)" strokeWidth={0.6} />
+            <rect x={4} y={-3.5} width={3.5} height={7} rx={0.8} fill="rgb(58,58,58)" />
+            <title>{t.id}</title>
+          </g>
         ))}
       </svg>
       <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
-        {`Circles: ${p.colorLabel ?? key}, green better, red worse. Squares: equipment. Roads: thicker = more traffic`}
+        {`Rings: ${p.colorLabel ?? key}, green better, red worse. Yellow machines: loaders. Roads: thicker = more traffic`}
         {p.routes?.color ? ', shaded by the same measure' : ''}
-        {dots.length ? `. ${dots.length} dots: where each ${p.trucks?.noun ?? 'truck'} was last.` : '.'}
+        {parked.length ? `. ${parked.length} trucks: where each ${p.trucks?.noun ?? 'truck'} was last.` : '.'}
       </p>
     </div>
   );

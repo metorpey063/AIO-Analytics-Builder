@@ -522,8 +522,9 @@ def wait_deploy(client, cp, budget=600):
     raise SystemExit("Deploy still running after 10 minutes. Check the workspace in a few minutes.")
 
 
-def build(profile, sdm, workspace, slug=None, ask="", feedback=""):
-    """Write (or revise), check, publish and deploy a Tableau Next data app. Prints `[step]` lines."""
+def build(profile, sdm, workspace, slug=None, ask="", feedback="", repackage=False):
+    """Write (or revise), check, publish and deploy a Tableau Next data app. Prints `[step]` lines.
+    repackage=True republishes the recorded app as it is (picks up newer AIO components), no Claude call."""
     org = org_for(profile)
     demo_slug, demo_cp = C.demo_for_source("next", sdm)
     slug = slug or demo_slug or C.slugify(sdm)
@@ -546,7 +547,12 @@ def build(profile, sdm, workspace, slug=None, ask="", feedback=""):
     current = None
     if feedback and cp.get("app"):
         current = {"spec": cp["app"]["spec"], "page": cp["app"]["page"]}
-    app = author(org, prof, slug, cp["app_name"], label, C.story_brief(demo_cp), ask, current, feedback or None)
+    if repackage:
+        if not cp.get("app"):
+            raise SystemExit(f"No Tableau Next data app recorded in demos/{slug} to republish.")
+        app = dict(cp["app"])
+    else:
+        app = author(org, prof, slug, cp["app_name"], label, C.story_brief(demo_cp), ask, current, feedback or None)
     cp["label"] = app.get("label") or label
     app["label"] = cp["label"]
     app.setdefault("description", f"{prof['label']} data app")
