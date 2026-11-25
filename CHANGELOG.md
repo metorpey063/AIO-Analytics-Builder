@@ -4,6 +4,25 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-25 — Rev Intel walkthrough screenshots (v2.25.1)
+
+### Added
+- **`python3 -m revintel <demo> screenshots`** captures each step of the Rev Intel walkthrough as the person in that step and embeds the image under the step (`revintel/screenshots.py`).
+  - It logs in as the rep for steps 1–4 and the sales leader for 5–8, because Revenue Insights and the Command Center show the signed-in user's own numbers.
+  - It sets filters (both the Revenue Insights and EAM menus), scrolls until lazily loaded sections render, and clicks tabs and tiles.
+  - It crops the "Logged in as" banners and closes Salesforce's feature tips.
+  - A page showing an access error is reported and not saved.
+  - Options: `--only 1,4`, `--headed`, `--list`, `--debug`. Read-only in the org. Needs Playwright (`pip install playwright && python3 -m playwright install chromium`); the project `.venv` has it.
+
+### Changed
+- Walkthrough step 3 opens the deal's record page. The Command Center has no opportunity list to find it in.
+- The walkthrough saves each step's shot details to `out/shots.json`.
+
+### Docs
+- CLAUDE.md Known Pitfalls: the CRM Analytics access a rep and leader need before their dashboards open. That's the Revenue Intelligence license and permission set, CRM Analytics Plus, and the apps holding the datasets. EAM reads from "Customer Insights 2".
+
+---
+
 ## 2026-11-25 — Data apps: chat to adjust, site maps, dark theme (v2.25.0)
 
 ### Added

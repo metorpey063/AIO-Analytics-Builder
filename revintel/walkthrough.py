@@ -33,6 +33,23 @@ th{color:var(--muted);font-weight:600}.tag{font-weight:600}.culprit{color:#c2393
 @media print{body{max-width:100%}h1{break-before:page}h1:first-of-type{break-before:avoid}.step{break-inside:avoid}}"""
 
 
+# Dashboards the talk track opens (labels in the Revenue Insights / EAM apps); `screenshots` finds them by label
+REP_DASH, LEADER_DASH, CALC_DASH = "Sales Rep Command Center", "Revenue Insights", "Commit Calculator"
+EAM_DASH = "Account Health & Upside Signals"
+SHOTS = os.path.join(OUT, "screenshots")
+
+
+def _shot_img(key, title):
+    """The step's screenshot (out/screenshots/{key}.jpg from `screenshots`) inline, or nothing."""
+    p = os.path.join(SHOTS, f"{key}.jpg")
+    if not os.path.exists(p):
+        return ""
+    import base64
+    data = base64.b64encode(open(p, "rb").read()).decode()
+    return (f"<img src='data:image/jpeg;base64,{data}' alt='{e(title)}' "
+            "style='width:100%;border:1px solid var(--border);border-radius:6px;margin-top:8px'>")
+
+
 def money(v):
     v = float(v or 0)
     return f"${v / 1e6:.2f}M" if abs(v) >= 1e6 else f"${v / 1e3:.0f}K" if abs(v) >= 1e3 else f"${v:,.0f}"
@@ -223,8 +240,16 @@ def build(plan=None, categories=None):
              "audience <b>sees</b>, with this build's people, deals and numbers. Open everything from the "
              "<b>Revenue Insights</b> app. Plan on about 30 minutes.</p>")
 
-    def step(title, items):
-        h.append(f"<div class='step'><h2>{e(title)}</h2>" + "".join(f"<p><b>{k}</b> {v}</p>" for k, v in items) + "</div>")
+    shots = []
+
+    def step(title, items, shot=None):
+        img = ""
+        if shot:   # what `screenshots` captures for this step; embedded once the image exists
+            shots.append({"key": shot[0], "title": title, "user_key": shot[1], "user": names.get(shot[1], shot[1]),
+                          "dashboard": shot[2], **shot[3]})
+            img = _shot_img(shot[0], title)
+        h.append(f"<div class='step'><h2>{e(title)}</h2>" + "".join(f"<p><b>{k}</b> {v}</p>" for k, v in items)
+                 + img + "</div>")
 
     def part(title):
         h.append(f"<h2 style='margin-top:1.8em'>{e(title)}</h2>")
@@ -257,22 +282,24 @@ def build(plan=None, categories=None):
                     f"<b>Forecasting Type</b> to <b>{e(forecast_label)}</b>."),
         ("Audience sees:", f"<b>Performance Trend</b>: {money(won_q)} won so far this quarter against {money(commit_q)} in "
                            "commit, the quota gauge" + (" short of quota" if stretch.get(lead_c, 1) > 1 else "")
-                           + ", and the gap to quota.")])
+                           + ", and the gap to quota.")],
+         ("1", lead_c, REP_DASH, {"filters": [["Forecasting Type", forecast_label]]}))
     step("2. What will it take to hit my number?", [
         ("Say:", "“I can see my gap to quota and run what-ifs to see exactly what it takes to close it.”"),
         ("Action:", "Scroll to the <b>What If Calculator</b> and move the slider. Optionally open the <b>Pipeline Overview</b> "
                     "page to show the deals by stage."),
         ("Audience sees:", f"{plural(len(open_deals), 'open deal')} on {lc}'s team closing this quarter, and how much more "
-                           "they need to close.")])
+                           "they need to close.")],
+         ("2", lead_c, REP_DASH, {"filters": [["Forecasting Type", forecast_label]], "scroll_to": "What If Calculator"}))
     if rep_deal:
         step("3. Act on my priority deal", [
             ("Say:", f"“It points me to the deals that need attention, and I can act without switching screens.”"),
-            ("Action:", f"Find <b>{e(rep_deal['Name'])}</b> in the Command Center's opportunity lists (or <b>Stuck "
-                        "Opportunities</b> after a Roll) and open the action menu: log a call, create a task, or open the "
-                        "record."),
+            ("Action:", f"Open <b>{e(rep_deal['Name'])}</b> (search for it, or from a Highlights <b>View</b> list such as "
+                        "<b>Stuck Opportunities</b> after a Roll) and act on the record: log a call or create a task."),
             ("Audience sees:", f"{money(rep_deal['_amount'])}, <b>{e(rep_deal['StageName'])}</b>, closing "
                                f"{date.fromisoformat(rep_deal['CloseDate']):%b %d, %Y}."
-                               + (f" Next step: “{e(rep_deal['NextStep'])}”" if rep_deal.get("NextStep") else ""))])
+                               + (f" Next step: “{e(rep_deal['NextStep'])}”" if rep_deal.get("NextStep") else ""))],
+             ("3", lead_c, None, {"record": ["Opportunity", rep_deal["Name"]]}))
     if hero:
         _, _, val, a_id, when, prods, r = hero
         a = accts[a_id]
@@ -294,7 +321,9 @@ def build(plan=None, categories=None):
             items.append(("Then:", f"Open <b>Whitespace</b>: products it has never bought ({e(', '.join(never))}) are the next "
                                    "conversation. Whitespace counts anything ever bought, so the dropped product shows as "
                                    "purchased, not as a gap."))
-        step(f"4. Prepare for the meeting: {a['Name']}", items)
+        step(f"4. Prepare for the meeting: {a['Name']}", items,
+             ("4", lead_c, EAM_DASH, {"filters": [["Account Name", a["Name"]]],
+                                       "click_any": ["All Accounts", "Most at Risk", "Where to Sell"]}))
 
     part(f"Part Two: Sales Leader ({names.get(leader, leader)})")
     step("5. How is the team pacing?", [
@@ -305,7 +334,8 @@ def build(plan=None, categories=None):
         ("Audience sees:", f"All the leads on one view. {' and '.join(e(n) for n in ahead) or lk} "
                            f"{'are' if len(ahead) > 1 else 'is'} tracking well; {' and '.join(e(n) for n in behind) or lc} "
                            f"{'are' if len(behind) > 1 else 'is'} behind, with the most churn ({money(sum(churn12.get(s_, 0) for s_ in culprits))} "
-                           "in the last 12 months between them).")])
+                           "in the last 12 months between them).")],
+         ("5", leader, LEADER_DASH, {}))
     step("6. What should I focus on?", [
         ("Say:", "“Revenue Insights surfaces what needs attention, so I don't dig for it.”"
                  + (f" Tie it to the leading indicator: {e(story['leading_indicator'])}" if story.get("leading_indicator") else "")),
@@ -318,13 +348,15 @@ def build(plan=None, categories=None):
                             if commit else "")
                            + "Skip <b>No Next Step</b> and <b>Stuck in Stage</b>: the demo data has little stage history. "
                              "<b>No Activity</b> lists most open deals, because activity is logged on accounts, so point to "
-                             f"{lc}'s renewals only.")])
+                             f"{lc}'s renewals only.")],
+         ("6", leader, LEADER_DASH, {"scroll_to": "What should I focus on?"}))
     if best_deal:
         step("7. Which deals can move into Commit?", [
             ("Say:", "“I need more deals in Commit. Revenue Insights brings the biggest Best Case deals to the front.”"),
             ("Action:", "In <b>Top Open Opportunities</b>, click <b>Best Case</b>."),
             ("Audience sees:", f"<b>{e(best_deal['Name'])}</b>, {money(best_deal['_amount'])}, closing "
-                               f"{date.fromisoformat(best_deal['CloseDate']):%b %d}: the deal to pull forward.")])
+                               f"{date.fromisoformat(best_deal['CloseDate']):%b %d}: the deal to pull forward.")],
+             ("7", leader, LEADER_DASH, {"scroll_to": "Top Open Opportunities", "click": "Best Case"}))
     calc_all = {k: [o for o in opps if qs <= o["CloseDate"] < qe and o["_cat"] == k] for k in ("Closed", "Commit", "BestCase")}
     sums = {k: (len(v), sum(o["_amount"] for o in v)) for k, v in calc_all.items()}
     step("8. Commit Calculator: the number for the forecast call", [
@@ -339,7 +371,8 @@ def build(plan=None, categories=None):
         ("Audience sees:", f"This quarter for the whole team: Won {money(sums['Closed'][1])}, Commit {money(sums['Commit'][1])} "
                            f"({plural(sums['Commit'][0])}), Best Case {money(sums['BestCase'][1])} "
                            f"({plural(sums['BestCase'][0])}). The gap to goal moves as deals come out and go in."),
-        ("Tip:", f"If the whole-team view is crowded, filter to {lk}: the healthy team's quarter has deals in every column.")])
+        ("Tip:", f"If the whole-team view is crowded, filter to {lk}: the healthy team's quarter has deals in every column.")],
+         ("8", leader, CALC_DASH, {}))
     step("Close", [("Say:", f"“With Revenue Intelligence, {ld} sees where the business stands, finds the team that needs help, "
                             "and walks into the forecast call with a number they can defend. "
                             f"{lc} knows exactly which deals to work today.”")])
@@ -380,6 +413,7 @@ def build(plan=None, categories=None):
              f"opportunities, {counts.get('line_items', 0)} line items, {counts.get('contacts', 0)} contacts, "
              f"{counts.get('tasks', 0)} tasks and {counts.get('events', 0)} events.</p>")
     h.append("</body></html>")
+    json.dump(shots, open(os.path.join(OUT, "shots.json"), "w"), indent=1)
 
     path = os.path.join(DEMO_DIR, f"{os.path.basename(DEMO_DIR)}_demo_walkthrough.html")
     import sys

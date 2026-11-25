@@ -10,6 +10,7 @@
     python3 -m revintel <demo_folder> refresh [--plan] [--skip-sync]   # Data Sync + CRMA recipes in order
     python3 -m revintel <demo_folder> reset              # delete pool opps/contacts/activities (date refresh)
     python3 -m revintel <demo_folder> walkthrough        # write the demo click path ({slug}_demo_walkthrough.html)
+    python3 -m revintel <demo_folder> screenshots [--only 1,4] [--headed] [--list] [--debug]   # capture each step's dashboard (read-only), embed in the walkthrough
 
 The demo folder holds the customer config (config.py / *_config.py / config.json), pool seed
 files and out/. Add --today to re-anchor dates to today (a date refresh: reset, then apply --today).
@@ -65,6 +66,10 @@ def main(argv):
     elif cmd == "walkthrough":
         from revintel import walkthrough
         walkthrough.run()
+    elif cmd == "screenshots":
+        from revintel import screenshots
+        screenshots.run(only=argv[argv.index("--only") + 1].split(",") if "--only" in argv else None,
+                        headed="--headed" in argv, list_only="--list" in argv, debug="--debug" in argv)
     elif cmd == "inspect":
         from revintel import inspect_org
         inspect_org.run()
