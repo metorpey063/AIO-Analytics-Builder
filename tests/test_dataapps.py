@@ -185,6 +185,24 @@ class History(unittest.TestCase):
         self.assertNotIn("history", cp)
 
 
+class Embed(unittest.TestCase):
+    def test_connected_app_token_shape(self):
+        import base64
+        from dataapps import embed
+        tok = embed._jwt("client-1", "secret-id", "s3cret", "se@example.com")
+        head, body, sig = tok.split(".")
+        pad = lambda x: x + "=" * (-len(x) % 4)
+        h = json.loads(base64.urlsafe_b64decode(pad(head)))
+        b = json.loads(base64.urlsafe_b64decode(pad(body)))
+        self.assertEqual((h["alg"], h["kid"], h["iss"]), ("HS256", "secret-id", "client-1"))
+        self.assertEqual((b["aud"], b["sub"], b["scp"]), ("tableau", "se@example.com", ["tableau:views:embed"]))
+        self.assertTrue(sig)
+
+    def test_origin_forms(self):
+        from dataapps import embed
+        self.assertEqual(embed._origin_forms("http://localhost:5100/"), {"http://localhost:5100", "localhost:5100"})
+
+
 class Checkpoints(unittest.TestCase):
     def test_story_brief_names_the_plan(self):
         cp = {"company": "Virgin Voyages", "story": {"headline": "Satisfaction is slipping"},

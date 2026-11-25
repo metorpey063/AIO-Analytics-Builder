@@ -1776,6 +1776,48 @@ def data_apps_demo(platform):
     return jsonify({"ok": False})
 
 
+@app.route("/api/data-apps/<platform>/embed")
+def data_apps_embed(platform):
+    """What the page needs to show the live app: a fresh sign-in credential, never stored or logged."""
+    from dataapps import common as DA, embed as E
+    slug = DA.slugify(request.args.get("slug", ""))
+    cp = DA.load_cp(slug, platform) if slug else {}
+    if not cp.get("url"):
+        return jsonify({"ok": False, "error": "Build the app first."}), 400
+    origin = request.host_url.rstrip("/")
+    try:
+        if platform == "next":
+            if not E.next_trusted(cp["profile"], origin):
+                return jsonify({"ok": False, "needs_trust": True, "origin": origin,
+                                "error": f"The org doesn't let {origin} show Tableau Next content yet."}), 409
+            return jsonify({"ok": True, "app": cp["app_name"], **E.next_embed(cp["profile"])})
+        return jsonify({"ok": True, **E.cloud_embed(cp, origin)})
+    except SystemExit as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except E.NeedsSetup as e:
+        return jsonify({"ok": False, "needs_setup": True, "error": str(e)}), 409
+
+
+@app.route("/api/data-apps/<platform>/embed/setup", methods=["POST"])
+def data_apps_embed_setup(platform):
+    """One-time, confirmed: Next adds this page's origin to the org's Trusted Domains for Inline Frames;
+    Cloud creates AIO's connected app on the site (both are needed to show the live app here)."""
+    from dataapps import common as DA, embed as E
+    data = request.get_json() or {}
+    if not data.get("confirmed"):
+        return jsonify({"ok": False, "error": "Confirm first."}), 400
+    cp = DA.load_cp(DA.slugify(data.get("slug", "")), platform)
+    if not cp.get("profile"):
+        return jsonify({"ok": False, "error": "Build the app first."}), 400
+    origin = request.host_url.rstrip("/")
+    try:
+        if platform == "next":
+            return jsonify({"ok": True, **E.next_trust(cp["profile"], origin)})
+        return jsonify({"ok": True, **E.cloud_setup(cp["profile"], origin)})
+    except SystemExit as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+
+
 @app.route("/api/data-apps/<platform>/image/<slug>")
 def data_apps_image(platform, slug):
     """The rendered view of a published Cloud app (saved by the build's verify step)."""
