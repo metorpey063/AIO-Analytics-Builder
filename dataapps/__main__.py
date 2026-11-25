@@ -16,6 +16,8 @@
                                     [--slug S] [--plan]     # no data yet: design it, mock it, load it, build the app
                                                             # (--plan: design + generate + check only, no org writes)
 
+    python3 -m dataapps <next|cloud> undo --slug S   # put the previous version back and republish it
+
     python3 -m dataapps status --slug S        # both checkpoints for a demo folder
 
 Claude writes the app (the page and its queries); AIO runs every query against the data before it
@@ -70,8 +72,15 @@ def main(argv):
             sys.exit("--company and --description are required (and --profile unless --plan)")
         from dataapps import scenario
         scenario.describe(platform, a.profile, a.company, a.description, slug=a.slug, plan_only=a.plan, ask=a.ask)
-    elif cmd == "repackage":
+    elif cmd in ("repackage", "undo"):
         cp = C.load_cp(a.slug or "", platform)
+        if cmd == "undo":
+            if not cp.get("history"):
+                sys.exit("There is no earlier version of this app to go back to.")
+            prev = cp["history"].pop()
+            cp["app"] = prev["app"]
+            C.save_cp(a.slug, platform, cp)
+            print(f"Going back to the version published {prev.get('at') or 'earlier'}", flush=True)
         if not cp.get("app"):
             sys.exit(f"No data app recorded in demos/{a.slug}.")
         if platform == "cloud":

@@ -36,14 +36,14 @@ def credentials():
     return {"mode": "sdk", "key": cred["api_key"]}
 
 
-def call(system, user, effort="high", max_tokens=64000):
-    """One Claude call; returns the response text."""
+def call(system, user, effort="high", max_tokens=64000, model=None):
+    """One Claude call; returns the response text. `model` overrides the task default (e.g. the faster chat model)."""
     import sys
     if ROOT not in sys.path:
         sys.path.insert(0, ROOT)
     from claude_model import gateway_id
     cred = credentials()
-    model = _model()
+    model = model or _model()
     if cred["mode"] == "gateway":
         # The internal Bedrock gateway speaks Bedrock's /invoke format with an x-api-key header, which the
         # SDK's Bedrock client (SigV4) can't send — same raw call the web UI's chat uses for this gateway.

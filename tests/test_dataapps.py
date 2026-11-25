@@ -169,6 +169,22 @@ class CloudPackage(unittest.TestCase):
             self.assertIn('window.AIO_DATASOURCE = "Acme - Demo"', queries_js)
 
 
+class History(unittest.TestCase):
+    def test_push_history_keeps_the_last_versions(self):
+        cp = {"app": {"v": 0}, "published": "t0"}
+        for i in range(1, 14):
+            common.push_history(cp)
+            cp["app"] = {"v": i}
+        self.assertEqual(len(cp["history"]), 10)
+        self.assertEqual(cp["history"][-1]["app"], {"v": 12})
+        self.assertEqual(cp["history"][0]["app"], {"v": 3})
+
+    def test_no_app_no_history(self):
+        cp = {}
+        common.push_history(cp)
+        self.assertNotIn("history", cp)
+
+
 class Checkpoints(unittest.TestCase):
     def test_story_brief_names_the_plan(self):
         cp = {"company": "Virgin Voyages", "story": {"headline": "Satisfaction is slipping"},

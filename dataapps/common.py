@@ -137,6 +137,21 @@ def ask_claude(system, user, raw_path):
     return llm.ask_json(system, user, raw_path=raw_path, effort="high", max_tokens=48000)
 
 
+def quick_claude(system, user, max_tokens=2000):
+    """A short, fast Claude reply (the Web UI chat's model): classifying and answering chat messages."""
+    from revintel import llm
+    from claude_model import pick
+    return llm.call(system, user, effort="low", max_tokens=max_tokens, model=pick("chat")).strip()
+
+
+def push_history(cp, keep=10):
+    """Keep the app being replaced, so a revise can be undone."""
+    if cp.get("app"):
+        cp.setdefault("history", []).append({"app": cp["app"], "at": cp.get("published", ""),
+                                             "revision": cp.get("revision"), "title": cp.get("title") or cp.get("label")})
+        cp["history"] = cp["history"][-keep:]
+
+
 def read_asset(name):
     return open(os.path.join(ASSETS, name), encoding="utf-8").read()
 

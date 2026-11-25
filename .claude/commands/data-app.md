@@ -91,6 +91,7 @@ For Cloud, show the user the rendered image (Read `demos/{slug}/{slug}_data_app.
 ```bash
 python3 -m dataapps <next|cloud> build ... --feedback "what to change"   # a new version of the same app
 python3 -m dataapps cloud repackage --slug <slug>                         # republish as is (newer AIO runtime)
+python3 -m dataapps <next|cloud> undo --slug <slug>                       # previous version back, republished
 python3 -m dataapps <next|cloud> remove --slug <slug>                     # deletes only the app
 ```
 

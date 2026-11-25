@@ -328,7 +328,8 @@ def author_prompt(prof, probe_text, story, ask, app_name, label, current=None, f
         parts.append("Your last version failed these checks. Fix every one:\n- " + "\n- ".join(problems))
     parts.append('Return one JSON object in a ```json fence: {"label": "...", "description": "the app\'s purpose in '
                  'one sentence (not its tech)", "summary": "2-3 sentences for the presenter: what the page leads with '
-                 'and the drill path", "findings": ["..."], "spec": {the whole src/app.spec.json object}, '
+                 'and the drill path", "findings": ["..."], ' + ('"changes": "one or two sentences to the SE on what you changed '
+                 '(or why you couldn\'t)", ' if feedback else '') + '"spec": {the whole src/app.spec.json object}, '
                  '"page": "the whole .tsx source"}')
     return "\n\n".join(parts)
 
@@ -563,7 +564,9 @@ def build(profile, sdm, workspace, slug=None, ask="", feedback="", repackage=Fal
     for attempt in range(MAX_PUBLISH_FIXES + 1):
         C.step("draft", "writing the app")
         write_draft(client, cp, app)
-        cp["app"] = {k: app[k] for k in ("spec", "page", "summary", "findings") if k in app}
+        if attempt == 0 and not repackage:
+            C.push_history(cp)
+        cp["app"] = {k: app[k] for k in ("spec", "page", "summary", "findings", "changes") if k in app}
         C.save_cp(slug, "next", cp)
         C.step("draft", "done")
         C.step("publish", f"building revision {cp['revision']} on the server")

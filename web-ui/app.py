@@ -1790,8 +1790,6 @@ def data_apps_image(platform, slug):
 @app.route("/api/data-apps/<platform>/run", methods=["POST"])
 def data_apps_run(platform):
     """build (writes the app to the org/site; with feedback it revises the app) or remove (deletes only the app)."""
-    import subprocess
-    import uuid as _uuid
     from dataapps import common as DA
     if platform not in DATA_APP_PLATFORMS:
         return jsonify({"ok": False, "error": "Unknown platform"}), 404
@@ -1833,10 +1831,18 @@ def data_apps_run(platform):
         cmd = [sys.executable, "-u", "-m", "dataapps", platform, "remove", "--slug", slug]
     if DA_RUNNING.get((platform, slug)):
         return jsonify({"ok": True, "job_id": DA_RUNNING[(platform, slug)], "slug": slug, "already_running": True})
+    job_id = _da_start(platform, slug, action, cmd)
+    return jsonify({"ok": True, "job_id": job_id, "slug": slug})
+
+
+def _da_start(platform, slug, action, cmd, chat=False):
+    """Run one dataapps command in the background; a chat job posts its outcome back into the app's chat."""
+    import subprocess
+    import uuid as _uuid
     job_id = f"da_{_uuid.uuid4().hex[:8]}"
     _prune_jobs(DA_JOBS)
     job = DA_JOBS[job_id] = {"platform": platform, "action": action, "slug": slug, "lines": [], "state": "running",
-                             "rc": None}
+                             "rc": None, "chat": chat, "started": time.time()}
     DA_RUNNING[(platform, slug)] = job_id
 
     def _run():
@@ -1858,9 +1864,114 @@ def data_apps_run(platform):
             job["lines"].append(f"error: {e}"); job["state"] = "error"
         finally:
             DA_RUNNING.pop((platform, slug), None)
+            if chat:
+                _da_chat_outcome(platform, slug, job)
 
     _start_job(DATA_APP_PLATFORMS[platform]["title"], _run)
-    return jsonify({"ok": True, "job_id": job_id, "slug": slug})
+    return job_id
+
+
+def _da_chat_outcome(platform, slug, job):
+    """The assistant's reply once a chat change finishes: what Claude changed, or why it stopped."""
+    from dataapps import common as DA
+    cp = DA.load_cp(slug, platform)
+    if job["state"] == "done":
+        app_ = cp.get("app") or {}
+        if job["action"] == "undo":
+            text = "Done: I put the previous version back and republished it."
+        else:
+            text = app_.get("changes") or app_.get("summary") or "Done: the app is republished."
+        ver = f" (revision {cp.get('revision')})" if platform == "next" and cp.get("revision") else ""
+        msg = {"role": "assistant", "text": text + ver, "url": cp.get("url"), "ok": True}
+    else:
+        tail = [l for l in job["lines"] if l.strip() and not l.startswith("  note") and not l.startswith("[")][-3:]
+        msg = {"role": "assistant", "ok": False,
+               "text": "That change didn't go through, and the app is unchanged. " + (" ".join(tail)[-400:] if tail else "")}
+    msg["at"] = time.strftime("%Y-%m-%d %H:%M")
+    cp.setdefault("chat", []).append(msg)
+    DA.save_cp(slug, platform, cp)
+
+
+CHAT_SYSTEM = """You help a Salesforce SE adjust a data app they built for a demo. Decide what their latest message is:
+- "change": they want the app changed (layout, charts, KPIs, colors, wording, what is shown, filters, the map...).
+- "question": they ask about the app or its data (what a number means, where something is, how it works).
+- "undo": they want the previous version back.
+Return ONE JSON object and nothing else: {"intent": "change"|"question"|"undo", "answer": "..."}.
+For a question, "answer" is 2-4 plain sentences from the app context below (never invent numbers that aren't in it).
+For a change, "answer" is one short sentence saying what you'll do. For undo, "answer" is empty."""
+
+
+@app.route("/api/data-apps/<platform>/chat", methods=["GET", "POST"])
+def data_apps_chat(platform):
+    """GET: the app's chat. POST {slug, message}: answer a question, or start a revise / undo job for a change."""
+    from dataapps import common as DA
+    if platform not in DATA_APP_PLATFORMS:
+        return jsonify({"ok": False, "error": "Unknown platform"}), 404
+    data = request.get_json(silent=True) or {}
+    slug = DA.slugify(data.get("slug") or request.args.get("slug") or "")
+    cp = DA.load_cp(slug, platform) if slug else {}
+    if request.method == "GET":
+        return jsonify({"ok": True, "chat": cp.get("chat", []), "versions": len(cp.get("history", [])),
+                        "running": DA_RUNNING.get((platform, slug))})
+    message = (data.get("message") or "").strip()[:2000]
+    if not message:
+        return jsonify({"ok": False, "error": "Type a message first."}), 400
+    if not cp.get("app"):
+        return jsonify({"ok": False, "error": "Build the app first, then chat to adjust it."}), 400
+    if DA_RUNNING.get((platform, slug)):
+        return jsonify({"ok": False, "error": "A change is still being made. Wait for it to finish."}), 409
+    chat = cp.setdefault("chat", [])
+    chat.append({"role": "user", "text": message, "at": time.strftime("%Y-%m-%d %H:%M")})
+    DA.save_cp(slug, platform, cp)
+    app_ = cp["app"]
+    demo_cp = {}
+    if cp.get("demo"):
+        p = PROJECT_ROOT / "demos" / cp["demo"] / f"{cp['demo']}_checkpoint.json"
+        demo_cp = json.loads(p.read_text()) if p.exists() else {}
+    recent = "\n".join(f"{m['role']}: {m['text']}" for m in chat[-8:])
+    context = (f"App: {cp.get('title') or cp.get('label') or cp.get('app_name')} ({DATA_APP_PLATFORMS[platform]['title']})\n"
+               f"Summary: {app_.get('summary', '')}\nFindings: {json.dumps(app_.get('findings', []))}\n"
+               f"Story: {DA.story_brief(demo_cp)}\nEarlier versions kept: {len(cp.get('history', []))}\n\n"
+               f"Conversation so far:\n{recent}")
+    try:
+        raw = DA.quick_claude(CHAT_SYSTEM, context)
+        m = re.search(r"\{.*\}", raw, re.S)
+        decided = json.loads(m.group(0)) if m else {"intent": "change", "answer": ""}
+    except SystemExit as e:
+        chat.pop(); DA.save_cp(slug, platform, cp)
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception:
+        decided = {"intent": "change", "answer": ""}
+    intent = decided.get("intent", "change")
+    if intent == "question":
+        chat.append({"role": "assistant", "text": decided.get("answer") or "I couldn't answer that from the app.",
+                     "at": time.strftime("%Y-%m-%d %H:%M"), "ok": True})
+        DA.save_cp(slug, platform, cp)
+        return jsonify({"ok": True, "mode": "answer", "chat": chat})
+    if intent == "undo":
+        if not cp.get("history"):
+            chat.append({"role": "assistant", "text": "There is no earlier version to go back to yet.", "ok": True,
+                         "at": time.strftime("%Y-%m-%d %H:%M")})
+            DA.save_cp(slug, platform, cp)
+            return jsonify({"ok": True, "mode": "answer", "chat": chat})
+        cmd = [sys.executable, "-u", "-m", "dataapps", platform, "undo", "--slug", slug]
+        action = "undo"
+    else:
+        # The change, with the recent conversation so "make that bigger" resolves
+        feedback = "Recent conversation with the SE about this app:\n" + recent + "\n\nMake the latest request."
+        if platform == "next":
+            source, dest = cp.get("sdm"), cp.get("workspace")
+        else:
+            source, dest = cp.get("datasource_id"), cp.get("project_id")
+        cmd = [sys.executable, "-u", "-m", "dataapps", platform, "build", "--profile", cp["profile"], "--source", source,
+               "--dest", dest, "--slug", slug, "--feedback", feedback[:6000]]
+        action = "build"
+    if decided.get("answer"):
+        chat.append({"role": "assistant", "text": decided["answer"], "at": time.strftime("%Y-%m-%d %H:%M"), "ok": True,
+                     "working": True})
+        DA.save_cp(slug, platform, cp)
+    job_id = _da_start(platform, slug, action, cmd, chat=True)
+    return jsonify({"ok": True, "mode": "job", "job_id": job_id, "chat": chat})
 
 
 @app.route("/api/data-apps/job/<job_id>")
@@ -1873,7 +1984,8 @@ def data_apps_job(job_id):
     since = int(request.args.get("since", 0))
     cp = DA.load_cp(job["slug"], job["platform"]) if job["state"] != "running" else None
     return jsonify({"ok": True, "lines": job["lines"][since:], "next": len(job["lines"]), "state": job["state"],
-                    "action": job["action"], "slug": job["slug"], "app": cp or None,
+                    "action": job["action"], "slug": job["slug"], "app": cp or None, "chat": job.get("chat", False),
+                    "elapsed": round(time.time() - job.get("started", time.time())),
                     "source": _data_app_source(job) if job["state"] == "done" and job["action"] == "describe" else None})
 
 

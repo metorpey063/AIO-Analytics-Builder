@@ -4,16 +4,16 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
-## 2026-11-23 — Data apps from a description: AIO designs and mocks the data (v2.24.0)
+## 2026-11-25 — Data apps: chat to adjust, site maps, dark theme (v2.25.0)
 
 ### Added
-- **"Describe it" on both Data Apps pages** (and `python3 -m dataapps <next|cloud> describe`), for when the customer's use case has no data in the org yet. Give the customer and what the app should show:
-  1. Claude designs an event-level data model: one row per event (a haul cycle, a ticket, a shipment), with derived dimensions (a loader serves one mineral; a spot sits in one zone), distance costs between things on a site, and positions on a site grid.
-  2. AIO generates a year of mock data with the problem built in, and the signal check confirms it landed.
-  3. AIO loads the data and saves it as an AIO demo. Next gets a Data Cloud stream, semantic model and metrics in a new workspace, built by the Build Demo engine in a new data-only mode. Cloud gets a new project and a self-healing published datasource.
-  4. The data app is built on it, with a site map when things have positions.
+- **Chat to adjust a built data app** (step 4 on the Data Apps pages). Type a change ("lead with haul transit", "make South Ridge stand out more") or a question ("why is this tile red?"). A fast Claude call decides which:
+  - **Questions** are answered right away from the app's own content (story, findings), with nothing republished.
+  - **Changes** run a revise with the recent conversation as context, so "make that bigger" works. AIO checks every query, then publishes. Claude's reply says what it changed, with the link.
+  - **"Undo the last change"** (or the button) puts the previous version back and republishes it, without asking Claude again. The last 10 versions are kept.
 
-  "Design the data" shows the model and the story first, read-only.
+  The conversation is saved with the app.
+- **Live progress** for builds and chat changes: a progress bar, the current step in plain words, an elapsed timer, step badges and an expandable log. A page reload picks up a change that is still running.
 - **Dark presentation theme and richer KPI tiles.** Cloud: `AIO.start({theme: 'dark'})` gives a deep slate page with a soft brand glow, dark glass cards, bright chart colors and glowing lines. KPI tiles get a caps label, a value that slides in, a ▲/▼ pill vs N months back (green when it moved the good way, red edge on the tile when not), and a gradient area sparkline. A Sum tile (`sum: true`) leaves the partial current month out. Next: the platform's `dark` theme on `PageShell`, and `KpiTile` with `trendPoints`, `accent` and `insight` (documented in the Next reference).
 - **Site maps, drawn as an aerial view of the site:** hill-shaded terrain with scrub (SVG noise filters, no image files or licensing), an open pit with terraced benches and a pond, waste dumps, gravel lots with bays and shop roofs, dusty haul roads that swing round the pit, excavator icons for the loaders, and yellow haul trucks. Everything is seeded, so the same data always draws the same site. The Cloud runtime (`aio.js`) adds `app.map`. It has layers:
   - places shaded by the problem metric, with lot outlines by zone (the culprit lot outlined in red)
@@ -24,6 +24,20 @@ All notable changes to AIO Analytics Builder are documented here.
 
   Tableau Next apps get the same map from AIO's own `SiteMap` component, which ships with every Next app: lots, pit, roads with traffic, equipment and truck dots, drawn with the theme's colors. `python3 -m dataapps next repackage` republishes a Next app with newer AIO components. Revising a Next app whose draft has expired starts a new draft under the same name, and publishing it replaces the app in place. On a revise, a new app title now renames the workbook; the old workbook this app created is removed.
 
+> Coeur Mining: the Palmarejo map with haul roads, truck positions and route tooltips on both platforms, the dark look, and a question, a change and an undo made through the chat on the Cloud app.
+
+---
+
+## 2026-11-23 — Data apps from a description: AIO designs and mocks the data (v2.24.0)
+
+### Added
+- **"Describe it" on both Data Apps pages** (and `python3 -m dataapps <next|cloud> describe`), for when the customer's use case has no data in the org yet. Give the customer and what the app should show:
+  1. Claude designs an event-level data model: one row per event (a haul cycle, a ticket, a shipment), with derived dimensions (a loader serves one mineral; a spot sits in one zone), distance costs between things on a site, and positions on a site grid.
+  2. AIO generates a year of mock data with the problem built in, and the signal check confirms it landed.
+  3. AIO loads the data and saves it as an AIO demo. Next gets a Data Cloud stream, semantic model and metrics in a new workspace, built by the Build Demo engine in a new data-only mode. Cloud gets a new project and a self-healing published datasource.
+  4. The data app is built on it, with a site map when things have positions.
+
+  "Design the data" shows the model and the story first, read-only.
 > Coeur Mining (Palmarejo): 24 haul trucks, Guadalupe (silver) and Zona Central (gold) loaders, 15 parking spots in 3 lots, about 51,000 cycles. Queue wait climbs at South Ridge Lot, worst for silver, while payload per cycle rises. The signal check passed. Built on both platforms; on Tableau Next the post-build validation passed 10 of 10 and the app passed every query check on the first try.
 
 ---

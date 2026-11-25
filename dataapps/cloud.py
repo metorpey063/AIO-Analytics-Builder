@@ -155,7 +155,8 @@ def author_prompt(prof, probe_text, story, ask, title, current=None, feedback=No
     if problems:
         parts.append("Your last version failed these checks. Fix every one:\n- " + "\n- ".join(problems))
     parts.append('Return one JSON object in a ```json fence: {"title": "...", "summary": "2-3 sentences for the '
-                 'presenter: what the page leads with and the drill path", "findings": ["..."], "queries": {id: VDS '
+                 'presenter: what the page leads with and the drill path", "findings": ["..."], ' + ('"changes": "one or two '
+                 'sentences to the SE on what you changed (or why you couldn\'t)", ' if feedback else '') + '"queries": {id: VDS '
                  'query}, "app_js": "the whole app.js source"}')
     return "\n\n".join(parts)
 
@@ -372,7 +373,9 @@ def build(profile, ds_id, project_id, slug=None, ask="", feedback="", repackage=
         old_title, old_wb = cp.get("title"), cp.get("workbook_id")
         # Claude's title wins on a revise (the SE may have asked for a new name); the first build keeps a preset one
         title = cp["title"] = (app.get("title") if feedback else None) or cp.get("title") or app.get("title") or title
-        cp["app"] = {k: app[k] for k in ("queries", "app_js", "summary", "findings") if k in app}
+        if not repackage:
+            C.push_history(cp)
+        cp["app"] = {k: app[k] for k in ("queries", "app_js", "summary", "findings", "changes") if k in app}
         C.save_cp(slug, "cloud", cp)
 
         C.step("package", "building the workbook")
