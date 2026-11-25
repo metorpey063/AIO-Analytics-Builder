@@ -4,9 +4,10 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
-## 2026-11-25 — Rev Intel walkthrough screenshots (v2.25.1)
+## 2026-11-25 — Rev Intel walkthrough screenshots, open an existing data app (v2.25.1)
 
 ### Added
+- **Open a data app you already built** (Data Apps pages, step 1). After you pick a connection, its data apps are listed. **Show app** selects the app's data and opens it in step 4 with its link, findings and chat. On Cloud you also get the rendered page. Before, an app only appeared once you found the data it was built on.
 - **`python3 -m revintel <demo> screenshots`** captures each step of the Rev Intel walkthrough as the person in that step and embeds the image under the step (`revintel/screenshots.py`).
   - It logs in as the rep for steps 1–4 and the sales leader for 5–8, because Revenue Insights and the Command Center show the signed-in user's own numbers.
   - It sets filters (both the Revenue Insights and EAM menus), scrolls until lazily loaded sections render, and clicks tabs and tiles.

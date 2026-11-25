@@ -1759,6 +1759,15 @@ def data_apps_app(platform):
     return jsonify({"ok": True, "slug": slug, "app": cp or None})
 
 
+@app.route("/api/data-apps/<platform>/apps")
+def data_apps_list(platform):
+    """Data apps already built on a connection, for the page's "Show app" picker."""
+    from dataapps import common as DA
+    if platform not in DATA_APP_PLATFORMS:
+        return jsonify({"ok": False, "error": "Unknown platform"}), 404
+    return jsonify({"ok": True, "apps": DA.existing_apps(platform, request.args.get("profile") or "")})
+
+
 @app.route("/api/data-apps/<platform>/demo")
 def data_apps_demo(platform):
     """An AIO demo's connection and source for this platform (for a link from My Demos)."""

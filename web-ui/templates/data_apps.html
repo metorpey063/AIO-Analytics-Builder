@@ -19,6 +19,12 @@
     <div class="form-group"><label>{{ "Salesforce org" if platform == "next" else "Tableau Cloud site" }} *</label>
         <select id="da-profile" onchange="daOnProfile()"><option value="">Loading connections…</option></select>
         <div id="da-profile-note" class="form-hint"></div></div>
+    <div class="form-group hidden" id="da-existing-group"><label>Or open a data app you already built</label>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+            <select id="da-existing" onchange="$('da-show').disabled = !this.value" style="flex:1; min-width:260px"></select>
+            <button class="btn btn-secondary" id="da-show" onclick="daShowExisting()" disabled>Show app</button>
+        </div>
+        <div class="form-hint">Opens it in step 4 with its link{{ ", how it renders" if platform == "cloud" else "" }} and the chat to adjust it.</div></div>
 </div>
 
 <!-- 2. Data -->
@@ -145,10 +151,11 @@ async function daLoadProfiles() {
 async function daOnProfile(preselect) {
     const key = $('da-profile').value;
     localStorage.setItem(`da-${PLATFORM}-profile`, key);
-    src = null; daSetSource(null);
+    src = null; daSetSource(null); window._items = null;
     const p = profiles.find(x => x.key === key);
     $('da-profile-note').innerHTML = (PLATFORM === 'next' && p && !p.mcp)
         ? '<span style="color:var(--orange)">⚠ This connection has no MCP login, which Tableau Next data apps need. Authorize MCP for it on <a href="/connections">Connections</a>.</span>' : '';
+    daLoadExisting(key);
     if (!key) { $('da-sources').textContent = 'Pick a connection to list its data.'; return; }
     $('da-sources').textContent = 'Loading…';
     const r = await (await fetch(`/api/data-apps/${PLATFORM}/sources?profile=${encodeURIComponent(key)}`)).json();
@@ -179,6 +186,41 @@ async function daOnProfile(preselect) {
         if (radio) radio.checked = true; else if ($('da-other')) $('da-other').value = preselect;
         await daPickSource(preselect);
     }
+}
+
+let existingApps = [];
+
+async function daLoadExisting(key) {
+    existingApps = [];
+    $('da-existing-group').classList.add('hidden');
+    $('da-show').disabled = true;
+    if (!key) return;
+    const r = await (await fetch(`/api/data-apps/${PLATFORM}/apps?profile=${encodeURIComponent(key)}`)).json();
+    if (key !== $('da-profile').value) return;   // the connection changed while this loaded
+    existingApps = r.apps || [];
+    if (!existingApps.length) return;
+    $('da-existing').innerHTML = '<option value="">— pick an app —</option>' + existingApps.map(a =>
+        `<option value="${esc(a.slug)}">${esc(a.title)} — published ${esc(a.published)}</option>`).join('');
+    $('da-existing-group').classList.remove('hidden');
+}
+
+// Select the app's data (step 2), which loads the app into step 4, then scroll to it
+async function daShowExisting() {
+    const a = existingApps.find(x => x.slug === $('da-existing').value);
+    if (!a) return;
+    $('da-show').disabled = true;
+    try {
+        for (let i = 0; i < 60 && !window._items; i++) await new Promise(res => setTimeout(res, 500));   // step 2 still loading
+        const radio = [...document.querySelectorAll('input[name=da-src]')].find(b => b.value === a.source);
+        if (radio) radio.checked = true; else if ($('da-other')) $('da-other').value = a.source || '';
+        await daPickSource(a.source);
+        if (slug !== a.slug) {   // the source maps to another folder: load this app by its own slug
+            const r = await (await fetch(`/api/data-apps/${PLATFORM}/app?slug=${encodeURIComponent(a.slug)}`)).json();
+            slug = a.slug;
+            daSetSource(src || {id: a.source, name: a.source_name}, r.app);
+        }
+        $('da-result-card').scrollIntoView({behavior: 'smooth', block: 'start'});
+    } finally { $('da-show').disabled = false; }
 }
 
 let describing = false;

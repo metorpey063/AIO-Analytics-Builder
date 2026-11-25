@@ -81,6 +81,26 @@ def aio_demos(platform, profile):
     return sorted(demos, key=lambda d: d["built"], reverse=True)
 
 
+def existing_apps(platform, profile):
+    """Data apps already built on this connection (from their checkpoints), newest first."""
+    apps = []
+    for p in glob.glob(os.path.join(ROOT, "demos", "*", f"*_data_app_{platform}.json")):
+        slug = os.path.basename(os.path.dirname(p))
+        if os.path.basename(p) != f"{slug}_data_app_{platform}.json":
+            continue
+        try:
+            cp = json.load(open(p))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if cp.get("profile") != profile or not cp.get("url"):
+            continue
+        apps.append({"slug": slug, "title": cp.get("label") or cp.get("title") or slug,
+                     "source": cp.get("sdm") if platform == "next" else cp.get("datasource_id"),
+                     "source_name": cp.get("sdm") if platform == "next" else cp.get("datasource", ""),
+                     "published": cp.get("published", "")})
+    return sorted(apps, key=lambda a: a["published"], reverse=True)
+
+
 def demo_for_source(platform, source):
     """The AIO demo whose SDM / Pulse datasource is this source, if any: (slug, checkpoint)."""
     field = "sdm_api" if platform == "next" else "pulse_datasource_id"
