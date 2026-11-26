@@ -268,9 +268,15 @@ function daShowResult(app) {
     if ((a.findings || []).length) html += '<ul>' + a.findings.map(f => `<li>${esc(f)}</li>`).join('') + '</ul>';
     if (PLATFORM === 'cloud' && app.image) html += `<img src="/api/data-apps/cloud/image/${encodeURIComponent(slug)}?t=${Date.now()}" alt="How the app renders" style="max-width:100%; border:1px solid var(--border); border-radius:8px; margin-top:8px">`;
     if (PLATFORM === 'next') {
-        html += `<p style="display:flex; gap:10px; align-items:center; flex-wrap:wrap"><button class="btn btn-secondary btn-sm" id="da-shot" onclick="daShot()">${app.image ? 'Refresh picture' : 'Take a picture of the app'}</button>
-            <span class="form-hint" id="da-shot-note">${app.image ? 'Picture from the org, taken ' + esc(app.image_at || '') + '. Open the app to click around in it.' : 'Signs in to the org through the Salesforce CLI and captures the whole page (about a minute).'}</span></p>`;
-        if (app.image) html += `<img src="/api/data-apps/next/image/${encodeURIComponent(slug)}?t=${Date.now()}" alt="The data app as it renders in the org" style="max-width:100%; border:1px solid var(--border); border-radius:8px; margin-top:4px">`;
+        const live = app.live_build && String(app.live_revision) === String(app.revision);
+        const liveUrl = `/data-apps/next/live/${encodeURIComponent(slug)}`;
+        html += `<p style="display:flex; gap:10px; align-items:center; flex-wrap:wrap"><button class="btn btn-secondary btn-sm" id="da-shot" onclick="daShot()">${app.image ? 'Refresh from the org' : 'Load it from the org'}</button>
+            ${live ? `<a class="btn btn-ghost btn-sm" href="${liveUrl}" target="_blank" rel="noopener">Full screen ↗</a>` : ''}
+            <span class="form-hint" id="da-shot-note">${live ? 'Live: the app\'s own build from the org, running here with every query sent to the org. Click and filter as in the org. Copied ' + esc(app.image_at || '') + '.'
+                : app.image ? 'Picture from the org, taken ' + esc(app.image_at || '') + '. Refresh to run it live here.'
+                : 'Signs in to the org through the Salesforce CLI, copies the app\'s build so it runs here, and takes a picture (about a minute).'}</span></p>`;
+        if (live) html += `<iframe src="${liveUrl}?embed=1&t=${Date.now()}" title="The data app, live" style="width:100%; height:900px; border:1px solid var(--border); border-radius:8px; margin-top:4px; background:#0d1117"></iframe>`;
+        else if (app.image) html += `<img src="/api/data-apps/next/image/${encodeURIComponent(slug)}?t=${Date.now()}" alt="The data app as it renders in the org" style="max-width:100%; border:1px solid var(--border); border-radius:8px; margin-top:4px">`;
     }
     $('da-result').innerHTML = html;
     daLoadChat();
@@ -279,7 +285,7 @@ function daShowResult(app) {
 // Next: a fresh picture of the deployed app (read-only), then show it
 async function daShot() {
     $('da-shot').disabled = true;
-    $('da-shot-note').textContent = 'Signing in to the org and capturing the page… about a minute.';
+    $('da-shot-note').textContent = 'Signing in to the org, copying the app and taking a picture… about a minute.';
     const r = await (await fetch(`/api/data-apps/${PLATFORM}/run`, {method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({action: 'shot', slug})})).json();
     if (!r.ok) { $('da-shot').disabled = false; $('da-shot-note').textContent = r.error; return; }

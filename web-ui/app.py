@@ -1838,6 +1838,33 @@ def data_apps_image(platform, slug):
     return send_file(path, mimetype="image/jpeg" if path.endswith(".jpg") else "image/png", max_age=0)
 
 
+@app.route("/data-apps/next/live/<slug>")
+def data_apps_live(slug):
+    """A Next data app running in AIO: its own build, with AIO answering its queries (dataapps/live.py)."""
+    from dataapps import common as DA, live as L
+    cp = DA.load_cp(slug, "next")
+    doc = L.srcdoc(slug)
+    if not doc:
+        return ("No live copy of this app yet. On the Data Apps page, use Refresh picture: it also keeps the "
+                "app's build for this view."), 404
+    return render_template("data_app_live.html", label=cp.get("label") or slug, url=cp.get("url", ""),
+                           instance=cp.get("instance", "the org"), revision=cp.get("live_revision") or cp.get("revision"),
+                           srcdoc=doc, data_url=f"/api/data-apps/next/live/{slug}/data",
+                           embed=request.args.get("embed") == "1")
+
+
+@app.route("/api/data-apps/next/live/<slug>/data", methods=["POST"])
+def data_apps_live_data(slug):
+    """One of the app's data requests, checked against the org host's read-only list, run with AIO's token."""
+    from dataapps import live as L
+    m = request.get_json() or {}
+    try:
+        status, text = L.request(slug, m.get("method"), m.get("url"), m.get("body"))
+    except Exception as ex:   # token / network: tell the app, don't crash the page
+        status, text = 502, json.dumps([{"errorCode": "AIO_PROXY", "message": str(ex)[:500]}])
+    return jsonify({"status": status, "bodyText": text})
+
+
 @app.route("/api/data-apps/<platform>/run", methods=["POST"])
 def data_apps_run(platform):
     """build (writes the app to the org/site; with feedback it revises the app) or remove (deletes only the app)."""

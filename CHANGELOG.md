@@ -4,9 +4,10 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
-## 2026-11-26 — Pictures of Tableau Next data apps (v2.25.2)
+## 2026-11-26 — Tableau Next data apps live in AIO, and pictures (v2.25.2)
 
 ### Added
+- **Tableau Next data apps run live on the Data Apps page.** Step 4 shows the real app: the org's own build with the Tableau Next components. You can click and filter it as in the org, and every query goes to the org with the connection's token. It isn't embedded: AIO copies the app's build when it takes the picture and acts as the app's host (`dataapps/live.py`). Each request is checked against the same read-only list the org uses. **Full screen** opens it on its own page (`/data-apps/next/live/<slug>`). An app without a current copy shows its picture until you press **Refresh from the org**.
 - **See a Tableau Next data app on the Data Apps page.** Nothing outside the org can render a Next app, so AIO now takes a picture of it in the org and shows it in step 4, the way Cloud apps already show their rendered view.
   - AIO signs in through the Salesforce CLI, opens the app and grows the window to the app's full height, so the picture shows the whole page.
   - Every Next build and chat change takes a fresh picture at the end. **Refresh picture** takes a new one any time (about a minute, read-only).

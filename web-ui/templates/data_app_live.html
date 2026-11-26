@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ label }} — live</title>
+<style>
+html, body { margin: 0; height: 100%; background: #0d1117; color: #e6edf3; font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+.bar { display: flex; align-items: center; gap: 12px; height: 40px; padding: 0 14px; border-bottom: 1px solid #30363d; }
+.bar strong { font-size: 14px; }
+.bar .note { opacity: .7; }
+.bar .dot { width: 8px; height: 8px; border-radius: 50%; background: #e3b341; flex: none; }
+.bar .dot.ok { background: #3fb950; } .bar .dot.err { background: #f85149; }
+.bar a { margin-left: auto; color: #58a6ff; text-decoration: none; }
+iframe { display: block; width: 100%; height: calc(100% - 41px); border: 0; background: #fff; }
+body.embed .bar { display: none; } body.embed iframe { height: 100%; }
+</style>
+</head>
+<body{% if embed %} class="embed"{% endif %}>
+<div class="bar">
+    <span class="dot" id="dot"></span><strong>{{ label }}</strong>
+    <span class="note" id="note">Live in AIO: the app's own build, with every query run against {{ instance }}. Revision {{ revision }}.</span>
+    <a href="{{ url }}" target="_blank" rel="noopener">Open in the org ↗</a>
+</div>
+<!-- allow-scripts without allow-same-origin: the app runs in an opaque origin, as it does in the org -->
+<iframe id="app" sandbox="allow-scripts allow-popups" srcdoc="{{ srcdoc }}"></iframe>
+<script>
+// AIO plays the org's host: hand the app its broker port, run each request it sends through AIO's proxy
+const frame = document.getElementById('app'), dataUrl = {{ data_url|tojson }};
+let pending = 0, failed = 0;
+function status() {
+    const dot = document.getElementById('dot');
+    dot.className = 'dot' + (failed ? ' err' : pending ? '' : ' ok');
+}
+frame.addEventListener('load', () => {
+    const ch = new MessageChannel();
+    ch.port1.onmessage = async e => {
+        const m = e.data || {};
+        if (m.t !== 'data' || typeof m.id !== 'number') return;   // 'size' etc.: the frame fills the window
+        pending++; status();
+        let res;
+        try {
+            const r = await fetch(dataUrl, {method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({method: m.method, url: m.url, body: m.body})});
+            res = await r.json();
+        } catch (err) {
+            res = {status: 502, bodyText: JSON.stringify([{errorCode: 'BROKER_ERROR', message: String(err)}])};
+        }
+        if (res.status >= 400) failed++;
+        pending--; status();
+        ch.port1.postMessage({t: 'data:res', id: m.id, status: res.status, bodyText: res.bodyText});
+    };
+    frame.contentWindow.postMessage({t: 'broker-port'}, '*', [ch.port2]);
+});
+</script>
+</body>
+</html>
