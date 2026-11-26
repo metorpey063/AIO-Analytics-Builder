@@ -4,6 +4,17 @@ All notable changes to AIO Analytics Builder are documented here.
 
 ---
 
+## 2026-11-26 — Pictures of Tableau Next data apps (v2.25.2)
+
+### Added
+- **See a Tableau Next data app on the Data Apps page.** Nothing outside the org can render a Next app, so AIO now takes a picture of it in the org and shows it in step 4, the way Cloud apps already show their rendered view.
+  - AIO signs in through the Salesforce CLI, opens the app and grows the window to the app's full height, so the picture shows the whole page.
+  - Every Next build and chat change takes a fresh picture at the end. **Refresh picture** takes a new one any time (about a minute, read-only).
+  - CLI: `python3 -m dataapps next shot --slug S` (`dataapps/snapshot.py`). Needs Playwright and a Salesforce CLI login for the org.
+  - If the picture fails, the app is still published. The log says why.
+
+---
+
 ## 2026-11-25 — Rev Intel walkthrough screenshots, open an existing data app (v2.25.1)
 
 ### Added

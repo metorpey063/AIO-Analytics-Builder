@@ -600,6 +600,12 @@ def build(profile, sdm, workspace, slug=None, ask="", feedback="", repackage=Fal
     cp["published"] = time.strftime("%Y-%m-%d %H:%M")
     C.save_cp(slug, "next", cp)
     C.step("verify", "done" if found else "app not listed in the workspace yet (it can lag a minute)")
+    try:   # a picture for the Web UI: nothing outside the org can render a Next app
+        C.step("verify", "taking a picture of the app")
+        from dataapps.snapshot import next_snapshot
+        cp["image"] = next_snapshot(slug)
+    except (SystemExit, Exception) as ex:   # the app is live either way
+        print(f"(No picture of the app: {ex})", flush=True)
     print(f"\nRESULT {json.dumps({'slug': slug, 'url': cp['url'], 'app': cp['app_name'], 'revision': cp['revision'], 'summary': app.get('summary', '')})}")
     return cp
 

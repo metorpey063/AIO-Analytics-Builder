@@ -5,6 +5,7 @@
                                    [--slug S] [--ask "what to answer"] [--feedback "what to change"]
     python3 -m dataapps next repackage --slug S     # republish the recorded app as is (newer AIO components)
     python3 -m dataapps next remove --slug S
+    python3 -m dataapps next shot --slug S          # picture of the deployed app (signs in through the sf CLI)
 
     python3 -m dataapps cloud sources --profile <tableau connection>
     python3 -m dataapps cloud build --profile <key> --source <datasource LUID> --dest <project LUID>
@@ -87,6 +88,11 @@ def main(argv):
             engine.build(cp["profile"], cp["datasource_id"], cp["project_id"], slug=a.slug, repackage=True)
         else:
             engine.build(cp["profile"], cp["sdm"], cp["workspace"], slug=a.slug, repackage=True)
+    elif cmd == "shot":
+        if platform != "next" or not a.slug:
+            sys.exit("shot is for Tableau Next apps: dataapps next shot --slug S")
+        from dataapps.snapshot import next_snapshot
+        next_snapshot(a.slug)
     elif cmd == "remove":
         if not a.slug:
             sys.exit("--slug is required")

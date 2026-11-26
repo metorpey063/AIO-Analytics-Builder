@@ -267,9 +267,34 @@ function daShowResult(app) {
     if (a.summary) html += `<p>${esc(a.summary)}</p>`;
     if ((a.findings || []).length) html += '<ul>' + a.findings.map(f => `<li>${esc(f)}</li>`).join('') + '</ul>';
     if (PLATFORM === 'cloud' && app.image) html += `<img src="/api/data-apps/cloud/image/${encodeURIComponent(slug)}?t=${Date.now()}" alt="How the app renders" style="max-width:100%; border:1px solid var(--border); border-radius:8px; margin-top:8px">`;
-    if (PLATFORM === 'next') html += '<p class="form-hint">Open the app in the org to see it: nothing outside the org can render a Tableau Next data app.</p>';
+    if (PLATFORM === 'next') {
+        html += `<p style="display:flex; gap:10px; align-items:center; flex-wrap:wrap"><button class="btn btn-secondary btn-sm" id="da-shot" onclick="daShot()">${app.image ? 'Refresh picture' : 'Take a picture of the app'}</button>
+            <span class="form-hint" id="da-shot-note">${app.image ? 'Picture from the org, taken ' + esc(app.image_at || '') + '. Open the app to click around in it.' : 'Signs in to the org through the Salesforce CLI and captures the whole page (about a minute).'}</span></p>`;
+        if (app.image) html += `<img src="/api/data-apps/next/image/${encodeURIComponent(slug)}?t=${Date.now()}" alt="The data app as it renders in the org" style="max-width:100%; border:1px solid var(--border); border-radius:8px; margin-top:4px">`;
+    }
     $('da-result').innerHTML = html;
     daLoadChat();
+}
+
+// Next: a fresh picture of the deployed app (read-only), then show it
+async function daShot() {
+    $('da-shot').disabled = true;
+    $('da-shot-note').textContent = 'Signing in to the org and capturing the page… about a minute.';
+    const r = await (await fetch(`/api/data-apps/${PLATFORM}/run`, {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'shot', slug})})).json();
+    if (!r.ok) { $('da-shot').disabled = false; $('da-shot-note').textContent = r.error; return; }
+    let since = 0, j = null;
+    while (true) {
+        await new Promise(res => setTimeout(res, 3000));
+        j = await (await fetch(`/api/data-apps/job/${r.job_id}?since=${since}`)).json();
+        if (!j.ok) break;
+        since = j.next;
+        if (j.state !== 'running') break;
+    }
+    if (j && j.ok && j.state === 'done' && j.app) { current = j.app; daShowResult(j.app); return; }
+    $('da-shot').disabled = false;
+    const last = (j && j.lines || []).filter(l => l.trim()).pop() || 'see the server log';
+    $('da-shot-note').innerHTML = `<span style="color:var(--red)">No picture: ${esc(last)}</span>`;
 }
 
 let STEPS_NOW = STEPS;

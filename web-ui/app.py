@@ -1829,13 +1829,13 @@ def data_apps_embed_setup(platform):
 
 @app.route("/api/data-apps/<platform>/image/<slug>")
 def data_apps_image(platform, slug):
-    """The rendered view of a published Cloud app (saved by the build's verify step)."""
+    """The picture of a published app: Cloud's rendered view, or Next's screenshot from the org."""
     from dataapps import common as DA
     cp = DA.load_cp(slug, platform)
     path = cp.get("image") or ""
     if not path or not os.path.exists(path) or not os.path.abspath(path).startswith(str(PROJECT_ROOT / "demos")):
         return "", 404
-    return send_file(path, mimetype="image/png", max_age=0)
+    return send_file(path, mimetype="image/jpeg" if path.endswith(".jpg") else "image/png", max_age=0)
 
 
 @app.route("/api/data-apps/<platform>/run", methods=["POST"])
@@ -1846,9 +1846,9 @@ def data_apps_run(platform):
         return jsonify({"ok": False, "error": "Unknown platform"}), 404
     data = request.get_json() or {}
     action = data.get("action")
-    if action not in ("build", "remove", "plan", "describe"):
+    if action not in ("build", "remove", "plan", "describe", "shot"):
         return jsonify({"ok": False, "error": f"Unknown action {action!r}"}), 400
-    if action != "plan" and not data.get("confirmed"):
+    if action not in ("plan", "shot") and not data.get("confirmed"):
         return jsonify({"ok": False, "error": "This writes to the org — confirm first."}), 400
     slug = DA.slugify(data.get("slug") or "") if data.get("slug") else ""
     if action in ("plan", "describe"):
@@ -1876,6 +1876,10 @@ def data_apps_run(platform):
             cmd += ["--ask", data["ask"].strip()[:4000]]
         if (data.get("feedback") or "").strip():
             cmd += ["--feedback", data["feedback"].strip()[:4000]]
+    elif action == "shot":   # read-only: a fresh picture of the deployed Next app
+        if platform != "next" or not slug:
+            return jsonify({"ok": False, "error": "Pictures are for Tableau Next apps."}), 400
+        cmd = [sys.executable, "-u", "-m", "dataapps", "next", "shot", "--slug", slug]
     else:
         if not slug:
             return jsonify({"ok": False, "error": "No app to remove."}), 400
